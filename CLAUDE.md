@@ -2,6 +2,8 @@
 
 Browser, TypeScript, Rapier 2D (WASM, deterministic), PixiJS, Vite. See `docs/design/` for the design and `docs/handoff-2026-09-22.md` for the original vision.
 
+Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`.
+
 ## Working with Logan (read this first)
 
 - Logan is a CS student and software engineer. This is a personal side project pushed far with AI while Logan spends little time. Fun sandbox, not a product.
