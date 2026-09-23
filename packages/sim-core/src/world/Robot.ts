@@ -12,6 +12,8 @@ export interface PartInstance {
   rot: Rotation;
   tags: string[];
   health: number;
+  /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
+  stored?: number;
   /** Index of the body group that owns this part. */
   group: number;
   /** Offset of this part's cell from its group's origin cell, in meters (body frame). */

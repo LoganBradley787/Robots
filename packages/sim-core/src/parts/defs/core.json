@@ -19,6 +19,7 @@
     { "name": "energyCapacity", "min": 0, "max": 1000000, "default": 0 }
   ],
   "powerDraw": 0,
+  "resource": { "kind": "energy", "capacity": 600 },
   "role": "core",
   "behavior": "core",
   "sprite": { "frame": "part.core" }

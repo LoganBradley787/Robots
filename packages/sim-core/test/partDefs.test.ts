@@ -54,7 +54,8 @@ describe('default part defs', () => {
   });
 
   it('the battery holds energy', () => {
-    expect(defaultRegistry().get('battery').resource).toEqual({ kind: 'energy', capacity: 600 });
+    expect(defaultRegistry().get('battery').resource).toEqual({ kind: 'energy', capacity: 1500 });
+    expect(defaultRegistry().get('core').resource).toEqual({ kind: 'energy', capacity: 600 });
   });
 });
 

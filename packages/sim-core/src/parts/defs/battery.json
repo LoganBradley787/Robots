@@ -9,6 +9,6 @@
   "outputs": [{ "name": "charge", "min": 0, "max": 1, "default": 1 }],
   "powerDraw": 0,
   "behavior": "battery",
-  "resource": { "kind": "energy", "capacity": 600 },
+  "resource": { "kind": "energy", "capacity": 1500 },
   "sprite": { "frame": "part.battery" }
 }

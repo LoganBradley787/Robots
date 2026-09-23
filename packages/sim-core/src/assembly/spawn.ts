@@ -57,7 +57,9 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
           physics.addCollider(bodyId, { shape: 'box', hx: 0.5, hy: 0.5 }, { offsetX, offsetY, mass: cellMass, friction: def.collider?.friction ?? PART_FRICTION }, id);
         }
       }
-      parts.set(id, { id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: g.index, localX: p.x - origin.x, localY: p.y - origin.y });
+      const inst: PartInstance = { id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: g.index, localX: p.x - origin.x, localY: p.y - origin.y };
+      if (def.resource) inst.stored = def.resource.capacity;
+      parts.set(id, inst);
     }
     groups.push({ index: g.index, bodyId, originId: g.originId, partIds: [...g.partIds] });
   }
