@@ -32,6 +32,11 @@ From Logan's first play session, 2026-09-23. Overall: "A couple minor issues, bu
 - Measured: at 12 N m that car did 0.8 m/s after 1 s and 4.5 m/s after 6 s. At 20 N m: 2.3 m/s after 1 s, 11 m/s after 6 s. More than about 20 only spins the wheel.
 - Changed: wheel torque 20 N m, motor gain 0.6. The normal car now reaches 6 m/s in about 1 s (was 1.6 s). Weight still matters: double the mass takes 1.8 s.
 
+## 7. Tires feel slippery (done)
+- Logan: "the wheels do feel a little slippery for being rubber tires."
+- Measured: acceleration barely slips, but braking with the opposite key skidded the wheels at up to 8.3 m/s. The tire grip was effectively 0.75, because Rapier averages the wheel's 1.0 with the ground's 0.5.
+- Changed: wheel friction 1.5, effectively 1.0 on ground (rubber on pavement). The braking skid is now 1 m/s, and stops from 16 m/s take 2.4 s instead of 2.6 s.
+
 ## Noted, not changed
 - Driving mechanics: fine as they are. Retuned after the joint change to keep the same feel (`11`).
 - Thrusters and propellers have no top speed (no air drag), so a propeller car keeps accelerating. Flag for Gate 4 or later.

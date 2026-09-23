@@ -31,7 +31,7 @@ What that becomes:
 - All numbers live in the part defs, so tuning never touches engine code.
 
 ### Tuned numbers (Gate 3, after the switch to multibody joints and Logan's "the torque is too low", `pnpm sim tune`, flat ground, D held)
-Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), `maxSpeed` 50 rad/s (22.5 m/s at the rim), `coastTorque` 0.3 N m. Thruster `maxForce` 120 N, propeller 60 N. Part cells without their own friction slide at 0.3.
+Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), `maxSpeed` 50 rad/s (22.5 m/s at the rim), `coastTorque` 0.3 N m. Thruster `maxForce` 120 N, propeller 60 N. Part cells without their own friction slide at 0.3. Wheel friction 1.5, which Rapier averages with the ground's 0.5 to 1.0, rubber on pavement (Logan: "a little slippery for being rubber tires"; at 0.75 the wheels skidded at 8 m/s when braking with the opposite key, now 1 m/s).
 
 | robot | mass | 1.5 s | 4 s | 8 s | to 6 m/s |
 |---|---|---|---|---|---|
