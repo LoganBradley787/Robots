@@ -17,7 +17,7 @@ import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
 import { KeyboardSource } from '../control/KeyboardSource';
 import { isClick, nextRobot } from '../control/possession';
-import { AUTO_KEYS, buildReplay, type ReplayFile } from '@robots/sim-core';
+import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the toolbar below)';
 
@@ -39,7 +39,15 @@ export interface WorldView {
   follow: boolean;
   robots: number;
   /** The robot under your control, its keys, and its energy (whole units), or undefined. */
-  controlled?: { name: string; keys: KeyView[]; energy?: { percent: number; capacity: number } };
+  controlled?: {
+    name: string;
+    keys: KeyView[];
+    energy?: { percent: number; capacity: number };
+    /** The robot's scripts: running, off, or stopped with an error. */
+    scripts: { id: string; state: 'on' | 'off' | 'crashed'; error?: string }[];
+    /** Its latest `log()` lines, oldest first. */
+    logs: string[];
+  };
   unlimitedEnergy: boolean;
 }
 
@@ -104,13 +112,15 @@ export class WorldScreen {
     );
   }
 
-  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[]): void }): Promise<WorldScreen> {
-    return new WorldScreen(renderer, textures, file, await World.create({ seed: 1 }, file), hud);
+  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[]): void }, scripts: ScriptHost): Promise<WorldScreen> {
+    const screen = new WorldScreen(renderer, textures, file, await World.create({ seed: 1, scripts }, file), hud);
+    screen.scriptHost = scripts;
+    return screen;
   }
 
   /** Terrain only, no robots. Keeps the camera and time settings. */
   async reset(): Promise<void> {
-    const next = await World.create({ seed: 1 }, this.file);
+    const next = await World.create({ seed: 1, ...(this.scriptHost ? { scripts: this.scriptHost } : {}) }, this.file);
     this.world.dispose();
     this.world = next;
     for (const v of this.views) v.root.destroy({ children: true });
@@ -148,6 +158,8 @@ export class WorldScreen {
     this.focusId = undefined;
     this.cam = { ...createCamera(this.file.spawn.x, this.file.spawn.y - 3), zoom: this.cam.zoom };
   }
+
+  private scriptHost: ScriptHost | undefined;
 
   /** Survives Clear robots: the new world starts with the same switch. */
   private unlimitedWanted = false;
@@ -320,10 +332,16 @@ export class WorldScreen {
       const ev = this.world.events[this.eventCursor];
       const who = this.world.robots.find((r) => r.id === ev?.robot);
       if (ev?.kind === 'energyEmpty' && who) this.onNotice?.(`${who.name} ran out of energy`);
+      if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
     }
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
     if (controlled && controller) {
-      const toggles = new Set(controller.toggleKeys);
+      // A key bound to a script is a toggle too, lit while any of its scripts runs.
+      const scripts = this.world.scripts(controlled.id);
+      const scriptKeys = new Map<string, string[]>();
+      for (const b of controlled.blueprint.bindings) if (b.mode === 'script' && b.script !== undefined) scriptKeys.set(b.key, [...(scriptKeys.get(b.key) ?? []), b.script]);
+      const toggles = new Set([...controller.toggleKeys, ...scriptKeys.keys()]);
+      const scriptOn = (key: string): boolean => (scriptKeys.get(key) ?? []).some((id) => scripts.find((s) => s.id === id)?.enabled === true);
       // Auto control keys first (Q W E A S D), then custom keys in binding order.
       const rank = (k: string): number => (AUTO_KEYS.includes(k) ? AUTO_KEYS.indexOf(k) : AUTO_KEYS.length);
       const keys = controller.keys.map((key, i) => ({ key, i })).sort((a, b) => rank(a.key) - rank(b.key) || a.i - b.i);
@@ -332,11 +350,16 @@ export class WorldScreen {
         name: controlled.name,
         // Whole percent only: the view is compared every frame, and a finer number would re-render the UI every tick.
         ...(e ? { energy: { percent: e.capacity > 0 ? Math.ceil((100 * e.stored) / e.capacity) : 0, capacity: e.capacity } } : {}),
+        scripts: scripts.map((s) => ({ id: s.id, state: s.enabled ? 'on' : s.crashed ? 'crashed' : 'off', ...(s.crashed ? { error: s.crashed.message } : {}) })),
+        logs: this.world.scriptLogs
+          .filter((l) => l.robot === controlled.id)
+          .slice(-5)
+          .map((l) => `${l.script}: ${l.text}`),
         keys: keys.map(({ key }) => ({
           key,
           // Lit as soon as it is pressed, even while paused; the sim catches up on the next tick.
           held: controller.isHeld(key) || this.keys.isDown(key),
-          on: controller.isToggledOn(key),
+          on: controller.isToggledOn(key) || scriptOn(key),
           toggle: toggles.has(key),
         })),
       };

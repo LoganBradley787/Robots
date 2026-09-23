@@ -20,7 +20,7 @@
 #ui button.primary { background: var(--primary); border-color: #5b9bff; color: white; }
 #ui button.primary:hover { background: #4b8ff8; }
 #ui button.danger { background: #7a2a2a; border-color: #a33; }
-#ui select, #ui input {
+#ui select, #ui input, #ui textarea {
   background: #0d182e; color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 4px 8px; font: inherit;
 }
 .muted { color: var(--muted); }
@@ -136,3 +136,25 @@ kbd { font: 10px ui-monospace, Menlo, monospace; padding: 0 4px; border: 1px sol
 .energy-fill.low { background: linear-gradient(90deg, #c94b4b, #ff8a6a); }
 .energy-fill.unlimited { background: repeating-linear-gradient(45deg, #3fae5a 0 6px, #6fe39a 6px 12px); }
 .energy-text { font: 11px ui-monospace, Menlo, monospace; color: var(--muted); min-width: 56px; }
+
+/* Scripts (builder). */
+.script-row { display: grid; grid-template-columns: 1fr auto auto 22px; gap: 6px; align-items: center; padding: 6px; margin-bottom: 6px; border-radius: 6px; background: #101d38; }
+.script-row .script-id { min-width: 0; font: 12px ui-monospace, Menlo, monospace; padding: 3px 6px; }
+.script-row .script-file { grid-column: 1 / -1; }
+.check.inline { margin: 0; align-items: center; font-size: 12px; }
+.script-editor { position: absolute; top: 56px; left: 116px; right: 324px; bottom: 44px; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #0c1629; border: 1px solid var(--panel-border); border-radius: 10px; z-index: 15; }
+.script-editor-head { display: flex; align-items: center; gap: 10px; }
+.script-editor-head .spacer { flex: 1; }
+#ui .script-code { flex: 1; resize: none; outline: none; color: #dfe7f5; font: 13px/1.5 ui-monospace, Menlo, monospace; tab-size: 2; background: #081120; padding: 10px 12px; white-space: pre; }
+.script-status .ok { color: #6fe39a; }
+.script-params { display: flex; flex-wrap: wrap; gap: 10px; }
+.script-params .field { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.script-params input { width: 80px; }
+
+/* Script status and log (world). */
+.script-log { position: absolute; left: 12px; bottom: 64px; max-width: 420px; padding: 6px 10px; font: 11px/1.5 ui-monospace, Menlo, monospace; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px; }
+.script-state .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3a4f7d; margin-right: 2px; }
+.script-state.on .dot { background: #6fe39a; }
+.script-state.crashed { color: #ff9a8a; }
+.script-state.crashed .dot { background: #ff5c5c; }
+.log-line { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }

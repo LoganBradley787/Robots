@@ -56,4 +56,6 @@ export interface AppState {
   icons: Record<string, string>;
   /** What the world toolbar shows; absent until the world has drawn a frame. */
   world?: WorldView;
+  /** The script open in the builder's code editor, by id. */
+  scriptEditor?: string;
 }

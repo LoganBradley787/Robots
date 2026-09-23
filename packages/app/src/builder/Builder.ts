@@ -48,6 +48,15 @@ export class Builder {
     this.refresh(true);
   }
 
+  /** Text typed in the script editor coalesces into one undo step until the editor loses focus. */
+  beginTextEdit(): void {
+    this.history.beginGesture();
+  }
+
+  endTextEdit(): void {
+    this.history.endGesture();
+  }
+
   select(ids: string[]): void {
     this.editor = { ...this.editor, selection: ids };
     this.refresh(false);

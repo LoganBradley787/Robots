@@ -1,7 +1,9 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, setAutoControls, setBindings, setPartsAuto, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Blueprint } from '@robots/sim-core';
+import { addTagToParts, createQuickJsHost, setAutoControls, setBindings, setPartsAuto, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Blueprint } from '@robots/sim-core';
 import './ui/styles.css';
+import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
+import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
 import flatJson from '../../../worlds/flat.json';
 import { Renderer } from './render/Renderer';
 import { loadTextures } from './render/assets';
@@ -30,7 +32,9 @@ async function boot(): Promise<void> {
   await renderer.init(root);
   const textures = await loadTextures();
   const hud = new Hud(hudEl);
-  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(flatJson), hud);
+  // The script sandbox (QuickJS in WASM, the browser build of the same engine the CLI uses).
+  const scriptHost = await createQuickJsHost(quickjsBrowser);
+  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(flatJson), hud, scriptHost);
 
   const registry = defaultRegistry();
   const blank = blankBlueprint('untitled');
@@ -150,6 +154,53 @@ async function boot(): Promise<void> {
     setAutoControls: (on) => builder.edit((bp) => setAutoControls(bp, on)),
     closeMenu: () => builder.dispatch({ type: 'closeMenu' }),
     eraser: () => builder.dispatch({ type: 'eraser' }),
+    addScript: () => {
+      const r = addScript(builder.draft);
+      builder.edit(() => r.bp);
+      store.set({ scriptEditor: r.id });
+    },
+    removeScript: (id) => {
+      void ask(store, {
+        title: 'Remove script?',
+        message: `Removes "${id}" and the keys that toggle it from this blueprint. Its file stays in blueprints/ until you delete it.`,
+        buttons: [
+          { label: 'Cancel', value: 'no' },
+          { label: 'Remove', value: 'yes', kind: 'danger' },
+        ],
+        cancelValue: 'no',
+      }).then((a) => {
+        if (a.value !== 'yes') return;
+        builder.edit((bp) => removeScript(bp, id));
+        if (store.get().scriptEditor === id) store.set({ scriptEditor: undefined });
+      });
+    },
+    renameScript: (from, to) => {
+      builder.edit((bp) => renameScript(bp, from, to));
+      const renamed = cleanScriptId(to);
+      if (store.get().scriptEditor === from && builder.draft.scripts.some((x) => x.id === renamed)) store.set({ scriptEditor: renamed });
+    },
+    setScriptEnabled: (id, on) => builder.edit((bp) => updateScript(bp, id, { enabled: on })),
+    openScript: (id) => store.set({ scriptEditor: id }),
+    closeScript: () => store.set({ scriptEditor: undefined }),
+    setScriptSource: (id, source) => builder.edit((bp) => updateScript(bp, id, { source })),
+    setScriptParam: (id, name, value) =>
+      builder.edit((bp) => {
+        const s = bp.scripts.find((x) => x.id === id);
+        if (!s) return bp;
+        const params = { ...s.params };
+        if (value === undefined) delete params[name];
+        else params[name] = value;
+        return updateScript(bp, id, { params });
+      }),
+    checkScript: (source, name) => {
+      const r = scriptHost.compile(source, { name, seed: 0 });
+      if (!r.ok) return r;
+      const params = { ...r.instance.params };
+      r.instance.dispose();
+      return { ok: true, params };
+    },
+    beginTextEdit: () => builder.beginTextEdit(),
+    endTextEdit: () => builder.endTextEdit(),
     robotKeyDown: (key) => worldScreen.keys.down('mouse', key),
     robotKeyUp: (key) => worldScreen.keys.up('mouse', key),
     rotate: (dir) => builder.dispatch({ type: 'rotate', dir }),

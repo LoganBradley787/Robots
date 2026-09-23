@@ -8,8 +8,11 @@ import { PartMenu, type PartMenuActions } from './PartMenu';
 import { BindingsPanel, type BindingActions } from './BindingsPanel';
 import { WorldToolbar, type WorldActions } from './WorldToolbar';
 import { KeysBar, type KeysBarActions } from './KeysBar';
+import { ScriptsPanel, type ScriptActions } from './ScriptsPanel';
+import { ScriptLog } from './ScriptLog';
+import { ScriptEditor, type ScriptEditorActions } from './ScriptEditor';
 
-export type AppActions = BuilderActions & PartMenuActions & BindingActions & WorldActions & KeysBarActions;
+export type AppActions = BuilderActions & PartMenuActions & BindingActions & WorldActions & KeysBarActions & ScriptActions & ScriptEditorActions;
 
 export function App({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
   const defs: PartDef[] = registry.list();
@@ -24,14 +27,17 @@ export function App({ store, registry, actions }: { store: Store<AppState>; regi
           <Palette store={store} defs={defs} actions={actions} />
           <div class="side panel">
             <BindingsPanel store={store} registry={registry} actions={actions} />
+            <ScriptsPanel store={store} actions={actions} />
             <IssuesPanel store={store} actions={actions} />
           </div>
           <PartMenu store={store} registry={registry} actions={actions} />
+          <ScriptEditor store={store} actions={actions} />
           <StatsBadge store={store} />
           <BuilderHelp />
         </>
       ) : (
         <>
+          <ScriptLog store={store} />
           <KeysBar store={store} actions={actions} />
           <WorldToolbar store={store} actions={actions} />
         </>

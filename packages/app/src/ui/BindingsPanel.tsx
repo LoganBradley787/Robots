@@ -11,7 +11,7 @@ export interface BindingActions {
   setAutoControls(on: boolean): void;
 }
 
-const MODES: BindingMode[] = ['hold', 'toggle', 'pulse'];
+const MODES: BindingMode[] = ['hold', 'toggle', 'pulse', 'script'];
 
 export function BindingsPanel({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: BindingActions }) {
   const draft = useStore(store, (s) => s.builder.draft);
@@ -52,7 +52,16 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
       {bindings.map((b, i) => {
         const channels = channelsForTarget(draft, registry, b.target ?? '');
         const ch = channels.find((c) => c.name === b.channel);
-        if (b.mode === 'script') return null;
+        const setMode = (mode: BindingMode): void => {
+          if (mode === b.mode) return;
+          if (mode === 'script') {
+            actions.setBindings(bindings.map((x, n) => (n === i ? { key: x.key, mode, script: draft.scripts[0]?.id ?? '' } : x)));
+            return;
+          }
+          const d = defaultBinding(draft, registry);
+          const base = b.mode === 'script' ? { key: b.key, mode, target: d.target, channel: d.channel, value: d.value } : { ...b, mode };
+          actions.setBindings(bindings.map((x, n) => (n === i ? base : x)));
+        };
         return (
           <div class="binding" key={i}>
             <input
@@ -73,65 +82,80 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
                 (e.target as HTMLInputElement).blur();
               }}
             />
-            <select class="mode" value={b.mode} onChange={(e) => update(i, { mode: (e.target as HTMLSelectElement).value as BindingMode })}>
+            <select class="mode" value={b.mode} onChange={(e) => setMode((e.target as HTMLSelectElement).value as BindingMode)}>
               {MODES.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
               ))}
             </select>
-            <select class="target" value={b.target} onChange={(e) => retarget(i, (e.target as HTMLSelectElement).value)}>
-              {b.target !== undefined && !known.includes(b.target) && <option value={b.target}>{b.target} (missing)</option>}
-              {targets.types.length > 0 && (
-                <optgroup label="Part types">
-                  {targets.types.map((t) => (
-                    <option key={t} value={t}>
-                      {typeLabel(registry, t)}
+            {b.mode === 'script' ? (
+              <select class="target script-target" value={b.script} title="the script this key turns on and off" onChange={(e) => update(i, { script: (e.target as HTMLSelectElement).value })}>
+                {draft.scripts.length === 0 && <option value="">(add a script first)</option>}
+                {draft.scripts.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    script {s.id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <select class="target" value={b.target} onChange={(e) => retarget(i, (e.target as HTMLSelectElement).value)}>
+                {b.target !== undefined && !known.includes(b.target) && <option value={b.target}>{b.target} (missing)</option>}
+                {targets.types.length > 0 && (
+                  <optgroup label="Part types">
+                    {targets.types.map((t) => (
+                      <option key={t} value={t}>
+                        {typeLabel(registry, t)}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {targets.tags.length > 0 && (
+                  <optgroup label="Tags">
+                    {targets.tags.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {targets.parts.length > 0 && (
+                  <optgroup label="Single parts">
+                    {targets.parts.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            )}
+            {b.mode !== 'script' && (
+              <>
+                <select class="channel" value={b.channel} onChange={(e) => update(i, { channel: (e.target as HTMLSelectElement).value })}>
+                  {channels.length === 0 && <option value={b.channel}>{b.channel || '(no channels)'}</option>}
+                  {channels.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name}
                     </option>
                   ))}
-                </optgroup>
-              )}
-              {targets.tags.length > 0 && (
-                <optgroup label="Tags">
-                  {targets.tags.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-              {targets.parts.length > 0 && (
-                <optgroup label="Single parts">
-                  {targets.parts.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            <select class="channel" value={b.channel} onChange={(e) => update(i, { channel: (e.target as HTMLSelectElement).value })}>
-              {channels.length === 0 && <option value={b.channel}>{b.channel || '(no channels)'}</option>}
-              {channels.map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <input
-              class="value"
-              type="number"
-              step="10"
-              min={ch ? ch.min * 100 : undefined}
-              max={ch ? ch.max * 100 : undefined}
-              value={Math.round((b.value ?? 0) * 100)}
-              title={ch ? `${percent(ch.min)} to ${percent(ch.max)}: +100% is full forward or full throttle` : ''}
-              onChange={(e) => {
-                const v = Number((e.target as HTMLInputElement).value) / 100;
-                if (Number.isFinite(v)) update(i, { value: ch ? Math.min(ch.max, Math.max(ch.min, v)) : v });
-              }}
-            />
-            <span class="unit">%</span>
+                </select>
+                <input
+                  class="value"
+                  type="number"
+                  step="10"
+                  min={ch ? ch.min * 100 : undefined}
+                  max={ch ? ch.max * 100 : undefined}
+                  value={Math.round((b.value ?? 0) * 100)}
+                  title={ch ? `${percent(ch.min)} to ${percent(ch.max)}: +100% is full forward or full throttle` : ''}
+                  onChange={(e) => {
+                    const v = Number((e.target as HTMLInputElement).value) / 100;
+                    if (Number.isFinite(v)) update(i, { value: ch ? Math.min(ch.max, Math.max(ch.min, v)) : v });
+                  }}
+                />
+                <span class="unit">%</span>
+              </>
+            )}
             <button class="tag-remove remove" aria-label="remove binding" onClick={() => actions.setBindings(bindings.filter((_, n) => n !== i))}>
               ×
             </button>
