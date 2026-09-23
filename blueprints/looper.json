@@ -1,0 +1,6 @@
+{
+  "format": 1,
+  "name": "looper",
+  "grid": ["F  C  F", "W  .  W"],
+  "scripts": [{ "id": "loop", "source": { "file": "looper.loop.js" } }]
+}

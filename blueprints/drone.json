@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "drone",
+  "grid": [
+    "p  p  G  p  p",
+    "F  F  C  F  F",
+    ".  .  B  .  ."
+  ],
+  "legend": {
+    "p": { "part": "propeller", "auto": false }
+  },
+  "bindings": [
+    { "key": "h", "mode": "script", "script": "hover" }
+  ],
+  "scripts": [
+    { "id": "hover", "source": { "file": "drone.hover.js" } }
+  ]
+}
