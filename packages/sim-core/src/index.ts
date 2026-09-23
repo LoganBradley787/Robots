@@ -6,3 +6,7 @@ export { PhysicsWorld } from './physics/PhysicsWorld';
 export type { BodyId, BodyState, DebugBuffers } from './physics/PhysicsWorld';
 export { parseWorldFile, buildWorld, WorldFileError } from './world/WorldFile';
 export type { WorldFile, WorldBox } from './world/WorldFile';
+export { InputLog } from './replay/InputLog';
+export type { InputFrame, LoggedTick } from './replay/InputLog';
+export { World } from './world/World';
+export type { WorldOptions } from './world/World';
