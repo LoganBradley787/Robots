@@ -9,7 +9,8 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
   - Unlimited energy switch (world toolbar), logged and hashed so replays match; `energyEmpty` events with a notice in the app.
   - `charge`, `energy`, `energyCapacity` outputs for M5 scripts; builder stats show energy and full draw; CLI reports energy and takes `--unlimited`; `tune` prints battery life.
   - Review fixes: no "ran out" event for a robot that never held energy; the world view carries whole percent so the UI does not re-render every tick; tune groups draw by behavior; a non-finite load never reaches a pool.
-- Next: **plan M5 (scripting).** Ask Logan the M5 taste questions (see `04` script API, `07` Q10 and Q12). Also raise air drag: with long battery life a hopper holding W for its whole 53 s climbs about 20 km at 450 m/s, since nothing slows robots in the air (see `docs/ideas.md`). Then build M5 and stop at Gate 4 (power and scripts).
+- In progress: **M5 planning.** Logan answered (2026-09-23): air drag yes; scripts in separate `.js` files; everything edited in the builder (no live sliders); each script says whether it starts on deploy. Recorded in `04`. Plan `docs/plans/M5-scripting.md` waits for Logan's go.
+- Next: on Logan's go, build all of M5 and stop at Gate 4 (power and scripts).
 - Behavior change nobody signed off: a gyro on a robot with no core and no battery used to damp spin for free; now it has no energy and does nothing. Consistent with "no energy, no action"; mention at Gate 4.
 
 ## How Logan works (read before asking anything)

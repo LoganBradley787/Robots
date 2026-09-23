@@ -139,3 +139,9 @@ interface ParamSpec { default: number; min?: number; max?: number; step?: number
 - `ScriptInput` is built once per chunk per tick and written into a persistent `api` handle inside the VM; `state` never crosses the boundary except through `getState()`.
 - Any crash disposes the runtime. Re-enabling recompiles from source and restores params.
 - `ScriptError.kind` is uniform across backends so the UI, replay log, and later fitness code never learn which backend crashed a robot.
+
+## Decisions with Logan before M5 (2026-09-23)
+- **Scripts are separate `.js` files** next to the blueprint (`blueprints/hopper.hover.js`), referenced from its `scripts` list. Readable in an editor and in git diffs, and Claude reads and writes them directly. The builder edits the same files. Deploys and replays carry the source inline so a rerun never depends on files that changed since.
+- **Everything is edited in the builder**: code and params. No live sliders in the world. Logan: a hover is not a tuned constant but a feedback rule on exact data ("if velocity y is positive, thrust down... because we can just KNOW the position and velocity"). `param()` stays in the API; params are number fields in the builder.
+- **Each script says whether it starts on deploy** (`enabled`, default on). A `script` binding toggles it with a key (for example H), shown on the keys bar.
+- **Air drag arrives with M5**: without it a hopper that holds W for its whole battery climbs about 20 km at 450 m/s, and a hover script has nothing to settle against.
