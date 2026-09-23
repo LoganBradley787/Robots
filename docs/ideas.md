@@ -12,3 +12,8 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - Missiles need some way to regenerate, or enemies run dry after one volley.
 - A game layer: building parts costs electricity, solar panels and generators produce it, materials to find, territory to take for solar farms that enemies can spot and bomb.
 - Recharging (solar, generators) comes later, as parts that produce energy.
+
+## From Gate 4 (2026-09-23)
+- Hover relative to the ground, not a fixed height: an altimeter or downward rangefinder sensor part (Q2 sensor parts).
+- Enemy drones that stay up: upgraded batteries, solar panels, or recharging, so a preset enemy does not fall out of the air after 2 minutes.
+- Scripts that track the player: `world.robots()` in the script API, then weapons (cannons, dive bombing).

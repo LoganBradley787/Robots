@@ -11,7 +11,11 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
   - Builder: Scripts panel, code editor with a live compile check and params, `script` mode in Controls. World: script keys lit while running, a status and log panel.
   - Examples: `drone` (hover script: holds height, W and S move it, A and D lean, H toggles) and `looper` (an endless loop, contained).
   - Review fixes: the sandbox cannot be broken from inside a script (closure-held internals, shape-checked output, guarded disposal), scripts never share a file, the editor never shows another script's check, Save keeps edits made while saving.
-- Next: **Gate 4.** Logan runs `pnpm dev` and plays. Then `docs/critique/gate-4.md`, fixes, and plan M6 (destruction).
+- Gate 4 feedback received 2026-09-23 (Logan's first session; positive: "this is promising"). Punch list `docs/critique/gate-4.md` has 4 open items. Logan saved `blueprints/weird-thing.json`.
+- Next (after a context compaction, start here):
+  1. Work the Gate 4 punch list: (1) plain-words crash notice and the looper's purpose; (2) mark decoupler and warhead as "does nothing until M6" in the builder; (3) ask Logan whether `showcase` should be made to fly (recommended) or labeled look-only; (4) look at `blueprints/weird-thing.json` to see his propeller stacking and ask whether it is an exploit before changing anything.
+  2. Ask Logan to confirm Gate 4 is closed.
+  3. Plan M6 (destruction) the usual way: read `03` and `06` M6, ask Logan a few taste questions (AskUserQuestion, recommendation first), write `docs/plans/M6-destruction.md`, get a go, build it all, stop at Gate 5. Logan's M6 wishes so far: decouplers and warheads must actually work; battery blocks become targets (shoot the batteries and a flier must land).
 
 ## Gate 4: what to try (for Logan)
 - Deploy `hopper`: the energy bar on the keys bar drains while you thrust; at 4x speed it runs dry (notice) and drops. Toggle Unlimited energy on the toolbar.
