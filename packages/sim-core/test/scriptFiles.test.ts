@@ -44,3 +44,24 @@ describe('script files', () => {
     expect(path.issues.find((i) => i.code === 'BAD_SCRIPT')?.message).toContain("must be a plain name");
   });
 });
+
+describe('script files do not collide (M5 review)', () => {
+  it('a new script never takes a file another script uses, and unloaded scripts keep theirs on Save As', () => {
+    const bp = expandBlueprint({
+      format: 1,
+      name: 'd',
+      grid: ['C'],
+      scripts: [
+        { id: 'old', source: 'a', file: 'drone.hover.js' },
+        { id: 'hover', source: 'b' },
+        { id: 'lost', source: { file: 'drone.lost.js' } },
+      ],
+    }).blueprint as Blueprint;
+    const saved = assignScriptFiles(bp, 'drone.json', true);
+    expect(saved.scripts.map((s) => s.file)).toEqual(['drone.hover.js', 'drone.hover-2.js', 'drone.lost.js']);
+    const copy = assignScriptFiles(saved, 'copy.json', false);
+    expect(copy.scripts.map((s) => s.file)).toEqual(['copy.old.js', 'copy.hover.js', 'drone.lost.js']);
+    const shared = validateBlueprint({ format: 1, name: 'd', grid: ['C'], scripts: [{ id: 'a', source: 'x', file: 'same.js' }, { id: 'b', source: 'y', file: 'same.js' }] }, reg);
+    expect(shared.issues.find((i) => i.code === 'BAD_SCRIPT')?.message).toContain("two scripts use the file 'same.js'");
+  });
+});

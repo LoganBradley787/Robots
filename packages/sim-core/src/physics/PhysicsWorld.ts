@@ -277,7 +277,8 @@ export class PhysicsWorld {
       const b = this.body(id);
       if (b.isSleeping()) continue;
       const v = b.linvel();
-      const speed = Math.hypot(v.x, v.y);
+      // sqrt, not hypot: the spec lets engines approximate hypot, and this feeds forces every tick.
+      const speed = Math.sqrt(v.x * v.x + v.y * v.y);
       const w = b.angvel();
       if (speed === 0 && w === 0) continue;
       b.addForce({ x: -AIR_DRAG * cells * speed * v.x, y: -AIR_DRAG * cells * speed * v.y }, false);

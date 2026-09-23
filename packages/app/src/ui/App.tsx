@@ -31,7 +31,7 @@ export function App({ store, registry, actions }: { store: Store<AppState>; regi
             <IssuesPanel store={store} actions={actions} />
           </div>
           <PartMenu store={store} registry={registry} actions={actions} />
-          <ScriptEditor store={store} actions={actions} />
+          <ScriptEditorHost store={store} actions={actions} />
           <StatsBadge store={store} />
           <BuilderHelp />
         </>
@@ -46,4 +46,10 @@ export function App({ store, registry, actions }: { store: Store<AppState>; regi
       {dialog && <Dialog dialog={dialog} />}
     </>
   );
+}
+
+/** Remounts the editor per script, so a check or params from the last script never show on the next. */
+function ScriptEditorHost({ store, actions }: { store: Store<AppState>; actions: AppActions }) {
+  const id = useStore(store, (s) => s.scriptEditor);
+  return id ? <ScriptEditor key={id} store={store} actions={actions} /> : null;
 }

@@ -1,11 +1,21 @@
 /**
- * Evaluated in every script context before the user's code (`04`, Script API). Sets up the API as plain globals and
- * replaces the only nondeterministic built-ins: `Math.random` becomes a seeded sfc32, and `Date` is not created at
- * all (the context has no Date intrinsic). `__seed` and `__params` are defined by the host just before this runs.
+ * Evaluated in every script context before the user's code (`04`, Script API). Everything the host relies on lives
+ * in a closure the script cannot reach: the write and log buffers, the param specs, and the `JSON` functions,
+ * captured before any user code runs. The expression's value is the host's entry object, which the host keeps a
+ * handle to, so reassigning globals (`__tick = 5`, `JSON.stringify = ...`) can only break the script itself.
+ * `Math.random` becomes a seeded sfc32 and cannot be redefined; `Date` is not created (no Date intrinsic).
+ * `__seed` and `__params` are defined by the host just before this runs and are read once here.
  */
 export const PRELUDE = String.raw`
-(function () {
-  var s = __seed.slice();
+(function (seed, given) {
+  var stringify = JSON.stringify;
+  var parse = JSON.parse;
+  var hasOwn = Object.prototype.hasOwnProperty;
+  var writes = [];
+  var logs = [];
+  var specs = {};
+  var input = null;
+  var s = seed.slice();
   function next() {
     var t = (((s[0] + s[1]) | 0) + s[3]) | 0;
     s[3] = (s[3] + 1) | 0;
@@ -17,70 +27,81 @@ export const PRELUDE = String.raw`
   }
   Object.defineProperty(Math, 'random', { value: next, writable: false, configurable: false });
   globalThis.random = next;
-})();
-var __writes = [];
-var __logs = [];
-var __paramSpecs = {};
-var __input = null;
-var state = {};
-var frame = 0, dt = 0, time = 0, self = null, parts = [];
-function param(name, def, opts) {
-  name = String(name);
-  var spec = { default: Number(def) };
-  if (opts && typeof opts.min === 'number') spec.min = opts.min;
-  if (opts && typeof opts.max === 'number') spec.max = opts.max;
-  __paramSpecs[name] = spec;
-  return Object.prototype.hasOwnProperty.call(__params, name) ? __params[name] : spec.default;
-}
-function set(target, channel, value) {
-  __writes.push([String(target), String(channel), Number(value)]);
-}
-function __matches(p, target) {
-  return p.type === target || p.tags.indexOf(target) >= 0;
-}
-function get(target, channel) {
-  for (var i = 0; i < parts.length; i++) {
-    var p = parts[i];
-    if (__matches(p, target) && Object.prototype.hasOwnProperty.call(p.in, channel)) return p.in[channel];
-    if (__matches(p, target) && Object.prototype.hasOwnProperty.call(p.out, channel)) return p.out[channel];
+  globalThis.state = {};
+  globalThis.frame = 0;
+  globalThis.dt = 0;
+  globalThis.time = 0;
+  globalThis.self = null;
+  globalThis.parts = [];
+  globalThis.param = function (name, def, opts) {
+    name = String(name);
+    var spec = { default: Number(def) };
+    if (opts && typeof opts.min === 'number') spec.min = opts.min;
+    if (opts && typeof opts.max === 'number') spec.max = opts.max;
+    specs[name] = spec;
+    return hasOwn.call(given, name) ? given[name] : spec.default;
+  };
+  globalThis.set = function (target, channel, value) {
+    if (writes.length < 1000) writes[writes.length] = [String(target), String(channel), Number(value)];
+  };
+  function matches(p, target) {
+    return p.type === target || p.tags.indexOf(target) >= 0;
   }
-  return undefined;
-}
-var keys = {
-  down: function (k) { return __input.keys.down.indexOf(String(k)) >= 0; },
-  pressed: function (k) { return __input.keys.pressed.indexOf(String(k)) >= 0; },
-  released: function (k) { return __input.keys.released.indexOf(String(k)) >= 0; }
-};
-function log() {
-  if (__logs.length >= 5) return;
-  var out = [];
-  for (var i = 0; i < arguments.length; i++) {
-    var a = arguments[i];
-    out.push(typeof a === 'object' ? JSON.stringify(a) : String(a));
+  globalThis.get = function (target, channel) {
+    var ps = input ? input.parts : [];
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      if (matches(p, target) && hasOwn.call(p.in, channel)) return p.in[channel];
+      if (matches(p, target) && hasOwn.call(p.out, channel)) return p.out[channel];
+    }
+    return undefined;
+  };
+  globalThis.keys = {
+    down: function (k) { return input.keys.down.indexOf(String(k)) >= 0; },
+    pressed: function (k) { return input.keys.pressed.indexOf(String(k)) >= 0; },
+    released: function (k) { return input.keys.released.indexOf(String(k)) >= 0; }
+  };
+  globalThis.log = function () {
+    if (logs.length >= 5) return;
+    var out = [];
+    for (var i = 0; i < arguments.length; i++) {
+      var a = arguments[i];
+      var text;
+      try { text = typeof a === 'object' ? stringify(a) : String(a); } catch (e) { text = '[unprintable]'; }
+      out[out.length] = String(text);
+    }
+    logs[logs.length] = out.join(' ').slice(0, 300);
+  };
+  globalThis.clamp = function (v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; };
+  globalThis.lerp = function (a, b, t) { return a + (b - a) * t; };
+  globalThis.sign = function (v) { return v > 0 ? 1 : v < 0 ? -1 : 0; };
+  function load(json) {
+    input = parse(json);
+    globalThis.frame = input.frame;
+    globalThis.dt = input.dt;
+    globalThis.time = input.time;
+    globalThis.self = input.self;
+    globalThis.parts = input.parts;
+    writes = [];
+    logs = [];
   }
-  __logs.push(out.join(' ').slice(0, 300));
-}
-function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
-function lerp(a, b, t) { return a + (b - a) * t; }
-function sign(v) { return v > 0 ? 1 : v < 0 ? -1 : 0; }
-function __load(json) {
-  __input = JSON.parse(json);
-  frame = __input.frame; dt = __input.dt; time = __input.time; self = __input.self; parts = __input.parts;
-  __writes = [];
-  __logs = [];
-}
-function __result() {
-  return JSON.stringify({ writes: __writes, logs: __logs });
-}
-function __setup(json) {
-  __load(json);
-  state = {};
-  if (typeof setup === 'function') setup();
-  return __result();
-}
-function __tick(json) {
-  __load(json);
-  if (typeof tick === 'function') tick();
-  return __result();
-}
+  function result() {
+    return stringify({ writes: writes, logs: logs });
+  }
+  return {
+    setup: function (json) {
+      load(json);
+      globalThis.state = {};
+      if (typeof globalThis.setup === 'function') globalThis.setup();
+      return result();
+    },
+    tick: function (json) {
+      load(json);
+      if (typeof globalThis.tick === 'function') globalThis.tick();
+      return result();
+    },
+    specs: function () { return stringify(specs); },
+    hasTick: function () { return typeof globalThis.tick === 'function' ? 'true' : 'false'; }
+  };
+})(__seed, __params)
 `;

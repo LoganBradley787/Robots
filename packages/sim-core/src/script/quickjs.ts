@@ -1,7 +1,7 @@
 import { DefaultIntrinsics, newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSSyncVariant } from 'quickjs-emscripten-core';
 import { Prng } from '../rng/Prng';
 import { PRELUDE } from './prelude';
-import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInput, type ScriptInstance, type ScriptLimits, type ScriptResult } from './types';
+import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInput, type ScriptInstance, type ScriptLimits, type ScriptResult, type ScriptWrite } from './types';
 
 /** Global code (the user's top level, and `param()` calls) gets a few ticks' worth of budget. */
 const COMPILE_BUDGET_TICKS = 4;
@@ -17,30 +17,85 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
     compile(source: string, opts: CompileOptions): CompileResult {
       const limits = opts.limits ?? DEFAULT_LIMITS;
       const runtime = module.newRuntime();
-      runtime.setMemoryLimit(limits.memoryBytes);
-      runtime.setMaxStackSize(limits.stackBytes);
-      const meter = new Meter(runtime);
-      // No Date at all: sim time comes in through `time`.
-      const ctx = runtime.newContext({ intrinsics: { ...DefaultIntrinsics, Date: false } });
+      const handles: QuickJSHandle[] = [];
+      let ctx: QuickJSContext | undefined;
       const fail = (error: ScriptError): CompileResult => {
-        ctx.dispose();
-        runtime.dispose();
+        for (const h of handles) safely(() => h.dispose());
+        if (ctx) safely(() => ctx?.dispose());
+        safely(() => runtime.dispose());
         return { ok: false, error };
       };
-      const seed = new Prng(opts.seed >>> 0).state();
-      const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})};\n${PRELUDE}`;
-      meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
-      const pre = run(ctx, meter, () => ctx.evalCode(setup, 'prelude.js'));
-      if (!pre.ok) return fail(pre.error);
-      meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
-      const user = run(ctx, meter, () => ctx.evalCode(source, opts.name), true);
-      if (!user.ok) return fail(user.error);
-      const specs = readJson(ctx, 'JSON.stringify(__paramSpecs)') as Record<string, ParamSpec> | undefined;
-      const hasTick = readJson(ctx, "typeof tick === 'function'") === true;
-      if (!hasTick) return fail({ kind: 'compile', message: `${opts.name} does not define function tick()` });
-      return { ok: true, instance: new QuickJsInstance(runtime, ctx, meter, limits, specs ?? {}) };
+      try {
+        runtime.setMemoryLimit(limits.memoryBytes);
+        runtime.setMaxStackSize(limits.stackBytes);
+        const meter = new Meter(runtime);
+        // No Date at all: sim time comes in through `time`.
+        ctx = runtime.newContext({ intrinsics: { ...DefaultIntrinsics, Date: false } });
+        const c = ctx;
+        const seed = new Prng(opts.seed >>> 0).state();
+        const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})};\n${PRELUDE}`;
+        meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
+        const pre = c.evalCode(setup, 'prelude.js');
+        if (pre.error) {
+          const err = dumpError(c, pre.error);
+          pre.error.dispose();
+          return fail(classify(err, meter, false));
+        }
+        const entry = pre.value;
+        handles.push(entry);
+        const fn = (name: string): QuickJSHandle => {
+          const h = c.getProp(entry, name);
+          handles.push(h);
+          return h;
+        };
+        const entries = { setup: fn('setup'), tick: fn('tick'), specs: fn('specs'), hasTick: fn('hasTick') };
+        meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
+        const user = run(c, meter, () => c.evalCode(source, opts.name), true);
+        if (!user.ok) return fail(user.error);
+        meter.arm(limits.budgetPerTick);
+        const hasTick = run(c, meter, () => c.callFunction(entries.hasTick, c.undefined));
+        if (!hasTick.ok) return fail(hasTick.error);
+        if (hasTick.text !== 'true') return fail({ kind: 'compile', message: `${opts.name} does not define function tick()` });
+        meter.arm(limits.budgetPerTick);
+        const specs = run(c, meter, () => c.callFunction(entries.specs, c.undefined));
+        if (!specs.ok) return fail(specs.error);
+        return { ok: true, instance: new QuickJsInstance(runtime, c, meter, limits, readSpecs(specs.text), entries, handles) };
+      } catch (e) {
+        // Anything the engine throws at the host (not a script error) must not escape into the world.
+        return fail({ kind: 'throw', message: e instanceof Error ? e.message : String(e) });
+      }
     },
   };
+}
+
+/** Disposal can itself fail (QuickJS asserts on objects a native stack overflow left behind); never let it escape. */
+function safely(fn: () => void): void {
+  try {
+    fn();
+  } catch {
+    // The runtime is abandoned either way; a leak beats a crashed world.
+  }
+}
+
+/** Param specs as the script declared them, keeping only well-formed numbers. */
+function readSpecs(text: string): Record<string, ParamSpec> {
+  const out: Record<string, ParamSpec> = {};
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return out;
+  }
+  if (typeof raw !== 'object' || raw === null) return out;
+  for (const [name, v] of Object.entries(raw as Record<string, unknown>).slice(0, 50)) {
+    const o = v as { default?: unknown; min?: unknown; max?: unknown } | null;
+    if (!o || typeof o.default !== 'number' || !Number.isFinite(o.default)) continue;
+    const spec: ParamSpec = { default: o.default };
+    if (typeof o.min === 'number' && Number.isFinite(o.min)) spec.min = o.min;
+    if (typeof o.max === 'number' && Number.isFinite(o.max)) spec.max = o.max;
+    out[name.slice(0, 60)] = spec;
+  }
+  return out;
 }
 
 /** Counts interrupt-handler calls and stops the script past its budget. Counting, never wall clock. */
@@ -73,48 +128,86 @@ class QuickJsInstance implements ScriptInstance {
   private readonly ctx: QuickJSContext;
   private readonly meter: Meter;
   private readonly limits: ScriptLimits;
+  private readonly entries: { setup: QuickJSHandle; tick: QuickJSHandle };
+  private readonly handles: QuickJSHandle[];
   private disposed = false;
 
-  constructor(runtime: QuickJSRuntime, ctx: QuickJSContext, meter: Meter, limits: ScriptLimits, params: Record<string, ParamSpec>) {
+  constructor(
+    runtime: QuickJSRuntime,
+    ctx: QuickJSContext,
+    meter: Meter,
+    limits: ScriptLimits,
+    params: Record<string, ParamSpec>,
+    entries: { setup: QuickJSHandle; tick: QuickJSHandle },
+    handles: QuickJSHandle[],
+  ) {
     this.runtime = runtime;
     this.ctx = ctx;
     this.meter = meter;
     this.limits = limits;
     this.params = params;
+    this.entries = entries;
+    this.handles = handles;
   }
 
   setup(input: ScriptInput): ScriptResult {
-    return this.call('__setup', input);
+    return this.call(this.entries.setup, input);
   }
 
   tick(input: ScriptInput): ScriptResult {
-    return this.call('__tick', input);
+    return this.call(this.entries.tick, input);
   }
 
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.ctx.dispose();
-    this.runtime.dispose();
+    for (const h of this.handles) safely(() => h.dispose());
+    safely(() => this.ctx.dispose());
+    safely(() => this.runtime.dispose());
   }
 
-  private call(fn: '__setup' | '__tick', input: ScriptInput): ScriptResult {
+  private call(entry: QuickJSHandle, input: ScriptInput): ScriptResult {
     if (this.disposed) return { ok: false, error: { kind: 'throw', message: 'script was stopped' } };
     const ctx = this.ctx;
-    this.meter.arm(this.limits.budgetPerTick);
-    const fnHandle = ctx.getProp(ctx.global, fn);
-    const arg = ctx.newString(JSON.stringify(input));
-    const r = run(ctx, this.meter, () => ctx.callFunction(fnHandle, ctx.undefined, arg));
-    fnHandle.dispose();
-    arg.dispose();
-    if (!r.ok) return r;
-    const out = JSON.parse(r.text) as { writes: [string, string, number][]; logs: string[] };
-    return {
-      ok: true,
-      writes: out.writes.filter((w) => Number.isFinite(w[2])).map(([target, channel, value]) => ({ target, channel, value })),
-      logs: out.logs,
-    };
+    try {
+      this.meter.arm(this.limits.budgetPerTick);
+      const arg = ctx.newString(JSON.stringify(input));
+      const r = run(ctx, this.meter, () => ctx.callFunction(entry, ctx.undefined, arg));
+      arg.dispose();
+      return r.ok ? readResult(r.text) : r;
+    } catch (e) {
+      return { ok: false, error: { kind: 'throw', message: e instanceof Error ? e.message : String(e) } };
+    }
   }
+}
+
+/** Limits on what one tick may hand back, whatever the script did to its own globals. */
+const MAX_WRITES = 1000;
+const MAX_LOGS = 5;
+const MAX_LOG_CHARS = 300;
+
+/** Checks the shape of a tick's output. Anything malformed is the script's error, never the host's. */
+function readResult(text: string): ScriptResult {
+  const bad: ScriptResult = { ok: false, error: { kind: 'throw', message: 'the script broke its own output (did it replace JSON or a built-in?)' } };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return bad;
+  }
+  const o = raw as { writes?: unknown; logs?: unknown } | null;
+  if (!o || !Array.isArray(o.writes) || !Array.isArray(o.logs)) return bad;
+  const writes: ScriptWrite[] = [];
+  for (const w of o.writes.slice(0, MAX_WRITES)) {
+    if (!Array.isArray(w) || typeof w[0] !== 'string' || typeof w[1] !== 'string' || typeof w[2] !== 'number') return bad;
+    if (Number.isFinite(w[2])) writes.push({ target: w[0].slice(0, 100), channel: w[1].slice(0, 100), value: w[2] });
+  }
+  const logs: string[] = [];
+  for (const l of o.logs.slice(0, MAX_LOGS)) {
+    if (typeof l !== 'string') return bad;
+    logs.push(l.slice(0, MAX_LOG_CHARS));
+  }
+  return { ok: true, writes, logs };
 }
 
 type RunResult = { ok: true; text: string } | { ok: false; error: ScriptError };
@@ -157,15 +250,4 @@ function classify(err: { name: string; message: string; stack: string }, meter: 
   const line = where ? ` (line ${where[1]})` : '';
   if (isUserCode && err.name === 'SyntaxError') return { kind: 'compile', message: `${err.name}: ${err.message}${line}` };
   return { kind: 'throw', message: `${err.name}: ${err.message}${line}` };
-}
-
-function readJson(ctx: QuickJSContext, expr: string): unknown {
-  const r = ctx.evalCode(expr, 'host.js');
-  if (r.error) {
-    r.error.dispose();
-    return undefined;
-  }
-  const v = ctx.dump(r.value) as unknown;
-  r.value.dispose();
-  return typeof v === 'string' && expr.startsWith('JSON.stringify') ? JSON.parse(v) : v;
 }

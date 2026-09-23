@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { resolveScripts } from '@robots/sim-core';
+import { resolveScripts, SCRIPT_FILE } from '@robots/sim-core';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -49,6 +49,8 @@ export function resolveReplay(arg: string): string {
 export function readBlueprint(path: string): { raw: unknown; missing: string[] } {
   const dir = dirname(path);
   return resolveScripts(readJson(path), (file) => {
+    // Only plain names next to the blueprint; never a path out of the folder.
+    if (!SCRIPT_FILE.test(file) || file.includes('..')) return undefined;
     const p = join(dir, file);
     return existsSync(p) ? readFileSync(p, 'utf8') : undefined;
   });

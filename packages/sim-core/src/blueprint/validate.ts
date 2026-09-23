@@ -162,9 +162,12 @@ export const SCRIPT_FILE = /^[a-z0-9][a-z0-9._-]*\.js$/;
 
 function checkScripts(bp: Blueprint, err: Report): void {
   const seen = new Set<string>();
+  const files = new Set<string>();
   for (const s of bp.scripts) {
     if (seen.has(s.id)) err('BAD_SCRIPT', `script id '${s.id}' is used twice`);
     seen.add(s.id);
+    if (s.file !== undefined && files.has(s.file)) err('BAD_SCRIPT', `two scripts use the file '${s.file}'; give each its own`);
+    if (s.file !== undefined) files.add(s.file);
     if (s.file !== undefined && (!SCRIPT_FILE.test(s.file) || s.file.includes('..'))) {
       err('BAD_SCRIPT', `script '${s.id}' file '${s.file}' must be a plain name in blueprints/ like 'drone.hover.js'`);
     }

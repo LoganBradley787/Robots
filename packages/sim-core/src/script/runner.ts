@@ -1,5 +1,5 @@
 import type { ScriptSpec } from '../blueprint/types';
-import type { ScriptError, ScriptHost, ScriptInput, ScriptInstance, ScriptWrite } from './types';
+import type { ScriptError, ScriptHost, ScriptInput, ScriptInstance, ScriptResult, ScriptWrite } from './types';
 
 /** One script on one robot: its source, whether it runs, and why it stopped if it crashed. */
 export interface ScriptSlot {
@@ -67,9 +67,16 @@ export class ScriptRunner {
     for (const slot of this.slots) {
       if (!slot.enabled || !slot.instance) continue;
       built ??= input();
-      const results = slot.needsSetup ? [slot.instance.setup(built)] : [];
-      slot.needsSetup = false;
-      if (results[0]?.ok !== false) results.push(slot.instance.tick(built));
+      const instance = slot.instance;
+      const results: ScriptResult[] = [];
+      try {
+        if (slot.needsSetup) results.push(instance.setup(built));
+        slot.needsSetup = false;
+        if (results[0]?.ok !== false) results.push(instance.tick(built));
+      } catch (e) {
+        // A backstop: the host already turns script failures into results, but nothing may escape into the world.
+        results.push({ ok: false, error: { kind: 'throw', message: e instanceof Error ? e.message : String(e) } });
+      }
       for (const r of results) {
         if (r.ok) {
           out.writes.push(...r.writes);
@@ -101,7 +108,12 @@ export class ScriptRunner {
     };
     if (!this.host) return fail({ kind: 'compile', message: 'this world has no script host, so scripts cannot run' });
     if (slot.source === undefined) return fail({ kind: 'compile', message: `the source of ${slot.name} was not loaded` });
-    const r = this.host.compile(slot.source, { name: slot.name, seed: slot.seed, params: slot.params });
+    let r: ReturnType<ScriptHost['compile']>;
+    try {
+      r = this.host.compile(slot.source, { name: slot.name, seed: slot.seed, params: slot.params });
+    } catch (e) {
+      return fail({ kind: 'throw', message: e instanceof Error ? e.message : String(e) });
+    }
     if (!r.ok) return fail(r.error);
     slot.instance = r.instance;
     slot.enabled = true;

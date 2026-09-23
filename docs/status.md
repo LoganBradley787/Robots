@@ -2,16 +2,31 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
 
-- Current milestone: **M4 complete (tag `m4`), M5 not planned yet.** M4 has no gate of its own; Gate 4 judges M4 and M5 together. Plan `docs/plans/M4-power.md`, design `docs/design/05-power-and-resources.md` (decisions and as-built notes at the end).
-- Done: M0 to M3 (tags `m0` to `m3`, Gates 1 to 3 passed), M4 T1 to T6:
-  - Energy pools per chunk, proportional drain and brownout; cores hold 600 (like KSP command pods), batteries 1500.
-  - Behaviors plan, then run with a grant; coasting and idle parts draw nothing; an empty robot stops (wheels coast, thrusters and gyros go quiet).
-  - Unlimited energy switch (world toolbar), logged and hashed so replays match; `energyEmpty` events with a notice in the app.
-  - `charge`, `energy`, `energyCapacity` outputs for M5 scripts; builder stats show energy and full draw; CLI reports energy and takes `--unlimited`; `tune` prints battery life.
-  - Review fixes: no "ran out" event for a robot that never held energy; the world view carries whole percent so the UI does not re-render every tick; tune groups draw by behavior; a non-finite load never reaches a pool.
-- In progress: **M5 planning.** Logan answered (2026-09-23): air drag yes; scripts in separate `.js` files; everything edited in the builder (no live sliders); each script says whether it starts on deploy. Recorded in `04`. Plan `docs/plans/M5-scripting.md` waits for Logan's go.
-- Next: on Logan's go, build all of M5 and stop at Gate 4 (power and scripts).
-- Behavior change nobody signed off: a gyro on a robot with no core and no battery used to damp spin for free; now it has no energy and does nothing. Consistent with "no energy, no action"; mention at Gate 4.
+- Current milestone: **M5 complete (tag `m5`), Gate 4 (power and scripts) open.** Plans `docs/plans/M4-power.md` and `docs/plans/M5-scripting.md`; design `05` and `04` (decisions and as-built notes at the end of each).
+- Done: M0 to M3 (Gates 1 to 3 passed), M4 (tag `m4`: energy), M5 (tag `m5`):
+  - Air drag: quadratic per robot cell, no spin drag on wheels. The hopper tops out between 50 and 90 m/s; the car lost 1 m/s of top speed.
+  - Script sandbox: QuickJS in WASM, one runtime per script, a counting budget, memory and stack limits, seeded random, no Date. Endless loops, throws, deep recursion, and broken output only stop that script.
+  - Scripts in the world: a held key beats the script beats the default; H-style key toggles; `setup` on enable; crashes disable the script with a notice; logs; flags in the hash; replays with scripts match.
+  - Scripts are `.js` files next to their blueprint; Save writes them, Save As copies them, deploys and replays carry the code inline.
+  - Builder: Scripts panel, code editor with a live compile check and params, `script` mode in Controls. World: script keys lit while running, a status and log panel.
+  - Examples: `drone` (hover script: holds height, W and S move it, A and D lean, H toggles) and `looper` (an endless loop, contained).
+  - Review fixes: the sandbox cannot be broken from inside a script (closure-held internals, shape-checked output, guarded disposal), scripts never share a file, the editor never shows another script's check, Save keeps edits made while saving.
+- Next: **Gate 4.** Logan runs `pnpm dev` and plays. Then `docs/critique/gate-4.md`, fixes, and plan M6 (destruction).
+
+## Gate 4: what to try (for Logan)
+- Deploy `hopper`: the energy bar on the keys bar drains while you thrust; at 4x speed it runs dry (notice) and drops. Toggle Unlimited energy on the toolbar.
+- Builder: stats show energy and full draw ("energy 2100 · full draw 50/s").
+- Deploy `drone`: it hovers where you drop it. W and S change height, A and D lean it, H turns the hover off and on (the H key lights while it runs). The log panel bottom left shows the script's state.
+- Builder: open `drone`, Scripts, Edit: the code, live errors (type something broken), params `climb` and `lean`. Add a script of your own, bind a key to it in Controls with mode `script`.
+- Deploy `looper`: its script stops on the first tick with an error notice; the game keeps running.
+
+## Gate 4: calls Logan may want to overturn
+- Energy numbers: core 600, battery 1500, wheel 5/s, thruster 20/s, propeller 10/s, gyro 5/s.
+- A gyro on a robot with no energy does nothing (it used to damp spin for free).
+- Air drag strength (0.0025 per cell).
+- Script API names: `frame` is the tick number (because `tick` is your function); `self` has exact `pos`, `vel`, `angle`, `angVel`, `mass`, `energy`.
+- Keys a script reads (the drone's W, A, S, D) do not show on the keys bar, since nothing binds them.
+- Known issue: a script that fills huge arrays until it runs out of memory can stall the game for several seconds before it is stopped (ordinary loops and leaks stop in milliseconds).
 
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".

@@ -1,4 +1,4 @@
-import { assignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
+import { assignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, SCRIPT_FILE, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
 import { fileForName, type BlueprintListing } from '../storage/blueprintApi';
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel';
@@ -120,7 +120,10 @@ export class DocumentController {
     const json = toFileJson(draft, this.deps.registry);
     if (!this.writable(json)) return false;
     await this.write(file, draft, json);
-    if (draft.scripts.some((s, i) => s.file !== this.deps.getDraft().scripts[i]?.file)) this.deps.setDraft(draft, { keepHistory: true });
+    // File names go onto the current draft, so edits made while saving are kept (as Save As does).
+    const current = this.deps.getDraft();
+    const named = assignScriptFiles(current, file, true);
+    if (named.scripts.some((s, i) => s.file !== current.scripts[i]?.file)) this.deps.setDraft(named, { keepHistory: true });
     this.savedJson = this.serialize(draft);
     return true;
   }
@@ -135,6 +138,7 @@ export class DocumentController {
     });
     const texts = new Map<string, string>();
     for (const f of wanted) {
+      if (!SCRIPT_FILE.test(f) || f.includes('..')) continue;
       const t = await this.deps.api.loadText(f);
       if (t !== undefined) texts.set(f, t);
     }

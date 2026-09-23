@@ -101,3 +101,40 @@ describe('QuickJS script host', () => {
     s.dispose();
   });
 });
+
+describe('a script cannot break the host (M5 review)', () => {
+  it('reassigning globals and JSON only affects the script', () => {
+    const s = compile(`JSON.stringify = function () { return '{'; }; var __writes = 5; function tick() { set('a', 'b', 1); __tick = null; }`);
+    expect(s.tick(input())).toEqual({ ok: true, writes: [{ target: 'a', channel: 'b', value: 1 }], logs: [] });
+    expect(s.tick(input())).toMatchObject({ ok: true });
+    s.dispose();
+  });
+
+  it('output it cannot read is the script’s error, not the host’s', () => {
+    const s = compile(`function tick() { Object.prototype.toJSON = function () { return 7; }; }`);
+    expect(s.tick(input())).toMatchObject({ ok: false, error: { kind: 'throw' } });
+    s.dispose();
+  });
+
+  it('logs and writes are capped', () => {
+    const s = compile(`function tick() { for (var i = 0; i < 20; i++) log('x'.repeat(10000)); for (var j = 0; j < 5000; j++) set('a', 'b', j); }`);
+    const r = s.tick(input());
+    expect(r.ok && r.logs.length).toBe(5);
+    expect(r.ok && r.logs[0]?.length).toBe(300);
+    expect(r.ok && r.writes.length).toBe(1000);
+    s.dispose();
+  });
+
+  it('a stack overflow inside a built-in is a crash, and cleaning up never throws', () => {
+    const src = `function tick() { var a = []; for (var i = 0; i < 100000; i++) a = [a]; JSON.stringify(a); }`;
+    const s = compile(src);
+    const r = s.tick(input());
+    expect(r.ok).toBe(false);
+    expect(() => s.dispose()).not.toThrow();
+    const top = host.compile(`var a = []; for (var i = 0; i < 100000; i++) a = [a]; String(a); function tick() {}`, { name: 'top.js', seed: 1 });
+    expect(top.ok).toBe(false);
+    const after = compile(`function tick() { set('ok', 'x', 1); }`);
+    expect(after.tick(input())).toMatchObject({ ok: true });
+    after.dispose();
+  });
+});

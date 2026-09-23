@@ -121,4 +121,15 @@ describe('scripts in the world', () => {
     again.world.dispose();
     w.dispose();
   });
+
+  it('nothing a script does escapes World.step or World.dispose', async () => {
+    const w = await world();
+    const deep = `function tick() { var a = []; for (var i = 0; i < 100000; i++) a = [a]; JSON.stringify(a); }`;
+    const r = w.spawnBlueprint(lifter(deep, { bindings: [{ key: 'h', mode: 'script', script: 'lift' }] }), { x: 0, y: 1 });
+    expect(() => {
+      for (let i = 0; i < 5; i++) w.step(i === 2 ? [{ robot: r.id, pressed: ['h'], released: ['h'] }] : []);
+    }).not.toThrow();
+    expect(w.scripts(r.id)[0]?.crashed).toBeDefined();
+    expect(() => w.dispose()).not.toThrow();
+  });
 });

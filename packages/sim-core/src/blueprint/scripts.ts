@@ -37,8 +37,21 @@ export function scriptFileName(blueprintFile: string, scriptId: string): string 
   return `${stem}.${id}.js`;
 }
 
-/** Points every script at a file named after `blueprintFile` (Save As writes copies; the originals stay). */
+/**
+ * Points scripts at files named after `blueprintFile` (Save As writes copies; the originals stay). Every script gets
+ * its own file: a name another script already uses gets a number (`drone.hover-2.js`), so two scripts never overwrite
+ * each other. A script whose code was never loaded keeps its file, since there is nothing to copy.
+ */
 export function assignScriptFiles(bp: Blueprint, blueprintFile: string, onlyMissing: boolean): Blueprint {
-  const scripts: ScriptSpec[] = bp.scripts.map((s) => (onlyMissing && s.file !== undefined ? s : { ...s, file: scriptFileName(blueprintFile, s.id) }));
+  const keep = (s: ScriptSpec): boolean => s.file !== undefined && (onlyMissing || typeof s.source !== 'string');
+  const used = new Set(bp.scripts.filter(keep).map((s) => s.file as string));
+  const scripts: ScriptSpec[] = bp.scripts.map((s) => {
+    if (keep(s)) return s;
+    const base = scriptFileName(blueprintFile, s.id).replace(/\.js$/, '');
+    let file = `${base}.js`;
+    for (let n = 2; used.has(file); n++) file = `${base}-${n}.js`;
+    used.add(file);
+    return { ...s, file };
+  });
   return { ...bp, scripts };
 }
