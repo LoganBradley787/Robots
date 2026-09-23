@@ -78,3 +78,28 @@ export function setPartRotation(bp: Blueprint, _registry: PartRegistry, id: stri
 export function setBindings(bp: Blueprint, bindings: Binding[]): Blueprint {
   return { ...bp, bindings: bindings.map((b) => ({ ...b })) };
 }
+
+/** Turns auto controls on or off for the given parts (`11`). On is stored as the field being absent. */
+export function setPartsAuto(bp: Blueprint, ids: readonly string[], on: boolean): Blueprint {
+  return {
+    ...bp,
+    parts: bp.parts.map((p) => {
+      if (!ids.includes(p.id) || (p.auto !== false) === on) return p;
+      if (on) {
+        const { auto: _auto, ...rest } = p;
+        return rest;
+      }
+      return { ...p, auto: false };
+    }),
+  };
+}
+
+/** Turns auto controls on or off for the whole blueprint. */
+export function setAutoControls(bp: Blueprint, on: boolean): Blueprint {
+  if ((bp.autoControls !== false) === on) return bp;
+  if (on) {
+    const { autoControls: _a, ...rest } = bp;
+    return rest;
+  }
+  return { ...bp, autoControls: false };
+}

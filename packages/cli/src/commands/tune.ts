@@ -3,16 +3,8 @@ import { sampleRobot, World, type RobotInput, type WorldFile } from '@robots/sim
 /** Open flat ground, no obstacles, so drives measure the robot and not the terrain. */
 const TRACK: WorldFile = { name: 'tuning track', ground: { width: 4000, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] };
 
-const BINDINGS = [
-  { key: 'd', mode: 'hold', target: 'wheel', channel: 'speed', value: 1 },
-  { key: 'a', mode: 'hold', target: 'wheel', channel: 'speed', value: -1 },
-];
-const car = (grid: string[]): unknown => ({
-  format: 1,
-  name: 'tune',
-  grid,
-  bindings: grid.some((r) => r.includes('T')) ? [...BINDINGS, { key: 'w', mode: 'hold', target: 'thruster', channel: 'throttle', value: 1 }] : BINDINGS,
-});
+/** No bindings: auto controls drive them (D wheels, W upward thrusters). */
+const car = (grid: string[]): unknown => ({ format: 1, name: 'tune', grid });
 export const TUNE_ROBOTS: Record<string, unknown> = {
   car: car(['F  F  C  B  F  F', 'W  .  .  .  .  W']),
   heavy: car(['F  F  F  F  F  F', 'F  F  F  F  F  F', 'F  F  C  B  F  F', 'W  .  .  .  .  W']),

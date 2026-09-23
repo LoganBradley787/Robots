@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "name": "hopper",
+  "grid": [
+    "F  F  C  B  F  F",
+    "W  T^ .  .  T^ W"
+  ]
+}

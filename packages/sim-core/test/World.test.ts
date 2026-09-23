@@ -68,6 +68,17 @@ describe('World', () => {
     w.dispose();
   });
 
+  it('auto controls drive a blueprint with no bindings, and a custom binding sums with them', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const plain = w.spawnBlueprint({ format: 1, name: 'plain', grid: ['F  C  F', 'W  .  W'] }, flat.spawn);
+    expect(w.controller(plain.id)?.keys).toEqual(['d', 'a']);
+    w.step([{ robot: plain.id, pressed: ['d'], released: [] }]);
+    expect(w.channelValue(plain.id, 'wheel@0,0', 'speed')).toBe(1);
+    const off = w.spawnBlueprint({ format: 1, name: 'off', grid: ['F  C  F', 'W  .  W'], autoControls: false }, { x: 20, y: 3 });
+    expect(w.controller(off.id)?.keys).toEqual([]);
+    w.dispose();
+  });
+
   it('held keys feed the hash', async () => {
     const a = await World.create({ seed: 1 }, flat);
     const b = await World.create({ seed: 1 }, flat);

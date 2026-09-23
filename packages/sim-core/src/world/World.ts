@@ -6,6 +6,7 @@ import { InputLog } from '../replay/InputLog';
 import { Controller } from '../control/controller';
 import type { ControlledPart, RobotInput } from '../control/types';
 import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
+import { allBindings } from '../control/autoControls';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -78,7 +79,7 @@ export class World {
     const { blueprint, plan } = loadBlueprint(raw, this.registry);
     const robot = spawnRobot(this.physics, this.registry, blueprint, plan, { id: this.nextRobotId++, tick: this.tickCount, at });
     this.robots.push(robot);
-    const controller = controllerFor(robot);
+    const controller = controllerFor(robot, this.registry);
     if (controller) {
       this.controllers.set(robot.id, controller);
       this.channels.set(robot.id, controller.values());
@@ -195,7 +196,7 @@ export class World {
 }
 
 /** The controlled chunk is the one holding the primary core; tags resolve inside it only (`04`). */
-function controllerFor(robot: Robot): Controller | undefined {
+function controllerFor(robot: Robot, registry: PartRegistry): Controller | undefined {
   const coreId = robot.primaryCoreId;
   if (coreId === undefined) return undefined;
   const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
@@ -205,5 +206,5 @@ function controllerFor(robot: Robot): Controller | undefined {
     const p = robot.parts.get(id);
     if (p) parts.push({ id, part: p.def.id, tags: p.tags, inputs: p.def.inputs });
   }
-  return new Controller(robot.blueprint.bindings, parts);
+  return new Controller(allBindings(robot.blueprint, registry), parts);
 }

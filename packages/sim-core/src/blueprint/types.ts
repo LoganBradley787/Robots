@@ -14,6 +14,8 @@ export interface LegendEntry {
   part: string;
   rot?: Rotation;
   tags?: string[];
+  /** `false` opts the part out of auto controls (`11`). Absent means on. */
+  auto?: false;
 }
 
 export interface PlacedPart {
@@ -23,6 +25,8 @@ export interface PlacedPart {
   y: number;
   rot: Rotation;
   tags: string[];
+  /** `false` opts the part out of auto controls (`11`). Absent means on. */
+  auto?: false;
 }
 
 export type BindingMode = 'hold' | 'toggle' | 'pulse' | 'script';
@@ -53,6 +57,8 @@ export interface Blueprint {
   scripts: ScriptSpec[];
   primaryCore?: string;
   corePriority?: string[];
+  /** `false` turns auto controls off for the whole blueprint (`11`). Absent means on. */
+  autoControls?: false;
   /** Grid cells written as `=`, checked against multi-cell footprints by the validator. */
   continuations: { x: number; y: number }[];
 }

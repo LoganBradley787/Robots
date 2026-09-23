@@ -23,11 +23,13 @@ export function toFileJson(bp: Blueprint, registry: PartRegistry): Record<string
       if (p.rot !== 0) e.rot = p.rot;
       const tags = p.tags.filter((t) => t !== p.id);
       if (tags.length > 0) e.tags = tags;
+      if (p.auto === false) e.auto = false;
       return e;
     });
   }
   if (bp.primaryCore !== undefined) out.primaryCore = bp.primaryCore;
   if (bp.corePriority !== undefined) out.corePriority = bp.corePriority;
+  if (bp.autoControls === false) out.autoControls = false;
   if (bp.bindings.length > 0) out.bindings = bp.bindings;
   if (bp.scripts.length > 0) out.scripts = bp.scripts;
   return out;
