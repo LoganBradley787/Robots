@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@jitl/quickjs-wasmfile-release-sync": "0.32.0",
     "@robots/sim-core": "workspace:*"
   },
   "devDependencies": {

@@ -12,6 +12,7 @@
     "gen:assets": "tsx scripts/gen-placeholders.ts"
   },
   "dependencies": {
+    "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@robots/sim-core": "workspace:*",
     "pixi.js": "8.21.0",
     "preact": "10.29.8"
