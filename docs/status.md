@@ -4,15 +4,8 @@ Updated: 2026-09-23, by a coding session (Opus 5.5)
 
 - Current milestone: M2 complete, plan `docs/plans/M2-builder.md`, design `docs/design/10-builder.md`. Gate 2 (Builder) passed 2026-09-23 ("All right, I'm happy with this. Move on to M3."); punch list `docs/critique/gate-2.md` is done.
 - Done: M0 (tag `m0`), M1 (tag `m1`, Gate 1 passed), M2 T1 to T10 (tag `m2`): builder screen, pick-then-paint, erase, rotate, select and tag, undo and redo, mirror mode, live stats and center of mass, live validator with outlined cells, controls (bindings) panel, blueprint files in `blueprints/` with explicit Save and Save As, unsaved-changes prompts, deploy with a spawn ghost.
-- In progress: none
-- Next: **plan M3 (control).** Nothing of M3 is started. Follow the pattern that worked for M2:
-  1. Read `docs/design/04-control-and-scripting.md` (channels, bindings, arbitration, latching, input sources, key ownership) and `06` (M3 scope and done-when).
-  2. Ask Logan a few taste questions with the AskUserQuestion tool (at most four, recommendation first). Candidates, with the recommendation to offer:
-     - Possession: the robot you deploy is possessed automatically, and `,` moves camera and possession together (recommended); or click a robot to possess it.
-     - Driving feel: snappy arcade (fast acceleration, strong brakes, recommended for a sandbox) or heavier and more physical. Numbers stay tunable in the part defs.
-     - An on-screen controls panel in the world listing the possessed robot's keys as clickable buttons (Q3 says yes; confirm it belongs in M3).
-     - What happens to robots you are not controlling: hold their last input (latched, as `04` says for headless chunks) or stop.
-  3. Write the answers into `04` (or a new `docs/design/11-control.md` if they are big), write `docs/plans/M3-control.md`, get Logan's go, then build all of M3 and stop at Gate 3 (robot feel). Logan has let the coding session (Opus) write the plans for M1 and M2.
+- In progress: **M3 planning.** Logan answered the control questions (2026-09-23): auto-possess on deploy, `,` cycles, click to possess; driving heavy enough to feel like a machine with weight that matters; a keys bar showing only the keys; robots you leave hold their last input. Written into `docs/design/11-control.md`; plan `docs/plans/M3-control.md` waits for Logan's go.
+- Next: on Logan's go, build all of M3 (T1 to T10) and stop at Gate 3 (robot feel).
 
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
