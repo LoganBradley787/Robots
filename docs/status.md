@@ -2,7 +2,7 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
 
-- Current milestone: **M5 complete (tag `m5`), Gate 4 (power and scripts) open.** Plans `docs/plans/M4-power.md` and `docs/plans/M5-scripting.md`; design `05` and `04` (decisions and as-built notes at the end of each).
+- Current milestone: **M5 complete (tag `m5`), Gate 4 (power and scripts) passed.** Plans `docs/plans/M4-power.md` and `docs/plans/M5-scripting.md`; design `05` and `04` (decisions and as-built notes at the end of each).
 - Done: M0 to M3 (Gates 1 to 3 passed), M4 (tag `m4`: energy), M5 (tag `m5`):
   - Air drag: quadratic per robot cell, no spin drag on wheels. The hopper tops out between 50 and 90 m/s; the car lost 1 m/s of top speed.
   - Script sandbox: QuickJS in WASM, one runtime per script, a counting budget, memory and stack limits, seeded random, no Date. Endless loops, throws, deep recursion, and broken output only stop that script.
@@ -11,27 +11,8 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
   - Builder: Scripts panel, code editor with a live compile check and params, `script` mode in Controls. World: script keys lit while running, a status and log panel.
   - Examples: `drone` (hover script: holds height, W and S move it, A and D lean, H toggles) and `looper` (an endless loop, contained).
   - Review fixes: the sandbox cannot be broken from inside a script (closure-held internals, shape-checked output, guarded disposal), scripts never share a file, the editor never shows another script's check, Save keeps edits made while saving.
-- Gate 4 feedback received 2026-09-23 (Logan's first session; positive: "this is promising"). Punch list `docs/critique/gate-4.md` has 4 open items. Logan saved `blueprints/weird-thing.json`.
-- Next (after a context compaction, start here):
-  1. Work the Gate 4 punch list: (1) plain-words crash notice and the looper's purpose; (2) mark decoupler and warhead as "does nothing until M6" in the builder; (3) ask Logan whether `showcase` should be made to fly (recommended) or labeled look-only; (4) look at `blueprints/weird-thing.json` to see his propeller stacking and ask whether it is an exploit before changing anything.
-  2. Ask Logan to confirm Gate 4 is closed.
-  3. Plan M6 (destruction) the usual way: read `03` and `06` M6, ask Logan a few taste questions (AskUserQuestion, recommendation first), write `docs/plans/M6-destruction.md`, get a go, build it all, stop at Gate 5. Logan's M6 wishes so far: decouplers and warheads must actually work; battery blocks become targets (shoot the batteries and a flier must land).
-
-## Gate 4: what to try (for Logan)
-- Deploy `hopper`: the energy bar on the keys bar drains while you thrust; at 4x speed it runs dry (notice) and drops. Toggle Unlimited energy on the toolbar.
-- Builder: stats show energy and full draw ("energy 2100 · full draw 50/s").
-- Deploy `drone`: it hovers where you drop it. W and S change height, A and D lean it, H turns the hover off and on (the H key lights while it runs). The log panel bottom left shows the script's state.
-- Builder: open `drone`, Scripts, Edit: the code, live errors (type something broken), params `climb` and `lean`. Add a script of your own, bind a key to it in Controls with mode `script`.
-- Deploy `looper`: its script stops on the first tick with an error notice; the game keeps running.
-
-## Gate 4: calls Logan may want to overturn
-- Energy numbers: core 600, battery 1500, wheel 5/s, thruster 20/s, propeller 10/s, gyro 5/s.
-- A gyro on a robot with no energy does nothing (it used to damp spin for free).
-- Air drag strength (0.0025 per cell).
-- Script API names: `frame` is the tick number (because `tick` is your function); `self` has exact `pos`, `vel`, `angle`, `angVel`, `mass`, `energy`.
-- Keys a script reads (the drone's W, A, S, D) do not show on the keys bar, since nothing binds them.
-- Known issue: a script that fills huge arrays until it runs out of memory can stall the game for several seconds before it is stopped (ordinary loops and leaks stop in milliseconds).
-
+- **Gate 4 passed 2026-09-23.** Logan: the punch list items were misunderstandings; nothing to fix. Propeller stacking is kept as a later idea (`docs/ideas.md`). Logan saved `blueprints/weird-thing.json` and its script.
+- Next (after a context compaction, start here): **plan M6 (destruction).** Read `03` (damage, splitting, joint rebuild) and `06` M6, then ask Logan a few taste questions (AskUserQuestion, at most four, recommendation first), write `docs/plans/M6-destruction.md`, get a go, build it all, stop at Gate 5. Logan's M6 wishes so far: decouplers and warheads must actually work (he tried both at Gate 4); battery blocks become targets (shoot the batteries and a flier must land). Note for M6: robot bodies are multibody links, so explosions must push with forces over a tick, not impulses (`03`).
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
 - Before planning a milestone, ask a few taste questions (AskUserQuestion, recommendation first); decide technical things yourself and record them as "Claude's call" in the plan so Logan can overturn them at the gate.
