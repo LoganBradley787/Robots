@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { blankBlueprint, defaultRegistry, parseWorldFile, staticStats, type Blueprint } from '@robots/sim-core';
+import { addTagToParts, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, type Blueprint } from '@robots/sim-core';
 import './ui/styles.css';
 import flatJson from '../../../worlds/flat.json';
 import { Renderer } from './render/Renderer';
@@ -17,6 +17,7 @@ import { Builder } from './builder/Builder';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
 import type { BuilderActions } from './ui/BuilderUi';
+import type { SelectionActions } from './ui/SelectionPanel';
 import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, saveBlueprintFile } from './storage/blueprintApi';
 
 async function boot(): Promise<void> {
@@ -34,7 +35,7 @@ async function boot(): Promise<void> {
   const blank = blankBlueprint('untitled');
   const store = createStore<AppState>({
     mode: 'builder',
-    builder: { draft: blank, selection: [], mirror: { on: false, axisHalfCells: 0 }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry) },
+    builder: { draft: blank, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry) },
     doc: { name: blank.name, dirty: false, files: [] },
     icons: {},
   });
@@ -103,7 +104,11 @@ async function boot(): Promise<void> {
     p.then(() => syncDoc(true)).catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
   };
 
-  const actions: BuilderActions = {
+  const actions: BuilderActions & SelectionActions = {
+    addTag: (ids, tag) => builder.edit((bp) => addTagToParts(bp, ids, tag)),
+    removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
+    rotate: (dir) => builder.dispatch({ type: 'rotate', dir }),
+    deleteSelection: () => builder.dispatch({ type: 'deleteSelection' }),
     hold: (part) => builder.dispatch({ type: 'hold', part }),
     open: (file) => run(doc.open(file)),
     newBlank: () => run(doc.newBlank()),

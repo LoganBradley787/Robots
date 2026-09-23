@@ -17,7 +17,6 @@ export class Builder {
   private issues: Issue[] = [];
   private panning: { id: number; x: number; y: number } | null = null;
   private spaceDown = false;
-  private axisChosen = false;
 
   constructor(registry: PartRegistry, scene: BuilderScene, store: Store<AppState>, initial: Blueprint) {
     this.registry = registry;
@@ -35,8 +34,7 @@ export class Builder {
   /** Replace the draft (open, new). Clears undo history and selection. */
   load(bp: Blueprint): void {
     this.history.reset(bp);
-    this.editor = { ...initialEditor(), mirror: { on: false, axisHalfCells: this.editor.mirror.axisHalfCells } };
-    this.axisChosen = false;
+    this.editor = initialEditor();
     this.refresh(true);
   }
 
@@ -54,11 +52,6 @@ export class Builder {
   }
 
   dispatch(e: EditorEvent): void {
-    if (e.type === 'toggleMirror' && !this.editor.mirror.on && !this.axisChosen) {
-      const core = this.draft.parts.find((p) => this.registry.has(p.part) && this.registry.get(p.part).role === 'core');
-      this.editor = { ...this.editor, mirror: { ...this.editor.mirror, axisHalfCells: 2 * (core?.x ?? 0) } };
-      this.axisChosen = true;
-    }
     const before = this.draft;
     const r = reduce(this.editor, before, e, this.registry, this.partIds);
     this.editor = r.editor;
@@ -136,6 +129,10 @@ export class Builder {
         return true;
       case 'KeyR':
         this.dispatch({ type: 'rotate', dir: e.shiftKey ? -1 : 1 });
+        return true;
+      case 'Delete':
+      case 'Backspace':
+        this.dispatch({ type: 'deleteSelection' });
         return true;
       case 'Escape':
         this.dispatch({ type: 'escape' });

@@ -1,6 +1,9 @@
 import {
   erasePartAt,
+  isCore,
   mirrorRotation,
+  removeParts,
+  setPartRotation,
   mirrorX,
   partAt,
   placePart,
@@ -19,8 +22,11 @@ export interface EditorState {
   held?: { part: string; rot: Rotation };
   hover?: Cell;
   gesture?: { kind: 'paint' | 'erase' | 'select'; start: Cell; last: Cell };
+  /** Shift was held when the current gesture started. */
+  gestureShift?: boolean;
   selection: string[];
-  mirror: { on: boolean; axisHalfCells: number };
+  /** `axisSet` is false until mirror mode is first turned on, which puts the axis on the core's column. */
+  mirror: { on: boolean; axisHalfCells: number; axisSet: boolean };
 }
 
 export type EditorEvent =
@@ -33,7 +39,8 @@ export type EditorEvent =
   | { type: 'up'; cell: Cell }
   | { type: 'toggleMirror' }
   | { type: 'setAxis'; axisHalfCells: number }
-  | { type: 'shiftAxis'; delta: number };
+  | { type: 'shiftAxis'; delta: number }
+  | { type: 'deleteSelection' };
 
 export interface ReduceResult {
   editor: EditorState;
@@ -43,7 +50,7 @@ export interface ReduceResult {
 }
 
 export function initialEditor(): EditorState {
-  return { selection: [], mirror: { on: false, axisHalfCells: 0 } };
+  return { selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false } };
 }
 
 const ROTS: readonly Rotation[] = [0, 90, 180, 270];
@@ -77,6 +84,21 @@ export function lineCells(a: Cell, b: Cell): Cell[] {
   return out;
 }
 
+/** A click selects the part under it; a drag selects every part whose cell is in the box. Shift adds or toggles. */
+function selectAfter(editor: EditorState, bp: Blueprint, registry: PartRegistry, a: Cell, b: Cell): string[] {
+  const shift = editor.gesture?.kind === 'select' && editor.gestureShift === true;
+  if (a.x === b.x && a.y === b.y) {
+    const hit = partAt(bp, registry, a.x, a.y);
+    if (!shift) return hit ? [hit.id] : [];
+    if (!hit) return editor.selection;
+    return editor.selection.includes(hit.id) ? editor.selection.filter((id) => id !== hit.id) : [...editor.selection, hit.id];
+  }
+  const [x0, x1] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+  const [y0, y1] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+  const inBox = bp.parts.filter((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1).map((p) => p.id);
+  return shift ? [...editor.selection, ...inBox.filter((id) => !editor.selection.includes(id))] : inBox;
+}
+
 function applyAt(editor: EditorState, bp: Blueprint, kind: 'paint' | 'erase', c: Cell, registry: PartRegistry): Blueprint {
   const mx = mirrorX(c.x, editor.mirror.axisHalfCells);
   const both = editor.mirror.on && mx !== c.x;
@@ -101,22 +123,37 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       const rot = editor.held?.part === e.part ? editor.held.rot : 0;
       return { editor: { ...editor, held: { part: e.part, rot }, selection: [] }, bp };
     }
-    case 'rotate':
-      return editor.held ? { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp } : { editor, bp };
+    case 'rotate': {
+      if (editor.held) return { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp };
+      let out = bp;
+      for (const id of editor.selection) {
+        const p = out.parts.find((q) => q.id === id);
+        if (p) out = setPartRotation(out, registry, id, rotateBy(p.rot, e.dir));
+      }
+      return { editor, bp: out };
+    }
+    case 'deleteSelection':
+      return editor.selection.length === 0 ? { editor, bp } : { editor: { ...editor, selection: [] }, bp: removeParts(bp, editor.selection) };
     case 'escape': {
-      const { held: _held, gesture: _gesture, ...rest } = editor;
+      const { held: _held, gesture: _gesture, gestureShift: _shift, ...rest } = editor;
       return { editor: { ...rest, selection: [] }, bp };
     }
-    case 'toggleMirror':
-      return { editor: { ...editor, mirror: { ...editor.mirror, on: !editor.mirror.on } }, bp };
+    case 'toggleMirror': {
+      const m = editor.mirror;
+      if (!m.on && !m.axisSet) {
+        const core = bp.parts.find((p) => isCore(p, registry));
+        return { editor: { ...editor, mirror: { on: true, axisHalfCells: 2 * (core?.x ?? 0), axisSet: true } }, bp };
+      }
+      return { editor: { ...editor, mirror: { ...m, on: !m.on } }, bp };
+    }
     case 'setAxis':
-      return { editor: { ...editor, mirror: { ...editor.mirror, axisHalfCells: e.axisHalfCells } }, bp };
+      return { editor: { ...editor, mirror: { ...editor.mirror, axisHalfCells: e.axisHalfCells, axisSet: true } }, bp };
     case 'shiftAxis':
-      return { editor: { ...editor, mirror: { ...editor.mirror, axisHalfCells: editor.mirror.axisHalfCells + e.delta } }, bp };
+      return { editor: { ...editor, mirror: { ...editor.mirror, axisHalfCells: editor.mirror.axisHalfCells + e.delta, axisSet: true } }, bp };
     case 'down': {
       if (editor.gesture) return { editor, bp };
       const kind = e.button === 'right' ? 'erase' : editor.held ? 'paint' : 'select';
-      const next = { ...editor, hover: e.cell, gesture: { kind, start: e.cell, last: e.cell } } satisfies EditorState;
+      const next = { ...editor, hover: e.cell, gesture: { kind, start: e.cell, last: e.cell }, gestureShift: e.shift } satisfies EditorState;
       if (kind === 'select') return { editor: next, bp };
       return { editor: next, bp: applyAt(editor, bp, kind, e.cell, registry), gesture: 'begin' };
     }
@@ -131,11 +168,8 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
     case 'up': {
       const g = editor.gesture;
       if (!g) return { editor, bp };
-      const { gesture: _gesture, ...rest } = editor;
-      if (g.kind === 'select') {
-        const hit = partAt(bp, registry, e.cell.x, e.cell.y);
-        return { editor: { ...rest, hover: e.cell, selection: hit ? [hit.id] : [] }, bp };
-      }
+      const { gesture: _gesture, gestureShift: _shift, ...rest } = editor;
+      if (g.kind === 'select') return { editor: { ...rest, hover: e.cell, selection: selectAfter(editor, bp, registry, g.start, e.cell) }, bp };
       const moved = reduce(editor, bp, { type: 'move', cell: e.cell }, registry, partIds);
       return { editor: { ...rest, hover: e.cell }, bp: moved.bp, gesture: 'end' };
     }

@@ -6,7 +6,7 @@ export interface BuilderView {
   draft: Blueprint;
   held?: { part: string; rot: Rotation };
   selection: string[];
-  mirror: { on: boolean; axisHalfCells: number };
+  mirror: { on: boolean; axisHalfCells: number; axisSet: boolean };
   canUndo: boolean;
   canRedo: boolean;
   issues: Issue[];

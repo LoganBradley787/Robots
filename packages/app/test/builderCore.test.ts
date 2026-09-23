@@ -136,3 +136,59 @@ describe('editor reducer', () => {
     expect(r.editor.hover).toEqual({ x: 5, y: 5 });
   });
 });
+
+describe('selection', () => {
+  const car = (): Blueprint =>
+    run([
+      { type: 'pick', index: 1 },
+      { type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: false },
+      { type: 'move', cell: { x: 3, y: 1 } },
+      { type: 'up', cell: { x: 3, y: 1 } },
+      { type: 'pick', index: 0 },
+      { type: 'down', cell: { x: 1, y: 1 }, button: 'left', shift: false },
+      { type: 'up', cell: { x: 1, y: 1 } },
+    ]).bp;
+
+  it('a click with nothing held selects the part under it, shift toggles more', () => {
+    const bp = car();
+    const a = run([{ type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 1 } }], bp);
+    expect(a.editor.selection).toEqual(['frame@0,1']);
+    const b = run([{ type: 'down', cell: { x: 2, y: 1 }, button: 'left', shift: true }, { type: 'up', cell: { x: 2, y: 1 } }], bp, a.editor);
+    expect(b.editor.selection).toEqual(['frame@0,1', 'frame@2,1']);
+    const c = run([{ type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: true }, { type: 'up', cell: { x: 0, y: 1 } }], bp, b.editor);
+    expect(c.editor.selection).toEqual(['frame@2,1']);
+  });
+
+  it('a drag with nothing held selects every part in the box', () => {
+    const r = run(
+      [
+        { type: 'down', cell: { x: 1, y: 0 }, button: 'left', shift: false },
+        { type: 'move', cell: { x: 2, y: 2 } },
+        { type: 'up', cell: { x: 2, y: 2 } },
+      ],
+      car(),
+    );
+    expect(r.editor.selection).toEqual(['frame@2,1', 'core@1,1']);
+    expect(r.gestures).toEqual([]);
+  });
+
+  it('delete removes the selection in one edit and clears it', () => {
+    const bp = car();
+    const r = run([{ type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 1 } }, { type: 'deleteSelection' }], bp);
+    expect(r.bp.parts.map((p) => p.id)).toEqual(['frame@2,1', 'frame@3,1', 'core@1,1']);
+    expect(r.editor.selection).toEqual([]);
+  });
+
+  it('rotate with nothing held rotates the selected parts in place', () => {
+    const bp = run([{ type: 'pick', index: 4 }, { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 0 } }]).bp;
+    const r = run([{ type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 0 } }, { type: 'rotate', dir: 1 }], bp);
+    expect(r.bp.parts[0]?.rot).toBe(90);
+  });
+
+  it('turning mirror on the first time puts the axis on the core column', () => {
+    const r = run([{ type: 'toggleMirror' }], car());
+    expect(r.editor.mirror).toMatchObject({ on: true, axisHalfCells: 2 });
+    const moved = run([{ type: 'shiftAxis', delta: 1 }, { type: 'toggleMirror' }, { type: 'toggleMirror' }], r.bp, r.editor);
+    expect(moved.editor.mirror).toMatchObject({ on: true, axisHalfCells: 3 });
+  });
+});

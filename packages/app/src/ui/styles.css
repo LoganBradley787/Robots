@@ -80,3 +80,11 @@
 .dialog p { margin: 0 0 14px; color: #b8c2d6; }
 .dialog input { width: 100%; box-sizing: border-box; margin-bottom: 14px; }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.row input { flex: 1; min-width: 0; }
+.small { font-size: 11px; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 9px; border-radius: 12px; background: #1f3561; border: 1px solid #36528c; }
+#ui .tag-remove { padding: 0 6px; border: none; background: transparent; color: var(--muted); border-radius: 10px; }
+#ui .tag-remove:hover { background: #2e4a80; color: var(--text); }
+.side-section p { margin: 4px 0 8px; }
