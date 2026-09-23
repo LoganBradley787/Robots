@@ -1,13 +1,14 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, setBindings, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, type Blueprint } from '@robots/sim-core';
+import { addTagToParts, setBindings, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Blueprint } from '@robots/sim-core';
 import './ui/styles.css';
 import flatJson from '../../../worlds/flat.json';
 import { Renderer } from './render/Renderer';
 import { loadTextures } from './render/assets';
 import { Hud } from './app/Hud';
 import { bindKeys, isTypingTarget } from './app/keys';
-import { toggleMode, type ModeState } from './app/modes';
+import { enterWorld, toggleMode, type ModeState } from './app/modes';
+import { deployDecision } from './builder/deployFlow';
 import { WorldScreen } from './world/WorldScreen';
 import { createStore } from './ui/store';
 import type { AppState } from './ui/appState';
@@ -115,7 +116,20 @@ async function boot(): Promise<void> {
     save: () => run(doc.save()),
     saveAs: () => run(doc.saveAs()),
     remove: () => run(doc.remove()),
-    deploy: () => notify(store, 'Deploy arrives in M2 T9.'),
+    deploy: () => {
+      const go = async (): Promise<void> => {
+        const d = deployDecision(store.get().builder.issues, doc.isDirty());
+        if (d.step === 'blocked') {
+          notify(store, `Fix ${d.errors} error${d.errors === 1 ? '' : 's'} before deploying (see Issues).`);
+          return;
+        }
+        if (d.step === 'confirm-unsaved' && !(await doc.confirmLeave())) return;
+        await syncDoc(true);
+        setMode(enterWorld({ ...modes, paused: worldScreen.time.paused }));
+        worldScreen.startPlacing(toFileJson(builder.draft, registry), registry);
+      };
+      go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+    },
     focusIssue: (issue) => {
       const part = issue.partId ? builder.draft.parts.find((p) => p.id === issue.partId) : undefined;
       const cell = issue.cell ?? (part ? { x: part.x, y: part.y } : undefined);
@@ -156,13 +170,17 @@ async function boot(): Promise<void> {
     },
     { passive: false },
   );
+  const local = (e: PointerEvent): [number, number] => {
+    const r = canvas.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  };
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
-    if (modes.mode === 'world') worldScreen.onPointerDown(e);
+    if (modes.mode === 'world') worldScreen.onPointerDown(e, ...local(e));
     else builder.onPointerDown(e, cellOf(e));
   });
   canvas.addEventListener('pointermove', (e) => {
-    if (modes.mode === 'world') worldScreen.onPointerMove(e);
+    if (modes.mode === 'world') worldScreen.onPointerMove(e, ...local(e));
     else builder.onPointerMove(e, cellOf(e));
   });
   const up = (e: PointerEvent): void => {
@@ -176,7 +194,12 @@ async function boot(): Promise<void> {
     if (isTypingTarget(e.target) || store.get().dialog) return;
     if (e.code === 'Tab') {
       e.preventDefault();
+      worldScreen.cancelPlacing();
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
+      return;
+    }
+    if (modes.mode === 'world' && e.code === 'Escape' && worldScreen.isPlacing) {
+      worldScreen.cancelPlacing();
       return;
     }
     if (modes.mode !== 'builder' || store.get().dialog) return;

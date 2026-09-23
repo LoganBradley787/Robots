@@ -10,9 +10,16 @@ describe('World.canPlace', () => {
   it('allows the car in open air and refuses it inside the ground', async () => {
     const w = await World.create({ seed: 1 }, flat);
     expect(w.canPlace(carJson, { x: 0, y: 3 })).toEqual({ ok: true });
-    const r = w.canPlace(carJson, { x: 0, y: 0.5 });
-    expect(r.ok).toBe(false);
-    expect(r.reason).toBe('overlaps something already in the world');
+    expect(w.canPlace(carJson, { x: 0, y: 0.5 })).toEqual({ ok: false, reason: 'below the ground' });
+    // The block at x 8 is 2 m tall; a body resting 0.2 m into it overlaps.
+    expect(w.canPlace(carJson, { x: 8, y: 2.3 })).toEqual({ ok: false, reason: 'overlaps something already in the world' });
+    expect(w.canPlace(carJson, { x: 8, y: 2.6 }).ok).toBe(true);
+    w.dispose();
+  });
+
+  it('refuses anything below the ground surface, even under the physics slab', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    expect(w.canPlace(carJson, { x: 0, y: -5 })).toEqual({ ok: false, reason: 'below the ground' });
     w.dispose();
   });
 
