@@ -10,7 +10,7 @@ export const TUNE_ROBOTS: Record<string, unknown> = {
   heavy: car(['F  F  F  F  F  F', 'F  F  F  F  F  F', 'F  F  C  B  F  F', 'W  .  .  .  .  W']),
   big2: car(['F  F  F  F  F  F  F', 'F  F  F  C  F  F  F', 'W  .  .  .  .  .  W']),
   big4: car(['F  F  F  F  F  F  F', 'F  F  F  C  F  F  F', 'W  W  .  .  .  W  W']),
-  hopper: car(['F  F  C  B  F  F', 'W  T^ .  .  T^ W']),
+  hopper: car(['F  T^ C  B  T^ F', 'W  .  .  .  .  W']),
 };
 
 interface Drive {

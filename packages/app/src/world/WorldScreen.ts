@@ -117,7 +117,7 @@ export class WorldScreen {
 
   spawn(raw: unknown, at: { x: number; y: number }): Robot {
     const robot = this.world.spawnBlueprint(raw, at);
-    const view = new RobotView(robot, (f) => this.textures.part(f));
+    const view = new RobotView(robot, (f) => this.textures.part(f), (name) => this.textures.fx.animations[name] ?? []);
     this.renderer.bodies.addChild(view.root);
     this.views.push(view);
     this.focus(robot.id);
@@ -253,7 +253,10 @@ export class WorldScreen {
     }
 
     const alpha = time.paused ? 1 : this.stepper.alpha;
-    for (const v of this.views) v.sync(this.world.physics, alpha);
+    for (const [i, v] of this.views.entries()) {
+      const id = this.world.robots[i]?.id ?? -1;
+      v.sync(this.world.physics, alpha, (partId, channel) => this.world.channelValue(id, partId, channel));
+    }
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);

@@ -41,7 +41,8 @@ Wheel: `maxTorque` 12 N m, `motorFactor` 0.4 (knee near 10 rad/s), `maxSpeed` 40
 | 14 frames, 4 wheels | 21 kg | | 5 s: 14.2 | | 5 m/s in 1.2 s |
 
 - Coasting from 12 m/s loses 5% in 2 s. Holding A from 12 m/s stops the car in 2.9 s.
-- The hopper (car plus two thrusters under it, 14 kg) is off the ground 0.2 s after W and climbs 15 m in 2 s of holding: tap W to hop.
+- The hopper (`blueprints/hopper.json`: two upward thrusters in the body row, 12 kg) is off the ground 0.2 s after W and climbs about 20 m in 2 s of holding: tap W to hop.
+- A part in the wheel row rests on the ground: wheels are 0.45 m balls and a box cell reaches 0.05 m lower, so a thruster between the wheels drags. Put such parts one row up.
 
 ## On-screen keys panel (Logan)
 - A small bar in the world shows every key the controlled robot has (bound or auto), as the key letter only: bind K and a K button appears. No descriptions, because one key can drive wheels, a propeller, and later a script, and no label can say all of that. A fuller "what does each key do" view can come later.
