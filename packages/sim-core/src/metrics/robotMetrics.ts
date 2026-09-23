@@ -76,3 +76,35 @@ export function sampleRobot(world: World, robot: Robot): RobotSample {
     chunks: robot.chunks.length,
   };
 }
+
+/** Summary of a drive for the headless runner (`06` M3): how far, how high, how tilted, how fast. */
+export interface DriveMetrics {
+  /** Core x at the end minus core x at the first sample, meters. */
+  distance: number;
+  /** Highest core y seen (ground surface is 0). */
+  maxAltitude: number;
+  /** Largest absolute core tilt seen, degrees. */
+  maxTiltDeg: number;
+  topSpeed: number;
+}
+
+/** Accumulates DriveMetrics from one sample per tick. */
+export class DriveTracker {
+  private firstX: number | undefined;
+  private lastX = 0;
+  private maxY = Number.NEGATIVE_INFINITY;
+  private maxTilt = 0;
+  private maxSpeed = 0;
+
+  add(s: RobotSample): void {
+    this.firstX ??= s.coreX;
+    this.lastX = s.coreX;
+    this.maxY = Math.max(this.maxY, s.coreY);
+    this.maxTilt = Math.max(this.maxTilt, Math.abs(s.tiltDeg));
+    this.maxSpeed = Math.max(this.maxSpeed, s.speed);
+  }
+
+  result(): DriveMetrics {
+    return { distance: this.lastX - (this.firstX ?? this.lastX), maxAltitude: this.maxY, maxTiltDeg: this.maxTilt, topSpeed: this.maxSpeed };
+  }
+}

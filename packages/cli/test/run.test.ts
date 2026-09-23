@@ -26,6 +26,23 @@ describe('runSim', () => {
     await expect(runSim(flat, { format: 1, name: 'x', grid: ['C . F'] }, { seconds: 1, seed: 1 })).rejects.toBeInstanceOf(InvalidBlueprint);
   });
 
+  it('drives with a key timeline and reports drive metrics', async () => {
+    const r = await runSim(flat, carJson, { seconds: 3, seed: 1, at: { x: -20, y: 3 }, keys: [{ key: 'd', down: 0.5, up: 2.5 }] });
+    expect(r.drive.distance).toBeGreaterThan(5);
+    expect(r.drive.topSpeed).toBeGreaterThan(4);
+    expect(formatReport(r)).toContain('drive: distance');
+    const back = await runSim(flat, carJson, { seconds: 3, seed: 1, at: { x: -20, y: 3 }, keys: [{ key: 'a', down: 0.5, up: 2.5 }] });
+    expect(back.drive.distance).toBeLessThan(-5);
+  });
+
+  it('the same key timeline reproduces the same distance', async () => {
+    const opts = { seconds: 4, seed: 1, at: { x: -20, y: 3 }, keys: [{ key: 'd', down: 0, up: 2 }, { key: 'a', down: 2.5, up: 3 }] };
+    const a = await runSim(flat, carJson, opts);
+    const b = await runSim(flat, carJson, opts);
+    expect(a.drive).toEqual(b.drive);
+    expect(a.finalHash).toBe(b.finalHash);
+  });
+
   it('is deterministic', async () => {
     const d = await checkDeterminism(flat, carJson, { seconds: 3, seed: 2 });
     expect(d.equal).toBe(true);

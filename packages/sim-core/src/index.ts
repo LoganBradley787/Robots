@@ -29,8 +29,10 @@ export { validateBlueprint, loadBlueprint, formatIssues, BlueprintError } from '
 export type { ValidationResult } from './blueprint/validate';
 export type { Robot, Chunk, BodyGroup, PartInstance } from './world/Robot';
 export { spawnRobot } from './assembly/spawn';
-export { sampleRobot, partWorldPose } from './metrics/robotMetrics';
-export type { RobotSample } from './metrics/robotMetrics';
+export { sampleRobot, partWorldPose, DriveTracker } from './metrics/robotMetrics';
+export type { RobotSample, DriveMetrics } from './metrics/robotMetrics';
+export { parseKeyTimeline, timelineInputs, TimelineError } from './control/timeline';
+export type { KeyPress } from './control/timeline';
 export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setBindings, setPartsAuto, setAutoControls } from './blueprint/edit';
 export { mirrorRotation, mirrorX, mirrorBlueprint } from './blueprint/mirror';
 export { staticStats } from './blueprint/stats';

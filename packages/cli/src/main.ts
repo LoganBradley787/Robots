@@ -1,4 +1,4 @@
-import { parseWorldFile, type WorldFile } from '@robots/sim-core';
+import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
 import { DEFAULT_WORLD, readJson, resolveBlueprint, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
@@ -22,6 +22,8 @@ flags
   --seconds <n>      simulated seconds (default: 5)
   --seed <n>         world seed (default: 1)
   --x <n> --y <n>    where the core lands (default: the world spawn point)
+  --keys <timeline>  keys to press, in seconds from the start: "d:0-3, a:3.5-4, w:5" (w:5 is a tap),
+                     or a .json file like [{ "key": "d", "down": 0, "up": 3 }]
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
@@ -59,6 +61,12 @@ function seedFlag(flags: Map<string, string>): number {
   const v = numberFlag(flags, 'seed', 1);
   if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) throw new Error(`--seed must be an integer from 0 to 4294967295, got ${v}`);
   return v;
+}
+
+function keysFlag(flags: Map<string, string>): KeyPress[] | undefined {
+  const raw = flags.get('keys');
+  if (raw === undefined) return undefined;
+  return parseKeyTimeline(raw.trim().endsWith('.json') ? readJson(resolveUserPath(raw.trim())) : raw);
 }
 
 function loadWorld(flags: Map<string, string>): WorldFile {
@@ -103,7 +111,17 @@ async function main(): Promise<number> {
   const seed = seedFlag(flags);
   const file = loadWorld(flags);
   const at = flags.has('x') || flags.has('y') ? { x: numberFlag(flags, 'x', file.spawn.x), y: numberFlag(flags, 'y', file.spawn.y) } : undefined;
-  const opts = at ? { seconds, seed, at } : { seconds, seed };
+  let keys: KeyPress[] | undefined;
+  try {
+    keys = keysFlag(flags);
+  } catch (e) {
+    if (e instanceof TimelineError) {
+      console.error(`--keys: ${e.message}`);
+      return 2;
+    }
+    throw e;
+  }
+  const opts = { seconds, seed, ...(at ? { at } : {}), ...(keys ? { keys } : {}) };
 
   try {
     if (command === 'run') {

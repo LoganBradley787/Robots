@@ -1,4 +1,4 @@
-import { defaultRegistry, formatIssues, toGrid, validateBlueprint } from '@robots/sim-core';
+import { autoBindings, defaultRegistry, formatIssues, toGrid, validateBlueprint } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -33,6 +33,18 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   for (const grp of plan.groups) {
     const joint = grp.joint ? ` joint -> group ${grp.joint.parentGroup}` : '';
     lines.push(`  group ${grp.index}: ${grp.partIds.length} part${grp.partIds.length === 1 ? '' : 's'} origin ${grp.originId}${joint}`);
+  }
+  const auto = autoBindings(bp, registry);
+  if (bp.autoControls === false) lines.push('auto controls: off');
+  else if (auto.length > 0) {
+    lines.push('auto controls:');
+    const byKey = new Map<string, string[]>();
+    for (const b of auto) byKey.set(b.key, [...(byKey.get(b.key) ?? []), `${b.target} ${b.channel} ${(b.value ?? 0) > 0 ? '+' : ''}${Math.round((b.value ?? 0) * 100)}%`]);
+    for (const [key, what] of byKey) lines.push(`  ${key.toUpperCase()}: ${what.join(', ')}`);
+  }
+  if (bp.bindings.length > 0) {
+    lines.push('bindings:');
+    for (const b of bp.bindings) lines.push(`  ${b.key} ${b.mode} ${b.mode === 'script' ? `script ${b.script}` : `${b.target} ${b.channel} ${b.value}`}`);
   }
   if (v.issues.length > 0) lines.push(formatIssues(v.issues));
   return { ok: v.ok, text: lines.join('\n') };
