@@ -20,3 +20,5 @@ export { expandBlueprint, partId } from './blueprint/expand';
 export { toGrid } from './blueprint/toGrid';
 export { assemble, partCells, rootPartId, isCore } from './assembly/assemble';
 export type { AssemblyPlan, AttachEdge, ChunkPlan, GroupPlan } from './assembly/assemble';
+export { validateBlueprint, loadBlueprint, formatIssues, BlueprintError } from './blueprint/validate';
+export type { ValidationResult } from './blueprint/validate';
