@@ -14,3 +14,7 @@ export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec
 export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians } from './parts/faces';
 export { parsePartDef, PartDefError } from './parts/parsePartDef';
 export { PartRegistry, defaultRegistry } from './parts/registry';
+export type { Issue, LegendEntry, PlacedPart, Binding, BindingMode, ScriptSpec, Blueprint } from './blueprint/types';
+export { DEFAULT_LEGEND } from './blueprint/legend';
+export { expandBlueprint, partId } from './blueprint/expand';
+export { toGrid } from './blueprint/toGrid';
