@@ -81,3 +81,8 @@ This preserves the velocity field of the rigid motion. The spike in `docs/resear
 - Rapier's JS API has no motor on multibody joints, so `PhysicsWorld` applies the velocity motor itself each step: torque `min(cap, gain * speed error)` on the wheel and the reaction on its parent. A motor that pushes wakes its bodies, which also fixed a car stuck with a wheel on the ground (its bodies had fallen asleep with the key held).
 - Consequence: a robot's bodies are multibody links, and Rapier recomputes link velocities from the joints, so impulses and velocity writes on them are lost. Behaviors push with forces (`addForceAt`) and torques. Explosions (M6) must do the same.
 - Multibody joints carry a little damping of their own: coasting from 10 m/s loses about 1.4 m/s in 2 s with the motor slack. It reads as rolling resistance; the wheel's `coastTorque` dropped to 0.3 and `maxSpeed` rose to 50 rad/s to keep the M3 feel (`11`).
+
+## Air drag (M5, 2026-09-23)
+- Every robot body gets `F = -0.0025 * cells * |v| * v` and, unless it hangs on a joint, a spin drag `-0.002 * cells * |w| * w` (`PhysicsWorld`, applied as forces so multibody links keep it). Terrain has none.
+- Measured: a 3-cell, 4 kg brick falls at a terminal 72 m/s; the hopper under full thrust tops out between 50 and 90 m/s instead of climbing to 20 km; the car's top speed went from 19.1 to 18.1 m/s and coasting from 16 m/s loses 18% in 2 s.
+- Spin drag leaves wheels alone: on them it ate the motor's torque near top speed (the car dropped to 16.5 m/s before that exception).

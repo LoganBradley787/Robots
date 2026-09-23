@@ -72,6 +72,14 @@ export interface DebugBuffers {
 export const SOLVER_ITERATIONS = 8;
 export const INTERNAL_PGS_ITERATIONS = 8;
 
+/**
+ * Air drag per robot cell (M5, see docs/design/03): force `-AIR_DRAG * cells * |v| * v` on each robot body, and
+ * torque `-AIR_SPIN_DRAG * cells * |w| * w` (not on bodies hanging on a joint: a spinning wheel is not tumbling). Quadratic, so a car at 19 m/s barely notices while a hopper under full
+ * thrust tops out instead of climbing to 20 km. Terrain has no cells and no drag.
+ */
+export const AIR_DRAG = 0.0025;
+export const AIR_SPIN_DRAG = 0.002;
+
 function readState(body: RAPIER.RigidBody): BodyState {
   const t = body.translation();
   const v = body.linvel();
@@ -82,6 +90,10 @@ export class PhysicsWorld {
   private readonly world: RAPIER.World;
   private readonly bodies = new Map<BodyId, RAPIER.RigidBody>();
   private readonly prev = new Map<BodyId, BodyState>();
+  /** Bodies that hang on a joint (wheels): no spin drag. */
+  private readonly jointChildren = new Set<BodyId>();
+  /** Robot cells (owned colliders) per body, for air drag. */
+  private readonly cells = new Map<BodyId, number>();
   /** Bodies with forces or torques added for the next step; cleared after it. */
   private readonly forced = new Set<BodyId>();
   private readonly joints = new Map<JointId, JointEntry>();
@@ -115,7 +127,10 @@ export class PhysicsWorld {
     let desc = base.setTranslation(place.offsetX, place.offsetY).setRotation(place.angle ?? 0).setMass(place.mass);
     if (place.friction !== undefined) desc = desc.setFriction(place.friction);
     const collider = this.world.createCollider(desc, this.body(bodyId));
-    if (owner !== undefined) this.owners.set(collider.handle, owner);
+    if (owner !== undefined) {
+      this.owners.set(collider.handle, owner);
+      this.cells.set(bodyId, (this.cells.get(bodyId) ?? 0) + 1);
+    }
   }
 
   /** Revolute joint at the given anchors (each in its own body's frame). Contacts between the two bodies are off. */
@@ -132,6 +147,7 @@ export class PhysicsWorld {
     const data = RAPIER.JointData.revolute(anchorParent, anchorChild);
     const joint = this.world.createMultibodyJoint(data, this.body(parent), this.body(child), true);
     joint.setContactsEnabled(false);
+    this.jointChildren.add(child);
     const id = this.nextJointId++;
     this.joints.set(id, { parent, child, factor: motor?.factor ?? 0, target: motor?.targetVelocity ?? 0, maxTorque: motor?.maxTorque ?? 0 });
     return id;
@@ -256,6 +272,18 @@ export class PhysicsWorld {
       c.addTorque(tau, true);
       p.addTorque(-tau, true);
       this.forced.add(j.parent).add(j.child);
+    }
+    for (const [id, cells] of this.cells) {
+      const b = this.body(id);
+      if (b.isSleeping()) continue;
+      const v = b.linvel();
+      const speed = Math.hypot(v.x, v.y);
+      const w = b.angvel();
+      if (speed === 0 && w === 0) continue;
+      b.addForce({ x: -AIR_DRAG * cells * speed * v.x, y: -AIR_DRAG * cells * speed * v.y }, false);
+      // A wheel spinning on its joint is not tumbling through the air: spin drag is for free bodies only.
+      if (!this.jointChildren.has(id)) b.addTorque(-AIR_SPIN_DRAG * cells * Math.abs(w) * w, false);
+      this.forced.add(id);
     }
     this.world.step();
     for (const id of this.forced) {

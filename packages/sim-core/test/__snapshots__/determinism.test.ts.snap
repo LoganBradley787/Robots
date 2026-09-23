@@ -1,5 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`determinism > matches the committed golden hash for 10 s of the car resting on its wheels 1`] = `"c8a5f95b"`;
+exports[`determinism > matches the committed golden hash for 10 s of the car resting on its wheels 1`] = `"094e6bba"`;
 
-exports[`determinism > matches the committed golden hash for 10 s of the flat world 1`] = `"7e11c294"`;
+exports[`determinism > matches the committed golden hash for 10 s of the flat world 1`] = `"994ac81d"`;
