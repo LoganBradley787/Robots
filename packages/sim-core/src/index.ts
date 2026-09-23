@@ -27,3 +27,8 @@ export type { Robot, Chunk, BodyGroup, PartInstance } from './world/Robot';
 export { spawnRobot } from './assembly/spawn';
 export { sampleRobot, partWorldPose } from './metrics/robotMetrics';
 export type { RobotSample } from './metrics/robotMetrics';
+export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setBindings } from './blueprint/edit';
+export { mirrorRotation, mirrorX, mirrorBlueprint } from './blueprint/mirror';
+export { staticStats } from './blueprint/stats';
+export type { StaticStats } from './blueprint/stats';
+export { toFileJson } from './blueprint/serialize';

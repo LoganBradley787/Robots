@@ -5,7 +5,7 @@ Updated: 2026-09-23, by a coding session (Opus 5.5)
 - Current milestone: M1 complete, plan `docs/plans/M1-parts-and-assembly.md`. Gate 1 (Look) passed 2026-09-23; punch list `docs/critique/gate-1.md` is done.
 - Done: M0 T1 to T10 (tag `m0`). M1 T1 to T10 (tag `m1`): part defs as JSON, blueprint format with ASCII grid, validator, pure assembly plan, compound bodies with jointed motor wheels, `spawnBlueprint`, robot metrics, blueprint CLI (`run`, `show`, `validate`, `determinism`), placeholder art generator, sprite rendering per body, tiled terrain, 1 m grid.
 - In progress: none
-- Next: M2 T1, once Logan approves `docs/plans/M2-builder.md` (written from his builder answers in `docs/design/10-builder.md`). Gate 2 (Builder) is at the end of M2.
+- Next: M2 T1. Logan approved `docs/plans/M2-builder.md` on 2026-09-23 and asked to run through to Gate 2.
 
 ## Gate 1: what Logan looked at
 
