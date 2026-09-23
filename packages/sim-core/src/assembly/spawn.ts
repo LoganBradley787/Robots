@@ -66,21 +66,20 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
     const jointCell = cell(g.joint.partId);
     const anchorParentX = jointCell.x - parentOrigin.x;
     const anchorParentY = jointCell.y - parentOrigin.y;
-    const cfg = def?.behaviorConfig ?? {};
-    const motor =
-      def?.joint?.motor === 'velocity' && cfg.maxTorque !== undefined && cfg.motorFactor !== undefined
-        ? { model: 'force' as const, targetVelocity: 0, factor: cfg.motorFactor, maxTorque: cfg.maxTorque }
-        : undefined;
+    const js = def?.joint;
+    const motor = js ? { model: 'force' as const, targetVelocity: 0, factor: js.motorFactor, maxTorque: js.maxTorque } : undefined;
     const jointId = physics.createRevoluteJoint(parent.bodyId, child.bodyId, { x: anchorParentX, y: anchorParentY }, { x: 0, y: 0 }, motor);
     child.joint = { partId: g.joint.partId, parentGroup: g.joint.parentGroup, jointId, anchorParentX, anchorParentY };
   }
 
+  // A chunk's core: the primary core if the chunk has it, then corePriority, then blueprint order.
+  const corePreference = [rootId, ...(bp.corePriority ?? []), ...bp.parts.map((p) => p.id)].filter((id) => {
+    const p = byId.get(id);
+    return p !== undefined && isCore(p, registry);
+  });
   const chunks: Chunk[] = plan.chunks.map((c) => {
     const chunk: Chunk = { partIds: [...c.partIds], groups: [...c.groups] };
-    const core = c.partIds.find((id) => {
-      const p = byId.get(id);
-      return p !== undefined && isCore(p, registry);
-    });
+    const core = corePreference.find((id) => c.partIds.includes(id));
     if (core !== undefined) chunk.coreId = core;
     return chunk;
   });

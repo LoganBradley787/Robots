@@ -25,7 +25,7 @@ describe('expandBlueprint', () => {
   });
 
   it('maps arrow tokens to rotations', () => {
-    const { blueprint } = expandBlueprint({ format: 1, name: 't', grid: ['W< T> D< W> Wv T< Pv D>'] });
+    const { blueprint } = expandBlueprint({ format: 1, name: 't', grid: ['W< T> D< W> W^ T< Pv D>'] });
     expect(blueprint?.parts.map((p) => `${p.part}:${p.rot}`)).toEqual([
       'wheel:270',
       'thruster:270',
@@ -115,6 +115,12 @@ describe('expandBlueprint', () => {
     expect(issues).toEqual([]);
     expect(blueprint?.bindings).toHaveLength(2);
     expect(blueprint?.scripts[0]).toEqual({ id: 'hover', enabled: false, params: { kp: 0.6 }, source: { file: 'hover.js' } });
+  });
+
+  it('legend lookups ignore object prototype names', () => {
+    expect(expandBlueprint({ format: 1, name: 't', grid: ['toString'] }).issues[0]?.code).toBe('UNKNOWN_TOKEN');
+    const raw = JSON.parse('{"format":1,"name":"t","grid":["__proto__"],"legend":{"__proto__":{"part":"frame"}}}');
+    expect(expandBlueprint(raw).blueprint?.parts[0]?.part).toBe('frame');
   });
 
   it('keeps continuation cells for the validator', () => {

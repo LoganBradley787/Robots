@@ -98,7 +98,7 @@ Shipped with the parts (`packages/sim-core/src/blueprint/legend.ts`). Blueprints
 
 ```
 C   core            F   frame           B   battery         X   warhead
-W   wheel, mount up (hangs below)        Wv  mount down      W<  mount right     W>  mount left
+W   wheel, mount up (hangs below)        W^  mount down (sits above)   W<  mount right (sits left)   W>  mount left (sits right)
 T^  thruster pushing up (nozzle down)    Tv  pushing down    T<  pushing left    T>  pushing right
 P   propeller lifting up                 Pv  lifting down
 D   decoupler releasing up               Dv  releasing down  D<  releasing left  D>  releasing right

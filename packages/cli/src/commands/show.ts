@@ -1,16 +1,20 @@
 import { defaultRegistry, formatIssues, toGrid, validateBlueprint } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
-export function showBlueprint(blueprint: unknown): string {
+export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
   const registry = defaultRegistry();
   const v = validateBlueprint(blueprint, registry);
-  if (!v.blueprint || !v.plan) return formatIssues(v.issues);
+  if (!v.blueprint || !v.plan) return { ok: false, text: formatIssues(v.issues) };
   const bp = v.blueprint;
   const plan = v.plan;
   const lines: string[] = [`${bp.name}: ${bp.parts.length} parts`];
-  const g = toGrid(bp);
-  lines.push('grid:', ...g.grid.map((r) => `  ${r}`));
-  const legend = Object.entries(g.legend);
+  const g = toGrid(bp, registry);
+  if (g) lines.push('grid:', ...g.grid.map((r) => `  ${r}`));
+  else {
+    lines.push('parts (not expressible as a grid):');
+    for (const p of bp.parts) lines.push(`  ${p.id}: ${p.part} at (${p.x}, ${p.y}) rot ${p.rot} tags ${p.tags.join(', ')}`);
+  }
+  const legend = Object.entries(g?.legend ?? {});
   if (legend.length > 0) {
     lines.push('legend:');
     for (const [token, e] of legend) lines.push(`  ${token} = ${e.part} rot ${e.rot ?? 0}${e.tags ? ` tags ${e.tags.join(', ')}` : ''}`);
@@ -31,5 +35,5 @@ export function showBlueprint(blueprint: unknown): string {
     lines.push(`  group ${grp.index}: ${grp.partIds.length} part${grp.partIds.length === 1 ? '' : 's'} origin ${grp.originId}${joint}`);
   }
   if (v.issues.length > 0) lines.push(formatIssues(v.issues));
-  return lines.join('\n');
+  return { ok: v.ok, text: lines.join('\n') };
 }

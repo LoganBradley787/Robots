@@ -41,11 +41,14 @@ describe('validate and show', () => {
   });
 
   it('show prints the grid, mass, and body structure', () => {
-    const text = showBlueprint(carJson);
+    const shown = showBlueprint(carJson);
+    expect(shown.ok).toBe(true);
+    const text = shown.text;
     expect(text).toContain('car: 8 parts');
     expect(text).toContain('F F C B F F');
     expect(text).toContain('mass: 12.000 kg');
     expect(text).toContain('group 1: 1 part origin wheel@0,0 joint -> group 0');
+    expect(showBlueprint({ format: 1, name: 'x', grid: ['C . F'] }).ok).toBe(false);
   });
 });
 

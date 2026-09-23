@@ -59,7 +59,7 @@ async function boot(): Promise<void> {
   for (const v of views) renderer.bodies.addChild(v.root);
 
   let targetIndex = 0;
-  const target = (): Robot => world.robots[targetIndex] ?? (world.robots[0] as Robot);
+  const target = (): Robot | undefined => world.robots[targetIndex];
   let cam = createCamera(file.spawn.x, file.spawn.y - 3);
 
   const canvas = renderer.app.canvas;
@@ -107,6 +107,7 @@ async function boot(): Promise<void> {
       cam = setFollow(cam, !cam.follow);
     },
     cycleTarget: () => {
+      if (world.robots.length === 0) return;
       targetIndex = (targetIndex + 1) % world.robots.length;
       cam = setFollow(cam, true);
     },
@@ -127,16 +128,20 @@ async function boot(): Promise<void> {
 
     const alpha = time.paused ? 1 : stepper.alpha;
     for (const v of views) v.sync(world.physics, alpha);
-    cam = followTarget(cam, anchorPosition(world, target(), alpha), ticker.deltaMS / 1000);
+    const focus = target();
+    if (focus) cam = followTarget(cam, anchorPosition(world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(renderer.world, cam, renderer.screenWidth, renderer.screenHeight);
     if (debugVisible) drawDebug(renderer.debug, world.physics.debugRender(), true);
     else renderer.debug.clear();
 
-    const s = sampleRobot(world, target());
+    const s = focus ? sampleRobot(world, focus) : undefined;
+    const robotLine = focus && s
+      ? `robot ${focus.name} (${targetIndex + 1}/${world.robots.length})   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
+      : 'no robots';
     hud.set([
       `tick ${world.tick}   t=${world.time.toFixed(2)}s   ${Math.round(ticker.FPS)} fps`,
       `${time.paused ? 'PAUSED' : 'running'}   x${time.timeScale}   zoom ${cam.zoom.toFixed(2)}   follow ${cam.follow ? 'on' : 'off'}`,
-      `robot ${target().name} (${targetIndex + 1}/${world.robots.length})   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`,
+      robotLine,
       `hash ${lastHash}`,
       HELP,
     ]);

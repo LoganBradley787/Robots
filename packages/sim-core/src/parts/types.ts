@@ -15,11 +15,19 @@ export interface ChannelDef {
   default: number;
 }
 
-/** A part that is its own rigid body, joined to the part across its mount face. */
+/**
+ * A part that is its own rigid body, joined to the part across its mount face, which must be its only
+ * attachable face. The motor settings belong to the joint; the behavior maps channels to motor targets.
+ */
 export interface JointSpec {
   kind: 'revolute';
   mountFace: Face;
-  motor: 'velocity' | 'position';
+  /** Only velocity motors exist so far. Position motors arrive with the rotator (M6). */
+  motor: 'velocity';
+  /** Torque cap in N m. The motor is force based, so heavy robots need stronger motors. */
+  maxTorque: number;
+  /** Velocity gain: torque per rad/s of error, before the cap. */
+  motorFactor: number;
 }
 
 /** Default is a box filling the footprint. */

@@ -38,7 +38,7 @@ describe('default part defs', () => {
 
   it('the wheel is a jointed ball that mounts on its north face', () => {
     const w = defaultRegistry().get('wheel');
-    expect(w.joint).toEqual({ kind: 'revolute', mountFace: 'N', motor: 'velocity' });
+    expect(w.joint).toEqual({ kind: 'revolute', mountFace: 'N', motor: 'velocity', maxTorque: 12, motorFactor: 4 });
     expect(w.collider).toEqual({ shape: 'ball', radius: 0.45, friction: 1 });
     expect(w.footprint[0]?.faces).toEqual(['N']);
     expect(w.sprite.mountFrame).toBe('part.wheel.mount');
@@ -80,6 +80,16 @@ describe('parsePartDef', () => {
   it('rejects a joint mount face that is not attachable', () => {
     const bad = { ...minimal, footprint: [{ x: 0, y: 0, faces: ['S'] }], joint: { kind: 'revolute', mountFace: 'N', motor: 'velocity' } };
     expect(() => parsePartDef(bad, 'thing.json')).toThrow('thing.json: joint.mountFace N is not an attachable face');
+  });
+
+  it('a joint part attaches only through its mount face', () => {
+    const bad = { ...minimal, joint: { kind: 'revolute', mountFace: 'N', motor: 'velocity', maxTorque: 1, motorFactor: 1 } };
+    expect(() => parsePartDef(bad, 'thing.json')).toThrow('thing.json: footprint[0].faces must be exactly [N]');
+  });
+
+  it('rejects position motors until the rotator exists', () => {
+    const bad = { ...minimal, footprint: [{ x: 0, y: 0, faces: ['N'] }], joint: { kind: 'revolute', mountFace: 'N', motor: 'position' } };
+    expect(() => parsePartDef(bad, 'thing.json')).toThrow('not supported yet');
   });
 
   it('requires a radius for ball colliders', () => {

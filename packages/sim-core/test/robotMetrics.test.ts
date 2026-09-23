@@ -4,6 +4,7 @@ import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import { partWorldPose, sampleRobot } from '../src/metrics/robotMetrics';
+import type { Robot } from '../src/world/Robot';
 
 const flat = parseWorldFile(flatJson);
 
@@ -29,6 +30,14 @@ describe('sampleRobot', () => {
     for (let i = 0; i < 10; i++) w.step();
     expect(sampleRobot(w, car).resting).toBe(false);
     w.dispose();
+  });
+
+  it('partWorldPose rotates the local offset with the body', () => {
+    const fakeWorld = { physics: { state: () => ({ x: 1, y: 2, angle: Math.PI / 2, vx: 0, vy: 0, w: 0 }) } } as unknown as World;
+    const robot = { name: 'r', parts: new Map([['p', { group: 0, localX: 1, localY: 0 }]]), groups: [{ bodyId: 1 }] } as unknown as Robot;
+    const p = partWorldPose(fakeWorld, robot, 'p');
+    expect(p.x).toBeCloseTo(1, 12);
+    expect(p.y).toBeCloseTo(3, 12);
   });
 
   it('partWorldPose applies the body transform to the local offset', async () => {

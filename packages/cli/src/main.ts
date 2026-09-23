@@ -83,8 +83,9 @@ async function main(): Promise<number> {
   const blueprint = readJson(resolveBlueprint(bpArg));
 
   if (command === 'show') {
-    console.log(showBlueprint(blueprint));
-    return 0;
+    const s = showBlueprint(blueprint);
+    console.log(s.text);
+    return s.ok ? 0 : 1;
   }
   if (command === 'validate') {
     const v = validateCommand(blueprint);

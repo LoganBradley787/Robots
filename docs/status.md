@@ -2,20 +2,40 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5)
 
-- Current milestone: M0 complete, plan `docs/plans/M0-skeleton.md`. Logan chose to run straight on to Gate 1: this session writes the M1 plan and builds M1 without a stop at M0.
-- Done: M0 T1 to T10. Workspace, PhysicsWorld, world file, World with input log and hashing, headless CLI, Pixi app with fixed step, time controls, interpolation, camera, CI.
-- In progress: writing `docs/plans/M1-parts-and-assembly.md`.
-- Next: M1 T1 once the plan is written.
-- Known issues:
-  - Debug outlines are faint (1 px, Rapier's default colors). Fine for debug; sprites replace them as the main visual in M1.
-- Decisions since the plan:
-  - Root `sim` script is `pnpm --filter @robots/cli start` with no trailing `--`: pnpm forwards args itself, and the extra `--` reached `process.argv` and would break `parseArgs`. Plan updated.
-  - pnpm 11 blocks dependency build scripts by default. `pnpm-workspace.yaml` has `allowBuilds: { esbuild: true }` so tsx's esbuild installs. Add future native deps there on purpose.
-  - `@types/web` stays `*` in package.json; the lockfile pins 0.0.357, which works with PixiJS 8.21 and TS 7.
-  - Dev server port is 5180, not 5173: Docker on Logan's machine holds 5173. Changed in vite config, launch.json, README, and the plan.
-  - Keys fall back to `event.key` when `event.code` is empty, because automation tools (the in-app browser) send synthetic events with no code.
-  - Review fixes after T9: the world hash includes the RNG state (golden hash updated before CI existed, `docs/design/01` updated: hashes are exact bits, not quantized); `parseWorldFile` rejects unknown keys and non-boolean `dynamic`; `InputLog` is keyed by tick and rejects non-increasing ticks; `PhysicsWorld.world` is private; a failed Rapier init can be retried; CLI `--json` is a boolean flag and `--seed` must be a u32 integer.
-  - Per-task reviews are batched (T2 to T6, then T7 to T10) instead of one agent per task, to save cost.
-  - Verified: the browser and the Node CLI produce the same hash at tick 180 (`8db3e048` before the RNG was added to the hash), so determinism holds across the two runtimes on one machine.
-- Carry into M1: `PhysicsWorld.removeBody` must delete from both maps; free any `EventQueue` in `free()`; add a golden-hash scene with a jointed, wheeled robot.
-- Next gate: Gate 1 (Look) at the end of M1
+- Current milestone: M1 complete, plan `docs/plans/M1-parts-and-assembly.md`. **Gate 1 (Look) is open.** No M2 work until Logan's punch list is empty.
+- Done: M0 T1 to T10 (tag `m0`). M1 T1 to T10 (tag `m1`): part defs as JSON, blueprint format with ASCII grid, validator, pure assembly plan, compound bodies with jointed motor wheels, `spawnBlueprint`, robot metrics, blueprint CLI (`run`, `show`, `validate`, `determinism`), placeholder art generator, sprite rendering per body, tiled terrain, 1 m grid.
+- In progress: none
+- Next: Logan plays Gate 1 and drops notes in `docs/critique/inbox.md` (any form). A session turns them into `docs/critique/gate-1.md` and fixes them one at a time. Then a planning session writes the M2 plan (editor).
+
+## Gate 1: what to look at
+
+Run `pnpm dev`, open http://localhost:5180.
+
+- Two robots: `car` (follows by default) and `showcase` (every part type). `C` switches the camera between them.
+- Judge: textures (every part), sprite fit (press `D` to overlay physics outlines), scale (a 1 m grid is behind everything, `G` toggles it; one cell = 1 m), world look (ground, blocks, ramp, background), camera (wheel zoom, drag pan, `F` re-follow), time controls (Space, `.`, `[`, `]`, `R`).
+- Nothing drives yet. Driving, keybinds, and physics feel are Gate 3.
+- Headless: `pnpm sim run car`, `pnpm sim show showcase`.
+
+## Demo checklist results (2026-09-23)
+- `pnpm sim run car --seconds 5`: resting at 2 s, core (-0.003, 1.450), tilt 0.00, mass 12 kg. `pnpm sim run showcase`: resting, tilt 0.00, 21 kg.
+- Browser: both robots rest level on their wheels, every part type visible, sprites match debug outlines, art clean at about 3x zoom, grid readable, pause, step, speed, follow, pan, and `C` work, no console errors.
+- Determinism: same hash twice in one process, browser matches Node, and CI on Linux matches the golden hashes recorded on macOS.
+
+## Known issues
+- Multi-cell parts (none exist yet) would draw one cell-sized sprite and count mass at the anchor cell in `pnpm sim show`; fix when the first multi-cell part arrives.
+- The HUD help line runs off narrow windows.
+- Propeller spin and thruster flame animations exist in the fx sheet but are not played until channels exist (M3).
+- Dynamic world-file boxes would not be drawn (none exist; `TerrainView` draws static ones only).
+
+## Decisions since the plans (newest first)
+- M1 review fixes: joint motor settings (`maxTorque`, `motorFactor`) live in the part's `joint` block, and a joint part may only attach through its mount face; `position` motors are rejected until M6. A chunk's core honors `primaryCore` and `corePriority`. `toGrid` keeps parts at their cells and returns null when a grid cannot express the blueprint (the CLI then prints the parts list). Legend lookups use a Map. The mount-down wheel token is `W^` (it sits above its parent), not `Wv`; `02` updated.
+- M1: solver iterations raised to 8 and internal PGS iterations to 8 (from 4 and 1). The defaults let the car's 9 kg body rebound off its 1.5 kg jointed wheels at 4.3 m/s after a 1.5 m drop. Measurements in `docs/design/03`.
+- M1: the core is identified by a def field `role: "core"`, not by its id, so no engine code names a part.
+- M1: the root part (primary core) is never reported `UNATTACHED`; the parts that cannot reach it are.
+- M1: textures are 64 px per cell with linear filtering (not `nearest`); `docs/design/08` updated.
+- M1: the showcase spawns 13 m left of the car on clear ground (10 m right put it on the box and ramp).
+- M1: the ground is drawn 40 m deep for looks; physics keeps the 2 m slab.
+- M1: this session (Opus) wrote the M1 plan and ran through without a separate approval stop, at Logan's request. Every judgment call is listed in the plan under "Decisions made in this plan".
+- M0: root `sim` script has no trailing `--`; pnpm 11 `allowBuilds` for esbuild; dev port 5180 (Docker holds 5173); keys fall back to `event.key`; world hash includes RNG state; strict world file keys; tick cap per frame in the fixed stepper; `packageManager` pins pnpm 11.1.3.
+
+- Next gate: Gate 1 (Look), open now.

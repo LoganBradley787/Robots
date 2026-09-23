@@ -77,6 +77,14 @@ describe('spawnBlueprint', () => {
     w.dispose();
   });
 
+  it('the chunk core honors primaryCore', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint({ format: 1, name: 't', grid: ['C F C'], primaryCore: 'core@2,0' }, { x: 0, y: 3 });
+    expect(r.primaryCoreId).toBe('core@2,0');
+    expect(r.chunks[0]?.coreId).toBe('core@2,0');
+    w.dispose();
+  });
+
   it('a core-less blueprint spawns rooted at its first part', async () => {
     const w = await World.create({ seed: 1 }, flat);
     const bomb = w.spawnBlueprint({ format: 1, name: 'bomb', grid: ['X'] }, { x: 5, y: 5 });

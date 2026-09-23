@@ -169,13 +169,23 @@ function sprite(r: Reader, v: unknown): SpriteSpec {
 }
 
 function joint(r: Reader, v: unknown, footprint: FootprintCell[]): JointSpec {
-  const jo = r.obj(v, 'joint', ['kind', 'mountFace', 'motor']);
+  const jo = r.obj(v, 'joint', ['kind', 'mountFace', 'motor', 'maxTorque', 'motorFactor']);
   if (jo.kind !== 'revolute') r.fail('joint.kind', 'must be "revolute"');
   if (!isFace(jo.mountFace)) r.fail('joint.mountFace', 'must be one of N, E, S, W');
-  if (jo.motor !== 'velocity' && jo.motor !== 'position') r.fail('joint.motor', 'must be "velocity" or "position"');
+  if (jo.motor === 'position') r.fail('joint.motor', '"position" is not supported yet (the rotator arrives in M6)');
+  if (jo.motor !== 'velocity') r.fail('joint.motor', 'must be "velocity"');
   if (footprint.length !== 1) r.fail('joint', 'is only supported on one-cell parts');
-  if (!footprint[0]?.faces.includes(jo.mountFace)) r.fail('joint.mountFace', `${jo.mountFace} is not an attachable face`);
-  return { kind: 'revolute', mountFace: jo.mountFace, motor: jo.motor };
+  const faces = footprint[0]?.faces ?? [];
+  if (!faces.includes(jo.mountFace)) r.fail('joint.mountFace', `${jo.mountFace} is not an attachable face`);
+  // A joint part attached through any other face would count as connected but spawn as a loose body.
+  if (faces.length !== 1) r.fail('footprint[0].faces', `must be exactly [${jo.mountFace}]: a joint part attaches only through its mount face`);
+  return {
+    kind: 'revolute',
+    mountFace: jo.mountFace,
+    motor: 'velocity',
+    maxTorque: r.positive(jo, 'maxTorque', 'joint'),
+    motorFactor: r.positive(jo, 'motorFactor', 'joint'),
+  };
 }
 
 function collider(r: Reader, v: unknown): ColliderSpec {

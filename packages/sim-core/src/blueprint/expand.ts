@@ -81,8 +81,9 @@ export function expandBlueprint(raw: unknown): { blueprint?: Blueprint; issues: 
 
 type Err = (code: string, message: string, extra?: Partial<Issue>) => void;
 
-function readLegend(raw: unknown, err: Err): Record<string, LegendEntry> {
-  const legend: Record<string, LegendEntry> = { ...DEFAULT_LEGEND };
+/** A Map, not an object, so tokens like `toString` or `__proto__` are plain keys. */
+function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
+  const legend = new Map<string, LegendEntry>(Object.entries(DEFAULT_LEGEND));
   if (raw === undefined) return legend;
   if (!isObj(raw)) {
     err('BAD_FORMAT', 'legend must be an object of token to entry', { path: 'legend' });
@@ -122,7 +123,7 @@ function readLegend(raw: unknown, err: Err): Record<string, LegendEntry> {
     const e: LegendEntry = { part: entry.part };
     if (entry.rot !== undefined) e.rot = entry.rot;
     if (entry.tags !== undefined) e.tags = entry.tags;
-    legend[token] = e;
+    legend.set(token, e);
   }
   return legend;
 }
@@ -143,7 +144,7 @@ function expandGrid(raw: Obj, parts: PlacedPart[], continuations: { x: number; y
         continuations.push({ x, y });
         return;
       }
-      const entry = legend[token];
+      const entry = legend.get(token);
       if (!entry) {
         err('UNKNOWN_TOKEN', `grid token '${token}' at row ${i} column ${x} is not in the legend`, { cell: { x, y } });
         return;
