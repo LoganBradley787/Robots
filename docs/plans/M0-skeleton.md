@@ -155,7 +155,7 @@ export default defineConfig({
 2D side-view robot sandbox. Design docs in `docs/design/`, start with `docs/design/00-index.md`.
 
 - `pnpm install`
-- `pnpm dev` runs the app at http://localhost:5173
+- `pnpm dev` runs the app at http://localhost:5180
 - `pnpm test` runs all tests, `pnpm typecheck` checks every package
 - `pnpm sim run --seconds 5` runs the headless simulation
 - `pnpm sim determinism --seconds 10` runs it twice and compares hashes
@@ -342,7 +342,7 @@ console.log(`robots cli, sim-core ${SIM_CORE_VERSION}`);
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  server: { port: 5173, strictPort: true },
+  server: { port: 5180, strictPort: true },
 });
 ```
 
@@ -1804,7 +1804,7 @@ boot().catch((err: unknown) => {
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "app", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev"], "port": 5173 }
+    { "name": "app", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev"], "port": 5180 }
   ]
 }
 ```
@@ -1819,7 +1819,7 @@ Expected: Vite build succeeds and prints the bundle sizes. The Rapier compat WAS
 
 - [ ] **Step 6: Verify in the browser**
 
-Start the dev server with the in-app browser tools (`preview_start` with name `app`) or `pnpm dev`, then open http://localhost:5173.
+Start the dev server with the in-app browser tools (`preview_start` with name `app`) or `pnpm dev`, then open http://localhost:5180.
 Expected: a dark canvas, a long horizontal line pair for the ground, three small outlined boxes on the right and left, and a box outline falling from the top center and stopping on the ground within a couple of seconds. The browser console shows no errors. Resize the window: the canvas follows.
 
 - [ ] **Step 7: Commit**
@@ -2236,7 +2236,7 @@ boot().catch((err: unknown) => {
 Run: `pnpm --filter @robots/app typecheck && pnpm --filter @robots/app test`
 Expected: PASS.
 
-In the browser at http://localhost:5173:
+In the browser at http://localhost:5180:
 - The box is now a filled blue square with a debug outline on top of it; the two coincide at rest.
 - Space pauses; the HUD says PAUSED and the tick stops. Period advances exactly one tick per press.
 - `]` raises the speed to x2 and x4 (the box falls visibly faster, ticks per second rise); `[` lowers it to x0.5 and x0.25 with smooth motion at every speed because of interpolation.
