@@ -1,4 +1,6 @@
 import type { RobotInput } from './types';
+import { appendEdge } from './edges';
+import { keyProblem } from './keys';
 
 /** One key held from `down` to `up` seconds after the run starts. `up` equal to `down` is a one-tick tap. */
 export interface KeyPress {
@@ -30,6 +32,8 @@ export function parseKeyTimeline(spec: unknown): KeyPress[] {
 
 function check(key: string, down: number, up: number, where: string): KeyPress {
   if (key === '') throw new TimelineError(`${where}: missing key, write it like d:0-3`);
+  const problem = keyProblem(key);
+  if (problem) throw new TimelineError(`${where}: ${problem}`);
   if (!Number.isFinite(down) || down < 0) throw new TimelineError(`${where}: start time must be a number of seconds, 0 or more`);
   if (!Number.isFinite(up)) throw new TimelineError(`${where}: end time must be a number of seconds`);
   if (up < down) throw new TimelineError(`${where}: the end (${up} s) is before the start (${down} s)`);
@@ -60,18 +64,23 @@ function parseJson(raw: unknown): KeyPress[] {
   });
 }
 
-/** Key edges per tick for one robot. A tap presses and releases on the same tick, which holds for that tick. */
-export function timelineInputs(presses: readonly KeyPress[], robot: number, dt: number): Map<number, RobotInput> {
-  const out = new Map<number, RobotInput>();
-  const at = (tick: number): RobotInput => {
-    let i = out.get(tick);
-    if (!i) out.set(tick, (i = { robot, pressed: [], released: [] }));
-    return i;
-  };
-  for (const p of presses) {
+/**
+ * Key edges per tick for one robot, in time order. A tap presses and releases on the same tick, which holds for that
+ * tick. A release and a new press of the same key that round onto one tick stay in that order (still held).
+ */
+export function timelineInputs(presses: readonly KeyPress[], robot: number, dt: number): Map<number, RobotInput[]> {
+  const events: { tick: number; t: number; seq: number; key: string; kind: 'press' | 'release' }[] = [];
+  presses.forEach((p, i) => {
     const down = Math.round(p.down / dt);
-    at(down).pressed.push(p.key);
-    at(Math.max(down, Math.round(p.up / dt))).released.push(p.key);
+    events.push({ tick: down, t: p.down, seq: 2 * i, key: p.key, kind: 'press' });
+    events.push({ tick: Math.max(down, Math.round(p.up / dt)), t: p.up, seq: 2 * i + 1, key: p.key, kind: 'release' });
+  });
+  events.sort((a, b) => a.tick - b.tick || a.t - b.t || a.seq - b.seq);
+  const out = new Map<number, RobotInput[]>();
+  for (const e of events) {
+    let entries = out.get(e.tick);
+    if (!entries) out.set(e.tick, (entries = []));
+    appendEdge(entries, robot, e.key, e.kind);
   }
   return out;
 }

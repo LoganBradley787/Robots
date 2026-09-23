@@ -1,6 +1,6 @@
 # 04 Control and scripting
 
-Status: draft, 2026-09-22. Items tagged (Q#) depend on an open question in `07-open-questions.md`.
+Status: draft, 2026-09-22; control (layers 1 and 2, latching, input sources) built in M3 and decided further in `11-control.md`, which wins where they differ. Items tagged (Q#) depend on an open question in `07-open-questions.md`.
 
 ## Layer 1: channels
 - A `ChannelDef` is `{ name, min, max, default }`. Parts declare input channels (actuators) and output channels (sensors) in their def.
@@ -9,6 +9,8 @@ Status: draft, 2026-09-22. Items tagged (Q#) depend on an open question in `07-o
 
 ## Tags and groups
 - A group is just a tag. Tags come from the blueprint (legend or part entry) and every part also carries an implicit tag equal to its id.
+- Every part also answers to its part type (`wheel`, `thruster`), so "all wheels" needs no tagging (M3, `11`).
+- Auto controls (M3, `11`): bindings derived from the parts at spawn, on by default, with per-part and per-blueprint opt-out. They come before the blueprint's own bindings and sum with them like any two bindings.
 - A target is a tag string. Writing `set("wheels", "speed", 1)` writes every part in the chunk that has tag `wheels` and an input named `speed`. Parts with the tag but without the channel are skipped silently; the validator warns at design time.
 - Tags are resolved within the writer's chunk only. After a split, a binding on the missile core that targets `props` finds nothing unless the missile has props. This makes sub-assemblies compose without scoping rules.
 
@@ -35,7 +37,8 @@ Per channel, per tick:
 
 Scripts can read key state and blend manual input themselves (hover reads A and D to tilt). Both paths work at once because a script reading keys does not create a manual writer. A toggle binding that is on counts as manual and overrides scripts on that channel until toggled off. (Q19)
 
-## Latching (headless chunks)
+## Latching (headless chunks, and every robot nobody controls)
+- M3 (Logan): a robot you stop controlling also holds its last input. Its held keys and toggles stay as they were until you control it again. See `11`.
 - When a chunk has no active core, the final channel values from the last controlled tick are frozen. Behaviors keep reading them, so a thruster stays lit and wheels keep spinning until the pool is empty.
 - Nothing can write to a latched chunk. A headless chunk stays headless; latched values are cleared only in a newly split chunk where a dormant core wakes (see below).
 
@@ -47,6 +50,8 @@ Scripts can read key state and blend manual input themselves (hover reads A and 
 - The player possesses one active core at a time and can cycle through live, possessable ones. The keyboard input source is attached to the possessed core's controller.
 
 ## Input sources (pluggable)
+
+As built in M3: the sim takes key edges addressed to a robot, `World.step(inputs: RobotInput[])` with `RobotInput = { robot, pressed, released }`, sampled once per tick and logged. Each robot's controller keeps its own held keys and toggles, so a robot that gets no inputs latches. The `InputSource` shape below is the original sketch; `KeyboardSource` in `packages/app` produces `RobotInput` edges for the controlled robot, and `AiCoreSource` will do the same.
 
 ```ts
 interface InputSource {
@@ -63,10 +68,10 @@ interface InputFrame {
 
 - `KeyboardSource` lives in `packages/app` (it touches the DOM) and implements the `sim-core` interface. DOM key events accumulate into the next frame.
 - Key ownership (Logan, Gate 2, 2026-09-23): every letter and digit belongs to the robot; A and D are the main drive keys in this side view. World controls use punctuation only: Space pause, `.` step, `[` `]` speed, `\` debug outlines, `` ` `` grid, `,` camera (re-follow, or next robot). Reset has no key; it is on the world toolbar with a confirm. The builder refuses to bind a world key. Binding keys are named from the physical key (`a`, `1`, else the `KeyboardEvent.code`).
-- `ReplaySource` reads the input log.
-- `NullSource` for unpossessed chunks.
+- Replays (M3) are files: world, seed, spawns, and the input log; `pnpm sim replay` reruns them and checks the end hash.
+- Unpossessed robots get no inputs (no `NullSource` needed).
 - `AiCoreSource` (later) presses virtual buttons and writes channels from an AI policy. An AI core refuses possession but can be viewed.
-- Every `InputFrame` is recorded to the replay log with its tick and controller id.
+- Every tick's `RobotInput` edges are recorded to the input log with the tick.
 
 ## Script API (draft, Q10)
 Injected globals inside the sandbox. Everything is plain data; no host objects leak in.

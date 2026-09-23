@@ -12,6 +12,8 @@ export { buildReplay, parseReplay, runReplay, ReplayError } from './replay/repla
 export type { ReplayFile } from './replay/replayFile';
 export { Controller } from './control/controller';
 export { matchesTarget } from './control/target';
+export { appendEdge } from './control/edges';
+export { keyProblem, WORLD_KEY_CODES } from './control/keys';
 export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
 export type { RobotInput, ControlledPart, ControlState } from './control/types';
 export { World } from './world/World';

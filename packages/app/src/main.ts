@@ -247,6 +247,8 @@ async function boot(): Promise<void> {
       }
       return;
     }
+    // macOS sends no keyup for a key let go while Cmd is down, so a Cmd chord lets go of the robot's keys.
+    if (e.key === 'Meta') worldScreen.keys.releaseAll();
     if (isTypingTarget(e.target) || store.get().dialog) return;
     if (e.code === 'Tab') {
       e.preventDefault();

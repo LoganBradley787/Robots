@@ -133,6 +133,19 @@ describe('editor reducer', () => {
     expect(run([{ type: 'escape' }], boxed.bp, boxed.editor).editor.menu).toBeUndefined();
   });
 
+  it('Rotate with the menu open turns the parts of the menu, not the held part', () => {
+    const r = run([
+      { type: 'pick', index: 4 },
+      { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
+      { type: 'up', cell: { x: 0, y: 0 } },
+      { type: 'pick', index: 3 },
+      { type: 'down', cell: { x: 0, y: 0 }, button: 'right', shift: false },
+      { type: 'rotate', dir: 1 },
+    ]);
+    expect(cellsOf(r.bp)).toEqual(['thruster@0,0:90']);
+    expect(r.editor.held).toEqual({ part: 'wheel', rot: 0 });
+  });
+
   it('rotate cycles the held part and escape drops it', () => {
     const r = run([{ type: 'pick', index: 4 }, { type: 'rotate', dir: 1 }, { type: 'rotate', dir: 1 }]);
     expect(r.editor.held).toEqual({ part: 'thruster', rot: 180 });

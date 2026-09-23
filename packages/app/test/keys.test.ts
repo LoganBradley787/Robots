@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { codeOf, WORLD_KEYS, worldKeyAction, worldKeyLabel } from '../src/app/keys';
+import { WORLD_KEY_CODES } from '@robots/sim-core';
 
 describe('codeOf', () => {
   it('prefers the physical code', () => {
@@ -40,5 +41,11 @@ describe('world keys', () => {
     expect(codeOf({ code: '', key: '\\' })).toBe('Backslash');
     expect(codeOf({ code: '', key: '`' })).toBe('Backquote');
     expect(codeOf({ code: '', key: ',' })).toBe('Comma');
+  });
+
+  it('sim-core knows exactly the keys the app keeps for itself (the validator refuses them)', () => {
+    const app = [...Object.keys(WORLD_KEYS), 'Tab', 'Escape'].sort();
+    expect([...WORLD_KEY_CODES].sort()).toEqual(app);
+    for (const code of app) expect(worldKeyLabel(code)).toBeDefined();
   });
 });

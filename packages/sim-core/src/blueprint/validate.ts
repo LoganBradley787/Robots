@@ -1,5 +1,6 @@
 import { assemble, isCore, partCells, rootPartId, type AssemblyPlan } from '../assembly/assemble';
 import { matchesTarget } from '../control/target';
+import { keyProblem } from '../control/keys';
 import { FACES, rotateFace } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Face } from '../parts/types';
@@ -64,6 +65,11 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
   const seenIds = new Set<string>();
   for (const p of src.parts) {
     if (seenIds.has(p.id)) err('DUPLICATE_ID', `part id '${p.id}' is used by more than one part`, { partId: p.id });
+    if (registry.has(p.id)) {
+      err('BAD_ID', `part id '${p.id}' is a part type name, so a binding to it would reach every ${p.id}; pick another id, like 'left-${p.id}'`, {
+        partId: p.id,
+      });
+    }
     seenIds.add(p.id);
   }
   if (issues.length > 0) return { issues, ok: false };
@@ -152,6 +158,8 @@ type Report = (code: string, message: string, extra?: Partial<Issue>) => void;
 
 function checkBindings(bp: Blueprint, registry: PartRegistry, err: Report, warn: Report): void {
   for (const b of bp.bindings) {
+    const problem = keyProblem(b.key);
+    if (problem) err('BAD_KEY', `binding ${problem}`);
     if (b.mode === 'script') {
       if (!bp.scripts.some((s) => s.id === b.script)) {
         err('BAD_SCRIPT_REF', `binding key '${b.key}' toggles script '${b.script}', which is not in scripts`);

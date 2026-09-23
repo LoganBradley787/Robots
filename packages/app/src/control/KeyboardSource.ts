@@ -1,4 +1,4 @@
-import type { RobotInput } from '@robots/sim-core';
+import { appendEdge, type RobotInput } from '@robots/sim-core';
 
 /** Where a key press came from. The key counts as down while any source holds it. */
 export type KeySource = 'keyboard' | 'mouse';
@@ -33,7 +33,7 @@ export class KeyboardSource {
       return;
     }
     this.held.set(key, new Set([source]));
-    this.edge(this.controlled).pressed.push(key);
+    appendEdge(this.pending, this.controlled, key, 'press');
   }
 
   up(source: KeySource, key: string): void {
@@ -41,12 +41,12 @@ export class KeyboardSource {
     if (!by?.delete(source) || this.controlled === undefined) return;
     if (by.size > 0) return;
     this.held.delete(key);
-    this.edge(this.controlled).released.push(key);
+    appendEdge(this.pending, this.controlled, key, 'release');
   }
 
   /** Releases every key held on the controlled robot. */
   releaseAll(): void {
-    if (this.controlled !== undefined) for (const key of this.held.keys()) this.edge(this.controlled).released.push(key);
+    if (this.controlled !== undefined) for (const key of this.held.keys()) appendEdge(this.pending, this.controlled, key, 'release');
     this.held.clear();
   }
 
@@ -61,18 +61,10 @@ export class KeyboardSource {
     return this.held.has(key);
   }
 
-  /** This tick's edges, one entry per robot, oldest robot first. */
+  /** This tick's edges in the order they happened (see `appendEdge`). */
   drain(): RobotInput[] {
     const out = this.pending;
     this.pending = [];
     return out;
-  }
-
-  private edge(robot: number): RobotInput {
-    const last = this.pending[this.pending.length - 1];
-    if (last && last.robot === robot) return last;
-    const i: RobotInput = { robot, pressed: [], released: [] };
-    this.pending.push(i);
-    return i;
   }
 }

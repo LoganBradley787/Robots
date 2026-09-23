@@ -140,7 +140,8 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       return { editor: rest, bp };
     }
     case 'rotate': {
-      if (editor.held) return { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp };
+      // With the part menu open, rotation is for the parts it is on, not the part in your hand.
+      if (editor.held && !editor.menu) return { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp };
       let out = bp;
       for (const id of editor.selection) {
         const p = out.parts.find((q) => q.id === id);

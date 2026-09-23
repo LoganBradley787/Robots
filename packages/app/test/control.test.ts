@@ -15,7 +15,11 @@ describe('KeyboardSource', () => {
     k.down('keyboard', 'd');
     k.down('keyboard', 'a');
     k.up('keyboard', 'd');
-    expect(k.drain()).toEqual([{ robot: 3, pressed: ['d', 'a'], released: ['d'] }]);
+    // The release of D comes after its press, so it starts a new entry (order is kept within a tick).
+    expect(k.drain()).toEqual([
+      { robot: 3, pressed: ['d', 'a'], released: [] },
+      { robot: 3, pressed: [], released: ['d'] },
+    ]);
     expect(k.drain()).toEqual([]);
   });
 
@@ -99,5 +103,39 @@ describe('possession', () => {
   it('tells clicks from drags', () => {
     expect(isClick({ x: 0, y: 0 }, { x: 3, y: 0 })).toBe(true);
     expect(isClick({ x: 0, y: 0 }, { x: 10, y: 0 })).toBe(false);
+  });
+});
+
+describe('KeyboardSource ordering within a tick', () => {
+  it('release then press again in one tick leaves the key held on the robot', async () => {
+    const { Controller } = await import('@robots/sim-core');
+    const k = new KeyboardSource();
+    k.setControlled(1);
+    k.down('keyboard', 'd');
+    const c = new Controller([], []);
+    for (const i of k.drain()) c.apply(i.pressed, i.released);
+    c.endTick();
+    k.up('keyboard', 'd');
+    k.down('keyboard', 'd');
+    const tick = k.drain();
+    expect(tick).toEqual([
+      { robot: 1, pressed: [], released: ['d'] },
+      { robot: 1, pressed: ['d'], released: [] },
+    ]);
+    for (const i of tick) c.apply(i.pressed, i.released);
+    expect(c.isHeld('d')).toBe(true);
+  });
+
+  it('two taps of a toggle in one tick flip it twice', async () => {
+    const { Controller } = await import('@robots/sim-core');
+    const k = new KeyboardSource();
+    k.setControlled(1);
+    const c = new Controller([{ key: 't', mode: 'toggle', target: 'x', channel: 'throttle', value: 1 }], []);
+    k.down('mouse', 't');
+    k.up('mouse', 't');
+    k.down('mouse', 't');
+    k.up('mouse', 't');
+    for (const i of k.drain()) c.apply(i.pressed, i.released);
+    expect(c.state().toggles).toEqual([]);
   });
 });

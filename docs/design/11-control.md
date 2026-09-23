@@ -70,3 +70,11 @@ Binding every wheel by hand (Logan's `le-car`) is tedious, so robots control the
 ## Builder: part menu and eraser (Logan, 2026-09-23; changes `10`)
 - **Right-click a part** opens a small menu next to it, in the spirit of Kerbal Space Program's part menu. It edits the selection when the clicked part is selected (box-select 5 wheels, right-click one, all 5 change), else just that part. Contents: tags (add, remove, pick an existing group), auto controls on or off, rotation, delete. It replaces the side selection panel.
 - **Erasing** is a tool: press `E` (or click the eraser in the palette) and left-click or left-drag to erase. Right-click no longer erases. Delete still removes the selection.
+
+## Calls made while building M3 (Claude's, overturnable at Gate 3)
+- Switching back to a robot that is still holding a key shows that key lit in the keys bar. Tap the key to let go of it (the press is ignored because it is already held, the release goes through).
+- A new custom control starts on the first key that neither a custom nor an auto control uses, so it never doubles up on the wheels. Gate 2's "new controls default to D, then A" still holds when auto controls are off.
+- Auto controls come first in each robot's binding list, so the keys bar shows W A S D before custom keys.
+- The effect a part shows (flame length, propeller spin speed) follows its first input channel, so new parts get it from data.
+- Right-click opens the part menu with any tool held; left-click with the eraser erases, one undo step per drag, mirrored in mirror mode.
+- Robots are placed and clicked with direct collider tests (Rapier's query index lags behind new colliders).

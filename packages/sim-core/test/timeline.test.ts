@@ -11,8 +11,8 @@ describe('key timelines', () => {
   });
 
   it('parses JSON', () => {
-    expect(parseKeyTimeline([{ key: 'd', down: 1, up: 2 }, { key: 'Space', down: 0 }])).toEqual([
-      { key: 'Space', down: 0, up: 0 },
+    expect(parseKeyTimeline([{ key: 'd', down: 1, up: 2 }, { key: 'ArrowUp', down: 0 }])).toEqual([
+      { key: 'ArrowUp', down: 0, up: 0 },
       { key: 'd', down: 1, up: 2 },
     ]);
   });
@@ -27,8 +27,20 @@ describe('key timelines', () => {
 
   it('turns presses into per-tick edges', () => {
     const m = timelineInputs(parseKeyTimeline('d:0-1, w:0.5'), 7, 1 / 60);
-    expect(m.get(0)).toEqual({ robot: 7, pressed: ['d'], released: [] });
-    expect(m.get(30)).toEqual({ robot: 7, pressed: ['w'], released: ['w'] });
-    expect(m.get(60)).toEqual({ robot: 7, pressed: [], released: ['d'] });
+    expect(m.get(0)).toEqual([{ robot: 7, pressed: ['d'], released: [] }]);
+    // A tap: press, then release, in two entries of the same tick.
+    expect(m.get(30)).toEqual([
+      { robot: 7, pressed: ['w'], released: [] },
+      { robot: 7, pressed: [], released: ['w'] },
+    ]);
+    expect(m.get(60)).toEqual([{ robot: 7, pressed: [], released: ['d'] }]);
+  });
+
+  it('keeps a release and a re-press that round onto one tick in order, so the key stays held', () => {
+    const m = timelineInputs(parseKeyTimeline('d:0-3.004, d:3.006-4'), 1, 1 / 60);
+    expect(m.get(180)).toEqual([
+      { robot: 1, pressed: [], released: ['d'] },
+      { robot: 1, pressed: ['d'], released: [] },
+    ]);
   });
 });

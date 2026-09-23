@@ -37,6 +37,12 @@ describe('runSim', () => {
     expect(back.drive.distance).toBeLessThan(-5);
   });
 
+  it('warns about timeline keys the robot has no control on', async () => {
+    const r = await runSim(flat, carJson, { seconds: 0.5, seed: 1, keys: [{ key: 'k', down: 0, up: 0.2 }] });
+    expect(r.warnings).toEqual(["key 'k' does nothing on car (its keys: d, a)"]);
+    expect(formatReport(r)).toContain("warning: key 'k'");
+  });
+
   it('the same key timeline reproduces the same distance', async () => {
     const opts = { seconds: 4, seed: 1, at: { x: -20, y: 3 }, keys: [{ key: 'd', down: 0, up: 2 }, { key: 'a', down: 2.5, up: 3 }] };
     const a = await runSim(flat, carJson, opts);

@@ -21,6 +21,8 @@ export interface RunReport {
   final: RobotSample;
   drive: DriveMetrics;
   finalHash: string;
+  /** Things that ran but probably not as meant, like a timeline key the robot has no control on. */
+  warnings: string[];
 }
 
 export class InvalidBlueprint extends Error {
@@ -41,14 +43,17 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     const robot = world.spawnBlueprint(blueprint, opts.at ?? file.spawn);
     if (opts.keys && opts.keys.length > 0 && !world.canControl(robot.id)) throw new Error(`${robot.name} has no core, so keys cannot control it`);
     const inputs = timelineInputs(opts.keys ?? [], robot.id, world.dt);
+    const known = world.controller(robot.id)?.keys ?? [];
+    const warnings = [...new Set((opts.keys ?? []).map((k) => k.key))]
+      .filter((k) => !known.includes(k))
+      .map((k) => `key '${k}' does nothing on ${robot.name} (its keys: ${known.join(', ') || 'none'})`);
     const ticks = Math.round(opts.seconds / world.dt);
     const every = Math.max(1, Math.round((opts.sampleEverySeconds ?? 1) / world.dt));
     const samples: RobotSample[] = [];
     const drive = new DriveTracker();
     drive.add(sampleRobot(world, robot));
     for (let i = 0; i < ticks; i++) {
-      const input = inputs.get(world.tick);
-      world.step(input ? [input] : []);
+      world.step(inputs.get(world.tick) ?? []);
       const s = sampleRobot(world, robot);
       drive.add(s);
       if (world.tick % every === 0) samples.push(s);
@@ -63,6 +68,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       samples,
       final: sampleRobot(world, robot),
       drive: drive.result(),
+      warnings,
       finalHash: world.hash(),
     };
   } finally {
@@ -79,6 +85,7 @@ export function formatSample(s: RobotSample): string {
 export function formatReport(r: RunReport): string {
   const lines: string[] = [];
   if (r.issues.length > 0) lines.push(formatIssues(r.issues));
+  for (const w of r.warnings) lines.push(`warning: ${w}`);
   for (const s of r.samples) lines.push(formatSample(s));
   const fin = r.final;
   lines.push(formatDrive(r.drive));

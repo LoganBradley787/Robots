@@ -125,11 +125,14 @@ export class WorldScreen {
     return robot;
   }
 
-  /** Follows the robot and takes control of it when it has a core (`11`). */
+  /**
+   * Follows the robot and takes control of it when it has a core (`11`). Watching a core-less robot lets go of the
+   * one you were controlling (it latches), so your keys never drive a robot you cannot see.
+   */
   focus(robotId: number): void {
     this.focusId = robotId;
     this.cam = setFollow(this.cam, true);
-    if (this.world.canControl(robotId)) this.keys.setControlled(robotId);
+    this.keys.setControlled(this.world.canControl(robotId) ? robotId : undefined);
   }
 
   get controlledId(): number | undefined {

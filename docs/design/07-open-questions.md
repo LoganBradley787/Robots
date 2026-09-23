@@ -26,6 +26,7 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 
 ### Q3. Controls UI: both
 - Keyboard binds plus an on-screen panel listing the possessed core's binds as clickable buttons that act as the same virtual keys. The panel doubles as the binding editor. Judged at Gate 2 and Gate 3.
+- Revised by Logan before M3 (`11`): the world panel (keys bar) shows only the keys, no descriptions, lit while held and with a dot for toggles; its buttons press and hold like the keyboard. Editing controls stays in the builder.
 
 ### Q4. Multi-tile parts: supported in data, all v1 parts 1x1
 - `footprint` is a list of cells from day one, the grid uses `=` for continuation cells, the validator checks coverage. The editor gains multi-cell placement only when the first multi-cell part arrives. Reason: near-zero cost now, four-module refactor later.

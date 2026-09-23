@@ -23,7 +23,7 @@ export function mirrorBlueprint(bp: Blueprint, axisHalfCells: number): Blueprint
       const x = mirrorX(p.x, axisHalfCells);
       const id = partId(p.part, x, p.y);
       const explicit = p.tags.filter((t) => t !== p.id);
-      return { id, part: p.part, x, y: p.y, rot: mirrorRotation(p.rot), tags: [...explicit, id] };
+      return { id, part: p.part, x, y: p.y, rot: mirrorRotation(p.rot), tags: [...explicit, id], ...(p.auto === false ? { auto: false as const } : {}) };
     }),
   };
 }
