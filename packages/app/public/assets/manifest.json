@@ -1,0 +1,39 @@
+{
+  "bundles": [
+    {
+      "name": "parts",
+      "assets": [
+        {
+          "alias": "parts",
+          "src": "sheets/parts.json"
+        }
+      ]
+    },
+    {
+      "name": "fx",
+      "assets": [
+        {
+          "alias": "fx",
+          "src": "sheets/fx.json"
+        }
+      ]
+    },
+    {
+      "name": "terrain",
+      "assets": [
+        {
+          "alias": "terrain.ground",
+          "src": "terrain/ground.png"
+        },
+        {
+          "alias": "terrain.groundTop",
+          "src": "terrain/ground-top.png"
+        },
+        {
+          "alias": "terrain.block",
+          "src": "terrain/block.png"
+        }
+      ]
+    }
+  ]
+}
