@@ -2,20 +2,23 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5)
 
-- Current milestone: M2 complete, plan `docs/plans/M2-builder.md`, design `docs/design/10-builder.md`. **Gate 2 (Builder) is open.** No M3 work until Logan's punch list is empty.
+- Current milestone: M2 complete, plan `docs/plans/M2-builder.md`, design `docs/design/10-builder.md`. Gate 2 (Builder) passed 2026-09-23 ("All right, I'm happy with this. Move on to M3."); punch list `docs/critique/gate-2.md` is done.
 - Done: M0 (tag `m0`), M1 (tag `m1`, Gate 1 passed), M2 T1 to T10 (tag `m2`): builder screen, pick-then-paint, erase, rotate, select and tag, undo and redo, mirror mode, live stats and center of mass, live validator with outlined cells, controls (bindings) panel, blueprint files in `blueprints/` with explicit Save and Save As, unsaved-changes prompts, deploy with a spawn ghost.
 - In progress: none
-- Next: Logan plays Gate 2 and drops notes in `docs/critique/inbox.md` or in chat. A session turns them into `docs/critique/gate-2.md` and fixes them one at a time. Then the M3 plan (control: keybinds drive wheels, thrusters, propellers; possession).
+- Next: **plan M3 (control).** Nothing of M3 is started. Follow the pattern that worked for M2:
+  1. Read `docs/design/04-control-and-scripting.md` (channels, bindings, arbitration, latching, input sources, key ownership) and `06` (M3 scope and done-when).
+  2. Ask Logan a few taste questions with the AskUserQuestion tool (at most four, recommendation first). Candidates, with the recommendation to offer:
+     - Possession: the robot you deploy is possessed automatically, and `,` moves camera and possession together (recommended); or click a robot to possess it.
+     - Driving feel: snappy arcade (fast acceleration, strong brakes, recommended for a sandbox) or heavier and more physical. Numbers stay tunable in the part defs.
+     - An on-screen controls panel in the world listing the possessed robot's keys as clickable buttons (Q3 says yes; confirm it belongs in M3).
+     - What happens to robots you are not controlling: hold their last input (latched, as `04` says for headless chunks) or stop.
+  3. Write the answers into `04` (or a new `docs/design/11-control.md` if they are big), write `docs/plans/M3-control.md`, get Logan's go, then build all of M3 and stop at Gate 3 (robot feel). Logan has let the coding session (Opus) write the plans for M1 and M2.
 
-## Gate 2: what to look at
-
-Run `pnpm dev`, open http://localhost:5180. The app opens in the builder.
-
-- Build something from blank: pick parts (palette or 1 to 8), click and drag to paint, right-drag to erase, `R` to rotate, `M` for mirror mode.
-- Select parts (click, or drag a box with nothing held) and tag them; add controls in the side panel (they do nothing until M3).
-- Save As, open another blueprint from the dropdown, come back, Save. Try to lose work: every path should ask first.
-- Deploy: the ghost turns green where it fits and red where it does not; click to drop. `Tab` goes back and forth.
-- Judge: is building intuitive, does the trip between builder and world suck, does anything feel slow or fiddly.
+## How Logan works (read before asking anything)
+- Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
+- Before planning a milestone, ask a few taste questions (AskUserQuestion, recommendation first); decide technical things yourself and record them as "Claude's call" in the plan so Logan can overturn them at the gate.
+- An Opus review subagent reads the diff at the end of each milestone (and in batches during it); fix its findings before tagging. Subagents are always model opus, never Fable.
+- Logan runs `pnpm dev` in his own terminal. If you start a preview server on port 5180, stop it before handing back.
 
 ## Demo checklist results (2026-09-23)
 - Built a robot from blank, tagged its wheels, added two controls, Save As `test-bot`, reopened it from the dropdown with tags and controls intact, deployed it (no prompt, nothing unsaved), dropped it mid-air, it fell and rested. Test file deleted afterwards.
