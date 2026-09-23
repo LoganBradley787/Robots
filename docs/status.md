@@ -2,12 +2,12 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5)
 
-- Current milestone: M1 complete, plan `docs/plans/M1-parts-and-assembly.md`. **Gate 1 (Look) is open.** No M2 work until Logan's punch list is empty.
+- Current milestone: M1 complete, plan `docs/plans/M1-parts-and-assembly.md`. Gate 1 (Look) passed 2026-09-23; punch list `docs/critique/gate-1.md` is done.
 - Done: M0 T1 to T10 (tag `m0`). M1 T1 to T10 (tag `m1`): part defs as JSON, blueprint format with ASCII grid, validator, pure assembly plan, compound bodies with jointed motor wheels, `spawnBlueprint`, robot metrics, blueprint CLI (`run`, `show`, `validate`, `determinism`), placeholder art generator, sprite rendering per body, tiled terrain, 1 m grid.
 - In progress: none
-- Next: Logan plays Gate 1 and drops notes in `docs/critique/inbox.md` (any form). A session turns them into `docs/critique/gate-1.md` and fixes them one at a time. Then a planning session writes the M2 plan (editor).
+- Next: write the M2 plan (editor: place, rotate, delete parts, save and load, spawn by click) from `docs/design/02`, `07` (Q3, Q9, Q20), and `08` (UI and persistence conventions). Gate 2 (Builder) is at the end of M2.
 
-## Gate 1: what to look at
+## Gate 1: what Logan looked at
 
 Run `pnpm dev`, open http://localhost:5180.
 
@@ -38,4 +38,4 @@ Run `pnpm dev`, open http://localhost:5180.
 - M1: this session (Opus) wrote the M1 plan and ran through without a separate approval stop, at Logan's request. Every judgment call is listed in the plan under "Decisions made in this plan".
 - M0: root `sim` script has no trailing `--`; pnpm 11 `allowBuilds` for esbuild; dev port 5180 (Docker holds 5173); keys fall back to `event.key`; world hash includes RNG state; strict world file keys; tick cap per frame in the fixed stepper; `packageManager` pins pnpm 11.1.3.
 
-- Next gate: Gate 1 (Look), open now.
+- Next gate: Gate 2 (Builder) at the end of M2.
