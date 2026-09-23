@@ -128,3 +128,11 @@ kbd { font: 10px ui-monospace, Menlo, monospace; padding: 0 4px; border: 1px sol
 #ui .robot-key.held { background: #2f6fd8; border-color: #7fb0ff; color: white; box-shadow: 0 0 10px rgba(90, 150, 255, 0.55); }
 .toggle-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #3a4f7d; }
 .toggle-dot.on { background: #6fe39a; box-shadow: 0 0 6px #6fe39a; }
+
+/* Energy bar, first thing on the keys bar. */
+.energy { display: flex; align-items: center; gap: 6px; margin-right: 4px; }
+.energy-track { width: 90px; height: 10px; border-radius: 5px; background: #0d182e; border: 1px solid var(--panel-border); overflow: hidden; }
+.energy-fill { height: 100%; background: linear-gradient(90deg, #3fae5a, #7be08f); }
+.energy-fill.low { background: linear-gradient(90deg, #c94b4b, #ff8a6a); }
+.energy-fill.unlimited { background: repeating-linear-gradient(45deg, #3fae5a 0 6px, #6fe39a 6px 12px); }
+.energy-text { font: 11px ui-monospace, Menlo, monospace; color: var(--muted); min-width: 56px; }

@@ -116,6 +116,12 @@ export function StatsBadge({ store }: { store: Store<AppState> }) {
           balance ({stats.comX.toFixed(2)}, {stats.comY.toFixed(2)})
         </span>
       )}
+      {stats.parts > 0 && (
+        <span title="energy held by cores and batteries; how long it lasts with every part working at full power">
+          energy {stats.energy}
+          {stats.fullDraw > 0 ? ` · full draw ${stats.fullDraw}/s (${formatDuration(stats.energy / stats.fullDraw)})` : ''}
+        </span>
+      )}
       <span class={mirror.on ? 'on' : 'muted'}>mirror {mirror.on ? `on at x ${(mirror.axisHalfCells / 2).toFixed(1)}` : 'off'}</span>
       {held && <span>holding {held.part} {held.rot}°</span>}
       {eraser && <span class="on">eraser</span>}
@@ -130,4 +136,12 @@ export function BuilderHelp() {
       Space+drag or middle-drag pan · wheel zoom · Cmd+Z undo · Tab world
     </div>
   );
+}
+
+/** 42 s, 3 min 30 s. */
+function formatDuration(seconds: number): string {
+  const s = Math.round(seconds);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  return s % 60 === 0 ? `${m} min` : `${m} min ${s % 60} s`;
 }

@@ -108,6 +108,7 @@ async function boot(): Promise<void> {
 
   const worldKeys = worldScreen.keyActions();
   worldScreen.onView = (world) => store.set({ world });
+  worldScreen.onNotice = (message) => notify(store, message);
   const actions: AppActions = {
     worldTogglePause: worldKeys.togglePause,
     worldStep: worldKeys.step,
@@ -130,6 +131,7 @@ async function boot(): Promise<void> {
         if (a.value === 'yes') worldKeys.reset();
       });
     },
+    toggleUnlimitedEnergy: () => worldScreen.toggleUnlimitedEnergy(),
     saveReplay: () => {
       const { replay, robot } = worldScreen.replay();
       const file = replayFileName(new Date(), robot);

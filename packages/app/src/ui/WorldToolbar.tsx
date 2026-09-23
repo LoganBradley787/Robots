@@ -13,6 +13,7 @@ export interface WorldActions {
   worldToggleGrid(): void;
   worldReset(): void;
   saveReplay(): void;
+  toggleUnlimitedEnergy(): void;
   toBuilder(): void;
 }
 
@@ -53,6 +54,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
         Grid <kbd>`</kbd>
       </button>
       <span class="sep" />
+      <button class={v.unlimitedEnergy ? 'on' : ''} onClick={actions.toggleUnlimitedEnergy} title="Sandbox: every part gets all the energy it asks for, and nothing drains">
+        Unlimited energy
+      </button>
       <button onClick={actions.saveReplay} disabled={v.robots === 0} title="Save this run to replays/ so the headless runner can rerun it exactly">
         Save replay
       </button>

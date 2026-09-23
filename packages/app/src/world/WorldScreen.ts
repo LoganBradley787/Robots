@@ -38,8 +38,9 @@ export interface WorldView {
   grid: boolean;
   follow: boolean;
   robots: number;
-  /** The robot under your control and its keys, or undefined. */
-  controlled?: { name: string; keys: KeyView[] };
+  /** The robot under your control, its keys, and its energy (whole units), or undefined. */
+  controlled?: { name: string; keys: KeyView[]; energy?: { stored: number; capacity: number } };
+  unlimitedEnergy: boolean;
 }
 
 /** Interpolated world position of the robot's core (or root part), for the camera. */
@@ -70,6 +71,10 @@ export class WorldScreen {
   private dragging: { id: number; x: number; y: number; startX: number; startY: number } | null = null;
   /** Called when anything the toolbar shows changes. */
   onView?: (v: WorldView) => void;
+  /** Called with a short message when something worth telling happens (a robot runs out of energy). */
+  onNotice?: (message: string) => void;
+  /** How many world events have been shown. */
+  private eventCursor = 0;
   private lastView = '';
   /** A blueprint waiting to be dropped, following the cursor. */
   private placing?: { ghost: SpawnGhost; at?: { x: number; y: number }; ok: boolean; reason?: string };
@@ -112,6 +117,8 @@ export class WorldScreen {
     this.views = [];
     this.keys.clear();
     this.focusId = undefined;
+    this.eventCursor = 0;
+    next.setUnlimitedEnergy(this.unlimitedWanted);
     this.home();
     this.lastHash = next.hash();
     this.stepper.reset();
@@ -140,6 +147,14 @@ export class WorldScreen {
   home(): void {
     this.focusId = undefined;
     this.cam = { ...createCamera(this.file.spawn.x, this.file.spawn.y - 3), zoom: this.cam.zoom };
+  }
+
+  /** Survives Clear robots: the new world starts with the same switch. */
+  private unlimitedWanted = false;
+
+  toggleUnlimitedEnergy(): void {
+    this.unlimitedWanted = !this.world.unlimitedEnergy;
+    this.world.setUnlimitedEnergy(this.unlimitedWanted);
   }
 
   get controlledId(): number | undefined {
@@ -299,15 +314,23 @@ export class WorldScreen {
       grid: this.grid.visible,
       follow: this.cam.follow,
       robots: this.world.robots.length,
+      unlimitedEnergy: this.world.unlimitedEnergy,
     };
+    for (; this.eventCursor < this.world.events.length; this.eventCursor++) {
+      const ev = this.world.events[this.eventCursor];
+      const who = this.world.robots.find((r) => r.id === ev?.robot);
+      if (ev?.kind === 'energyEmpty' && who) this.onNotice?.(`${who.name} ran out of energy`);
+    }
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
     if (controlled && controller) {
       const toggles = new Set(controller.toggleKeys);
       // Auto control keys first (Q W E A S D), then custom keys in binding order.
       const rank = (k: string): number => (AUTO_KEYS.includes(k) ? AUTO_KEYS.indexOf(k) : AUTO_KEYS.length);
       const keys = controller.keys.map((key, i) => ({ key, i })).sort((a, b) => rank(a.key) - rank(b.key) || a.i - b.i);
+      const e = this.world.energy(controlled.id);
       view.controlled = {
         name: controlled.name,
+        ...(e ? { energy: { stored: Math.ceil(e.stored), capacity: e.capacity } } : {}),
         keys: keys.map(({ key }) => ({
           key,
           // Lit as soon as it is pressed, even while paused; the sim catches up on the next tick.
