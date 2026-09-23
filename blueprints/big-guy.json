@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "big guy",
+  "grid": [
+    "F F F F F F",
+    "F F F F F F",
+    "F F F F F F",
+    "F F F F F F",
+    "F F F F F F",
+    "F F F F F F",
+    "F F F F F F",
+    "F F C B F F",
+    "a . . . . a"
+  ],
+  "legend": {
+    "a": {
+      "part": "wheel",
+      "rot": 0,
+      "tags": [
+        "wheels"
+      ]
+    }
+  }
+}

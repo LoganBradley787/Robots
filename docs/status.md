@@ -2,7 +2,7 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
 
-- Current milestone: **M3 complete, Gate 3 (robot feel) open.** Plan `docs/plans/M3-control.md`, design `docs/design/11-control.md`.
+- Current milestone: **M3 complete, Gate 3 (robot feel) passed 2026-09-23** ("I'm happy with this. This is fun. It's snappy enough that it still feels like it has weight"). Punch list `docs/critique/gate-3.md` is done. Plan `docs/plans/M3-control.md`, design `docs/design/11-control.md`.
 - Done: M0 (tag `m0`), M1 (tag `m1`, Gate 1 passed), M2 (tag `m2`, Gate 2 passed), M3 T1 to T12 (tag `m3`):
   - Controller per robot: hold, toggle, pulse; sum and clamp; key edges addressed to a robot, logged per tick; held keys and toggles in the hash.
   - Behaviors from part data: wheel as an electric motor that coasts when let go; thrust for thrusters and propellers along the way they point.
@@ -13,24 +13,8 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
   - CLI: `--keys "d:0-3, w:5"`, drive metrics (distance, max altitude, max tilt, top speed), `pnpm sim replay <file>`; CI runs a keyed determinism check.
   - Replays: world toolbar Save replay writes `replays/` (gitignored); a browser session reran in Node with a MATCH.
 - In progress: none.
-- Gate 3 punch list (`docs/critique/gate-3.md`), all done: growing bounce and flips fixed (multibody joints, `03`), stuck car fixed (motors wake their bodies), camera Home button and a 1000 m wide flat world, and the new gyro part (Q/E turn, spin damping).
-- Next: **Logan tries the Gate 3 fixes** (drive off the block again, fly the hopper, try the gyro). When he is happy, close Gate 3 and plan M4 (power) with M5 (scripting) behind it, since Gate 4 judges them together.
-
-## Gate 3: what to try (for Logan)
-- Builder: open `car`, Deploy, drop it. Hold D and A: spin-up, coasting when you let go, braking by holding the other key.
-- Deploy `hopper`: tap and hold W. Flames show under the thrusters.
-- With two robots out: hold D on one, press `,` to switch; the first keeps driving. Click a robot to take it. Tap a lit key in the keys bar to let go of a latched key.
-- Builder: right-click a wheel, untick Auto controls, see the Controls panel change. Box-select several parts and right-click one of them. `E` for the eraser.
-- Save replay on the toolbar, then `pnpm sim replay <name>` in a terminal.
-
-## Gate 3: calls Logan may want to overturn
-- Driving numbers (wheel 12 N m, coast drag 1 N m, top speed 18 m/s; thruster 120 N, propeller 60 N). All in part defs.
-- Coasting means parked robots roll on slopes; there is no parking brake.
-- The flat world is tight for 17 m/s: blocks at x = -8 and x = 8 stop a car within a few meters. A longer test track may be wanted.
-- A 1 m part in the wheel row rests on the ground (wheels are 0.45 m balls), so put thrusters one row up.
-- The keys bar shows keys only, lit while held (including latched keys on a robot you switch back to).
-- A new custom control starts on a key auto controls do not use.
-- Clicking or cycling to a core-less robot lets go of control; the robot you were driving latches.
+- Gate 3 fixes: wheels on multibody joints (the growing bounce, `03`), motors wake their bodies, camera Home and a 1000 m world, the gyro part (Q/E), part cells slide at friction 0.3, wheel torque 20 N m, tire grip 1.0. Logan's `big-guy` (54 kg, lots of frames on the car) checked for tunneling into the box: none; it tips over the box because it is top-heavy.
+- Next: **plan M4 (power) and M5 (scripting)**. They share Gate 4, so plan M4 first, build it, then plan M5 and build it, and stop at Gate 4. Start with Logan's taste questions for M4 (see `05`).
 
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
