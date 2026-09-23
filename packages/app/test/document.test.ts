@@ -1,0 +1,150 @@
+import { describe, expect, it } from 'vitest';
+import { blankBlueprint, defaultRegistry, placePart, type Blueprint } from '@robots/sim-core';
+import { DocumentController, type DocumentDeps, type UnsavedChoice } from '../src/builder/document';
+
+const reg = defaultRegistry();
+
+function setup(files: Record<string, unknown> = {}, answers: { unsaved?: UnsavedChoice[]; names?: (string | null)[]; confirms?: boolean[] } = {}) {
+  let draft: Blueprint = blankBlueprint('untitled');
+  const asked: string[] = [];
+  const deps: DocumentDeps = {
+    registry: reg,
+    api: {
+      list: async () => Object.keys(files).map((file) => ({ file, name: (files[file] as { name: string }).name })),
+      load: async (file) => {
+        if (!(file in files)) throw new Error(`no ${file}`);
+        return structuredClone(files[file]);
+      },
+      save: async (file, json) => {
+        files[file] = structuredClone(json);
+      },
+      remove: async (file) => {
+        delete files[file];
+      },
+    },
+    getDraft: () => draft,
+    setDraft: (bp) => {
+      draft = bp;
+    },
+    askUnsaved: async () => {
+      asked.push('unsaved');
+      return answers.unsaved?.shift() ?? 'cancel';
+    },
+    askName: async () => {
+      asked.push('name');
+      return answers.names?.shift() ?? null;
+    },
+    confirm: async (msg) => {
+      asked.push(`confirm:${msg}`);
+      return answers.confirms?.shift() ?? false;
+    },
+  };
+  const doc = new DocumentController(deps);
+  return { doc, files, asked, edit: (fn: (b: Blueprint) => Blueprint) => (draft = fn(draft)), draft: () => draft };
+}
+
+const carFile = { format: 1, name: 'car', grid: ['F C F', 'W . W'] };
+
+describe('DocumentController', () => {
+  it('starts on an unsaved blank blueprint that is not dirty', () => {
+    const { doc } = setup();
+    expect(doc.state).toEqual({ name: 'untitled' });
+    expect(doc.isDirty()).toBe(false);
+  });
+
+  it('opens a file, and an edit makes it dirty', async () => {
+    const t = setup({ 'car.json': carFile });
+    expect(await t.doc.open('car.json')).toBe(true);
+    expect(t.doc.state).toEqual({ file: 'car.json', name: 'car' });
+    expect(t.draft().parts).toHaveLength(5);
+    expect(t.doc.isDirty()).toBe(false);
+    t.edit((b) => placePart(b, reg, 'battery', 1, 1, 0));
+    expect(t.doc.isDirty()).toBe(true);
+  });
+
+  it('opening while dirty asks; cancel keeps everything', async () => {
+    const t = setup({ 'car.json': carFile }, { unsaved: ['cancel'] });
+    t.edit((b) => placePart(b, reg, 'frame', 0, 0, 0));
+    expect(await t.doc.open('car.json')).toBe(false);
+    expect(t.asked).toEqual(['unsaved']);
+    expect(t.draft().parts).toHaveLength(1);
+  });
+
+  it("opening while dirty with Don't save discards the edits", async () => {
+    const t = setup({ 'car.json': carFile }, { unsaved: ['discard'] });
+    t.edit((b) => placePart(b, reg, 'frame', 0, 0, 0));
+    expect(await t.doc.open('car.json')).toBe(true);
+    expect(t.draft().name).toBe('car');
+  });
+
+  it('Save overwrites the open file', async () => {
+    const t = setup({ 'car.json': carFile });
+    await t.doc.open('car.json');
+    t.edit((b) => placePart(b, reg, 'battery', 1, 0, 0));
+    expect(await t.doc.save()).toBe(true);
+    expect((t.files['car.json'] as { grid: string[] }).grid).toEqual(['F C F', 'W B W']);
+    expect(t.doc.isDirty()).toBe(false);
+  });
+
+  it('Save As writes a new file and leaves the original unchanged', async () => {
+    const t = setup({ 'car.json': carFile }, { names: ['Car 2'] });
+    await t.doc.open('car.json');
+    t.edit((b) => placePart(b, reg, 'battery', 1, 0, 0));
+    expect(await t.doc.saveAs()).toBe(true);
+    expect(t.files['car.json']).toEqual(carFile);
+    expect(t.files['car-2.json']).toMatchObject({ name: 'Car 2', grid: ['F C F', 'W B W'] });
+    expect(t.doc.state).toEqual({ file: 'car-2.json', name: 'Car 2' });
+    expect(t.draft().name).toBe('Car 2');
+    expect(t.doc.isDirty()).toBe(false);
+  });
+
+  it('Save As onto an existing file asks before overwriting', async () => {
+    const t = setup({ 'car.json': carFile, 'truck.json': { format: 1, name: 'truck', grid: ['C'] } }, { names: ['truck'], confirms: [false] });
+    await t.doc.open('car.json');
+    expect(await t.doc.saveAs()).toBe(false);
+    expect(t.asked).toContain('confirm:A blueprint named "truck" already exists. Replace it?');
+    expect(t.files['truck.json']).toEqual({ format: 1, name: 'truck', grid: ['C'] });
+  });
+
+  it('Save on a never-saved blueprint behaves like Save As', async () => {
+    const t = setup({}, { names: ['Rover'] });
+    t.edit((b) => placePart(b, reg, 'core', 0, 0, 0));
+    expect(await t.doc.save()).toBe(true);
+    expect(t.files['rover.json']).toMatchObject({ name: 'Rover' });
+  });
+
+  it('a cancelled name prompt saves nothing', async () => {
+    const t = setup({}, { names: [null] });
+    expect(await t.doc.saveAs()).toBe(false);
+    expect(Object.keys(t.files)).toEqual([]);
+  });
+
+  it('delete asks, removes the file, and starts a blank blueprint', async () => {
+    const t = setup({ 'car.json': carFile }, { confirms: [true] });
+    await t.doc.open('car.json');
+    expect(await t.doc.remove()).toBe(true);
+    expect(t.files['car.json']).toBeUndefined();
+    expect(t.doc.state).toEqual({ name: 'untitled' });
+    expect(t.draft().parts).toEqual([]);
+  });
+
+  it('newBlank while dirty with Save saves first', async () => {
+    const t = setup({ 'car.json': carFile }, { unsaved: ['save'] });
+    await t.doc.open('car.json');
+    t.edit((b) => placePart(b, reg, 'battery', 1, 0, 0));
+    expect(await t.doc.newBlank()).toBe(true);
+    expect((t.files['car.json'] as { grid: string[] }).grid).toEqual(['F C F', 'W B W']);
+    expect(t.draft().parts).toEqual([]);
+  });
+
+  it('confirmLeave for deploy: clean passes, dirty asks, and Don\'t save keeps the edits in the draft', async () => {
+    const t = setup({ 'car.json': carFile }, { unsaved: ['discard', 'cancel'] });
+    await t.doc.open('car.json');
+    expect(await t.doc.confirmLeave()).toBe(true);
+    t.edit((b) => placePart(b, reg, 'battery', 1, 0, 0));
+    expect(await t.doc.confirmLeave()).toBe(true);
+    expect(t.draft().parts).toHaveLength(6);
+    expect(t.doc.isDirty()).toBe(true);
+    expect(await t.doc.confirmLeave()).toBe(false);
+  });
+});
