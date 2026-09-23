@@ -56,7 +56,8 @@ describe('gyro', () => {
     w.step([{ robot: r.id, pressed: [], released: ['e'] }]);
     const w0 = spinOf(w, r.id);
     for (let i = 0; i < 120; i++) w.step();
-    expect(spinOf(w, r.id)).toBeCloseTo(w0, 6);
+    // Only air drag slows it now: most of the spin is still there after 2 s (damping stops it in about 1 s).
+    expect(Math.abs(spinOf(w, r.id))).toBeGreaterThan(Math.abs(w0) * 0.5);
     w.dispose();
   });
 

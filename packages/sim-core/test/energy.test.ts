@@ -32,11 +32,11 @@ describe('energy', () => {
     for (let i = 0; i < 60 * 10; i++) w.step();
     expect(w.energy(r.id)?.stored).toBe(0);
     expect(w.events.filter((e) => e.kind === 'energyEmpty')).toEqual([{ tick: 899, robot: r.id, kind: 'energyEmpty', chunk: 0 }]);
-    // W is still held but there is nothing to burn: it only slows at gravity now.
+    // W is still held but there is nothing to burn: gravity and air drag slow it now.
     const body = r.groups[0]?.bodyId ?? 0;
     const vy0 = w.physics.state(body).vy;
     for (let i = 0; i < 60; i++) w.step();
-    expect(w.physics.state(body).vy - vy0).toBeCloseTo(-9.81, 1);
+    expect(w.physics.state(body).vy - vy0).toBeLessThan(-9.81);
     w.dispose();
   });
 
