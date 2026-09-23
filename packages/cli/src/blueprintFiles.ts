@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 export const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 export const BLUEPRINT_DIR = resolve(REPO_ROOT, 'blueprints');
 export const DEFAULT_WORLD = resolve(REPO_ROOT, 'worlds/flat.json');
+export const REPLAY_DIR = resolve(REPO_ROOT, 'replays');
 
 /** pnpm runs scripts inside the package; INIT_CWD is where the user typed the command. */
 function userCwd(): string {
@@ -33,4 +34,12 @@ export function resolveBlueprint(arg: string): string {
 
 export function readJson(path: string): unknown {
   return JSON.parse(readFileSync(path, 'utf8'));
+}
+
+/** A path to a replay file, or a bare name looked up in replays/. */
+export function resolveReplay(arg: string): string {
+  if (arg.endsWith('.json') && (arg.includes('/') || existsSync(resolveUserPath(arg)))) return resolveUserPath(arg);
+  const p = resolve(REPLAY_DIR, arg.endsWith('.json') ? arg : `${arg}.json`);
+  if (!existsSync(p)) throw new Error(`no replay '${arg}' (looked in ${REPLAY_DIR})`);
+  return p;
 }

@@ -7,3 +7,5 @@ coverage/
 .env
 .env.*
 .claude/worktrees/
+replays/*
+!replays/.gitkeep

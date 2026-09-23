@@ -1,10 +1,11 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
-import { DEFAULT_WORLD, readJson, resolveBlueprint, resolveUserPath } from './blueprintFiles';
+import { DEFAULT_WORLD, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
 import { showBlueprint } from './commands/show';
 import { tune } from './commands/tune';
+import { formatReplay, replayCommand } from './commands/replay';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
 
@@ -15,6 +16,8 @@ commands
   show <bp>          print the grid, legend, mass, center of mass, and body structure
   validate <bp>      print validator issues; exit 1 on errors
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
+  replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
+                     ends in the same state (exit 1 on mismatch)
   tune               measure the driving targets (docs/plans/M3-control.md) on test robots
 
 flags
@@ -80,6 +83,15 @@ async function main(): Promise<number> {
   if (command === '' || command === 'help') {
     console.log(USAGE);
     return 0;
+  }
+  if (command === 'replay') {
+    if (bpArg === undefined) {
+      console.error('replay needs a replay file, like replays/2026-09-23-1512-car.json');
+      return 2;
+    }
+    const r = await replayCommand(readJson(resolveReplay(bpArg)));
+    console.log(flags.has('json') ? JSON.stringify(r, null, 2) : formatReplay(r));
+    return r.matches ? 0 : 1;
   }
   if (command === 'tune') {
     console.log(await tune());

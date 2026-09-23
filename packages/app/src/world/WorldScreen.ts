@@ -17,7 +17,7 @@ import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
 import { KeyboardSource } from '../control/KeyboardSource';
 import { isClick, nextRobot } from '../control/possession';
-import { AUTO_KEYS } from '@robots/sim-core';
+import { AUTO_KEYS, buildReplay, type ReplayFile } from '@robots/sim-core';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the toolbar below)';
 
@@ -134,6 +134,12 @@ export class WorldScreen {
 
   get controlledId(): number | undefined {
     return this.keys.robot;
+  }
+
+  /** The session since the last clear, as a replay file, and the robot you were controlling. */
+  replay(): { replay: ReplayFile; robot?: string } {
+    const robot = this.world.robots.find((r) => r.id === this.keys.robot)?.name;
+    return { replay: buildReplay(this.world), ...(robot !== undefined ? { robot } : {}) };
   }
 
   get isPlacing(): boolean {

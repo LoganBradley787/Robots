@@ -11,6 +11,7 @@ export interface WorldActions {
   worldToggleDebug(): void;
   worldToggleGrid(): void;
   worldReset(): void;
+  saveReplay(): void;
   toBuilder(): void;
 }
 
@@ -48,6 +49,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
         Grid <kbd>`</kbd>
       </button>
       <span class="sep" />
+      <button onClick={actions.saveReplay} disabled={v.robots === 0} title="Save this run to replays/ so the headless runner can rerun it exactly">
+        Save replay
+      </button>
       <button class="danger" onClick={actions.worldReset} disabled={v.robots === 0}>
         Clear robots
       </button>

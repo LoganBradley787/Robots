@@ -29,8 +29,20 @@ function nameOf(file: string, text: string | undefined): string {
   return file.slice(0, -'.json'.length);
 }
 
-/** `url` is relative to `/api/blueprints`: `/` for the list, `/<file>.json` for one blueprint. */
-export function handleBlueprintRequest(method: string, url: string, body: string, store: FileStore): ApiResponse {
+/** How one folder of JSON files is served: blueprints (pretty, small) or replays (compact, larger). */
+export interface StoreOptions {
+  noun: string;
+  maxBytes: number;
+  /** Write indented JSON (readable in diffs) or one line. */
+  pretty: boolean;
+}
+
+export const BLUEPRINTS: StoreOptions = { noun: 'blueprint', maxBytes: MAX_BODY_BYTES, pretty: true };
+export const REPLAYS: StoreOptions = { noun: 'replay', maxBytes: 20_000_000, pretty: false };
+
+/** `url` is relative to the route (`/api/blueprints`): `/` for the list, `/<file>.json` for one file. */
+export function handleBlueprintRequest(method: string, url: string, body: string, store: FileStore, opts: StoreOptions = BLUEPRINTS): ApiResponse {
+  const noun = opts.noun;
   const path = url.split('?')[0] ?? '/';
   if (path === '/' || path === '') {
     if (method !== 'GET') return json(405, { error: 'only GET is allowed on the list' });
@@ -46,26 +58,26 @@ export function handleBlueprintRequest(method: string, url: string, body: string
     return json(200, items);
   }
   const file = path.slice(1);
-  if (!FILE_NAME.test(file)) return json(400, { error: `bad blueprint file name "${file}"` });
+  if (!FILE_NAME.test(file)) return json(400, { error: `bad ${noun} file name "${file}"` });
   switch (method) {
     case 'GET': {
       const text = store.read(file);
-      return text === undefined ? json(404, { error: `no blueprint ${file}` }) : { status: 200, body: text };
+      return text === undefined ? json(404, { error: `no ${noun} ${file}` }) : { status: 200, body: text };
     }
     case 'PUT': {
-      if (body.length > MAX_BODY_BYTES) return json(413, { error: 'blueprint is too large' });
+      if (body.length > opts.maxBytes) return json(413, { error: `${noun} is too large` });
       let value: unknown;
       try {
         value = JSON.parse(body);
       } catch {
         return json(400, { error: 'body is not JSON' });
       }
-      if (typeof value !== 'object' || value === null || Array.isArray(value)) return json(400, { error: 'a blueprint must be a JSON object' });
-      store.write(file, `${JSON.stringify(value, null, 2)}\n`);
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) return json(400, { error: `a ${noun} must be a JSON object` });
+      store.write(file, `${opts.pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value)}\n`);
       return json(200, { ok: true });
     }
     case 'DELETE': {
-      if (store.read(file) === undefined) return json(404, { error: `no blueprint ${file}` });
+      if (store.read(file) === undefined) return json(404, { error: `no ${noun} ${file}` });
       store.remove(file);
       return json(200, { ok: true });
     }

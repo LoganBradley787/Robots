@@ -6,6 +6,8 @@ import { formatReport, InvalidBlueprint, runSim } from '../src/commands/run';
 import { checkDeterminism } from '../src/commands/determinism';
 import { validateCommand } from '../src/commands/validate';
 import { showBlueprint } from '../src/commands/show';
+import { formatReplay, replayCommand } from '../src/commands/replay';
+import { buildReplay, World } from '@robots/sim-core';
 import { listBlueprints, resolveBlueprint } from '../src/blueprintFiles';
 
 const flat = parseWorldFile(flatJson);
@@ -74,5 +76,21 @@ describe('blueprint files', () => {
     expect(resolveBlueprint('car')).toMatch(/blueprints\/car\.json$/);
     expect(listBlueprints()).toContain('showcase');
     expect(() => resolveBlueprint('nope')).toThrow("no blueprint named 'nope'");
+  });
+});
+
+describe('replay', () => {
+  it('reruns a saved session and reports each robot', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const car = w.spawnBlueprint(carJson, { x: -20, y: 3 });
+    for (let i = 0; i < 180; i++) w.step(i === 5 ? [{ robot: car.id, pressed: ['d'], released: [] }] : []);
+    const saved = JSON.parse(JSON.stringify(buildReplay(w)));
+    w.dispose();
+    const r = await replayCommand(saved);
+    expect(r.matches).toBe(true);
+    expect(r.robots).toHaveLength(1);
+    expect(r.robots[0]?.drive.distance).toBeGreaterThan(3);
+    expect(formatReplay(r)).toContain('MATCH');
+    expect((await replayCommand({ ...saved, endHash: 'ffffffff' })).matches).toBe(false);
   });
 });

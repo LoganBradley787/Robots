@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { handleBlueprintRequest, type FileStore } from '../src/storage/blueprintHandler';
-import { fileForName, slug } from '../src/storage/blueprintApi';
+import { handleBlueprintRequest, REPLAYS, type FileStore } from '../src/storage/blueprintHandler';
+import { fileForName, replayFileName, slug } from '../src/storage/blueprintApi';
 
 function memoryStore(files: Record<string, string> = {}): FileStore & { files: Record<string, string> } {
   return {
@@ -58,5 +58,26 @@ describe('slug', () => {
     expect(slug('!!!')).toBe('blueprint');
     expect(slug('--car--')).toBe('car');
     expect(fileForName('Car 2')).toBe('car-2.json');
+  });
+});
+
+describe('replays', () => {
+  it('are written as one line and may be larger than a blueprint', () => {
+    const files = new Map<string, string>();
+    const store: FileStore = {
+      list: () => [...files.keys()],
+      read: (f) => files.get(f),
+      write: (f, t) => void files.set(f, t),
+      remove: (f) => void files.delete(f),
+    };
+    const big = JSON.stringify({ inputs: 'x'.repeat(2_000_000) });
+    expect(handleBlueprintRequest('PUT', '/2026-09-23-151200-car.json', big, store, REPLAYS).status).toBe(200);
+    expect(files.get('2026-09-23-151200-car.json')?.split('\n')).toHaveLength(2);
+    expect(handleBlueprintRequest('GET', '/nope.json', '', store, REPLAYS).body).toContain('no replay');
+  });
+
+  it('are named by time and robot', () => {
+    expect(replayFileName(new Date(2026, 8, 23, 15, 12, 7), 'Le Car')).toBe('2026-09-23-151207-le-car.json');
+    expect(replayFileName(new Date(2026, 0, 2, 3, 4, 5), undefined)).toBe('2026-01-02-030405-world.json');
   });
 });

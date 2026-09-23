@@ -19,7 +19,7 @@ import { Builder } from './builder/Builder';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
 import type { AppActions } from './ui/App';
-import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, saveBlueprintFile } from './storage/blueprintApi';
+import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, replayFileName, saveBlueprintFile, saveReplayFile } from './storage/blueprintApi';
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');
@@ -128,6 +128,13 @@ async function boot(): Promise<void> {
       }).then((a) => {
         if (a.value === 'yes') worldKeys.reset();
       });
+    },
+    saveReplay: () => {
+      const { replay, robot } = worldScreen.replay();
+      const file = replayFileName(new Date(), robot);
+      saveReplayFile(file, replay)
+        .then(() => notify(store, `Saved replays/${file}. Rerun it with: pnpm sim replay ${file.slice(0, -'.json'.length)}`))
+        .catch((e: unknown) => notify(store, `Could not save the replay: ${e instanceof Error ? e.message : String(e)}`));
     },
     toBuilder: () => {
       worldScreen.cancelPlacing();
