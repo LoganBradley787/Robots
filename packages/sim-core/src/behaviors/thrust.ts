@@ -20,7 +20,7 @@ export const thrust: Behavior = {
     const dy = n * dir.x + c * dir.y;
     const px = s.x + c * ctx.part.localX - n * ctx.part.localY;
     const py = s.y + n * ctx.part.localX + c * ctx.part.localY;
-    const impulse = t * ctx.config('maxForce') * ctx.dt;
-    ctx.physics.applyImpulseAt(ctx.group.bodyId, dx * impulse, dy * impulse, px, py);
+    const force = t * ctx.config('maxForce');
+    ctx.physics.addForceAt(ctx.group.bodyId, dx * force, dy * force, px, py);
   },
 };

@@ -75,3 +75,9 @@ This preserves the velocity field of the rigid motion. The spike in `docs/resear
 ## Debris
 - A chunk with no core is debris. It keeps running latched actuators while it has energy.
 - No auto despawn in v1. A "clear debris" command removes core-less chunks that have been at rest for a few seconds.
+
+## Joints are multibody joints (Gate 3, 2026-09-23)
+- Robots' revolute joints (wheels) are Rapier multibody joints, not impulse joints. Impulse joints stretch and feed energy back when a driven wheel slips and lands: a car driven off a 1 m ledge bounced higher each time and flipped (6 flips in 23 stress drives, and one drive reached 26 m/s, past the wheels' top speed). Multibody joints: 0 flips in the same drives. `test/stability.test.ts` keeps it that way.
+- Rapier's JS API has no motor on multibody joints, so `PhysicsWorld` applies the velocity motor itself each step: torque `min(cap, gain * speed error)` on the wheel and the reaction on its parent. A motor that pushes wakes its bodies, which also fixed a car stuck with a wheel on the ground (its bodies had fallen asleep with the key held).
+- Consequence: a robot's bodies are multibody links, and Rapier recomputes link velocities from the joints, so impulses and velocity writes on them are lost. Behaviors push with forces (`addForceAt`) and torques. Explosions (M6) must do the same.
+- Multibody joints carry a little damping of their own: coasting from 10 m/s loses about 1.4 m/s in 2 s with the motor slack. It reads as rolling resistance; the wheel's `coastTorque` dropped to 0.3 and `maxSpeed` rose to 50 rad/s to keep the M3 feel (`11`).

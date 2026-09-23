@@ -8,6 +8,7 @@ export interface WorldActions {
   worldSlower(): void;
   worldFaster(): void;
   worldCamera(): void;
+  worldHome(): void;
   worldToggleDebug(): void;
   worldToggleGrid(): void;
   worldReset(): void;
@@ -41,6 +42,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
       <span class="sep" />
       <button onClick={actions.worldCamera} disabled={v.robots === 0} title={v.follow ? 'next robot' : 'follow again'}>
         {v.follow ? 'Next robot' : 'Follow'} <kbd>,</kbd>
+      </button>
+      <button onClick={actions.worldHome} title="Camera back to the drop point">
+        Home
       </button>
       <button class={v.debug ? 'on' : ''} onClick={actions.worldToggleDebug}>
         Debug <kbd>\</kbd>

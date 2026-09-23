@@ -19,8 +19,11 @@ const CAR = {
   ],
 };
 
+/** Open ground, so a drive measures the robot and never a wall. */
+const open = parseWorldFile({ name: 'open', ground: { width: 4000, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] });
+
 async function drive(bp: unknown, script: { at: number; press?: string; release?: string }[], seconds: number) {
-  const w = await World.create({ seed: 1 }, flat);
+  const w = await World.create({ seed: 1 }, open);
   const robot = w.spawnBlueprint(bp, { x: 0, y: 1.5 });
   for (let i = 0; i < 60; i++) w.step(); // settle
   const x0 = sampleRobot(w, robot).coreX;

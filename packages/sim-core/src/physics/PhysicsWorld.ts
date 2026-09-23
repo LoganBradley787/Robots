@@ -34,10 +34,20 @@ export interface ColliderPlacement {
 }
 
 export interface MotorSpec {
-  /** `force`: output is a torque, so heavy robots need stronger motors. `acceleration`: mass independent. */
-  model: 'force' | 'acceleration';
+  /** Target rad/s of the child relative to the parent, counterclockwise positive. */
   targetVelocity: number;
+  /** Torque per rad/s of speed error, before the cap. */
   factor: number;
+  /** N m. The motor outputs torque, so heavy robots need stronger motors. */
+  maxTorque: number;
+}
+
+interface JointEntry {
+  parent: BodyId;
+  child: BodyId;
+  /** Velocity motor: target rad/s of the child relative to the parent, gain, and torque cap (0 = no motor). */
+  factor: number;
+  target: number;
   maxTorque: number;
 }
 
@@ -70,7 +80,9 @@ export class PhysicsWorld {
   private readonly world: RAPIER.World;
   private readonly bodies = new Map<BodyId, RAPIER.RigidBody>();
   private readonly prev = new Map<BodyId, BodyState>();
-  private readonly joints = new Map<JointId, { joint: RAPIER.RevoluteImpulseJoint; factor: number; target: number; maxTorque: number }>();
+  /** Bodies with forces or torques added for the next step; cleared after it. */
+  private readonly forced = new Set<BodyId>();
+  private readonly joints = new Map<JointId, JointEntry>();
   /** Rapier body handle to our id, for mapping colliders back to bodies. */
   private readonly byHandle = new Map<number, BodyId>();
   /** Rapier colliders carry no user data, so owners (part ids) live here, keyed by the opaque handle. */
@@ -112,16 +124,14 @@ export class PhysicsWorld {
     anchorChild: { x: number; y: number },
     motor?: MotorSpec,
   ): JointId {
+    // A multibody joint, not an impulse joint: impulse joints stretch and feed energy back under a driven wheel that
+    // slips and lands (a car driven off a ledge bounced higher each time and flipped, Gate 3). Multibody joints are
+    // exact, but Rapier's JS API has no motor for them, so the motor is ours (applied as torques in `step`).
     const data = RAPIER.JointData.revolute(anchorParent, anchorChild);
-    const joint = this.world.createImpulseJoint(data, this.body(parent), this.body(child), true) as RAPIER.RevoluteImpulseJoint;
+    const joint = this.world.createMultibodyJoint(data, this.body(parent), this.body(child), true);
     joint.setContactsEnabled(false);
-    if (motor) {
-      joint.configureMotorModel(motor.model === 'force' ? RAPIER.MotorModel.ForceBased : RAPIER.MotorModel.AccelerationBased);
-      joint.configureMotorVelocity(motor.targetVelocity, motor.factor);
-      joint.setMotorMaxForce(motor.maxTorque);
-    }
     const id = this.nextJointId++;
-    this.joints.set(id, { joint, factor: motor?.factor ?? 0, target: motor?.targetVelocity ?? 0, maxTorque: motor?.maxTorque ?? 0 });
+    this.joints.set(id, { parent, child, factor: motor?.factor ?? 0, target: motor?.targetVelocity ?? 0, maxTorque: motor?.maxTorque ?? 0 });
     return id;
   }
 
@@ -137,23 +147,24 @@ export class PhysicsWorld {
    */
   setMotor(jointId: JointId, targetVelocity: number, factor: number, maxTorque: number): void {
     const entry = this.joint(jointId);
-    if (entry.target === targetVelocity && entry.factor === factor && entry.maxTorque === maxTorque) return;
-    entry.joint.configureMotorVelocity(targetVelocity, factor);
-    entry.joint.setMotorMaxForce(maxTorque);
     entry.target = targetVelocity;
     entry.factor = factor;
     entry.maxTorque = maxTorque;
   }
 
-  private joint(jointId: JointId): { joint: RAPIER.RevoluteImpulseJoint; factor: number; target: number; maxTorque: number } {
+  private joint(jointId: JointId): JointEntry {
     const entry = this.joints.get(jointId);
     if (!entry) throw new Error(`unknown joint ${jointId}`);
     return entry;
   }
 
-  /** Applies an impulse (N s, world frame) at a world point. Wakes the body. */
-  applyImpulseAt(id: BodyId, ix: number, iy: number, px: number, py: number): void {
-    this.body(id).applyImpulseAtPoint({ x: ix, y: iy }, { x: px, y: py }, true);
+  /**
+   * Adds a force (N, world frame) at a world point for the next step only. Forces, not impulses: a robot's bodies are
+   * multibody links, whose velocities Rapier recomputes from the joints, so a direct impulse on a link is lost.
+   */
+  addForceAt(id: BodyId, fx: number, fy: number, px: number, py: number): void {
+    this.body(id).addForceAtPoint({ x: fx, y: fy }, { x: px, y: py }, true);
+    this.forced.add(id);
   }
 
   /**
@@ -226,7 +237,25 @@ export class PhysicsWorld {
   /** Snapshots every body's state for interpolation, then advances one fixed step. */
   step(): void {
     for (const [id, body] of this.bodies) this.prev.set(id, readState(body));
+    // Joint motors: torque min(cap, gain * speed error) on the child and its reaction on the parent. A motor that
+    // pushes wakes its bodies, so a wheel held against a wall never falls asleep with the key down.
+    for (const j of this.joints.values()) {
+      if (j.maxTorque === 0) continue;
+      const p = this.body(j.parent);
+      const c = this.body(j.child);
+      const tau = Math.max(-j.maxTorque, Math.min(j.maxTorque, j.factor * (j.target - (c.angvel() - p.angvel()))));
+      if (tau === 0) continue;
+      c.addTorque(tau, true);
+      p.addTorque(-tau, true);
+      this.forced.add(j.parent).add(j.child);
+    }
     this.world.step();
+    for (const id of this.forced) {
+      const b = this.body(id);
+      b.resetForces(false);
+      b.resetTorques(false);
+    }
+    this.forced.clear();
   }
 
   state(id: BodyId): BodyState {

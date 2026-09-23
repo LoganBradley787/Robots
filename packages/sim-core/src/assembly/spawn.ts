@@ -67,7 +67,7 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
     const anchorParentX = jointCell.x - parentOrigin.x;
     const anchorParentY = jointCell.y - parentOrigin.y;
     const js = def?.joint;
-    const motor = js ? { model: 'force' as const, targetVelocity: 0, factor: js.motorFactor, maxTorque: js.maxTorque } : undefined;
+    const motor = js ? { targetVelocity: 0, factor: js.motorFactor, maxTorque: js.maxTorque } : undefined;
     const jointId = physics.createRevoluteJoint(parent.bodyId, child.bodyId, { x: anchorParentX, y: anchorParentY }, { x: 0, y: 0 }, motor);
     child.joint = { partId: g.joint.partId, parentGroup: g.joint.parentGroup, jointId, anchorParentX, anchorParentY };
   }

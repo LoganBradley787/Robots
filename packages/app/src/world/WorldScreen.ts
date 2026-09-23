@@ -112,6 +112,7 @@ export class WorldScreen {
     this.views = [];
     this.keys.clear();
     this.focusId = undefined;
+    this.home();
     this.lastHash = next.hash();
     this.stepper.reset();
   }
@@ -133,6 +134,12 @@ export class WorldScreen {
     this.focusId = robotId;
     this.cam = setFollow(this.cam, true);
     this.keys.setControlled(this.world.canControl(robotId) ? robotId : undefined);
+  }
+
+  /** Back to where robots drop in, following nothing: for when you are lost (Gate 3). */
+  home(): void {
+    this.focusId = undefined;
+    this.cam = { ...createCamera(this.file.spawn.x, this.file.spawn.y - 3), zoom: this.cam.zoom };
   }
 
   get controlledId(): number | undefined {
@@ -196,11 +203,13 @@ export class WorldScreen {
           this.focusId,
         );
         if (next !== undefined) this.focus(next);
+        else this.home();
       },
       toggleGrid: () => {
         this.grid.visible = !this.grid.visible;
       },
       reset: () => void this.reset(),
+      home: () => this.home(),
     };
   }
 

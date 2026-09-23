@@ -114,6 +114,7 @@ async function boot(): Promise<void> {
     worldSlower: worldKeys.slower,
     worldFaster: worldKeys.faster,
     worldCamera: worldKeys.camera,
+    worldHome: worldKeys.home,
     worldToggleDebug: worldKeys.toggleDebug,
     worldToggleGrid: worldKeys.toggleGrid,
     worldReset: () => {

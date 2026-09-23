@@ -30,17 +30,15 @@ What that becomes:
 - Braking is pressing the opposite key (the motor pushes backward), or thrust. There is no automatic brake. Parked robots on a slope can roll.
 - All numbers live in the part defs, so tuning never touches engine code.
 
-### Tuned numbers (M3 T4, `pnpm sim tune`, flat ground, D held)
-Wheel: `maxTorque` 12 N m, `motorFactor` 0.4 (knee near 10 rad/s), `maxSpeed` 40 rad/s (18 m/s at the rim), `coastTorque` 1 N m. Thruster `maxForce` 120 N (was 60: two could not lift a 14 kg car), propeller 60 N (was 40).
+### Tuned numbers (Gate 3 retune after the switch to multibody joints, `pnpm sim tune`, flat ground, D held)
+Wheel: `maxTorque` 12 N m, `motorFactor` 0.4, `maxSpeed` 50 rad/s (22.5 m/s at the rim), `coastTorque` 0.3 N m. Thruster `maxForce` 120 N, propeller 60 N.
 
-| robot | mass | 1.5 s | 4 s | 8 s | to 6 m/s |
-|---|---|---|---|---|---|
-| car (6 cells, 2 wheels) | 12 kg | 5.8 m/s | 12.1 | 16.1 | 1.6 s |
-| heavy car (double) | 24 kg | 3.1 | 7.8 | 12.5 | 2.9 s |
-| 14 frames, 2 wheels | 18 kg | | 5 s: 11.1 | | 5 m/s in 1.9 s |
-| 14 frames, 4 wheels | 21 kg | | 5 s: 14.2 | | 5 m/s in 1.2 s |
+| robot | mass | 1.5 s | 4 s | 8 s | 12 s | to 6 m/s |
+|---|---|---|---|---|---|---|
+| car (6 cells, 2 wheels) | 12 kg | 5.6 m/s | 12.7 | 16.7 | 17.6 | 1.6 s |
+| heavy car (double) | 24 kg | 3.0 | 7.7 | 13.2 | | 3.1 s |
 
-- Coasting from 12 m/s loses 5% in 2 s. Holding A from 12 m/s stops the car in 2.9 s.
+- Coasting from 12.7 m/s loses 15% in 2 s (the multibody joints' own damping plus the coast drag). Holding A from there stops the car in 2.8 s.
 - The hopper (`blueprints/hopper.json`: two upward thrusters in the body row, 12 kg) is off the ground 0.2 s after W and climbs about 20 m in 2 s of holding: tap W to hop.
 - A part in the wheel row rests on the ground: wheels are 0.45 m balls and a box cell reaches 0.05 m lower, so a thruster between the wheels drags. Put such parts one row up.
 

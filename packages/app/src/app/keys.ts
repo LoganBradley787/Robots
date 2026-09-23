@@ -9,9 +9,11 @@ export interface KeyActions {
   camera(): void;
   /** Clears every robot. Deliberately has no key; it is a toolbar button with a confirm. */
   reset(): void;
+  /** Camera back to the drop point (toolbar only). */
+  home(): void;
 }
 
-type WorldAction = Exclude<keyof KeyActions, 'reset'>;
+type WorldAction = Exclude<keyof KeyActions, 'reset' | 'home'>;
 
 /**
  * World keys, by physical key code. Every letter and digit belongs to the robot (Logan, Gate 2: A and D drive),

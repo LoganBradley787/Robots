@@ -9,7 +9,7 @@
   "outputs": [{ "name": "angularVelocity", "min": -1000, "max": 1000, "default": 0 }],
   "powerDraw": 5,
   "behavior": "wheel",
-  "behaviorConfig": { "maxSpeed": 40, "coastTorque": 1 },
+  "behaviorConfig": { "maxSpeed": 50, "coastTorque": 0.3 },
   "autoControl": { "channel": "speed", "kind": "axis" },
   "joint": { "kind": "revolute", "mountFace": "N", "motor": "velocity", "maxTorque": 12, "motorFactor": 0.4 },
   "collider": { "shape": "ball", "radius": 0.45, "friction": 1 },
