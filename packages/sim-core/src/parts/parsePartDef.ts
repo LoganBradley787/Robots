@@ -62,7 +62,7 @@ function join(path: string, key: string): string {
 }
 
 const DEF_KEYS = [
-  'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'behavior',
+  'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
   'behaviorConfig', 'joint', 'collider', 'resource', 'onDestroyed', 'sprite', 'defaultTags',
 ] as const;
 
@@ -120,6 +120,10 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   };
   if (def.powerDraw < 0) r.fail('powerDraw', 'must not be negative');
 
+  if (o.role !== undefined) {
+    if (o.role !== 'core') r.fail('role', 'must be "core" when present');
+    def.role = 'core';
+  }
   if (o.behavior !== undefined) def.behavior = r.str(o, 'behavior', '');
   if (o.behaviorConfig !== undefined) {
     const raw = o.behaviorConfig;

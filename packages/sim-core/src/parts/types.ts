@@ -61,6 +61,8 @@ export interface PartDef {
   inputs: ChannelDef[];
   outputs: ChannelDef[];
   powerDraw: number;
+  /** `core`: a control brain. Bindings and scripts attach to cores, and the primary core roots a robot. */
+  role?: 'core';
   behavior?: string;
   behaviorConfig?: Record<string, number>;
   joint?: JointSpec;

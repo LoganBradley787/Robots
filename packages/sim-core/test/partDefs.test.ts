@@ -48,6 +48,10 @@ describe('default part defs', () => {
     expect(defaultRegistry().get('thruster').footprint[0]?.faces).toEqual(['N', 'E', 'W']);
   });
 
+  it('only the core has the core role', () => {
+    expect(defaultRegistry().list().filter((d) => d.role === 'core').map((d) => d.id)).toEqual(['core']);
+  });
+
   it('the battery holds energy', () => {
     expect(defaultRegistry().get('battery').resource).toEqual({ kind: 'energy', capacity: 600 });
   });

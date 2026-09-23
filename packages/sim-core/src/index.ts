@@ -18,3 +18,5 @@ export type { Issue, LegendEntry, PlacedPart, Binding, BindingMode, ScriptSpec, 
 export { DEFAULT_LEGEND } from './blueprint/legend';
 export { expandBlueprint, partId } from './blueprint/expand';
 export { toGrid } from './blueprint/toGrid';
+export { assemble, partCells, rootPartId, isCore } from './assembly/assemble';
+export type { AssemblyPlan, AttachEdge, ChunkPlan, GroupPlan } from './assembly/assemble';
