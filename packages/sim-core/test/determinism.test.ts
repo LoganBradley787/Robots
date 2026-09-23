@@ -47,6 +47,25 @@ describe('determinism', () => {
     w.dispose();
   });
 
+  it('body state feeds the hash, not just the tick', async () => {
+    const a = await World.create({ seed: 1 }, flat);
+    const b = await World.create({ seed: 1 }, flat);
+    a.spawnBox(0.3, 6);
+    b.spawnBox(0.31, 6);
+    expect(a.hash()).not.toBe(b.hash());
+    a.dispose();
+    b.dispose();
+  });
+
+  it('rng state feeds the hash', async () => {
+    const a = await World.create({ seed: 1 }, flat);
+    const b = await World.create({ seed: 1 }, flat);
+    b.rng.nextU32();
+    expect(a.hash()).not.toBe(b.hash());
+    a.dispose();
+    b.dispose();
+  });
+
   it('matches the committed golden hash for 10 s of the flat world', async () => {
     // The snapshot file is committed. CI runs on Linux while development runs on macOS, so this test
     // also checks cross-platform determinism of the deterministic Rapier build. If it fails only in CI,

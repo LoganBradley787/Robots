@@ -18,14 +18,20 @@ function cloneFrame(f: InputFrame): InputFrame {
 /** Sparse per-tick log of every input frame the world consumed. Replay = world file + blueprints + this. */
 export class InputLog {
   private readonly entries: LoggedTick[] = [];
+  private readonly byTick = new Map<number, LoggedTick>();
 
+  /** Ticks must strictly increase: the log is written once per tick, in order. */
   append(tick: number, frames: readonly InputFrame[]): void {
     if (frames.length === 0) return;
-    this.entries.push({ tick, frames: frames.map(cloneFrame) });
+    const last = this.entries[this.entries.length - 1];
+    if (last && tick <= last.tick) throw new Error(`input log tick ${tick} is not after ${last.tick}`);
+    const entry = { tick, frames: frames.map(cloneFrame) };
+    this.entries.push(entry);
+    this.byTick.set(tick, entry);
   }
 
   framesAt(tick: number): InputFrame[] {
-    const entry = this.entries.find((e) => e.tick === tick);
+    const entry = this.byTick.get(tick);
     return entry ? entry.frames.map(cloneFrame) : [];
   }
 

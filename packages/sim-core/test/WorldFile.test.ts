@@ -32,6 +32,24 @@ describe('parseWorldFile', () => {
   });
 });
 
+describe('parseWorldFile strictness', () => {
+  const base = { ground: { width: 10 }, spawn: { x: 0, y: 0 } };
+
+  it('rejects unknown keys and names the allowed ones', () => {
+    expect(() => parseWorldFile({ ...base, boxes: [{ x: 0, y: 0, w: 1, h: 1, dynamics: true }] })).toThrow(
+      'world.boxes[0].dynamics is not a known field',
+    );
+    expect(() => parseWorldFile({ ...base, gravity: -9 })).toThrow('world.gravity is not a known field');
+  });
+
+  it('rejects a non-boolean dynamic and a non-string name', () => {
+    expect(() => parseWorldFile({ ...base, boxes: [{ x: 0, y: 0, w: 1, h: 1, dynamic: 'true' }] })).toThrow(
+      'world.boxes[0].dynamic must be true or false',
+    );
+    expect(() => parseWorldFile({ ...base, name: 3 })).toThrow('world.name must be a string');
+  });
+});
+
 describe('buildWorld', () => {
   it('creates one ground body plus one body per box', () => {
     const pw = new PhysicsWorld(-9.81, 1 / 60);

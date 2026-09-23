@@ -60,7 +60,7 @@ Rendering runs on `requestAnimationFrame` and interpolates between the last two 
 - Iterate arrays in creation order. Where order affects floating point sums (resource pools, impulses), sort by stable part ids first.
 - One Rapier build everywhere: `@dimforge/rapier2d-deterministic-compat`, the same bytes in browser, tests, and CLI. Bodies and colliders are created and removed in a stable order, because handles are index plus generation and get reused.
 - Poses are set through `RigidBodyDesc` at creation, not `setRotation` afterwards (an open Rapier issue reports determinism loss after `setRotation` following a snapshot restore).
-- State hashes are computed from per-body position and velocity, quantized, never from raw snapshot bytes, which differ across Rapier build variants.
+- State hashes are computed from the tick, the RNG state, and per-body position and velocity as exact float bits (not quantized: the deterministic build should be bit-identical, and any drift should show at once), never from raw snapshot bytes, which differ across Rapier build variants.
 - Script interruption uses an instruction budget where the backend supports it (see `04` and `docs/research/script-sandbox.md`).
 - Replay = world file + blueprint set + input log. A CI test simulates, replays, and compares state hashes.
 

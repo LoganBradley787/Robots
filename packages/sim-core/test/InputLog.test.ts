@@ -25,6 +25,12 @@ describe('InputLog', () => {
     expect(log.framesAt(3)[0]?.down).toEqual(['a']);
   });
 
+  it('rejects ticks that do not increase', () => {
+    const log = new InputLog();
+    log.append(4, [frame(['a'])]);
+    expect(() => log.append(4, [frame(['b'])])).toThrow('not after 4');
+  });
+
   it('round-trips through JSON', () => {
     const log = new InputLog();
     log.append(5, [frame(['w']), { sourceId: 'ai', down: [], pressed: ['x'], released: [] }]);

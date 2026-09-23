@@ -25,7 +25,7 @@ function readState(body: RAPIER.RigidBody): BodyState {
 }
 
 export class PhysicsWorld {
-  readonly world: RAPIER.World;
+  private readonly world: RAPIER.World;
   private readonly bodies = new Map<BodyId, RAPIER.RigidBody>();
   private readonly prev = new Map<BodyId, BodyState>();
   private nextId: BodyId = 1;

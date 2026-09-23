@@ -18,6 +18,9 @@ flags
   --seed <n>         world seed (default: 1)
   --json             print the run report as json`;
 
+/** Flags that never take a value, so `--json run` does not swallow the command. */
+const BOOLEAN_FLAGS = new Set(['json']);
+
 function parseArgs(argv: string[]): { command: string; flags: Map<string, string> } {
   const flags = new Map<string, string>();
   let command = '';
@@ -25,7 +28,7 @@ function parseArgs(argv: string[]): { command: string; flags: Map<string, string
     const a = argv[i] ?? '';
     if (a.startsWith('--')) {
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith('--')) {
+      if (!BOOLEAN_FLAGS.has(a.slice(2)) && next !== undefined && !next.startsWith('--')) {
         flags.set(a.slice(2), next);
         i++;
       } else {
@@ -46,6 +49,12 @@ function numberFlag(flags: Map<string, string>, key: string, fallback: number): 
   return v;
 }
 
+function seedFlag(flags: Map<string, string>): number {
+  const v = numberFlag(flags, 'seed', 1);
+  if (!Number.isInteger(v) || v < 0 || v > 0xffffffff) throw new Error(`--seed must be an integer from 0 to 4294967295, got ${v}`);
+  return v;
+}
+
 function loadWorld(path: string): WorldFile {
   return parseWorldFile(JSON.parse(readFileSync(path, 'utf8')));
 }
@@ -54,7 +63,7 @@ async function main(): Promise<number> {
   const { command, flags } = parseArgs(process.argv.slice(2));
   const worldPath = flags.get('world') ?? DEFAULT_WORLD;
   const seconds = numberFlag(flags, 'seconds', 5);
-  const seed = numberFlag(flags, 'seed', 1);
+  const seed = seedFlag(flags);
 
   if (command === 'run') {
     const report = await runSim(loadWorld(worldPath), { seconds, seed });

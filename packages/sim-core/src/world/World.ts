@@ -54,10 +54,11 @@ export class World {
     this.tickCount++;
   }
 
-  /** Hex hash of tick count plus every body's exact state. */
+  /** Hex hash of tick count, RNG state, and every body's exact state. */
   hash(): string {
     const h = new StateHasher();
     h.addInt(this.tickCount);
+    for (const word of this.rng.state()) h.addInt(word);
     this.physics.hashInto(h);
     return StateHasher.hex(h.digest());
   }

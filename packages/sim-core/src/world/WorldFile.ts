@@ -24,6 +24,22 @@ function record(v: unknown, path: string): Record<string, unknown> {
   return v as Record<string, unknown>;
 }
 
+/** Unknown keys are errors, not silently ignored, so a typo in a hand- or AI-written file is caught. */
+function onlyKeys(obj: Record<string, unknown>, allowed: readonly string[], path: string): void {
+  for (const key of Object.keys(obj)) {
+    if (!allowed.includes(key)) {
+      throw new WorldFileError(`${path}.${key} is not a known field (expected one of: ${allowed.join(', ')})`);
+    }
+  }
+}
+
+function bool(obj: Record<string, unknown>, key: string, path: string, fallback: boolean): boolean {
+  const v = obj[key];
+  if (v === undefined) return fallback;
+  if (typeof v !== 'boolean') throw new WorldFileError(`${path}.${key} must be true or false`);
+  return v;
+}
+
 function num(obj: Record<string, unknown>, key: string, path: string, fallback?: number): number {
   const v = obj[key];
   if (v === undefined) {
@@ -42,21 +58,26 @@ function positive(obj: Record<string, unknown>, key: string, path: string, fallb
 
 export function parseWorldFile(raw: unknown): WorldFile {
   const root = record(raw, 'world');
-  const name = typeof root.name === 'string' ? root.name : 'unnamed';
+  onlyKeys(root, ['name', 'ground', 'spawn', 'boxes'], 'world');
+  if (root.name !== undefined && typeof root.name !== 'string') throw new WorldFileError('world.name must be a string');
+  const name = root.name ?? 'unnamed';
   const ground = record(root.ground, 'world.ground');
+  onlyKeys(ground, ['width', 'thickness'], 'world.ground');
   const spawn = record(root.spawn, 'world.spawn');
+  onlyKeys(spawn, ['x', 'y'], 'world.spawn');
   const boxesRaw = root.boxes === undefined ? [] : root.boxes;
   if (!Array.isArray(boxesRaw)) throw new WorldFileError('world.boxes must be an array');
   const boxes: WorldBox[] = boxesRaw.map((b, i) => {
     const path = `world.boxes[${i}]`;
     const o = record(b, path);
+    onlyKeys(o, ['x', 'y', 'w', 'h', 'angleDeg', 'dynamic', 'mass'], path);
     return {
       x: num(o, 'x', path),
       y: num(o, 'y', path),
       w: positive(o, 'w', path),
       h: positive(o, 'h', path),
       angleDeg: num(o, 'angleDeg', path, 0),
-      dynamic: o.dynamic === true,
+      dynamic: bool(o, 'dynamic', path, false),
       mass: positive(o, 'mass', path, 1),
     };
   });

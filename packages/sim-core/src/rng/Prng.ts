@@ -32,6 +32,11 @@ export class Prng {
     return t;
   }
 
+  /** The four state words, for hashing. Two generators with equal state produce equal sequences. */
+  state(): [number, number, number, number] {
+    return [this.a, this.b, this.c, this.d];
+  }
+
   /** Uniform in [0, 1). */
   next(): number {
     return this.nextU32() / 4294967296;
