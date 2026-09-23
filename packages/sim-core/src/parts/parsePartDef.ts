@@ -1,4 +1,5 @@
 import { isFace } from './faces';
+import { keyProblem } from '../control/keys';
 import type { ChannelDef, ColliderSpec, Face, FootprintCell, JointSpec, PartDef, SpriteSpec } from './types';
 
 export class PartDefError extends Error {}
@@ -137,12 +138,21 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     def.acts = o.acts;
   }
   if (o.autoControl !== undefined) {
-    const ao = r.obj(o.autoControl, 'autoControl', ['channel', 'kind']);
+    const ao = r.obj(o.autoControl, 'autoControl', ['channel', 'kind', 'keys', 'labels']);
     const channel = r.str(ao, 'channel', 'autoControl');
     if (!def.inputs.some((c) => c.name === channel)) r.fail('autoControl.channel', `'${channel}' is not one of this part's inputs`);
     if (ao.kind !== 'axis' && ao.kind !== 'push') r.fail('autoControl.kind', 'must be "axis" or "push"');
     if (ao.kind === 'push' && def.acts === undefined) r.fail('autoControl.kind', '"push" needs "acts" (the direction the part pushes)');
     def.autoControl = { channel, kind: ao.kind };
+    for (const key of ['keys', 'labels'] as const) {
+      const v = ao[key];
+      if (v === undefined) continue;
+      if (ao.kind !== 'axis') r.fail(`autoControl.${key}`, 'is only for "axis" parts');
+      if (!Array.isArray(v) || v.length !== 2 || !v.every((s) => typeof s === 'string' && s !== '')) r.fail(`autoControl.${key}`, 'must be two non-empty strings, positive then negative');
+      def.autoControl[key] = [v[0] as string, v[1] as string];
+    }
+    const badKey = def.autoControl.keys?.map(keyProblem).find((p) => p !== undefined);
+    if (badKey) r.fail('autoControl.keys', badKey);
   }
   if (o.joint !== undefined) def.joint = joint(r, o.joint, footprint);
   if (o.collider !== undefined) def.collider = collider(r, o.collider);

@@ -303,7 +303,7 @@ export class WorldScreen {
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
     if (controlled && controller) {
       const toggles = new Set(controller.toggleKeys);
-      // W A S D first (auto controls), then custom keys in binding order.
+      // Auto control keys first (Q W E A S D), then custom keys in binding order.
       const rank = (k: string): number => (AUTO_KEYS.includes(k) ? AUTO_KEYS.indexOf(k) : AUTO_KEYS.length);
       const keys = controller.keys.map((key, i) => ({ key, i })).sort((a, b) => rank(a.key) - rank(b.key) || a.i - b.i);
       view.controlled = {

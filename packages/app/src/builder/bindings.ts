@@ -1,4 +1,4 @@
-import { autoBindings, matchesTarget, partAutoBindings, type Binding, type Blueprint, type ChannelDef, type PartRegistry, type PlacedPart } from '@robots/sim-core';
+import { AUTO_KEYS, autoBindings, matchesTarget, partAutoBindings, type Binding, type Blueprint, type ChannelDef, type PartRegistry, type PlacedPart } from '@robots/sim-core';
 
 /**
  * What a binding can target: part types present ("all wheels"), explicit tags (groups), then single parts. Only
@@ -57,7 +57,7 @@ export function percent(v: number): string {
 }
 
 /**
- * The auto controls, one line per key in W A S D order, like "D: 4 wheels forward, 1 thruster". Grouped by part type
+ * The auto controls, one line per key in Q W E A S D order, like "D: 4 wheels forward, 1 thruster". Grouped by part type
  * and direction so a robot with 32 wheels is still one short line.
  */
 export function autoSummary(bp: Blueprint, registry: PartRegistry): Array<{ key: string; text: string }> {
@@ -67,14 +67,14 @@ export function autoSummary(bp: Blueprint, registry: PartRegistry): Array<{ key:
     const p = byId.get(b.target ?? '');
     if (!p) continue;
     const def = registry.get(p.part);
-    const what = def.autoControl?.kind === 'axis' ? `${def.name.toLowerCase()}|${(b.value ?? 0) > 0 ? 'forward' : 'reverse'}` : `${def.name.toLowerCase()}|`;
+    const [up, down] = def.autoControl?.labels ?? ['forward', 'reverse'];
+    const what = def.autoControl?.kind === 'axis' ? `${def.name.toLowerCase()}|${(b.value ?? 0) > 0 ? up : down}` : `${def.name.toLowerCase()}|`;
     const m = byKey.get(b.key) ?? new Map<string, number>();
     m.set(what, (m.get(what) ?? 0) + 1);
     byKey.set(b.key, m);
   }
-  const order = ['w', 'a', 's', 'd'];
   return [...byKey]
-    .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
+    .sort(([a], [b]) => AUTO_KEYS.indexOf(a) - AUTO_KEYS.indexOf(b))
     .map(([key, m]) => ({
       key: key.toUpperCase(),
       text: [...m]
@@ -90,7 +90,10 @@ export function autoSummary(bp: Blueprint, registry: PartRegistry): Array<{ key:
 export function autoLabel(registry: PartRegistry, part: PlacedPart): string | undefined {
   const b = partAutoBindings(part, registry);
   if (b.length === 0) return undefined;
-  if (b.length === 2) return 'D forward, A reverse';
+  if (b.length === 2) {
+    const [up, down] = registry.get(part.part).autoControl?.labels ?? ['forward', 'reverse'];
+    return `${(b[0]?.key ?? '').toUpperCase()} ${up}, ${(b[1]?.key ?? '').toUpperCase()} ${down}`;
+  }
   const dir: Record<string, string> = { w: 'up', s: 'down', a: 'left', d: 'right' };
   const key = b[0]?.key ?? '';
   return `${key.toUpperCase()} (pushes ${dir[key] ?? key})`;

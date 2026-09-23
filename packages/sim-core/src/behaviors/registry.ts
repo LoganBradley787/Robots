@@ -2,6 +2,7 @@ import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import type { BodyGroup, PartInstance, Robot } from '../world/Robot';
 import { thrust } from './thrust';
 import { wheel } from './wheel';
+import { gyro } from './gyro';
 
 export interface BehaviorContext {
   physics: PhysicsWorld;
@@ -31,4 +32,5 @@ export interface Behavior {
 export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior>([
   ['wheel', wheel],
   ['thrust', thrust],
+  ['gyro', gyro],
 ]);

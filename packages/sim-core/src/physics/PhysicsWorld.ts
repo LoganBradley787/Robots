@@ -56,6 +56,8 @@ export interface MassProperties {
   /** World-space center of mass. */
   comX: number;
   comY: number;
+  /** Moment of inertia about the center of mass, kg m^2. */
+  inertia: number;
 }
 
 export interface DebugBuffers {
@@ -185,7 +187,13 @@ export class PhysicsWorld {
   massProperties(id: BodyId): MassProperties {
     const body = this.body(id);
     const com = body.worldCom();
-    return { mass: body.mass(), comX: com.x, comY: com.y };
+    return { mass: body.mass(), comX: com.x, comY: com.y, inertia: body.principalInertia() };
+  }
+
+  /** Adds a torque (N m, counterclockwise positive) for the next step only. Works on multibody links. */
+  addTorque(id: BodyId, torque: number): void {
+    this.body(id).addTorque(torque, true);
+    this.forced.add(id);
   }
 
   /**

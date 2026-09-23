@@ -126,7 +126,7 @@ export function StatsBadge({ store }: { store: Store<AppState> }) {
 export function BuilderHelp() {
   return (
     <div class="help">
-      1-8 pick part · click or drag to paint · E eraser · right-click a part for its menu · R rotate · Esc drop · M mirror ([ ] move axis) ·
+      1-9 pick part · click or drag to paint · E eraser · right-click a part for its menu · R rotate · Esc drop · M mirror ([ ] move axis) ·
       Space+drag or middle-drag pan · wheel zoom · Cmd+Z undo · Tab world
     </div>
   );

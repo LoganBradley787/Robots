@@ -62,8 +62,8 @@
     },
     "part.wheel": {
       "frame": {
-        "x": 3,
-        "y": 71,
+        "x": 207,
+        "y": 3,
         "w": 64,
         "h": 64
       },
@@ -82,7 +82,7 @@
     },
     "part.wheel.mount": {
       "frame": {
-        "x": 71,
+        "x": 3,
         "y": 71,
         "w": 64,
         "h": 64
@@ -102,7 +102,7 @@
     },
     "part.thruster": {
       "frame": {
-        "x": 139,
+        "x": 71,
         "y": 71,
         "w": 64,
         "h": 64
@@ -122,8 +122,8 @@
     },
     "part.propeller": {
       "frame": {
-        "x": 3,
-        "y": 139,
+        "x": 139,
+        "y": 71,
         "w": 64,
         "h": 64
       },
@@ -142,8 +142,8 @@
     },
     "part.decoupler": {
       "frame": {
-        "x": 71,
-        "y": 139,
+        "x": 207,
+        "y": 71,
         "w": 64,
         "h": 64
       },
@@ -162,7 +162,27 @@
     },
     "part.warhead": {
       "frame": {
-        "x": 139,
+        "x": 3,
+        "y": 139,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.gyro": {
+      "frame": {
+        "x": 71,
         "y": 139,
         "w": 64,
         "h": 64
@@ -185,7 +205,7 @@
     "image": "parts.png",
     "format": "RGBA8888",
     "size": {
-      "w": 206,
+      "w": 274,
       "h": 206
     },
     "scale": "1"

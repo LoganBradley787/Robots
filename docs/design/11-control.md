@@ -76,3 +76,8 @@ Binding every wheel by hand (Logan's `le-car`) is tedious, so robots control the
 - The effect a part shows (flame length, propeller spin speed) follows its first input channel, so new parts get it from data.
 - Right-click opens the part menu with any tool held; left-click with the eraser erases, one undo step per drag, mirrored in mirror mode.
 - Robots are placed and clicked with direct collider tests (Rapier's query index lags behind new colliders).
+
+## Gyro (Gate 3, Logan)
+- A reaction wheel part for steering in the air. Q turns counterclockwise and E clockwise (auto controls, like KSP's roll keys), with a fixed torque per gyro (40 N m), so heavy robots need more gyros.
+- With no Q or E it only damps spin: a small torque (at most 15 N m) that stops turning. It never levels the robot or holds an angle; Logan: that is a script's job, and a gyro that flies for you is no fun. A hard spin overpowers it.
+- `damp` (0 to 1, default 1) turns the damping off with a custom binding. The keys an axis part uses and how the builder names its two directions are data in the part def (`autoControl.keys`, `autoControl.labels`).

@@ -9,6 +9,7 @@ export const DEFAULT_LEGEND: Readonly<Record<string, LegendEntry>> = {
   F: { part: 'frame' },
   B: { part: 'battery' },
   X: { part: 'warhead' },
+  G: { part: 'gyro' },
   W: { part: 'wheel', rot: 0 },
   'W^': { part: 'wheel', rot: 180 },
   'W<': { part: 'wheel', rot: 270 },

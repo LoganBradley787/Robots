@@ -472,6 +472,47 @@ function drawWarhead(): Canvas {
 // ---------------------------------------------------------------- fx
 
 /** Flame anchored at the top edge (the nozzle exit), pointing down. */
+function drawGyro(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  const violet = hex('#5b3fa8');
+  plate(cv, 0, 0, CELL, CELL, violet, hex('#34226a'), 3);
+  for (const [x, y] of [[9, 9], [55, 9], [9, 55], [55, 55]] as const) rivet(cv, x, y);
+  // Rotor: a steel disc in a dark well, with spokes.
+  const cx = 32;
+  const cy = 32;
+  cv.fill(circle(cx, cy, 19), hex('#1e1533'));
+  shadedDisc(cv, cx, cy, 15, STEEL);
+  cv.fill(ring(cx, cy, 11, 12.5), DARK_METAL, 0.8);
+  cv.fill(union(seg(cx - 10, cy, cx + 10, cy, 2.4), seg(cx, cy - 10, cx, cy + 10, 2.4)), DARK_METAL, 0.7);
+  cv.fill(circle(cx, cy, 4), hex('#c9b8ff'));
+  glow(cv, cx, cy, 7, hex('#b89bff'), 0.5);
+  // Two curved arrows around the rotor, one each way: it turns the robot both ways.
+  const arc = (from: number, to: number): Shape => (x, y) => {
+    const r = Math.hypot(x - cx, y - cy);
+    if (r < 21.5 || r > 25) return false;
+    const deg = ((Math.atan2(y - cy, x - cx) * 180) / Math.PI + 360) % 360;
+    return deg >= from && deg <= to;
+  };
+  const tip = (deg: number, dir: 1 | -1): Shape => {
+    const a = (deg * Math.PI) / 180;
+    const px = cx + 23.2 * Math.cos(a);
+    const py = cy + 23.2 * Math.sin(a);
+    const tx = -Math.sin(a) * dir;
+    const ty = Math.cos(a) * dir;
+    const nx = Math.cos(a);
+    const ny = Math.sin(a);
+    return poly([
+      [px + tx * 6, py + ty * 6],
+      [px + nx * 4.5, py + ny * 4.5],
+      [px - nx * 4.5, py - ny * 4.5],
+    ]);
+  };
+  const lilac = hex('#d9ccff');
+  cv.fill(union(arc(200, 300), tip(300, 1)), lilac);
+  cv.fill(union(arc(20, 120), tip(120, 1)), lilac);
+  return cv;
+}
+
 function drawFlame(length: number, width: number, seed: number): Canvas {
   const cv = new Canvas(CELL, CELL);
   const rnd = mulberry32(seed);
@@ -690,6 +731,7 @@ function main(): void {
     { name: 'part.propeller', canvas: drawPropeller(1) },
     { name: 'part.decoupler', canvas: drawDecoupler() },
     { name: 'part.warhead', canvas: drawWarhead() },
+    { name: 'part.gyro', canvas: drawGyro() },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
   write('sheets/parts.png', partsSheet.png);

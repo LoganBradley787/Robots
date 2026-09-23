@@ -78,3 +78,14 @@ describe('binding helpers', () => {
     expect(bindingTargets(framed, reg)).toEqual({ types: [], tags: [], parts: [] });
   });
 });
+
+describe('gyro in the builder', () => {
+  it('labels and summarizes the gyro by its own keys', () => {
+    const g = expandBlueprint({ format: 1, name: 'g', grid: ['C  G'], legend: { G: { part: 'gyro' } } }).blueprint as Blueprint;
+    expect(autoLabel(reg, g.parts[1]!)).toBe('E spin right, Q spin left');
+    expect(autoSummary(g, reg)).toEqual([
+      { key: 'Q', text: '1 gyro spin left' },
+      { key: 'E', text: '1 gyro spin right' },
+    ]);
+  });
+});

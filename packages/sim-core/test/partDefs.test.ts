@@ -16,7 +16,7 @@ const minimal = {
 };
 
 describe('default part defs', () => {
-  it('lists the eight starting parts in order', () => {
+  it('lists the shipped parts in palette order', () => {
     expect(defaultRegistry().list().map((d) => d.id)).toEqual([
       'core',
       'frame',
@@ -26,6 +26,7 @@ describe('default part defs', () => {
       'propeller',
       'decoupler',
       'warhead',
+      'gyro',
     ]);
   });
 

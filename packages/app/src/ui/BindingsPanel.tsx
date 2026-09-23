@@ -47,7 +47,7 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
           ))}
         </ul>
       )}
-      {autoOn && auto.length === 0 && <p class="muted small">No parts with auto controls yet. Wheels drive on D and A; thrusters and propellers use the key they push toward.</p>}
+      {autoOn && auto.length === 0 && <p class="muted small">No parts with auto controls yet. Wheels drive on D and A; thrusters and propellers use the key they push toward; gyros spin on Q and E.</p>}
       <p class="muted small">Right-click a part to turn its auto controls off. Custom controls below add to the auto ones.</p>
       {bindings.map((b, i) => {
         const channels = channelsForTarget(draft, registry, b.target ?? '');

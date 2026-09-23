@@ -13,7 +13,8 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
   - CLI: `--keys "d:0-3, w:5"`, drive metrics (distance, max altitude, max tilt, top speed), `pnpm sim replay <file>`; CI runs a keyed determinism check.
   - Replays: world toolbar Save replay writes `replays/` (gitignored); a browser session reran in Node with a MATCH.
 - In progress: none.
-- Next: **Gate 3.** Logan runs `pnpm dev` and plays. Then write `docs/critique/gate-3.md` from his notes, fix it, and plan M4 (power) with M5 (scripting) behind it, since Gate 4 judges them together.
+- Gate 3 punch list (`docs/critique/gate-3.md`), all done: growing bounce and flips fixed (multibody joints, `03`), stuck car fixed (motors wake their bodies), camera Home button and a 1000 m wide flat world, and the new gyro part (Q/E turn, spin damping).
+- Next: **Logan tries the Gate 3 fixes** (drive off the block again, fly the hopper, try the gyro). When he is happy, close Gate 3 and plan M4 (power) with M5 (scripting) behind it, since Gate 4 judges them together.
 
 ## Gate 3: what to try (for Logan)
 - Builder: open `car`, Deploy, drop it. Hold D and A: spin-up, coasting when you let go, braking by holding the other key.

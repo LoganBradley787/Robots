@@ -2,6 +2,7 @@
   "format": 1,
   "name": "hopper",
   "grid": [
+    ".  .  G  .  .  .",
     "F  T^ C  B  T^ F",
     "W  .  .  .  .  W"
   ]

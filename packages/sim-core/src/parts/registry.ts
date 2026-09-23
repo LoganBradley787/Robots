@@ -8,6 +8,7 @@ import thruster from './defs/thruster.json';
 import propeller from './defs/propeller.json';
 import decoupler from './defs/decoupler.json';
 import warhead from './defs/warhead.json';
+import gyro from './defs/gyro.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -48,11 +49,12 @@ const SHIPPED: Array<[string, unknown]> = [
   ['propeller.json', propeller],
   ['decoupler.json', decoupler],
   ['warhead.json', warhead],
+  ['gyro.json', gyro],
 ];
 
 let shipped: PartRegistry | null = null;
 
-/** The eight starting parts, parsed once. */
+/** The shipped parts, parsed once, in palette order. */
 export function defaultRegistry(): PartRegistry {
   if (!shipped) shipped = new PartRegistry(SHIPPED.map(([file, raw]) => parsePartDef(raw, `parts/defs/${file}`)));
   return shipped;

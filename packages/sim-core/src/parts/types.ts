@@ -60,12 +60,17 @@ export interface ExplodeSpec {
 }
 
 /**
- * How a part joins auto controls (`11`): `axis` parts get D +1 and A -1 on `channel` (wheels, whatever their
- * rotation); `push` parts get the key for the direction they push after rotation (up W, down S, right D, left A).
+ * How a part joins auto controls (`11`): `axis` parts get `keys[0]` at the channel max and `keys[1]` at its min on
+ * `channel` (wheels: D and A, whatever their rotation; gyro: E and Q); `push` parts get the key for the direction they
+ * push after rotation (up W, down S, right D, left A).
  */
 export interface AutoControlSpec {
   channel: string;
   kind: 'axis' | 'push';
+  /** Axis keys, positive then negative. Default D, A. */
+  keys?: [string, string];
+  /** How the builder describes the two axis directions. Default forward, reverse. */
+  labels?: [string, string];
 }
 
 export interface PartDef {

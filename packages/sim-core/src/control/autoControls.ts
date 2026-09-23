@@ -6,12 +6,12 @@ import type { Face } from '../parts/types';
 /** Push parts get the key for the direction they push (`11`). */
 const PUSH_KEY: Readonly<Record<Face, string>> = { N: 'w', S: 's', E: 'd', W: 'a' };
 
-/** Keys auto controls can use, in the order the keys bar shows them. */
-export const AUTO_KEYS: readonly string[] = ['w', 'a', 's', 'd'];
+/** Keys auto controls use, in the order the keys bar shows them. */
+export const AUTO_KEYS: readonly string[] = ['q', 'w', 'e', 'a', 's', 'd'];
 
 /**
  * Bindings derived from the parts (`11`), one or two per part that has `autoControl` in its def and has not opted
- * out. Each targets the part by id. Axis parts (wheels): D +max, A -max. Push parts (thrusters, propellers): the key
+ * out. Each targets the part by id. Axis parts: their two keys at the channel max and min (wheels D and A, gyro E and Q). Push parts (thrusters, propellers): the key
  * for the direction they push after rotation, at the channel max. None when the blueprint turns auto off.
  */
 export function autoBindings(bp: Blueprint, registry: PartRegistry): Binding[] {
@@ -27,9 +27,10 @@ export function partAutoBindings(p: PlacedPart, registry: PartRegistry): Binding
   const channel = ac ? def.inputs.find((c) => c.name === ac.channel) : undefined;
   if (!ac || !channel) return [];
   if (ac.kind === 'axis') {
+    const [pos, neg] = ac.keys ?? ['d', 'a'];
     return [
-      { key: 'd', mode: 'hold', target: p.id, channel: channel.name, value: channel.max },
-      { key: 'a', mode: 'hold', target: p.id, channel: channel.name, value: -channel.max },
+      { key: pos, mode: 'hold', target: p.id, channel: channel.name, value: channel.max },
+      { key: neg, mode: 'hold', target: p.id, channel: channel.name, value: channel.min },
     ];
   }
   if (def.acts === undefined) return [];
