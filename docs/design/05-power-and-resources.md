@@ -1,0 +1,30 @@
+# 05 Power and resources
+
+Status: draft, 2026-09-22.
+
+## Generic resource system
+- `ResourceKind` is a string. v1 ships `"energy"`. Fuel later is a second kind with no engine changes.
+- Container parts declare `resource: { kind, capacity }` in their def. Each `PartInstance` of a container holds `stored`.
+- Consumer parts declare `powerDraw` (units per second at full command) and the kind they consume (default `"energy"`).
+- Producers (solar, generator) are a later addition: the same interface with a negative request.
+
+## Pools are derived, not stored
+- A chunk's pool for a kind is the set of container parts in that chunk. `capacity` and `stored` are sums over those parts.
+- Because the pool is derived from parts, splitting needs no bookkeeping: each chunk simply sees the batteries it physically contains.
+- Drains are distributed across containers proportionally to their stored amount, so batteries empty together. Sorting by part id before distributing keeps float sums deterministic.
+
+## Per-tick resolution (two phases)
+1. Request. During the behavior phase each active consumer requests `powerDraw * |command| * dt` from its chunk pool. Requests are collected, not granted yet.
+2. Resolve. After all requests: if the total is at most `stored`, every request is granted in full. Otherwise every consumer gets the same grant factor `stored / total` and the pool goes to zero (brownout). Behaviors scale their output by the grant factor.
+
+Brownout is proportional rather than first-come so the result does not depend on part order.
+
+## Rules
+- A pool at zero means every consumer in that chunk produces nothing, including latched actuators on headless chunks.
+- Batteries start full. A blueprint may later set an initial charge fraction per battery.
+- No recharge in v1. The `EnergyEmpty` event fires once when a pool first hits zero.
+- Battery output channel `charge` reports the part's own fraction so scripts can watch it.
+
+## Metrics
+- The headless runner reports `energyRemaining` (sum over the robot's chunks) and `energyUsed`.
+- The UI shows the possessed chunk's pool as a bar.
