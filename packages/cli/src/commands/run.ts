@@ -27,6 +27,8 @@ export interface RunReport {
   finalHash: string;
   /** Things that ran but probably not as meant, like a timeline key the robot has no control on. */
   warnings: string[];
+  /** Scripts that stopped, with when and why. */
+  scriptCrashes: { script: string; t: number; kind: string; message: string }[];
 }
 
 export class InvalidBlueprint extends Error {
@@ -75,6 +77,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       drive: drive.result(),
       energy: energyOf(world, robot.id),
       warnings,
+      scriptCrashes: world.events.flatMap((e) => (e.kind === 'scriptCrashed' ? [{ script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message }] : [])),
       finalHash: world.hash(),
     };
   } finally {
@@ -92,6 +95,7 @@ export function formatReport(r: RunReport): string {
   const lines: string[] = [];
   if (r.issues.length > 0) lines.push(formatIssues(r.issues));
   for (const w of r.warnings) lines.push(`warning: ${w}`);
+  for (const c of r.scriptCrashes) lines.push(`script ${c.script} stopped at t=${f(c.t, 2)}s (${c.kind}): ${c.message}`);
   for (const s of r.samples) lines.push(formatSample(s));
   const fin = r.final;
   lines.push(formatDrive(r.drive));
