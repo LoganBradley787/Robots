@@ -97,7 +97,7 @@ packages/app/
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
-    "sim": "pnpm --filter @robots/cli start --"
+    "sim": "pnpm --filter @robots/cli start"
   },
   "devDependencies": {
     "typescript": "7.0.2",

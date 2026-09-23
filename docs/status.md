@@ -8,6 +8,7 @@ Updated: 2026-09-23, by a coding session (Opus 5.5)
 - Next: M0 T2 (seeded PRNG and state hasher)
 - Known issues: none
 - Decisions since the plan:
+  - Root `sim` script is `pnpm --filter @robots/cli start` with no trailing `--`: pnpm forwards args itself, and the extra `--` reached `process.argv` and would break Task 6 `parseArgs`. Plan updated.
   - pnpm 11 blocks dependency build scripts by default. `pnpm-workspace.yaml` has `allowBuilds: { esbuild: true }` so tsx's esbuild installs. Add future native deps there on purpose, not by blanket approval.
   - `@types/web` stays `*` in package.json; the lockfile pins 0.0.357, which works with PixiJS 8.21 and TS 7.
 - Next gate: Gate 1 (Look) at the end of M1
