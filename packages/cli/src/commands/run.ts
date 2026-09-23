@@ -1,4 +1,4 @@
-import { DriveTracker, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type RobotSample, type WorldFile } from '@robots/sim-core';
+import { DriveTracker, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type RobotSample, type WorldFile } from '@robots/sim-core';
 
 export interface RunOptions {
   seconds: number;
@@ -8,6 +8,8 @@ export interface RunOptions {
   at?: { x: number; y: number };
   /** Keys pressed and released on the spawned robot, from tick 0. */
   keys?: readonly KeyPress[];
+  /** Unlimited energy from tick 0. */
+  unlimited?: boolean;
 }
 
 export interface RunReport {
@@ -20,6 +22,7 @@ export interface RunReport {
   samples: RobotSample[];
   final: RobotSample;
   drive: DriveMetrics;
+  energy: { used: number; remaining: number; capacity: number; ranDryAt?: number };
   finalHash: string;
   /** Things that ran but probably not as meant, like a timeline key the robot has no control on. */
   warnings: string[];
@@ -41,6 +44,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     const v = validateBlueprint(blueprint, world.registry);
     if (!v.ok) throw new InvalidBlueprint(v.issues);
     const robot = world.spawnBlueprint(blueprint, opts.at ?? file.spawn);
+    if (opts.unlimited) world.setUnlimitedEnergy(true);
     if (opts.keys && opts.keys.length > 0 && !world.canControl(robot.id)) throw new Error(`${robot.name} has no core, so keys cannot control it`);
     const inputs = timelineInputs(opts.keys ?? [], robot.id, world.dt);
     const known = world.controller(robot.id)?.keys ?? [];
@@ -68,6 +72,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       samples,
       final: sampleRobot(world, robot),
       drive: drive.result(),
+      energy: energyOf(world, robot.id),
       warnings,
       finalHash: world.hash(),
     };
@@ -89,6 +94,7 @@ export function formatReport(r: RunReport): string {
   for (const s of r.samples) lines.push(formatSample(s));
   const fin = r.final;
   lines.push(formatDrive(r.drive));
+  lines.push(formatEnergy(r.energy));
   lines.push(
     `final: ticks=${r.ticks} hash=${r.finalHash} resting=${fin.resting ? 'yes' : 'no'} core=(${f(fin.coreX)}, ${f(fin.coreY)}) tilt=${f(fin.tiltDeg, 2)} mass=${f(fin.massKg)} com=(${f(fin.comX)}, ${f(fin.comY)})`,
   );
@@ -97,4 +103,14 @@ export function formatReport(r: RunReport): string {
 
 export function formatDrive(d: DriveMetrics): string {
   return `drive: distance ${f(d.distance, 2)} m   max altitude ${f(d.maxAltitude, 2)} m   max tilt ${f(d.maxTiltDeg, 1)} deg   top speed ${f(d.topSpeed, 2)} m/s`;
+}
+
+export function energyOf(world: SimWorld, robotId: number): RunReport['energy'] {
+  const e = world.energy(robotId);
+  const dry = world.events.find((ev) => ev.robot === robotId && ev.kind === 'energyEmpty');
+  return { used: e?.used ?? 0, remaining: e?.stored ?? 0, capacity: e?.capacity ?? 0, ...(dry ? { ranDryAt: dry.tick * world.dt } : {}) };
+}
+
+export function formatEnergy(e: RunReport['energy']): string {
+  return `energy: used ${f(e.used, 1)}   remaining ${f(e.remaining, 1)} of ${f(e.capacity, 0)}${e.ranDryAt !== undefined ? `   ran dry at t=${f(e.ranDryAt, 2)}s` : ''}`;
 }

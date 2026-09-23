@@ -43,6 +43,15 @@ describe('runSim', () => {
     expect(formatReport(r)).toContain("warning: key 'k'");
   });
 
+  it('reports energy, and --unlimited keeps it full', async () => {
+    const r = await runSim(flat, carJson, { seconds: 2, seed: 1, at: { x: -20, y: 3 }, keys: [{ key: 'd', down: 0, up: 2 }] });
+    expect(r.energy.capacity).toBe(2100);
+    expect(r.energy.used).toBeCloseTo(20, 0);
+    expect(formatReport(r)).toContain('energy: used');
+    const u = await runSim(flat, carJson, { seconds: 2, seed: 1, at: { x: -20, y: 3 }, keys: [{ key: 'd', down: 0, up: 2 }], unlimited: true });
+    expect(u.energy.remaining).toBe(2100);
+  });
+
   it('the same key timeline reproduces the same distance', async () => {
     const opts = { seconds: 4, seed: 1, at: { x: -20, y: 3 }, keys: [{ key: 'd', down: 0, up: 2 }, { key: 'a', down: 2.5, up: 3 }] };
     const a = await runSim(flat, carJson, opts);

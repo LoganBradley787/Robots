@@ -27,10 +27,11 @@ flags
   --x <n> --y <n>    where the core lands (default: the world spawn point)
   --keys <timeline>  keys to press, in seconds from the start: "d:0-3, a:3.5-4, w:5" (w:5 is a tap),
                      or a .json file like [{ "key": "d", "down": 0, "up": 3 }]
+  --unlimited        unlimited energy from the start
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
-const BOOLEAN_FLAGS = new Set(['json']);
+const BOOLEAN_FLAGS = new Set(['json', 'unlimited']);
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string> } {
   const flags = new Map<string, string>();
@@ -133,7 +134,7 @@ async function main(): Promise<number> {
     }
     throw e;
   }
-  const opts = { seconds, seed, ...(at ? { at } : {}), ...(keys ? { keys } : {}) };
+  const opts = { seconds, seed, ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}) };
 
   try {
     if (command === 'run') {

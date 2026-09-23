@@ -1,12 +1,12 @@
 import { DriveTracker, parseReplay, runReplay, sampleRobot, type DriveMetrics } from '@robots/sim-core';
-import { formatDrive } from './run';
+import { energyOf, formatDrive, formatEnergy, type RunReport } from './run';
 
 export interface ReplayReport {
   ticks: number;
   hash: string;
   expected: string;
   matches: boolean;
-  robots: { id: number; name: string; drive: DriveMetrics }[];
+  robots: { id: number; name: string; drive: DriveMetrics; energy: RunReport['energy'] }[];
 }
 
 /** Reruns a replay saved from the app, tracking every robot's drive metrics from its spawn. */
@@ -26,7 +26,7 @@ export async function replayCommand(raw: unknown): Promise<ReplayReport> {
       hash: r.hash,
       expected: replay.endHash,
       matches: r.matches,
-      robots: r.world.robots.map((robot) => ({ id: robot.id, name: robot.name, drive: (trackers.get(robot.id) ?? new DriveTracker()).result() })),
+      robots: r.world.robots.map((robot) => ({ id: robot.id, name: robot.name, drive: (trackers.get(robot.id) ?? new DriveTracker()).result(), energy: energyOf(r.world, robot.id) })),
     };
   } finally {
     r.world.dispose();
@@ -34,7 +34,7 @@ export async function replayCommand(raw: unknown): Promise<ReplayReport> {
 }
 
 export function formatReplay(r: ReplayReport): string {
-  const lines = r.robots.map((x) => `robot ${x.id} ${x.name}: ${formatDrive(x.drive).replace(/^drive: /, '')}`);
+  const lines = r.robots.flatMap((x) => [`robot ${x.id} ${x.name}: ${formatDrive(x.drive).replace(/^drive: /, '')}`, `  ${formatEnergy(x.energy)}`]);
   lines.push(`ticks=${r.ticks} (${(r.ticks / 60).toFixed(2)} s)  hash=${r.hash}  saved=${r.expected}`);
   lines.push(r.matches ? 'MATCH: the replay reproduces the saved run exactly' : 'MISMATCH: the replay did not end where the saved run did');
   return lines.join('\n');

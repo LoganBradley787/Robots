@@ -1,4 +1,4 @@
-import { sampleRobot, World, type RobotInput, type WorldFile } from '@robots/sim-core';
+import { defaultRegistry, sampleRobot, staticStats, validateBlueprint, World, type RobotInput, type WorldFile } from '@robots/sim-core';
 
 /** Open flat ground, no obstacles, so drives measure the robot and not the terrain. */
 const TRACK: WorldFile = { name: 'tuning track', ground: { width: 4000, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] };
@@ -69,5 +69,18 @@ export async function tune(): Promise<string> {
   const y0 = hop.y[0] ?? 0;
   const off = hop.y.findIndex((y) => y > y0 + 0.2);
   lines.push(`hopper   ${f(hop.mass)} kg   core up 0.2 m after ${off < 0 ? 'never' : f((off + 1) / 60)} s, peak +${f(Math.max(...hop.y) - y0)} m in 2 s`);
+  // Energy: how long a full pool lasts at full command (every consumer drawing its powerDraw).
+  const reg = defaultRegistry();
+  for (const name of ['car', 'hopper']) {
+    const v = validateBlueprint(TUNE_ROBOTS[name], reg);
+    if (!v.blueprint) continue;
+    const st = staticStats(v.blueprint, reg);
+    const byPart = (part: string): number => v.blueprint!.parts.filter((p) => p.part === part).reduce((sum, p) => sum + reg.get(p.part).powerDraw, 0);
+    const driveDraw = byPart('wheel');
+    const thrustDraw = byPart('thruster');
+    lines.push(
+      `energy   ${name}: ${st.energy} stored   ${driveDraw > 0 ? `driving ${Math.round(st.energy / driveDraw)} s` : ''}${thrustDraw > 0 ? `   full thrust ${Math.round(st.energy / thrustDraw)} s` : ''}`,
+    );
+  }
   return lines.join('\n');
 }
