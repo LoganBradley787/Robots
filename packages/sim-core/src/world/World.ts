@@ -9,6 +9,9 @@ import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
 import { allBindings } from '../control/autoControls';
 import { drainContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
+import { ScriptRunner } from '../script/runner';
+import type { ScriptError, ScriptHost, ScriptInput } from '../script/types';
+import { partWorldPose } from '../metrics/robotMetrics';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -25,16 +28,32 @@ export interface SpawnRecord {
 }
 
 /** Something that happened in the sim, for the UI and reports. Not part of the state hash. */
-export interface WorldEvent {
+export type WorldEvent =
+  | {
+      tick: number;
+      robot: number;
+      kind: 'energyEmpty';
+      /** Index of the chunk whose pool ran dry. */
+      chunk: number;
+    }
+  | { tick: number; robot: number; kind: 'scriptCrashed'; script: string; error: ScriptError };
+
+/** One `log()` line from a script. */
+export interface ScriptLog {
   tick: number;
   robot: number;
-  kind: 'energyEmpty';
-  /** Index of the chunk whose pool ran dry. */
-  chunk: number;
+  script: string;
+  text: string;
 }
+
+/** Log lines kept, oldest dropped first, and lines a robot may log per second. */
+const LOG_KEEP = 200;
+const LOG_PER_SECOND = 20;
 
 export interface WorldOptions {
   seed: number;
+  /** Runs robots' scripts. Without one, a robot's scripts report that they cannot run. */
+  scripts?: ScriptHost;
   dt?: number;
   gravityY?: number;
 }
@@ -60,6 +79,13 @@ export class World {
   private pendingUnlimited: boolean | undefined;
   /** Events so far, oldest first. Readers keep their own cursor. */
   readonly events: WorldEvent[] = [];
+  private readonly scriptHost: ScriptHost | undefined;
+  /** Scripts per robot, on robots with a core. */
+  private readonly runners = new Map<number, ScriptRunner>();
+  /** Recent `log()` lines from scripts, oldest first (at most LOG_KEEP). */
+  readonly scriptLogs: ScriptLog[] = [];
+  /** Log lines per robot in the current second, for rate limiting. */
+  private readonly logBudget = new Map<number, { second: number; count: number }>();
   /** Pools that have already reported running dry, by `robot:chunk`. */
   private readonly emptied = new Set<string>();
   /** Energy drawn so far, per robot. Reporting only. */
@@ -71,6 +97,7 @@ export class World {
     this.registry = registry;
     this.dt = opts.dt ?? 1 / 60;
     this.seed = opts.seed;
+    this.scriptHost = opts.scripts;
     this.rng = new Prng(opts.seed);
     this.physics = new PhysicsWorld(opts.gravityY ?? -9.81, this.dt);
     this.file = file;
@@ -103,6 +130,11 @@ export class World {
     if (controller) {
       this.controllers.set(robot.id, controller);
       this.channels.set(robot.id, controller.values());
+      if (robot.blueprint.scripts.length > 0) {
+        // Each script gets its own random stream from the world seed, the robot, and its place in the list.
+        const seed = (i: number): number => (Math.imul(this.seed ^ 0x9e3779b9, 31) + Math.imul(robot.id, 65537) + i * 7919) >>> 0;
+        this.runners.set(robot.id, new ScriptRunner(robot.blueprint.scripts, this.scriptHost, seed));
+      }
     }
     this.spawnLog.push({ tick: this.tickCount, name: robot.name, at: { x: at.x, y: at.y }, blueprint: raw });
     return robot;
@@ -146,11 +178,85 @@ export class World {
     this.pendingUnlimited = undefined;
     this.inputLog.append(this.tickCount, inputs, change);
     for (const input of inputs) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
+    this.runScripts();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     this.runBehaviors();
     this.physics.step();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
+  }
+
+  /**
+   * Scripts run after key edges and before channels are final (`04`): they see this tick's keys and last tick's
+   * channel values, and write the script layer. A crash disables only that script; the world keeps stepping.
+   */
+  private runScripts(): void {
+    for (const [robotId, runner] of this.runners) {
+      const controller = this.controllers.get(robotId);
+      const robot = this.robots.find((r) => r.id === robotId);
+      if (!controller || !robot) continue;
+      for (const id of controller.takeScriptToggles()) runner.toggle(id);
+      const out = runner.tick(() => this.scriptInput(robot, controller.keyState()));
+      for (const w of out.writes) controller.scriptWrite(w.target, w.channel, w.value);
+      for (const c of out.crashes) this.events.push({ tick: this.tickCount, robot: robotId, kind: 'scriptCrashed', script: c.script, error: c.error });
+      for (const l of out.logs) this.pushLog(robotId, l.script, l.text);
+    }
+  }
+
+  private pushLog(robot: number, script: string, text: string): void {
+    const second = Math.floor(this.tickCount * this.dt);
+    const b = this.logBudget.get(robot);
+    const budget = b && b.second === second ? b : { second, count: 0 };
+    if (budget.count >= LOG_PER_SECOND) return;
+    budget.count++;
+    this.logBudget.set(robot, budget);
+    this.scriptLogs.push({ tick: this.tickCount, robot, script, text });
+    if (this.scriptLogs.length > LOG_KEEP) this.scriptLogs.splice(0, this.scriptLogs.length - LOG_KEEP);
+  }
+
+  /** What a robot's scripts see this tick (`04`, Script API): exact data about its core and its parts. */
+  private scriptInput(robot: Robot, keys: ScriptInput['keys']): ScriptInput {
+    const coreId = robot.primaryCoreId ?? robot.rootId;
+    const core = partWorldPose(this, robot, coreId);
+    const coreBody = robot.groups[robot.parts.get(coreId)?.group ?? 0]?.bodyId ?? 0;
+    const s = this.physics.state(coreBody);
+    let mass = 0;
+    for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
+    const energy = this.energy(robot.id);
+    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+    const chans = this.channels.get(robot.id);
+    const parts: ScriptInput['parts'] = [];
+    for (const id of chunk?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      if (!p) continue;
+      const pose = partWorldPose(this, robot, id);
+      const out: Record<string, number> = {};
+      for (const o of p.def.outputs) {
+        const v = this.partOutput(robot.id, id, o.name);
+        if (v !== undefined) out[o.name] = v;
+      }
+      parts.push({ id, type: p.def.id, tags: p.tags, pos: { x: pose.x, y: pose.y }, angle: pose.angle, in: Object.fromEntries(chans?.get(id) ?? []), out });
+    }
+    return {
+      frame: this.tickCount,
+      dt: this.dt,
+      time: this.tickCount * this.dt,
+      self: {
+        pos: { x: core.x, y: core.y },
+        vel: { x: s.vx, y: s.vy },
+        angle: s.angle,
+        angVel: s.w,
+        mass,
+        energy: { stored: energy?.stored ?? 0, capacity: energy?.capacity ?? 0 },
+      },
+      parts,
+      keys,
+    };
+  }
+
+  /** A robot's scripts and whether each runs or crashed. Read-only. */
+  scripts(robotId: number): readonly { id: string; enabled: boolean; crashed?: ScriptError }[] {
+    return this.runners.get(robotId)?.scripts ?? [];
   }
 
   /** Unlimited energy on or off, from the next tick on (logged, so replays match). */
@@ -273,6 +379,15 @@ export class World {
     // Energy shapes the future: the sandbox switch and what every container holds.
     h.addInt(this.unlimited ? 1 : 0);
     for (const robot of this.robots) for (const part of robot.parts.values()) if (part.stored !== undefined) h.addF64(part.stored);
+    // Which scripts run (and which crashed) shapes the future too.
+    for (const [id, runner] of this.runners) {
+      h.addInt(id);
+      for (const sc of runner.scripts) {
+        h.addString(sc.id);
+        h.addInt(sc.enabled ? 1 : 0);
+        h.addInt(sc.crashed ? 1 : 0);
+      }
+    }
     // Held keys and toggles shape the future, so they are state too.
     for (const [id, c] of this.controllers) {
       const st = c.state();
@@ -286,6 +401,7 @@ export class World {
   }
 
   dispose(): void {
+    for (const r of this.runners.values()) r.dispose();
     this.physics.free();
   }
 }

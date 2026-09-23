@@ -1,6 +1,7 @@
 import { InputLog, type LoggedTick } from './InputLog';
 import { parseWorldFile, type WorldFile } from '../world/WorldFile';
 import { World, type SpawnRecord } from '../world/World';
+import type { ScriptHost } from '../script/types';
 
 /**
  * Everything needed to rerun a session exactly (`11`, Replays): the world, the seed, every spawn, every key edge,
@@ -85,10 +86,15 @@ export function parseReplay(raw: unknown): ReplayFile {
 
 /**
  * Reruns a replay in a fresh world: spawns land before the tick they were made on, inputs go into their tick.
- * `onTick` sees the world after every step (metrics). The caller disposes the returned world.
+ * `onTick` sees the world after every step (metrics). Robots with scripts need the same kind of `scripts` host the
+ * session had. The caller disposes the returned world.
  */
-export async function runReplay(replay: ReplayFile, onTick?: (world: World) => void): Promise<{ world: World; hash: string; matches: boolean }> {
-  const world = await World.create({ seed: replay.seed }, replay.world);
+export async function runReplay(
+  replay: ReplayFile,
+  onTick?: (world: World) => void,
+  scripts?: ScriptHost,
+): Promise<{ world: World; hash: string; matches: boolean }> {
+  const world = await World.create({ seed: replay.seed, ...(scripts ? { scripts } : {}) }, replay.world);
   const log = InputLog.fromJSON(replay.inputs);
   const spawns = [...replay.spawns];
   let next = 0;

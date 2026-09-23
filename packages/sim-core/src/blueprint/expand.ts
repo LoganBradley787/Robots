@@ -259,7 +259,8 @@ function readScripts(raw: unknown, err: Err): ScriptSpec[] {
     if (typeof s.source === 'string') source = s.source;
     else if (isObj(s.source) && isNonEmptyString(s.source.file) && unknownKeys(s.source, ['file']).length === 0) source = { file: s.source.file };
     else return bad('source must be a string or { "file": "name.js" }');
-    out.push({ id: s.id, enabled: s.enabled === true, params, source });
+    // A script starts on deploy unless it says otherwise (Logan, before M5).
+    out.push({ id: s.id, enabled: s.enabled !== false, params, source });
   });
   return out;
 }

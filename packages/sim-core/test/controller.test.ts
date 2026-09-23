@@ -121,3 +121,35 @@ describe('Controller', () => {
     expect(c.state().held).toEqual(['a', 'd', 'z']);
   });
 });
+
+describe('Controller script layer', () => {
+  it('a script value applies when no key writes the channel; a held key wins over it', () => {
+    const c = new Controller([hold('d', 'wheels', 'speed', 1)], parts);
+    c.scriptWrite('wheels', 'speed', -0.5);
+    expect(c.values().get('wheel@0,0')?.get('speed')).toBe(-0.5);
+    c.apply(['d'], []);
+    c.scriptWrite('wheels', 'speed', -0.5);
+    expect(c.values().get('wheel@0,0')?.get('speed')).toBe(1);
+    c.endTick();
+    expect(c.values().get('wheel@0,0')?.get('speed')).toBe(1); // still held; the script layer cleared
+  });
+
+  it('script values are clamped and cleared every tick', () => {
+    const c = new Controller([], parts);
+    c.scriptWrite('thruster', 'throttle', 7);
+    expect(c.values().get('thruster@2,0')?.get('throttle')).toBe(1);
+    c.endTick();
+    expect(c.values().get('thruster@2,0')?.get('throttle')).toBe(0);
+  });
+
+  it('script bindings toggle their script on press; key state lists pressed and released', () => {
+    const c = new Controller([{ key: 'h', mode: 'script', script: 'hover' }], parts);
+    c.apply(['h'], []);
+    expect(c.takeScriptToggles()).toEqual(['hover']);
+    expect(c.takeScriptToggles()).toEqual([]);
+    expect(c.keyState()).toEqual({ down: ['h'], pressed: ['h'], released: [] });
+    c.endTick();
+    c.apply([], ['h']);
+    expect(c.keyState()).toEqual({ down: [], pressed: [], released: ['h'] });
+  });
+});
