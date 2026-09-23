@@ -1,8 +1,19 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "ESNext.Disposable"],
-    "types": ["node"]
+    "lib": [
+      "ES2023",
+      "ESNext.Disposable"
+    ],
+    "types": [
+      "node"
+    ],
+    "allowImportingTsExtensions": true
   },
-  "include": ["scripts", "vite-plugins", "vite.config.ts", "src/storage/blueprintHandler.ts"]
+  "include": [
+    "scripts",
+    "vite-plugins",
+    "vite.config.ts",
+    "src/storage/blueprintHandler.ts"
+  ]
 }

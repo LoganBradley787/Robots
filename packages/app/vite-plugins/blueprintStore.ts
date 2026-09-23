@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Plugin } from 'vite';
-import { handleBlueprintRequest, MAX_BODY_BYTES, type FileStore } from '../src/storage/blueprintHandler';
+import { handleBlueprintRequest, MAX_BODY_BYTES, type FileStore } from '../src/storage/blueprintHandler.ts';
 
 /** Serves /api/blueprints over a directory during `vite dev`. The handler rejects any name that could escape it. */
 export function blueprintStore(dir: string): Plugin {

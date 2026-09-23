@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
-import { blueprintStore } from './vite-plugins/blueprintStore';
+import { blueprintStore } from './vite-plugins/blueprintStore.ts';
 
 export default defineConfig({
   server: { port: 5180, strictPort: true },
