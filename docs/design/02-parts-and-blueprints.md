@@ -1,6 +1,6 @@
 # 02 Parts and blueprints
 
-Status: draft, 2026-09-22. Items tagged (Q#) depend on an open question in `07-open-questions.md`.
+Status: draft, 2026-09-22. Updated 2026-09-23 for M1 as built (defs in `packages/sim-core/src/parts/defs/`, `role`, `mountFrame`, legend arrows, validator codes). Items tagged (Q#) depend on an open question in `07-open-questions.md`.
 
 ## Coordinates
 - Physics frame: meters, x right, y up. One grid cell = one tile = 1 m (Q7).
@@ -9,7 +9,7 @@ Status: draft, 2026-09-22. Items tagged (Q#) depend on an open question in `07-o
 - In an ASCII grid, the first row is the top (highest y). Column 0 is x = 0.
 
 ## PartDef (data)
-One JSON object per part type in `src/sim/parts/defs/`. Sketch:
+One JSON object per part type in `packages/sim-core/src/parts/defs/`, parsed by `parsePartDef` (unknown keys and bad values are errors naming the file and field). The authoritative type is `packages/sim-core/src/parts/types.ts`. Sketch:
 
 ```ts
 interface PartDef {
@@ -22,13 +22,14 @@ interface PartDef {
   inputs: ChannelDef[];             // { name, min, max, default }
   outputs: ChannelDef[];            // sensor channels this part publishes
   powerDraw: number;                // energy units per second at full command, scaled by |command|
+  role?: "core";                    // control brain: roots the robot, owns bindings and scripts
   behavior?: string;                // behavior module id
   behaviorConfig?: Record<string, number>;
   joint?: JointSpec;                // moving parts: kind, mount face, collider of the moving body
   collider?: ColliderSpec;          // default: box filling the footprint
   resource?: { kind: "energy"; capacity: number };   // containers (battery)
   onDestroyed?: { explode?: { radius: number; impulse: number } };
-  sprite: SpriteSpec;               // manifest key, animation, overlay (flame)
+  sprite: SpriteSpec;               // frame, mountFrame (joint parts: drawn on the parent body), animation, overlay (flame)
   defaultTags?: string[];
 }
 interface FootprintCell { x: number; y: number; faces: Face[] }   // faces that accept attachment
@@ -93,7 +94,7 @@ Sensor parts are ordinary parts with output channels, mass, and power draw. Noth
 - `primaryCore` (optional part id) defaults to the first core in reading order. `corePriority` (optional list) orders takeover (Q1).
 
 ## Default legend
-Shipped with the parts. Blueprints can override or extend it.
+Shipped with the parts (`packages/sim-core/src/blueprint/legend.ts`). Blueprints can override or extend it. Arrow tokens point the way the part acts: thrust direction, lift direction, release direction, or the side the wheel sits on relative to what it mounts to. So on the left end of a robot a thruster that attaches is `T>` (nozzle outward, pushes right), and a wheel hanging off the right side is `W>`.
 
 ```
 C   core            F   frame           B   battery         X   warhead
@@ -116,7 +117,8 @@ Runs on load, on every editor change, and in the headless runner. Returns a list
 - `BAD_TARGET`: "binding key 'a' targets tag 'wheels' but no part has that tag".
 - `BAD_CHANNEL`: "binding key 'f' writes channel 'speed' on tag 'props' but propeller has no input 'speed'".
 - `UNKNOWN_TOKEN`: "grid token 'Q' at row 1 column 3 is not in the legend".
-- `SCRIPT_SYNTAX`: "script 'hover' line 12: unexpected token".
+- `SCRIPT_SYNTAX`: "script 'hover' line 12: unexpected token" (M5, needs QuickJS).
+- Also shipped in M1: `BAD_FORMAT`, `BAD_ROTATION`, `UNKNOWN_PART`, `EMPTY`, `DUPLICATE_ID`, `BAD_CONTINUATION`, `BAD_PRIMARY_CORE`, `BAD_CORE_PRIORITY`, `CHANNEL_SKIPPED` (warning: some tagged parts lack the channel), `BAD_SCRIPT_REF`, `BAD_BINDING`, `BAD_SCRIPT`, and `UNSUPPORTED` (sub-assembly legend entries until M6). The root part (primary core) is never reported `UNATTACHED`; the parts that fail to reach it are.
 
 ## Helpers for authors
 - `mirror(blueprint, axis)`: reflects the grid and rotations, fixes wheel and thruster tokens.

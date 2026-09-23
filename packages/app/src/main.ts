@@ -7,6 +7,9 @@ import { drawDebug } from './render/DebugDraw';
 import { interpolateState } from './render/interpolate';
 import { loadTextures } from './render/assets';
 import { RobotView } from './render/RobotView';
+import { buildTerrainView } from './render/TerrainView';
+import { buildGridView } from './render/GridView';
+import { TERRAIN } from './render/assetKeys';
 import { createCamera, followTarget, panByPixels, setFollow, zoomBy } from './render/camera';
 import { applyCamera } from './render/cameraView';
 import { FixedStepper } from './app/FixedStepper';
@@ -41,6 +44,16 @@ async function boot(): Promise<void> {
   await renderer.init(root);
   const textures = await loadTextures();
   const hud = new Hud(hudEl);
+
+  const grid = buildGridView({ minX: -60, maxX: 60, minY: -2, maxY: 30 });
+  renderer.backdrop.addChild(
+    grid,
+    buildTerrainView(file, {
+      ground: textures.alias(TERRAIN.ground),
+      groundTop: textures.alias(TERRAIN.groundTop),
+      block: textures.alias(TERRAIN.block),
+    }),
+  );
 
   const views = world.robots.map((r) => new RobotView(r, (f) => textures.part(f)));
   for (const v of views) renderer.bodies.addChild(v.root);
@@ -98,7 +111,7 @@ async function boot(): Promise<void> {
       cam = setFollow(cam, true);
     },
     toggleGrid: () => {
-      renderer.backdrop.visible = !renderer.backdrop.visible;
+      grid.visible = !grid.visible;
     },
     reset: () => location.reload(),
   });
