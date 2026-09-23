@@ -7,3 +7,7 @@
 - `pnpm test` runs all tests, `pnpm typecheck` checks every package
 - `pnpm sim run --seconds 5` runs the headless simulation
 - `pnpm sim determinism --seconds 10` runs it twice and compares hashes
+
+## Controls (M0)
+
+Space pause, `.` single step, `[` and `]` time scale (0.25x to 4x), D debug outlines, F follow the box, R reset, mouse wheel zoom, drag to pan.
