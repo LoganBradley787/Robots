@@ -12,5 +12,6 @@ Read in order. Status lines at the top of each doc say whether it is draft, prop
 - `08-tech-stack.md`: library choices, versions, repo layout, rendering and sandbox packaging conventions.
 - `09-execution-strategy.md`: roles, task units, handoff protocol, verification gates, parallelism, milestone boundaries.
 - `10-builder.md`: the blueprint builder screen, saving, and deploy, as decided with Logan.
+- `11-control.md`: possession, robots you stop controlling, driving feel, the keys bar, and replays, as decided with Logan.
 
 Source of truth for the vision: `../handoff-2026-09-22.md`. Working rules: `../../CLAUDE.md`.
