@@ -46,12 +46,15 @@ describe('World', () => {
     w.dispose();
   });
 
-  it('rejects inputs for robots that do not exist or have no core', async () => {
+  it('rejects inputs for robots that never existed and drops inputs for ones it cannot control', async () => {
     const w = await World.create({ seed: 1 }, flat);
     const box = w.spawnBlueprint(BOX, flat.spawn);
     expect(() => w.step([{ robot: 99, pressed: ['d'], released: [] }])).toThrow('robot 99');
-    expect(() => w.step([{ robot: box.id, pressed: ['d'], released: [] }])).toThrow('no core');
     expect(w.tick).toBe(0);
+    // A core-less robot (or one whose core was just destroyed) cannot be controlled: the input is dropped, unlogged.
+    w.step([{ robot: box.id, pressed: ['d'], released: [] }]);
+    expect(w.tick).toBe(1);
+    expect(w.inputLog.length).toBe(0);
     expect(w.canControl(box.id)).toBe(false);
     w.dispose();
   });

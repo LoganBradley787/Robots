@@ -154,6 +154,11 @@ export class PhysicsWorld {
     this.world.numInternalPgsIterations = INTERNAL_PGS_ITERATIONS;
   }
 
+  /** The fixed step, seconds. */
+  get dt(): number {
+    return this.world.timestep;
+  }
+
   /** Pose is set through the descriptor at creation, never with setRotation afterwards (determinism, see 01). */
   createBody(spec: BodySpec, helperMass?: number): BodyId {
     let base = spec.kind === 'fixed' ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic();

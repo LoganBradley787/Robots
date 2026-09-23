@@ -1,8 +1,12 @@
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
+import type { Face } from '../parts/types';
 import type { BodyGroup, PartInstance, Robot } from '../world/Robot';
 import { thrust } from './thrust';
 import { wheel } from './wheel';
 import { gyro } from './gyro';
+import { decoupler } from './decoupler';
+import { warhead } from './warhead';
+import { rotator } from './rotator';
 
 export interface BehaviorContext {
   physics: PhysicsWorld;
@@ -14,6 +18,11 @@ export interface BehaviorContext {
   value(channel: string): number;
   /** A number from the def's behaviorConfig. Missing keys are caught by the part def tests, not at runtime. */
   config(key: string): number;
+  /**
+   * Stops the part attaching through `face` (after its rotation) and pushes the two sides apart with `impulse` N s
+   * each along the face. The robot splits in the damage phase after the physics step (`03`).
+   */
+  detach(face: Face, impulse: number): void;
 }
 
 export interface Behavior {
@@ -27,6 +36,8 @@ export interface Behavior {
    * does nothing. `load` (0 to 1) is how hard it works; the part requests `powerDraw * load * dt`.
    */
   plan(ctx: BehaviorContext): PlannedAction | undefined;
+  /** An output channel this behavior reports (a decoupler's `armed`), or undefined for one it does not. */
+  output?(part: PartInstance, name: string): number | undefined;
 }
 
 export interface PlannedAction {
@@ -35,12 +46,12 @@ export interface PlannedAction {
   run(grant: number): void;
 }
 
-/**
- * Behaviors by the def's `behavior` id. Defs name their behavior; the engine never names a part. Behaviors not
- * listed here (core, battery, decoupler, warhead) do nothing yet.
- */
+/** Behaviors by the def's `behavior` id. Defs name their behavior; the engine never names a part. */
 export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior>([
   ['wheel', wheel],
   ['thrust', thrust],
   ['gyro', gyro],
+  ['decoupler', decoupler],
+  ['warhead', warhead],
+  ['rotator', rotator],
 ]);

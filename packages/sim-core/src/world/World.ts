@@ -1,12 +1,12 @@
 import { loadRapier } from '../physics/rapier';
-import { PhysicsWorld, type ShapeSpec } from '../physics/PhysicsWorld';
+import { PhysicsWorld, type BodyId, type ShapeSpec } from '../physics/PhysicsWorld';
 import { Prng } from '../rng/Prng';
 import { StateHasher } from '../replay/StateHasher';
-import { InputLog } from '../replay/InputLog';
+import { InputLog, type WorldChange } from '../replay/InputLog';
 import { Controller } from '../control/controller';
 import type { ControlledPart, RobotInput } from '../control/types';
 import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
-import { allBindings } from '../control/autoControls';
+import { allBindings, autoBindings } from '../control/autoControls';
 import { drainContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
@@ -17,7 +17,11 @@ import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
 import { spawnRobot } from '../assembly/spawn';
 import { partCells, rootPartId } from '../assembly/assemble';
-import type { Robot } from './Robot';
+import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
+import { blastEffects, type BlastCell } from '../damage/explosion';
+import { faceDir, rotateCell } from '../parts/faces';
+import type { ExplodeSpec, Face } from '../parts/types';
+import type { PartInstance, Robot } from './Robot';
 
 export interface SpawnRecord {
   tick: number;
@@ -36,7 +40,29 @@ export type WorldEvent =
       /** Index of the chunk whose pool ran dry. */
       chunk: number;
     }
-  | { tick: number; robot: number; kind: 'scriptCrashed'; script: string; error: ScriptError };
+  | { tick: number; robot: number; kind: 'scriptCrashed'; script: string; error: ScriptError }
+  /** A part reached 0 health and is gone. `x`, `y` is where its cell was. */
+  | { tick: number; robot: number; kind: 'partDestroyed'; part: string; partType: string; x: number; y: number }
+  /** A blast went off (`robot` owned the part that exploded). */
+  | { tick: number; robot: number; kind: 'explosion'; x: number; y: number; radius: number }
+  /** A robot broke apart: it keeps one piece, the others are new robots. */
+  | { tick: number; robot: number; kind: 'split'; pieces: number[] }
+  /** A robot's active core was destroyed: nobody controls it any more and it keeps its last input. */
+  | { tick: number; robot: number; kind: 'coreLost' }
+  /** A piece broke off with exactly one core, which woke up and can be controlled. */
+  | { tick: number; robot: number; kind: 'coreWoke'; from: number }
+  /** A robot is gone: all its parts were destroyed, or Clear debris took it. */
+  | { tick: number; robot: number; kind: 'removed' };
+
+/** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
+export const MAX_BLASTS_PER_TICK = 100;
+
+interface QueuedBlast {
+  robot: number;
+  x: number;
+  y: number;
+  spec: ExplodeSpec;
+}
 
 /** One `log()` line from a script. */
 export interface ScriptLog {
@@ -90,8 +116,20 @@ export class World {
   private readonly emptied = new Set<string>();
   /** Energy drawn so far, per robot. Reporting only. */
   private readonly used = new Map<number, number>();
-  /** Final channel values from the last tick, per robot, for behaviors, render, and UI. */
+  /**
+   * Final channel values from the last tick, per robot, for behaviors, render, and UI. A robot nobody can control
+   * (headless, or a piece that broke off) keeps its values frozen here: that is latching (`04`).
+   */
   private readonly channels = new Map<number, Map<string, Map<string, number>>>();
+  private pendingClearDebris = false;
+  /** Robots whose parts or faces changed this tick and must be rebuilt in the damage phase. */
+  private readonly dirty = new Set<Robot>();
+  /** Blasts waiting because the per-tick cap was reached. Simulation state, hashed. */
+  private queuedBlasts: QueuedBlast[] = [];
+  /** Pushes (N s) to apply to parts at the end of the damage phase, once every rebuild is done. */
+  private pendingPushes: { part: PartInstance; jx: number; jy: number }[] = [];
+  /** Velocities given to new bodies this tick, applied as kicks at the end of the damage phase. */
+  private readonly pendingKicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
 
   private constructor(opts: WorldOptions, file: WorldFile, registry: PartRegistry) {
     this.registry = registry;
@@ -166,24 +204,228 @@ export class World {
 
   /**
    * Advances one tick: applies key edges to their robots' controllers, computes channel values, runs behaviors,
-   * steps physics. Robots without inputs keep their held keys and toggles. An input for a robot that does not
-   * exist or cannot be controlled is a caller bug and throws before anything changes.
+   * steps physics, then resolves damage (`03`: destroyed parts, blasts, splits). Robots without inputs keep their
+   * held keys and toggles. An input for a robot that can no longer be controlled (its core was destroyed, or it was
+   * cleared) is dropped unlogged, since the caller could not know yet; one for a robot that never existed throws.
    */
   step(inputs: readonly RobotInput[] = []): void {
     for (const input of inputs) {
-      if (!this.controllers.has(input.robot)) throw new Error(`robot ${input.robot} does not exist or has no core to control`);
+      if (!Number.isInteger(input.robot) || input.robot < 1 || input.robot >= this.nextRobotId) throw new Error(`robot ${input.robot} does not exist`);
     }
-    const change = this.pendingUnlimited === undefined ? undefined : { unlimitedEnergy: this.pendingUnlimited };
+    const accepted = inputs.filter((i) => this.controllers.has(i.robot));
+    const change: WorldChange = {};
+    if (this.pendingUnlimited !== undefined) change.unlimitedEnergy = this.pendingUnlimited;
+    if (this.pendingClearDebris) change.clearDebris = true;
     if (this.pendingUnlimited !== undefined) this.unlimited = this.pendingUnlimited;
     this.pendingUnlimited = undefined;
-    this.inputLog.append(this.tickCount, inputs, change);
-    for (const input of inputs) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
+    if (this.pendingClearDebris) this.removeDebris();
+    this.pendingClearDebris = false;
+    this.inputLog.append(this.tickCount, accepted, Object.keys(change).length > 0 ? change : undefined);
+    for (const input of accepted) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
     this.runScripts();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     this.runBehaviors();
     this.physics.step();
+    this.damagePhase();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
+  }
+
+  /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
+  clearDebris(): void {
+    this.pendingClearDebris = true;
+  }
+
+  private removeDebris(): void {
+    for (const robot of [...this.robots]) if (!this.controllers.has(robot.id)) this.removeRobot(robot);
+  }
+
+  private removeRobot(robot: Robot): void {
+    for (const g of robot.groups) {
+      this.pendingKicks.delete(g.bodyId);
+      this.physics.removeBody(g.bodyId);
+    }
+    robot.groups = [];
+    const i = this.robots.indexOf(robot);
+    if (i >= 0) this.robots.splice(i, 1);
+    this.controllers.delete(robot.id);
+    this.channels.delete(robot.id);
+    this.runners.get(robot.id)?.dispose();
+    this.runners.delete(robot.id);
+    this.dirty.delete(robot);
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'removed' });
+  }
+
+  /**
+   * The damage phase (`03`, Cell removal pipeline), after the physics step: hard hits break parts with `impact`,
+   * destroyed parts go (and explode if they do), changed robots are rebuilt and split, then blasts damage and push
+   * parts, which can destroy more; repeat until nothing is left or the blast cap is reached. Pushes and the kicks
+   * that give new bodies their velocity act on the next step.
+   */
+  private damagePhase(): void {
+    for (const hit of this.physics.takeImpacts()) {
+      const robot = this.robotOfBody(hit.body);
+      const part = robot?.parts.get(hit.owner);
+      if (!part?.def.impact) continue;
+      // How much the hit changed the whole body's speed in one step.
+      if ((hit.force * this.dt) / this.physics.massProperties(hit.body).mass > part.def.impact.speed) part.health = 0;
+    }
+    let budget = MAX_BLASTS_PER_TICK;
+    for (;;) {
+      this.destroyDeadParts();
+      this.rebuildDirty();
+      if (this.queuedBlasts.length === 0 || budget === 0) break;
+      const batch = this.queuedBlasts.splice(0, budget);
+      budget -= batch.length;
+      for (const b of batch) this.applyBlast(b);
+    }
+    this.applyPendingForces();
+  }
+
+  private robotOfBody(body: BodyId): Robot | undefined {
+    return this.robots.find((r) => r.groups.some((g) => g.bodyId === body));
+  }
+
+  /** Removes every part at 0 health (robots in order, parts in blueprint order) and queues its blast if it has one. */
+  private destroyDeadParts(): void {
+    for (const robot of this.robots) {
+      for (const bp of robot.blueprint.parts) {
+        const part = robot.parts.get(bp.id);
+        if (!part || part.health > 0) continue;
+        const pose = partWorldPose(this, robot, part.id);
+        robot.parts.delete(part.id);
+        this.dirty.add(robot);
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y });
+        const explode = part.def.onDestroyed?.explode;
+        if (explode) this.queuedBlasts.push({ robot: robot.id, x: pose.x, y: pose.y, spec: explode });
+      }
+    }
+  }
+
+  /**
+   * Rebuilds every changed robot into its pieces (`rebuildRobot`) and sorts out control (`04`): the robot keeps its
+   * controller and scripts while its active core lives; without it, it latches its last values. A new piece latches
+   * too, unless its single core woke up, which starts fresh with its parts' auto controls.
+   */
+  private rebuildDirty(): void {
+    for (const robot of [...this.robots]) {
+      if (!this.dirty.has(robot)) continue;
+      this.dirty.delete(robot);
+      const controller = this.controllers.get(robot.id);
+      const latched = controller ? controller.values(true) : (this.channels.get(robot.id) ?? new Map<string, Map<string, number>>());
+      const pieces = rebuildRobot(
+        {
+          physics: this.physics,
+          registry: this.registry,
+          tick: this.tickCount,
+          motion: (body) => this.motion(body),
+          kick: (body, vx, vy, w) => this.pendingKicks.set(body, { vx, vy, w }),
+          forget: (body) => this.pendingKicks.delete(body),
+          newRobotId: () => this.nextRobotId++,
+        },
+        robot,
+      );
+      if (pieces.length === 0) {
+        this.removeRobot(robot);
+        continue;
+      }
+      if (controller && robot.primaryCoreId === undefined) {
+        this.controllers.delete(robot.id);
+        this.runners.get(robot.id)?.dispose();
+        this.runners.delete(robot.id);
+        this.channels.set(robot.id, latchedFor(latched, robot));
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'coreLost' });
+      } else if (controller) {
+        controller.restrict(new Set(robot.parts.keys()));
+        this.channels.set(robot.id, latchedFor(controller.values(), robot));
+      } else {
+        this.channels.set(robot.id, latchedFor(latched, robot));
+      }
+      for (const piece of pieces.slice(1)) {
+        this.robots.push(piece);
+        const woke = piece.woke ? controllerFor(piece, this.registry) : undefined;
+        if (woke) {
+          this.controllers.set(piece.id, woke);
+          this.channels.set(piece.id, woke.values());
+          this.events.push({ tick: this.tickCount, robot: piece.id, kind: 'coreWoke', from: robot.id });
+        } else {
+          this.channels.set(piece.id, latchedFor(latched, piece));
+        }
+      }
+      if (pieces.length > 1) this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'split', pieces: pieces.slice(1).map((p) => p.id) });
+    }
+  }
+
+  /** A body's pose and motion, counting a kick given earlier this tick. */
+  private motion(body: BodyId): BodyMotion {
+    const s = this.physics.state(body);
+    const mp = this.physics.massProperties(body);
+    const k = this.pendingKicks.get(body);
+    return { x: s.x, y: s.y, angle: s.angle, vx: k?.vx ?? s.vx, vy: k?.vy ?? s.vy, w: k?.w ?? s.w, comX: mp.comX, comY: mp.comY };
+  }
+
+  /** One blast: damage and push every part cell of every robot near it (`damage/explosion`). Terrain is immune. */
+  private applyBlast(b: QueuedBlast): void {
+    const reach = Math.max(b.spec.radius, b.spec.pushRadius) + 1;
+    const targets: PartInstance[] = [];
+    const cells: BlastCell[] = [];
+    for (const robot of this.robots) {
+      for (const part of robot.parts.values()) {
+        const pose = partWorldPose(this, robot, part.id);
+        if ((pose.x - b.x) ** 2 + (pose.y - b.y) ** 2 > reach * reach) continue;
+        targets.push(part);
+        cells.push(pose);
+      }
+    }
+    const fx = blastEffects({ x: b.x, y: b.y }, b.spec, cells, this.physics.terrainBoxes());
+    targets.forEach((part, i) => {
+      const damage = fx.damage[i] ?? 0;
+      const push = fx.push[i];
+      if (damage > 0) part.health -= damage;
+      if (push && (push.jx !== 0 || push.jy !== 0)) this.pendingPushes.push({ part, jx: push.jx, jy: push.jy });
+    });
+    this.events.push({ tick: this.tickCount, robot: b.robot, kind: 'explosion', x: b.x, y: b.y, radius: b.spec.radius });
+  }
+
+  /** Kicks for new bodies, then pushes at each surviving part's cell, all as forces for the next step. */
+  private applyPendingForces(): void {
+    for (const [body, k] of this.pendingKicks) this.physics.kick(body, k.vx, k.vy, k.w);
+    this.pendingKicks.clear();
+    if (this.pendingPushes.length === 0) return;
+    const owner = new Map<PartInstance, Robot>();
+    for (const robot of this.robots) for (const part of robot.parts.values()) owner.set(part, robot);
+    for (const p of this.pendingPushes) {
+      const robot = owner.get(p.part);
+      const group = robot?.groups[p.part.group];
+      if (!robot || !group) continue;
+      const pose = partWorldPose(this, robot, p.part.id);
+      this.physics.addForceAt(group.bodyId, p.jx / this.dt, p.jy / this.dt, pose.x, pose.y);
+    }
+    this.pendingPushes = [];
+  }
+
+  /**
+   * A behavior's `detach` (a decoupler firing): the face stops attaching, the robot splits in the damage phase, and
+   * the part and its neighbor across the face are pushed apart with `impulse` N s each.
+   */
+  private detach(robot: Robot, part: PartInstance, face: Face, impulse: number): void {
+    part.cut = [...(part.cut ?? []), face];
+    this.dirty.add(robot);
+    const d = faceDir(face);
+    const cellsOf = (p: PartInstance): { x: number; y: number }[] =>
+      p.def.footprint.map((fc) => {
+        const off = rotateCell(fc, p.rot);
+        return { x: p.x + off.x, y: p.y + off.y };
+      });
+    const across = new Set(cellsOf(part).map((c) => `${c.x + d.x},${c.y + d.y}`));
+    const neighbor = [...robot.parts.values()].find((p) => p !== part && cellsOf(p).some((c) => across.has(`${c.x},${c.y}`)));
+    const s = this.physics.state(robot.groups[part.group]?.bodyId ?? 0);
+    const c = Math.cos(s.angle);
+    const n = Math.sin(s.angle);
+    const nx = c * d.x - n * d.y;
+    const ny = n * d.x + c * d.y;
+    this.pendingPushes.push({ part, jx: -nx * impulse, jy: -ny * impulse });
+    if (neighbor) this.pendingPushes.push({ part: neighbor, jx: nx * impulse, jy: ny * impulse });
   }
 
   /**
@@ -289,6 +531,7 @@ export class World {
           dt: this.dt,
           value: (channel) => own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
           config: (key) => part.def.behaviorConfig?.[key] ?? 0,
+          detach: (face, impulse) => this.detach(robot, part, face, impulse),
         };
         const action = behavior.plan(ctx);
         // A load that is not a number (a hand-made def dividing by zero) must never reach the pool: NaN would stick.
@@ -331,6 +574,8 @@ export class World {
     const robot = this.robots.find((r) => r.id === robotId);
     const part = robot?.parts.get(partId);
     if (!robot || !part || !part.def.outputs.some((o) => o.name === name)) return undefined;
+    const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name);
+    if (own !== undefined) return own;
     if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
     if (name === 'energy' || name === 'energyCapacity') {
       const pool = poolTotals(poolContainers(robot, chunkIndex(robot, partId)));
@@ -388,6 +633,32 @@ export class World {
         h.addInt(sc.crashed ? 1 : 0);
       }
     }
+    // Destruction (M6): which robots exist, what each part has left, cut faces, aims, frozen (latched) channels of
+    // robots nobody controls, and blasts still waiting.
+    h.addInt(this.nextRobotId);
+    for (const robot of this.robots) {
+      h.addInt(robot.id);
+      h.addInt(robot.parts.size);
+      for (const part of robot.parts.values()) {
+        h.addString(part.id);
+        h.addF64(part.health);
+        h.addString((part.cut ?? []).join(''));
+        h.addF64(part.aim ?? 0);
+      }
+      if (this.controllers.has(robot.id)) continue;
+      for (const [id, chans] of this.channels.get(robot.id) ?? []) {
+        h.addString(id);
+        for (const [name, v] of chans) {
+          h.addString(name);
+          h.addF64(v);
+        }
+      }
+    }
+    h.addInt(this.queuedBlasts.length);
+    for (const b of this.queuedBlasts) {
+      h.addF64(b.x);
+      h.addF64(b.y);
+    }
     // Held keys and toggles shape the future, so they are state too.
     for (const [id, c] of this.controllers) {
       const st = c.state();
@@ -406,7 +677,21 @@ export class World {
   }
 }
 
-/** The controlled chunk is the one holding the primary core; tags resolve inside it only (`04`). */
+/** The frozen channel values of the robot's own parts, copied out of a parent's (latching, `04`). */
+function latchedFor(values: ReadonlyMap<string, ReadonlyMap<string, number>>, robot: Robot): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>();
+  for (const id of robot.parts.keys()) {
+    const v = values.get(id);
+    if (v) out.set(id, new Map(v));
+  }
+  return out;
+}
+
+/**
+ * The controlled chunk is the one holding the primary core; tags resolve inside it only (`04`). A core that woke in a
+ * piece that broke off gets its parts' auto controls: bindings and scripts belong to the primary core until
+ * sub-assemblies (M7) give sub-assembly cores their own.
+ */
 function controllerFor(robot: Robot, registry: PartRegistry): Controller | undefined {
   const coreId = robot.primaryCoreId;
   if (coreId === undefined) return undefined;
@@ -417,7 +702,8 @@ function controllerFor(robot: Robot, registry: PartRegistry): Controller | undef
     const p = robot.parts.get(id);
     if (p) parts.push({ id, part: p.def.id, tags: p.tags, inputs: p.def.inputs });
   }
-  return new Controller(allBindings(robot.blueprint, registry), parts);
+  const bindings = robot.woke ? autoBindings({ ...robot.blueprint, parts: robot.blueprint.parts.filter((p) => robot.parts.has(p.id)) }, registry) : allBindings(robot.blueprint, registry);
+  return new Controller(bindings, parts);
 }
 
 /** Index of the chunk holding the part (every part is in exactly one). */

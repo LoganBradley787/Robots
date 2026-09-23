@@ -1,6 +1,6 @@
 import type { Blueprint } from '../blueprint/types';
 import type { BodyId, JointId } from '../physics/PhysicsWorld';
-import type { PartDef, Rotation } from '../parts/types';
+import type { Face, PartDef, Rotation } from '../parts/types';
 
 /** A placed part in a spawned robot. */
 export interface PartInstance {
@@ -12,6 +12,10 @@ export interface PartInstance {
   rot: Rotation;
   tags: string[];
   health: number;
+  /** Faces (after rotation) this part no longer attaches through: a fired decoupler's release face. */
+  cut?: Face[];
+  /** A rotator's aim: radians relative to its base, within its range. */
+  aim?: number;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** Index of the body group that owns this part. */
@@ -58,5 +62,12 @@ export interface Robot {
   chunks: Chunk[];
   /** The part the robot was placed by: the primary core, or the first part of a core-less blueprint. */
   rootId: string;
+  /** The active core: the primary core, or a core that woke when its piece broke off (`04`). */
   primaryCoreId?: string;
+  /** Bumped whenever the robot's bodies are rebuilt (damage, a split), so views rebuild their sprites. */
+  version: number;
+  /** For a piece that broke off another robot: that robot's id. */
+  brokeFrom?: number;
+  /** A piece whose single dormant core woke up: controlled by its parts' auto controls only (`04`, M6). */
+  woke?: true;
 }

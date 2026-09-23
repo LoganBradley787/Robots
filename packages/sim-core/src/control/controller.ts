@@ -35,7 +35,7 @@ export class Controller {
   private readonly toggles = new Set<number>();
   private readonly pulses = new Set<number>();
   private readonly releasedNow = new Set<string>();
-  private readonly parts: readonly ControlledPart[];
+  private parts: readonly ControlledPart[];
   /** Script ids with a `script` binding, by key. */
   private readonly scriptKeys = new Map<string, string[]>();
   /** Script ids whose key was pressed this tick, in press order. */
@@ -103,12 +103,15 @@ export class Controller {
     }
   }
 
-  /** Final value of every input channel of every controlled part, for this tick. */
-  values(): Map<string, Map<string, number>> {
+  /**
+   * Final value of every input channel of every controlled part, for this tick. `latch` leaves out this tick's
+   * pulses: what a piece that breaks off keeps doing must not repeat a one-tick press forever (`04`, Latching).
+   */
+  values(latch = false): Map<string, Map<string, number>> {
     const sums = new Map<string, Map<string, number>>();
     for (const w of this.writers) {
       const active =
-        w.mode === 'hold' ? this.held.has(w.key) || this.pressedNow.has(w.key) : w.mode === 'toggle' ? this.toggles.has(w.index) : this.pulses.has(w.index);
+        w.mode === 'hold' ? this.held.has(w.key) || this.pressedNow.has(w.key) : w.mode === 'toggle' ? this.toggles.has(w.index) : !latch && this.pulses.has(w.index);
       if (!active) continue;
       for (const id of w.partIds) {
         let chans = sums.get(id);
@@ -129,6 +132,16 @@ export class Controller {
       out.set(id, vals);
     }
     return out;
+  }
+
+  /**
+   * Keeps only these parts (the rest broke off or were destroyed). Keys, toggles, and bindings stay as they are;
+   * a binding whose parts are all gone writes nothing.
+   */
+  restrict(partIds: ReadonlySet<string>): void {
+    this.parts = this.parts.filter((p) => partIds.has(p.id));
+    for (const id of [...this.channels.keys()]) if (!partIds.has(id)) this.channels.delete(id);
+    for (const w of this.writers) w.partIds = w.partIds.filter((id) => partIds.has(id));
   }
 
   /** Ends the tick: pulses and taps last exactly one tick. */

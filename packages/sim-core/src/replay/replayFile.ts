@@ -70,8 +70,16 @@ export function parseReplay(raw: unknown): ReplayFile {
     if (!Array.isArray(o.inputs)) throw new ReplayError(`inputs[${i}].inputs must be a list`);
     const world = o.world === undefined ? undefined : obj(o.world, `inputs[${i}].world`);
     if (world && world.unlimitedEnergy !== undefined && typeof world.unlimitedEnergy !== 'boolean') throw new ReplayError(`inputs[${i}].world.unlimitedEnergy must be true or false`);
+    if (world && world.clearDebris !== undefined && world.clearDebris !== true) throw new ReplayError(`inputs[${i}].world.clearDebris must be true when present`);
     return {
-      ...(world ? { world: world.unlimitedEnergy === undefined ? {} : { unlimitedEnergy: world.unlimitedEnergy as boolean } } : {}),
+      ...(world
+        ? {
+            world: {
+              ...(world.unlimitedEnergy === undefined ? {} : { unlimitedEnergy: world.unlimitedEnergy as boolean }),
+              ...(world.clearDebris === true ? { clearDebris: true as const } : {}),
+            },
+          }
+        : {}),
       tick: int(o.tick, `inputs[${i}].tick`),
       inputs: o.inputs.map((x, j) => {
         const e = obj(x, `inputs[${i}].inputs[${j}]`);
@@ -105,6 +113,7 @@ export async function runReplay(
     }
     const change = log.worldAt(world.tick);
     if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
+    if (change?.clearDebris) world.clearDebris();
     world.step(log.inputsAt(world.tick));
     onTick?.(world);
   }

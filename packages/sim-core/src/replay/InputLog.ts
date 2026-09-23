@@ -3,6 +3,8 @@ import type { RobotInput } from '../control/types';
 /** World settings changed on a tick (sandbox switches). Part of the simulation, so they are logged. */
 export interface WorldChange {
   unlimitedEnergy?: boolean;
+  /** Clear debris (M6): every robot nobody can control is removed at the start of the tick. */
+  clearDebris?: true;
 }
 
 export interface LoggedTick {
