@@ -1,51 +1,77 @@
-import { World, type BodyState, type WorldFile } from '@robots/sim-core';
+import { formatIssues, sampleRobot, validateBlueprint, World, type Issue, type RobotSample, type WorldFile } from '@robots/sim-core';
 
 export interface RunOptions {
   seconds: number;
   seed: number;
   sampleEverySeconds?: number;
-}
-
-export interface RunSample {
-  tick: number;
-  time: number;
-  box: BodyState;
-  hash: string;
+  /** Where the root part lands; default is the world's spawn point. */
+  at?: { x: number; y: number };
 }
 
 export interface RunReport {
   world: string;
+  blueprint: string;
   seconds: number;
   seed: number;
   ticks: number;
+  issues: Issue[];
+  samples: RobotSample[];
+  final: RobotSample;
   finalHash: string;
-  box: BodyState;
-  samples: RunSample[];
 }
 
-/** Spawns the M0 test box at the world's spawn point and steps for the requested time. */
-export async function runSim(file: WorldFile, opts: RunOptions): Promise<RunReport> {
-  const world = await World.create({ seed: opts.seed }, file);
-  // Temporary until T7 moves the CLI to blueprints: a one-frame blueprint is the old 1 m test box.
-  const box = world.spawnBlueprint({ format: 1, name: 'box', grid: ['F'] }, file.spawn).groups[0]?.bodyId ?? 0;
-  const ticks = Math.round(opts.seconds / world.dt);
-  const every = Math.max(1, Math.round((opts.sampleEverySeconds ?? 1) / world.dt));
-  const samples: RunSample[] = [];
-  for (let i = 0; i < ticks; i++) {
-    world.step();
-    if (world.tick % every === 0) {
-      samples.push({ tick: world.tick, time: world.time, box: world.physics.state(box), hash: world.hash() });
-    }
+export class InvalidBlueprint extends Error {
+  readonly issues: Issue[];
+
+  constructor(issues: Issue[]) {
+    super(formatIssues(issues));
+    this.issues = issues;
   }
-  const report: RunReport = {
-    world: file.name,
-    seconds: opts.seconds,
-    seed: opts.seed,
-    ticks,
-    finalHash: world.hash(),
-    box: world.physics.state(box),
-    samples,
-  };
-  world.dispose();
-  return report;
+}
+
+/** Validates, spawns, and steps the blueprint, sampling the robot once per `sampleEverySeconds`. */
+export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptions): Promise<RunReport> {
+  const world = await World.create({ seed: opts.seed }, file);
+  try {
+    const v = validateBlueprint(blueprint, world.registry);
+    if (!v.ok) throw new InvalidBlueprint(v.issues);
+    const robot = world.spawnBlueprint(blueprint, opts.at ?? file.spawn);
+    const ticks = Math.round(opts.seconds / world.dt);
+    const every = Math.max(1, Math.round((opts.sampleEverySeconds ?? 1) / world.dt));
+    const samples: RobotSample[] = [];
+    for (let i = 0; i < ticks; i++) {
+      world.step();
+      if (world.tick % every === 0) samples.push(sampleRobot(world, robot));
+    }
+    return {
+      world: file.name,
+      blueprint: robot.name,
+      seconds: opts.seconds,
+      seed: opts.seed,
+      ticks,
+      issues: v.issues,
+      samples,
+      final: sampleRobot(world, robot),
+      finalHash: world.hash(),
+    };
+  } finally {
+    world.dispose();
+  }
+}
+
+const f = (v: number, digits = 3): string => v.toFixed(digits);
+
+export function formatSample(s: RobotSample): string {
+  return `t=${f(s.time, 2).padStart(6)}  core x=${f(s.coreX)} y=${f(s.coreY)} tilt=${f(s.tiltDeg, 2)}  speed=${f(s.speed)}  resting=${s.resting ? 'yes' : 'no'}`;
+}
+
+export function formatReport(r: RunReport): string {
+  const lines: string[] = [];
+  if (r.issues.length > 0) lines.push(formatIssues(r.issues));
+  for (const s of r.samples) lines.push(formatSample(s));
+  const fin = r.final;
+  lines.push(
+    `final: ticks=${r.ticks} hash=${r.finalHash} resting=${fin.resting ? 'yes' : 'no'} core=(${f(fin.coreX)}, ${f(fin.coreY)}) tilt=${f(fin.tiltDeg, 2)} mass=${f(fin.massKg)} com=(${f(fin.comX)}, ${f(fin.comY)})`,
+  );
+  return lines.join('\n');
 }

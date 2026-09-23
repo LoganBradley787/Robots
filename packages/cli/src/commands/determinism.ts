@@ -9,8 +9,8 @@ export interface DeterminismResult {
 }
 
 /** Runs the same simulation twice in one process and compares final hashes. */
-export async function checkDeterminism(file: WorldFile, opts: RunOptions): Promise<DeterminismResult> {
-  const a = await runSim(file, opts);
-  const b = await runSim(file, opts);
+export async function checkDeterminism(file: WorldFile, blueprint: unknown, opts: RunOptions): Promise<DeterminismResult> {
+  const a = await runSim(file, blueprint, opts);
+  const b = await runSim(file, blueprint, opts);
   return { equal: a.finalHash === b.finalHash, hashA: a.finalHash, hashB: b.finalHash, ticks: a.ticks };
 }

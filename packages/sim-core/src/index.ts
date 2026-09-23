@@ -24,3 +24,5 @@ export { validateBlueprint, loadBlueprint, formatIssues, BlueprintError } from '
 export type { ValidationResult } from './blueprint/validate';
 export type { Robot, Chunk, BodyGroup, PartInstance } from './world/Robot';
 export { spawnRobot } from './assembly/spawn';
+export { sampleRobot, partWorldPose } from './metrics/robotMetrics';
+export type { RobotSample } from './metrics/robotMetrics';

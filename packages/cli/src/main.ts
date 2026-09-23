@@ -1,29 +1,33 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { parseWorldFile, type WorldFile } from '@robots/sim-core';
-import { runSim } from './commands/run';
+import { DEFAULT_WORLD, readJson, resolveBlueprint, resolveUserPath } from './blueprintFiles';
+import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
+import { validateCommand } from './commands/validate';
+import { showBlueprint } from './commands/show';
 
-const DEFAULT_WORLD = fileURLToPath(new URL('../../../worlds/flat.json', import.meta.url));
+const USAGE = `robots sim <command> <blueprint> [flags]
 
-const USAGE = `robots sim <command> [flags]
+<blueprint> is a name in blueprints/ (car) or a path to a .json file.
 
 commands
-  run            simulate the world with a test box, print samples once per second
-  determinism    run twice and compare final hashes (exit 1 on mismatch)
+  run <bp>           spawn the blueprint, simulate, print the robot once per second
+  show <bp>          print the grid, legend, mass, center of mass, and body structure
+  validate <bp>      print validator issues; exit 1 on errors
+  determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
 
 flags
   --world <path>     world json (default: worlds/flat.json)
   --seconds <n>      simulated seconds (default: 5)
   --seed <n>         world seed (default: 1)
+  --x <n> --y <n>    where the core lands (default: the world spawn point)
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
 const BOOLEAN_FLAGS = new Set(['json']);
 
-function parseArgs(argv: string[]): { command: string; flags: Map<string, string> } {
+function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string> } {
   const flags = new Map<string, string>();
-  let command = '';
+  const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? '';
     if (a.startsWith('--')) {
@@ -34,11 +38,11 @@ function parseArgs(argv: string[]): { command: string; flags: Map<string, string
       } else {
         flags.set(a.slice(2), 'true');
       }
-    } else if (command === '') {
-      command = a;
+    } else {
+      positional.push(a);
     }
   }
-  return { command, flags };
+  return { positional, flags };
 }
 
 function numberFlag(flags: Map<string, string>, key: string, fallback: number): number {
@@ -55,41 +59,63 @@ function seedFlag(flags: Map<string, string>): number {
   return v;
 }
 
-function loadWorld(path: string): WorldFile {
-  return parseWorldFile(JSON.parse(readFileSync(path, 'utf8')));
+function loadWorld(flags: Map<string, string>): WorldFile {
+  const p = flags.get('world');
+  return parseWorldFile(readJson(p === undefined ? DEFAULT_WORLD : resolveUserPath(p)));
 }
 
 async function main(): Promise<number> {
-  const { command, flags } = parseArgs(process.argv.slice(2));
-  const worldPath = flags.get('world') ?? DEFAULT_WORLD;
-  const seconds = numberFlag(flags, 'seconds', 5);
-  const seed = seedFlag(flags);
-
-  if (command === 'run') {
-    const report = await runSim(loadWorld(worldPath), { seconds, seed });
-    if (flags.has('json')) {
-      console.log(JSON.stringify(report, null, 2));
-    } else {
-      for (const s of report.samples) {
-        console.log(
-          `t=${s.time.toFixed(2).padStart(6)}  box x=${s.box.x.toFixed(3)} y=${s.box.y.toFixed(3)} angle=${s.box.angle.toFixed(3)}  hash=${s.hash}`,
-        );
-      }
-      console.log(`final: ticks=${report.ticks} hash=${report.finalHash}`);
-    }
+  const { positional, flags } = parseArgs(process.argv.slice(2));
+  const [command = '', bpArg] = positional;
+  if (command === '' || command === 'help') {
+    console.log(USAGE);
     return 0;
   }
+  if (!['run', 'show', 'validate', 'determinism'].includes(command)) {
+    console.log(USAGE);
+    return 2;
+  }
+  if (bpArg === undefined) {
+    console.error(`${command} needs a blueprint name or path\n`);
+    console.log(USAGE);
+    return 2;
+  }
+  const blueprint = readJson(resolveBlueprint(bpArg));
 
-  if (command === 'determinism') {
-    const d = await checkDeterminism(loadWorld(worldPath), { seconds, seed });
+  if (command === 'show') {
+    console.log(showBlueprint(blueprint));
+    return 0;
+  }
+  if (command === 'validate') {
+    const v = validateCommand(blueprint);
+    console.log(v.text);
+    return v.ok ? 0 : 1;
+  }
+
+  const seconds = numberFlag(flags, 'seconds', 5);
+  const seed = seedFlag(flags);
+  const file = loadWorld(flags);
+  const at = flags.has('x') || flags.has('y') ? { x: numberFlag(flags, 'x', file.spawn.x), y: numberFlag(flags, 'y', file.spawn.y) } : undefined;
+  const opts = at ? { seconds, seed, at } : { seconds, seed };
+
+  try {
+    if (command === 'run') {
+      const report = await runSim(file, blueprint, opts);
+      console.log(flags.has('json') ? JSON.stringify(report, null, 2) : formatReport(report));
+      return 0;
+    }
+    const d = await checkDeterminism(file, blueprint, opts);
     console.log(`run A: ${d.hashA}`);
     console.log(`run B: ${d.hashB}`);
     console.log(d.equal ? `DETERMINISTIC over ${d.ticks} ticks` : 'MISMATCH: the simulation is not deterministic');
     return d.equal ? 0 : 1;
+  } catch (e) {
+    if (e instanceof InvalidBlueprint) {
+      console.log(e.message);
+      return 1;
+    }
+    throw e;
   }
-
-  console.log(USAGE);
-  return command === '' || command === 'help' ? 0 : 2;
 }
 
 main().then(
@@ -97,7 +123,7 @@ main().then(
     process.exitCode = code;
   },
   (err: unknown) => {
-    console.error(err);
+    console.error(err instanceof Error ? err.message : err);
     process.exitCode = 1;
   },
 );

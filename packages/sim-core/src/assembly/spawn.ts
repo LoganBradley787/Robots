@@ -85,7 +85,7 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
     return chunk;
   });
 
-  const robot: Robot = { id: args.id, name: bp.name, blueprint: bp, spawnTick: args.tick, spawnX: args.at.x, spawnY: args.at.y, parts, groups, chunks };
+  const robot: Robot = { id: args.id, name: bp.name, blueprint: bp, spawnTick: args.tick, spawnX: args.at.x, spawnY: args.at.y, parts, groups, chunks, rootId };
   const primary = bp.parts.find((p) => p.id === rootId);
   if (primary && isCore(primary, registry)) robot.primaryCoreId = rootId;
   return robot;

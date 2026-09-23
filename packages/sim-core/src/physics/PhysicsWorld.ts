@@ -53,6 +53,13 @@ export interface DebugBuffers {
   colors: Float32Array;
 }
 
+/**
+ * Solver settings (see docs/design/03). Rapier's defaults (4 and 1) let a 9 kg body on 1.5 kg jointed wheels
+ * rebound at 4.3 m/s after a 1.5 m drop; 8 and 8 cut that to 0.6 m/s at negligible cost for robot-sized scenes.
+ */
+export const SOLVER_ITERATIONS = 8;
+export const INTERNAL_PGS_ITERATIONS = 8;
+
 function readState(body: RAPIER.RigidBody): BodyState {
   const t = body.translation();
   const v = body.linvel();
@@ -72,6 +79,8 @@ export class PhysicsWorld {
   constructor(gravityY: number, dt: number) {
     this.world = new RAPIER.World({ x: 0, y: gravityY });
     this.world.timestep = dt;
+    this.world.numSolverIterations = SOLVER_ITERATIONS;
+    this.world.numInternalPgsIterations = INTERNAL_PGS_ITERATIONS;
   }
 
   /** Pose is set through the descriptor at creation, never with setRotation afterwards (determinism, see 01). */

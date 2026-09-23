@@ -35,7 +35,8 @@ Status: draft, 2026-09-22. Items tagged (Q#) depend on an open question in `07-o
 - Forces are only applied when the resource pool grants energy (see `05`).
 
 ## Solver settings
-- SI units, gravity `(0, -9.81)`, `world.timestep = 1/60`. Keep 0.20.0 defaults (4 solver iterations, 1 CCD substep, sweep CCD on) until the headless runner shows a reason to change them.
+- SI units, gravity `(0, -9.81)`, `world.timestep = 1/60`. 1 CCD substep, sweep CCD on (0.20.0 defaults).
+- `numSolverIterations = 8`, `numInternalPgsIterations = 8` (changed from the 4 and 1 defaults in M1, 2026-09-23). Measured with the car blueprint dropped 1.5 m: the defaults let the 9 kg body rebound off its 1.5 kg jointed wheels at 4.3 m/s and tilt 2.6 degrees, settling after 1.9 s; 8 and 8 give 0.6 m/s, 0.07 degrees, and 0.65 s. Substepping (two steps of dt/2) helped less per unit of cost. Contact stiffness (`contact_natural_frequency`) made no difference: the rebound comes from the joint solve, not the contact.
 - Only `World` and `EventQueue` need `.free()`. Bodies, colliders, and joints are owned by the world.
 
 ## Terrain (Q6)

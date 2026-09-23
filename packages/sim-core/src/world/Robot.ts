@@ -54,5 +54,7 @@ export interface Robot {
   parts: Map<string, PartInstance>;
   groups: BodyGroup[];
   chunks: Chunk[];
+  /** The part the robot was placed by: the primary core, or the first part of a core-less blueprint. */
+  rootId: string;
   primaryCoreId?: string;
 }
