@@ -1,0 +1,19 @@
+{
+  "name": "@robots/sim-core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@dimforge/rapier2d-deterministic-compat": "0.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.1"
+  }
+}

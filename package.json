@@ -1,0 +1,19 @@
+{
+  "name": "robots",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "pnpm --filter @robots/app dev",
+    "build": "pnpm --filter @robots/app build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "sim": "pnpm --filter @robots/cli start --"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vite": "8.3.0",
+    "vitest": "5.0.1"
+  }
+}
