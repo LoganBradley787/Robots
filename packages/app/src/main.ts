@@ -138,6 +138,10 @@ async function boot(): Promise<void> {
     },
   };
   void syncDoc(true);
+  // Closing or reloading the tab with unsaved changes gets the browser's own "leave page?" prompt.
+  window.addEventListener('beforeunload', (e) => {
+    if (doc.isDirty()) e.preventDefault();
+  });
 
   // Palette icons come from the same textures the canvas draws.
   const icons: Record<string, string> = {};

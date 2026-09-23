@@ -16,9 +16,19 @@ Blueprints live in `blueprints/` (JSON with an ASCII grid). Pass a name or a pat
 - `pnpm sim determinism car --seconds 10` runs twice and compares state hashes
 - Flags: `--world <path>`, `--seconds <n>`, `--seed <n>`, `--x <n> --y <n>`, `--json`
 
-## Controls
+## Builder
 
-Space pause, `.` single step, `[` and `]` time scale (0.25x to 4x), F follow, C next robot, D debug outlines, G grid, R reset, mouse wheel zoom, drag to pan.
+The app opens in the builder. `Tab` switches between the builder and the world (the world pauses while you build).
+
+- Pick a part in the palette or press 1 to 8, then click or drag to paint it. Right-click or right-drag erases. `R` rotates (`Shift+R` the other way), `Esc` drops the part.
+- With nothing held, click selects a part, drag selects a box, Shift adds. `Delete` removes the selection, `R` rotates it. The side panel edits tags and controls.
+- `M` mirrors everything you place across the dashed axis (`[` and `]` move it). `Cmd+Z` undo, `Shift+Cmd+Z` redo. Space+drag or middle-drag pans, the wheel zooms.
+- Blueprints are files in `blueprints/`. **Save** overwrites the open one, **Save As** makes a new one and leaves the original alone. Anything that would lose unsaved changes asks first.
+- **Deploy** checks for errors, asks about unsaved changes, then puts a ghost of the robot on your cursor in the world: green fits, red does not. Click to drop, `Esc` to cancel.
+
+## World controls
+
+Space pause, `.` single step, `[` and `]` time scale (0.25x to 4x), F follow, C next robot, D debug outlines, G grid, R reset (clears robots), mouse wheel zoom, drag to pan.
 
 ## Art
 

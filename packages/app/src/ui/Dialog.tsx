@@ -1,16 +1,19 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { ActiveDialog } from './appState';
 
 export function Dialog({ dialog }: { dialog: ActiveDialog }) {
   const [text, setText] = useState(dialog.input?.value ?? '');
   const input = useRef<HTMLInputElement>(null);
   const primary = dialog.buttons.find((b) => b.kind === 'primary') ?? dialog.buttons[0];
-  const answer = (value: string): void => dialog.resolve({ value, input: text });
+  // Read the field itself: typing that lands before a re-render must still count.
+  const answer = (value: string): void => dialog.resolve({ value, input: input.current?.value ?? text });
 
-  useEffect(() => {
+  // Focus before paint, so the first keystrokes after the dialog appears go into the field.
+  useLayoutEffect(() => {
     setText(dialog.input?.value ?? '');
     const el = input.current;
     if (el) {
+      el.value = dialog.input?.value ?? '';
       el.focus();
       el.select();
     }
