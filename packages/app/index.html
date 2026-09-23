@@ -12,11 +12,15 @@
         font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre;
         pointer-events: none; user-select: none;
       }
+      #ui { position: absolute; inset: 0; pointer-events: none; font: 13px/1.4 system-ui, sans-serif; color: #d8dee9; }
+      #ui .panel, #ui button, #ui input, #ui select { pointer-events: auto; }
+      .mode-badge { position: absolute; top: 8px; right: 12px; opacity: 0.7; font: 12px ui-monospace, Menlo, monospace; }
     </style>
   </head>
   <body>
     <div id="app"></div>
     <div id="hud"></div>
+    <div id="ui"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -8,6 +8,8 @@ export class Renderer {
   readonly backdrop = new Container();
   readonly bodies = new Container();
   readonly debug = new Graphics();
+  /** The builder screen's scene; shown instead of `world` while building. */
+  readonly builder = new Container();
 
   async init(parent: HTMLElement): Promise<void> {
     await this.app.init({
@@ -19,8 +21,14 @@ export class Renderer {
       preference: 'webgl',
     });
     parent.appendChild(this.app.canvas);
-    this.app.stage.addChild(this.world);
+    this.app.stage.addChild(this.world, this.builder);
+    this.builder.visible = false;
     this.world.addChild(this.backdrop, this.bodies, this.debug);
+  }
+
+  showScene(scene: 'world' | 'builder'): void {
+    this.world.visible = scene === 'world';
+    this.builder.visible = scene === 'builder';
   }
 
   get screenWidth(): number {
