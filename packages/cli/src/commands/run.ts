@@ -26,7 +26,8 @@ export interface RunReport {
 /** Spawns the M0 test box at the world's spawn point and steps for the requested time. */
 export async function runSim(file: WorldFile, opts: RunOptions): Promise<RunReport> {
   const world = await World.create({ seed: opts.seed }, file);
-  const box = world.spawnBox(file.spawn.x, file.spawn.y);
+  // Temporary until T7 moves the CLI to blueprints: a one-frame blueprint is the old 1 m test box.
+  const box = world.spawnBlueprint({ format: 1, name: 'box', grid: ['F'] }, file.spawn).groups[0]?.bodyId ?? 0;
   const ticks = Math.round(opts.seconds / world.dt);
   const every = Math.max(1, Math.round((opts.sampleEverySeconds ?? 1) / world.dt));
   const samples: RunSample[] = [];

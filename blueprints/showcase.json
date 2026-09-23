@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "showcase",
+  "grid": [
+    ".   P   .   Tv  .   P   .",
+    ".   F   B   X   D   F   .",
+    "T>  F   F   C   F   F   T<",
+    ".   W   .   .   .   W   ."
+  ],
+  "legend": {
+    "P": { "part": "propeller", "tags": ["props"] },
+    "W": { "part": "wheel", "tags": ["wheels"] }
+  }
+}

@@ -1,9 +1,13 @@
 import { loadRapier } from '../physics/rapier';
-import { PhysicsWorld, type BodyId } from '../physics/PhysicsWorld';
+import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { Prng } from '../rng/Prng';
 import { StateHasher } from '../replay/StateHasher';
 import { InputLog, type InputFrame } from '../replay/InputLog';
 import { buildWorld, type WorldFile } from './WorldFile';
+import { defaultRegistry, type PartRegistry } from '../parts/registry';
+import { loadBlueprint } from '../blueprint/validate';
+import { spawnRobot } from '../assembly/spawn';
+import type { Robot } from './Robot';
 
 export interface WorldOptions {
   seed: number;
@@ -18,9 +22,14 @@ export class World {
   readonly physics: PhysicsWorld;
   readonly inputLog = new InputLog();
   readonly file: WorldFile;
+  readonly registry: PartRegistry;
+  /** Spawned robots in spawn order. Render and UI read these; only the sim mutates them. */
+  readonly robots: Robot[] = [];
   private tickCount = 0;
+  private nextRobotId = 1;
 
-  private constructor(opts: WorldOptions, file: WorldFile) {
+  private constructor(opts: WorldOptions, file: WorldFile, registry: PartRegistry) {
+    this.registry = registry;
     this.dt = opts.dt ?? 1 / 60;
     this.seed = opts.seed;
     this.rng = new Prng(opts.seed);
@@ -30,9 +39,9 @@ export class World {
   }
 
   /** The only way to make a World: guarantees the Rapier WASM is loaded first. */
-  static async create(opts: WorldOptions, file: WorldFile): Promise<World> {
+  static async create(opts: WorldOptions, file: WorldFile, registry: PartRegistry = defaultRegistry()): Promise<World> {
     await loadRapier();
-    return new World(opts, file);
+    return new World(opts, file, registry);
   }
 
   get tick(): number {
@@ -43,9 +52,15 @@ export class World {
     return this.tickCount * this.dt;
   }
 
-  /** M0 stand-in for a robot. Removed when M1 spawns blueprints. */
-  spawnBox(x: number, y: number, size = 1, mass = 1): BodyId {
-    return this.physics.createDynamicBox(x, y, size, size, mass);
+  /**
+   * Validates and spawns a blueprint with its primary core (or first part) at `at`.
+   * Throws BlueprintError, before creating any body, when the blueprint has errors.
+   */
+  spawnBlueprint(raw: unknown, at: { x: number; y: number }): Robot {
+    const { blueprint, plan } = loadBlueprint(raw, this.registry);
+    const robot = spawnRobot(this.physics, this.registry, blueprint, plan, { id: this.nextRobotId++, tick: this.tickCount, at });
+    this.robots.push(robot);
+    return robot;
   }
 
   step(frames: readonly InputFrame[] = []): void {

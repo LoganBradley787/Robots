@@ -22,3 +22,5 @@ export { assemble, partCells, rootPartId, isCore } from './assembly/assemble';
 export type { AssemblyPlan, AttachEdge, ChunkPlan, GroupPlan } from './assembly/assemble';
 export { validateBlueprint, loadBlueprint, formatIssues, BlueprintError } from './blueprint/validate';
 export type { ValidationResult } from './blueprint/validate';
+export type { Robot, Chunk, BodyGroup, PartInstance } from './world/Robot';
+export { spawnRobot } from './assembly/spawn';

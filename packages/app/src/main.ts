@@ -16,7 +16,8 @@ const HELP = 'Space pause   . step   [ ] speed   D debug   F follow   R reset';
 async function boot(): Promise<void> {
   const file = parseWorldFile(flatJson);
   const world = await World.create({ seed: 1 }, file);
-  const box = world.spawnBox(file.spawn.x, file.spawn.y);
+  // Temporary until T9 renders robots: a one-frame blueprint is the old 1 m test box.
+  const box = world.spawnBlueprint({ format: 1, name: 'box', grid: ['F'] }, file.spawn).groups[0]?.bodyId ?? 0;
 
   const root = document.getElementById('app');
   const hudEl = document.getElementById('hud');

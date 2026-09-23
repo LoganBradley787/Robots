@@ -4,6 +4,7 @@ import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 
 const flat = parseWorldFile(flatJson);
+const BOX = { format: 1, name: 'box', grid: ['F'] };
 
 describe('World', () => {
   it('builds the world file and advances tick and time', async () => {
@@ -17,9 +18,9 @@ describe('World', () => {
     w.dispose();
   });
 
-  it('spawnBox drops a box that lands on the ground', async () => {
+  it('a one-frame blueprint drops and lands on the ground', async () => {
     const w = await World.create({ seed: 1 }, flat);
-    const box = w.spawnBox(flat.spawn.x, flat.spawn.y);
+    const box = w.spawnBlueprint(BOX, flat.spawn).groups[0]?.bodyId ?? 0;
     for (let i = 0; i < 240; i++) w.step();
     expect(w.physics.state(box).y).toBeCloseTo(0.5, 1);
     w.dispose();

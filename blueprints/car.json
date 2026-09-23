@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "car",
+  "grid": [
+    "F  F  C  B  F  F",
+    "W  .  .  .  .  W"
+  ],
+  "legend": {
+    "W": { "part": "wheel", "tags": ["wheels"] }
+  }
+}
