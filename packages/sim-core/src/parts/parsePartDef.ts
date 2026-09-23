@@ -63,7 +63,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'joint', 'collider', 'resource', 'onDestroyed', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -131,6 +131,18 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const cfg: Record<string, number> = {};
     for (const k of Object.keys(bc)) cfg[k] = r.num(bc, k, 'behaviorConfig');
     def.behaviorConfig = cfg;
+  }
+  if (o.acts !== undefined) {
+    if (!isFace(o.acts)) r.fail('acts', 'must be one of N, E, S, W');
+    def.acts = o.acts;
+  }
+  if (o.autoControl !== undefined) {
+    const ao = r.obj(o.autoControl, 'autoControl', ['channel', 'kind']);
+    const channel = r.str(ao, 'channel', 'autoControl');
+    if (!def.inputs.some((c) => c.name === channel)) r.fail('autoControl.channel', `'${channel}' is not one of this part's inputs`);
+    if (ao.kind !== 'axis' && ao.kind !== 'push') r.fail('autoControl.kind', 'must be "axis" or "push"');
+    if (ao.kind === 'push' && def.acts === undefined) r.fail('autoControl.kind', '"push" needs "acts" (the direction the part pushes)');
+    def.autoControl = { channel, kind: ao.kind };
   }
   if (o.joint !== undefined) def.joint = joint(r, o.joint, footprint);
   if (o.collider !== undefined) def.collider = collider(r, o.collider);

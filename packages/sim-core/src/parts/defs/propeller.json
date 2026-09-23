@@ -8,7 +8,9 @@
   "inputs": [{ "name": "throttle", "min": 0, "max": 1, "default": 0 }],
   "outputs": [],
   "powerDraw": 10,
-  "behavior": "propeller",
+  "behavior": "thrust",
   "behaviorConfig": { "maxForce": 40 },
+  "acts": "N",
+  "autoControl": { "channel": "throttle", "kind": "push" },
   "sprite": { "frame": "part.propeller", "animation": "fx.propeller" }
 }

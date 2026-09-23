@@ -8,7 +8,9 @@
   "inputs": [{ "name": "throttle", "min": 0, "max": 1, "default": 0 }],
   "outputs": [],
   "powerDraw": 20,
-  "behavior": "thruster",
+  "behavior": "thrust",
   "behaviorConfig": { "maxForce": 60 },
+  "acts": "N",
+  "autoControl": { "channel": "throttle", "kind": "push" },
   "sprite": { "frame": "part.thruster", "overlay": "fx.flame" }
 }

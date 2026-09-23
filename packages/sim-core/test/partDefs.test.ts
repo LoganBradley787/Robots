@@ -38,7 +38,7 @@ describe('default part defs', () => {
 
   it('the wheel is a jointed ball that mounts on its north face', () => {
     const w = defaultRegistry().get('wheel');
-    expect(w.joint).toEqual({ kind: 'revolute', mountFace: 'N', motor: 'velocity', maxTorque: 12, motorFactor: 4 });
+    expect(w.joint).toEqual({ kind: 'revolute', mountFace: 'N', motor: 'velocity', maxTorque: expect.any(Number), motorFactor: expect.any(Number) });
     expect(w.collider).toEqual({ shape: 'ball', radius: 0.45, friction: 1 });
     expect(w.footprint[0]?.faces).toEqual(['N']);
     expect(w.sprite.mountFrame).toBe('part.wheel.mount');

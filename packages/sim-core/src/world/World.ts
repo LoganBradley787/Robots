@@ -5,6 +5,7 @@ import { StateHasher } from '../replay/StateHasher';
 import { InputLog } from '../replay/InputLog';
 import { Controller } from '../control/controller';
 import type { ControlledPart, RobotInput } from '../control/types';
+import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -122,9 +123,33 @@ export class World {
     this.inputLog.append(this.tickCount, inputs);
     for (const input of inputs) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
+    this.runBehaviors();
     this.physics.step();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
+  }
+
+  /** Every part with a known behavior acts on its channel values, robots in spawn order, parts in blueprint order. */
+  private runBehaviors(): void {
+    for (const robot of this.robots) {
+      const chans = this.channels.get(robot.id);
+      for (const part of robot.parts.values()) {
+        const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
+        const group = robot.groups[part.group];
+        if (!behavior || !group) continue;
+        const own = chans?.get(part.id);
+        const ctx: BehaviorContext = {
+          physics: this.physics,
+          robot,
+          part,
+          group,
+          dt: this.dt,
+          value: (channel) => own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
+          config: (key) => part.def.behaviorConfig?.[key] ?? 0,
+        };
+        behavior.apply(ctx);
+      }
+    }
   }
 
   /** The robot's controller, or undefined when it has no core. Read-only use outside the sim. */

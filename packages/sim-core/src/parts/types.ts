@@ -59,6 +59,15 @@ export interface ExplodeSpec {
   impulse: number;
 }
 
+/**
+ * How a part joins auto controls (`11`): `axis` parts get D +1 and A -1 on `channel` (wheels, whatever their
+ * rotation); `push` parts get the key for the direction they push after rotation (up W, down S, right D, left A).
+ */
+export interface AutoControlSpec {
+  channel: string;
+  kind: 'axis' | 'push';
+}
+
 export interface PartDef {
   id: string;
   name: string;
@@ -73,6 +82,9 @@ export interface PartDef {
   role?: 'core';
   behavior?: string;
   behaviorConfig?: Record<string, number>;
+  /** The direction the part acts (thrust, lift) at rotation 0, as a face. Rotates with the part. */
+  acts?: Face;
+  autoControl?: AutoControlSpec;
   joint?: JointSpec;
   collider?: ColliderSpec;
   resource?: ResourceSpec;

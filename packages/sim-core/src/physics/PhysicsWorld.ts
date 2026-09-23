@@ -70,7 +70,9 @@ export class PhysicsWorld {
   private readonly world: RAPIER.World;
   private readonly bodies = new Map<BodyId, RAPIER.RigidBody>();
   private readonly prev = new Map<BodyId, BodyState>();
-  private readonly joints = new Map<JointId, { joint: RAPIER.RevoluteImpulseJoint; factor: number }>();
+  private readonly joints = new Map<JointId, { joint: RAPIER.RevoluteImpulseJoint; factor: number; target: number; maxTorque: number }>();
+  /** Rapier body handle to our id, for mapping colliders back to bodies. */
+  private readonly byHandle = new Map<number, BodyId>();
   /** Rapier colliders carry no user data, so owners (part ids) live here, keyed by the opaque handle. */
   private readonly owners = new Map<number, string>();
   private nextId: BodyId = 1;
@@ -89,6 +91,7 @@ export class PhysicsWorld {
     const body = this.world.createRigidBody(base.setTranslation(spec.x, spec.y).setRotation(spec.angle ?? 0));
     const id = this.nextId++;
     this.bodies.set(id, body);
+    this.byHandle.set(body.handle, id);
     this.prev.set(id, readState(body));
     return id;
   }
@@ -118,15 +121,54 @@ export class PhysicsWorld {
       joint.setMotorMaxForce(motor.maxTorque);
     }
     const id = this.nextJointId++;
-    this.joints.set(id, { joint, factor: motor?.factor ?? 0 });
+    this.joints.set(id, { joint, factor: motor?.factor ?? 0, target: motor?.targetVelocity ?? 0, maxTorque: motor?.maxTorque ?? 0 });
     return id;
   }
 
   /** Changes a motor's target velocity, keeping the gain it was created with. */
   setMotorVelocity(jointId: JointId, targetVelocity: number): void {
+    const entry = this.joint(jointId);
+    this.setMotor(jointId, targetVelocity, entry.factor, entry.maxTorque);
+  }
+
+  /**
+   * Sets a velocity motor's target (rad/s of the child relative to the parent, counterclockwise positive), gain,
+   * and torque cap. Only touches Rapier when something changed, so a steady motor lets its bodies sleep.
+   */
+  setMotor(jointId: JointId, targetVelocity: number, factor: number, maxTorque: number): void {
+    const entry = this.joint(jointId);
+    if (entry.target === targetVelocity && entry.factor === factor && entry.maxTorque === maxTorque) return;
+    entry.joint.configureMotorVelocity(targetVelocity, factor);
+    entry.joint.setMotorMaxForce(maxTorque);
+    entry.target = targetVelocity;
+    entry.factor = factor;
+    entry.maxTorque = maxTorque;
+  }
+
+  private joint(jointId: JointId): { joint: RAPIER.RevoluteImpulseJoint; factor: number; target: number; maxTorque: number } {
     const entry = this.joints.get(jointId);
     if (!entry) throw new Error(`unknown joint ${jointId}`);
-    entry.joint.configureMotorVelocity(targetVelocity, entry.factor);
+    return entry;
+  }
+
+  /** Applies an impulse (N s, world frame) at a world point. Wakes the body. */
+  applyImpulseAt(id: BodyId, ix: number, iy: number, px: number, py: number): void {
+    this.body(id).applyImpulseAtPoint({ x: ix, y: iy }, { x: px, y: py }, true);
+  }
+
+  /**
+   * The dynamic body whose collider contains the world point, or undefined. Tests colliders directly, like
+   * `overlapsShapes`, because the query index lags behind new colliders. Fixed bodies (terrain) are ignored.
+   */
+  dynamicBodyAt(x: number, y: number): BodyId | undefined {
+    let found: BodyId | undefined;
+    this.world.forEachCollider((c) => {
+      if (found !== undefined) return;
+      const parent = c.parent();
+      if (!parent || !parent.isDynamic()) return;
+      if (c.containsPoint({ x, y })) found = this.byHandle.get(parent.handle);
+    });
+    return found;
   }
 
   massProperties(id: BodyId): MassProperties {

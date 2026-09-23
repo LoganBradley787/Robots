@@ -105,7 +105,7 @@ describe('validateBlueprint', () => {
     const codes = (bindings: unknown[], scripts: unknown[] = []) =>
       issuesOf({ ...base, bindings, scripts }).map((i) => `${i.severity}:${i.code}:${i.message}`);
     expect(codes([{ key: 'a', mode: 'hold', target: 'wheels', channel: 'speed', value: 1 }])).toEqual([
-      "error:BAD_TARGET:binding key 'a' targets tag 'wheels' but no part has that tag",
+      "error:BAD_TARGET:binding key 'a' targets 'wheels' but no part has that tag or part type",
     ]);
     expect(codes([{ key: 'f', mode: 'toggle', target: 'props', channel: 'speed', value: 1 }])).toEqual([
       "error:BAD_CHANNEL:binding key 'f' writes channel 'speed' on tag 'props' but propeller has no input 'speed'",

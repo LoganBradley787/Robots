@@ -1,4 +1,5 @@
 import { assemble, isCore, partCells, rootPartId, type AssemblyPlan } from '../assembly/assemble';
+import { matchesTarget } from '../control/target';
 import { FACES, rotateFace } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Face } from '../parts/types';
@@ -157,9 +158,9 @@ function checkBindings(bp: Blueprint, registry: PartRegistry, err: Report, warn:
       }
       continue;
     }
-    const tagged = bp.parts.filter((p) => p.tags.includes(b.target as string));
+    const tagged = bp.parts.filter((p) => matchesTarget(p, b.target as string));
     if (tagged.length === 0) {
-      err('BAD_TARGET', `binding key '${b.key}' targets tag '${b.target}' but no part has that tag`);
+      err('BAD_TARGET', `binding key '${b.key}' targets '${b.target}' but no part has that tag or part type`);
       continue;
     }
     const hasInput = (p: PlacedPart): boolean => registry.get(p.part).inputs.some((c) => c.name === b.channel);
