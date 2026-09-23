@@ -28,7 +28,20 @@ What that becomes:
 - Acceleration is force over mass: each wheel adds a fixed push, so a heavier robot accelerates slower, and more wheels (or thrusters) make up for it. Top speed stays the wheel's top speed; heavier robots take longer to reach it.
 - Letting go coasts. The wheel's motor goes nearly slack (a small rolling drag), so a fast robot keeps its momentum.
 - Braking is pressing the opposite key (the motor pushes backward), or thrust. There is no automatic brake. Parked robots on a slope can roll.
-- All numbers live in the wheel's part def, so tuning never touches engine code. Starting numbers and measured results are in the M3 plan and move here after tuning.
+- All numbers live in the part defs, so tuning never touches engine code.
+
+### Tuned numbers (M3 T4, `pnpm sim tune`, flat ground, D held)
+Wheel: `maxTorque` 12 N m, `motorFactor` 0.4 (knee near 10 rad/s), `maxSpeed` 40 rad/s (18 m/s at the rim), `coastTorque` 1 N m. Thruster `maxForce` 120 N (was 60: two could not lift a 14 kg car), propeller 60 N (was 40).
+
+| robot | mass | 1.5 s | 4 s | 8 s | to 6 m/s |
+|---|---|---|---|---|---|
+| car (6 cells, 2 wheels) | 12 kg | 5.8 m/s | 12.1 | 16.1 | 1.6 s |
+| heavy car (double) | 24 kg | 3.1 | 7.8 | 12.5 | 2.9 s |
+| 14 frames, 2 wheels | 18 kg | | 5 s: 11.1 | | 5 m/s in 1.9 s |
+| 14 frames, 4 wheels | 21 kg | | 5 s: 14.2 | | 5 m/s in 1.2 s |
+
+- Coasting from 12 m/s loses 5% in 2 s. Holding A from 12 m/s stops the car in 2.9 s.
+- The hopper (car plus two thrusters under it, 14 kg) is off the ground 0.2 s after W and climbs 15 m in 2 s of holding: tap W to hop.
 
 ## On-screen keys panel (Logan)
 - A small bar in the world shows every key the controlled robot has (bound or auto), as the key letter only: bind K and a K button appears. No descriptions, because one key can drive wheels, a propeller, and later a script, and no label can say all of that. A fuller "what does each key do" view can come later.

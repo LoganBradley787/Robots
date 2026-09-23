@@ -4,6 +4,7 @@ import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
 import { showBlueprint } from './commands/show';
+import { tune } from './commands/tune';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
 
@@ -14,6 +15,7 @@ commands
   show <bp>          print the grid, legend, mass, center of mass, and body structure
   validate <bp>      print validator issues; exit 1 on errors
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
+  tune               measure the driving targets (docs/plans/M3-control.md) on test robots
 
 flags
   --world <path>     world json (default: worlds/flat.json)
@@ -69,6 +71,10 @@ async function main(): Promise<number> {
   const [command = '', bpArg] = positional;
   if (command === '' || command === 'help') {
     console.log(USAGE);
+    return 0;
+  }
+  if (command === 'tune') {
+    console.log(await tune());
     return 0;
   }
   if (!['run', 'show', 'validate', 'determinism'].includes(command)) {
