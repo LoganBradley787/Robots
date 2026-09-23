@@ -91,4 +91,16 @@ describe('energy', () => {
     a.dispose();
     b.dispose();
   });
+
+  it('batteries report their charge; the core reports its pool', async () => {
+    const w = await world();
+    const car = w.spawnBlueprint(CAR, { x: 0, y: 1.45 });
+    w.step([{ robot: car.id, pressed: ['d'], released: [] }]);
+    for (let i = 0; i < 599; i++) w.step(); // 10 s of two wheels: 100 drawn, shared by what each holds
+    expect(w.partOutput(car.id, 'battery@3,1', 'charge')).toBeCloseTo((1500 - 100 * (1500 / 2100)) / 1500, 6);
+    expect(w.partOutput(car.id, 'core@2,1', 'energy')).toBeCloseTo(2000, 6);
+    expect(w.partOutput(car.id, 'core@2,1', 'energyCapacity')).toBe(2100);
+    expect(w.partOutput(car.id, 'frame@0,1', 'charge')).toBeUndefined();
+    w.dispose();
+  });
 });

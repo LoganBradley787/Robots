@@ -119,10 +119,12 @@ describe('staticStats', () => {
     expect(s.massKg).toBe(12);
     expect(s.comX).toBeCloseTo(2.5417, 3);
     expect(s.comY).toBeCloseTo(0.75, 6);
+    expect(s.energy).toBe(2100); // core 600 + battery 1500
+    expect(s.fullDraw).toBe(10); // two wheels at 5/s
   });
 
   it('is zero mass and origin for an empty blueprint', () => {
-    expect(staticStats(blankBlueprint('b'), reg)).toEqual({ parts: 0, massKg: 0, comX: 0, comY: 0 });
+    expect(staticStats(blankBlueprint('b'), reg)).toEqual({ parts: 0, massKg: 0, comX: 0, comY: 0, energy: 0, fullDraw: 0 });
   });
 });
 

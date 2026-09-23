@@ -215,6 +215,22 @@ export class World {
   }
 
   /**
+   * A part's output channel (`05`, `04`): `charge` on a container is its own stored fraction; `energy` and
+   * `energyCapacity` are its chunk's pool. Other outputs (sensors) arrive with scripts (M5); undefined until then.
+   */
+  partOutput(robotId: number, partId: string, name: string): number | undefined {
+    const robot = this.robots.find((r) => r.id === robotId);
+    const part = robot?.parts.get(partId);
+    if (!robot || !part || !part.def.outputs.some((o) => o.name === name)) return undefined;
+    if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
+    if (name === 'energy' || name === 'energyCapacity') {
+      const pool = poolTotals(poolContainers(robot, chunkIndex(robot, partId)));
+      return name === 'energy' ? pool.stored : pool.capacity;
+    }
+    return undefined;
+  }
+
+  /**
    * A robot's energy: the pool of the chunk it is controlled through (its primary core's), or of its first chunk
    * when it has no core. `used` is everything drawn so far.
    */
