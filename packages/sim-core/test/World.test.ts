@@ -5,6 +5,16 @@ import { World } from '../src/world/World';
 
 const flat = parseWorldFile(flatJson);
 const BOX = { format: 1, name: 'box', grid: ['F'] };
+const CAR = {
+  format: 1,
+  name: 'test car',
+  grid: ['F  C  F', 'W  .  W'],
+  legend: { W: { part: 'wheel', tags: ['wheels'] } },
+  bindings: [
+    { key: 'd', mode: 'hold', target: 'wheels', channel: 'speed', value: 1 },
+    { key: 'a', mode: 'hold', target: 'wheels', channel: 'speed', value: -1 },
+  ],
+};
 
 describe('World', () => {
   it('builds the world file and advances tick and time', async () => {
@@ -26,13 +36,48 @@ describe('World', () => {
     w.dispose();
   });
 
-  it('records input frames into the log', async () => {
+  it('records key edges into the log', async () => {
     const w = await World.create({ seed: 1 }, flat);
-    w.step([{ sourceId: 'keyboard', down: ['a'], pressed: ['a'], released: [] }]);
+    const car = w.spawnBlueprint(CAR, flat.spawn);
+    w.step([{ robot: car.id, pressed: ['d'], released: [] }]);
     w.step();
     expect(w.inputLog.length).toBe(1);
-    expect(w.inputLog.framesAt(0)[0]?.down).toEqual(['a']);
+    expect(w.inputLog.inputsAt(0)[0]?.pressed).toEqual(['d']);
     w.dispose();
+  });
+
+  it('rejects inputs for robots that do not exist or have no core', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const box = w.spawnBlueprint(BOX, flat.spawn);
+    expect(() => w.step([{ robot: 99, pressed: ['d'], released: [] }])).toThrow('robot 99');
+    expect(() => w.step([{ robot: box.id, pressed: ['d'], released: [] }])).toThrow('no core');
+    expect(w.tick).toBe(0);
+    expect(w.canControl(box.id)).toBe(false);
+    w.dispose();
+  });
+
+  it('a robot with no inputs keeps its held keys (latching)', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const car = w.spawnBlueprint(CAR, flat.spawn);
+    w.step([{ robot: car.id, pressed: ['d'], released: [] }]);
+    for (let i = 0; i < 100; i++) w.step();
+    expect(w.controller(car.id)?.isHeld('d')).toBe(true);
+    expect(w.channelValue(car.id, 'wheel@0,0', 'speed')).toBe(1);
+    w.step([{ robot: car.id, pressed: [], released: ['d'] }]);
+    expect(w.channelValue(car.id, 'wheel@0,0', 'speed')).toBe(0);
+    w.dispose();
+  });
+
+  it('held keys feed the hash', async () => {
+    const a = await World.create({ seed: 1 }, flat);
+    const b = await World.create({ seed: 1 }, flat);
+    const ca = a.spawnBlueprint(CAR, flat.spawn);
+    b.spawnBlueprint(CAR, flat.spawn);
+    a.step([{ robot: ca.id, pressed: ['q'], released: [] }]);
+    b.step();
+    expect(a.hash()).not.toBe(b.hash());
+    a.dispose();
+    b.dispose();
   });
 
   it('exposes a seeded rng', async () => {

@@ -19,6 +19,12 @@ export class StateHasher {
     for (let i = 0; i < 8; i++) this.addByte(this.view.getUint8(i));
   }
 
+  /** Length first, so ['ab', 'c'] and ['a', 'bc'] hash differently. */
+  addString(v: string): void {
+    this.addInt(v.length);
+    for (let i = 0; i < v.length; i++) this.addInt(v.charCodeAt(i));
+  }
+
   digest(): number {
     return this.h >>> 0;
   }

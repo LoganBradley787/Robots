@@ -1,38 +1,36 @@
-/** One input source's view of one tick. Arrays, not Sets, so it serializes as is. */
-export interface InputFrame {
-  sourceId: string;
-  down: string[];
-  pressed: string[];
-  released: string[];
-}
+import type { RobotInput } from '../control/types';
 
 export interface LoggedTick {
   tick: number;
-  frames: InputFrame[];
+  inputs: RobotInput[];
 }
 
-function cloneFrame(f: InputFrame): InputFrame {
-  return { sourceId: f.sourceId, down: [...f.down], pressed: [...f.pressed], released: [...f.released] };
+function cloneInput(i: RobotInput): RobotInput {
+  return { robot: i.robot, pressed: [...i.pressed], released: [...i.released] };
 }
 
-/** Sparse per-tick log of every input frame the world consumed. Replay = world file + blueprints + this. */
+/**
+ * Sparse per-tick log of every key edge the world consumed, addressed by robot. Replay = world file + spawns + this.
+ * Only edges are stored: held keys and toggles live in each robot's controller.
+ */
 export class InputLog {
   private readonly entries: LoggedTick[] = [];
   private readonly byTick = new Map<number, LoggedTick>();
 
   /** Ticks must strictly increase: the log is written once per tick, in order. */
-  append(tick: number, frames: readonly InputFrame[]): void {
-    if (frames.length === 0) return;
+  append(tick: number, inputs: readonly RobotInput[]): void {
+    const kept = inputs.filter((i) => i.pressed.length > 0 || i.released.length > 0);
+    if (kept.length === 0) return;
     const last = this.entries[this.entries.length - 1];
     if (last && tick <= last.tick) throw new Error(`input log tick ${tick} is not after ${last.tick}`);
-    const entry = { tick, frames: frames.map(cloneFrame) };
+    const entry = { tick, inputs: kept.map(cloneInput) };
     this.entries.push(entry);
     this.byTick.set(tick, entry);
   }
 
-  framesAt(tick: number): InputFrame[] {
+  inputsAt(tick: number): RobotInput[] {
     const entry = this.byTick.get(tick);
-    return entry ? entry.frames.map(cloneFrame) : [];
+    return entry ? entry.inputs.map(cloneInput) : [];
   }
 
   get length(): number {
@@ -40,12 +38,12 @@ export class InputLog {
   }
 
   toJSON(): LoggedTick[] {
-    return this.entries.map((e) => ({ tick: e.tick, frames: e.frames.map(cloneFrame) }));
+    return this.entries.map((e) => ({ tick: e.tick, inputs: e.inputs.map(cloneInput) }));
   }
 
   static fromJSON(entries: LoggedTick[]): InputLog {
     const log = new InputLog();
-    for (const e of entries) log.append(e.tick, e.frames);
+    for (const e of entries) log.append(e.tick, e.inputs);
     return log;
   }
 }

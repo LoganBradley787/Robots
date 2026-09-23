@@ -2,7 +2,9 @@ import { loadRapier } from '../physics/rapier';
 import { PhysicsWorld, type ShapeSpec } from '../physics/PhysicsWorld';
 import { Prng } from '../rng/Prng';
 import { StateHasher } from '../replay/StateHasher';
-import { InputLog, type InputFrame } from '../replay/InputLog';
+import { InputLog } from '../replay/InputLog';
+import { Controller } from '../control/controller';
+import type { ControlledPart, RobotInput } from '../control/types';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -38,6 +40,10 @@ export class World {
   readonly spawnLog: SpawnRecord[] = [];
   private tickCount = 0;
   private nextRobotId = 1;
+  /** One controller per robot with a primary core, keyed by robot id. */
+  private readonly controllers = new Map<number, Controller>();
+  /** Final channel values from the last tick, per robot, for behaviors, render, and UI. */
+  private readonly channels = new Map<number, Map<string, Map<string, number>>>();
 
   private constructor(opts: WorldOptions, file: WorldFile, registry: PartRegistry) {
     this.registry = registry;
@@ -71,6 +77,11 @@ export class World {
     const { blueprint, plan } = loadBlueprint(raw, this.registry);
     const robot = spawnRobot(this.physics, this.registry, blueprint, plan, { id: this.nextRobotId++, tick: this.tickCount, at });
     this.robots.push(robot);
+    const controller = controllerFor(robot);
+    if (controller) {
+      this.controllers.set(robot.id, controller);
+      this.channels.set(robot.id, controller.values());
+    }
     this.spawnLog.push({ tick: this.tickCount, name: robot.name, at: { x: at.x, y: at.y }, blueprint: raw });
     return robot;
   }
@@ -99,10 +110,40 @@ export class World {
     return this.physics.overlapsShapes(shapes) ? { ok: false, reason: 'overlaps something already in the world' } : { ok: true };
   }
 
-  step(frames: readonly InputFrame[] = []): void {
-    this.inputLog.append(this.tickCount, frames);
+  /**
+   * Advances one tick: applies key edges to their robots' controllers, computes channel values, runs behaviors,
+   * steps physics. Robots without inputs keep their held keys and toggles. An input for a robot that does not
+   * exist or cannot be controlled is a caller bug and throws before anything changes.
+   */
+  step(inputs: readonly RobotInput[] = []): void {
+    for (const input of inputs) {
+      if (!this.controllers.has(input.robot)) throw new Error(`robot ${input.robot} does not exist or has no core to control`);
+    }
+    this.inputLog.append(this.tickCount, inputs);
+    for (const input of inputs) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
+    for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     this.physics.step();
+    for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
+  }
+
+  /** The robot's controller, or undefined when it has no core. Read-only use outside the sim. */
+  controller(robotId: number): Controller | undefined {
+    return this.controllers.get(robotId);
+  }
+
+  canControl(robotId: number): boolean {
+    return this.controllers.has(robotId);
+  }
+
+  /** A part's input channel value on the last tick, or undefined if the robot has no such part or channel. */
+  channelValue(robotId: number, partId: string, channel: string): number | undefined {
+    return this.channels.get(robotId)?.get(partId)?.get(channel);
+  }
+
+  /** Every channel value of a robot on the last tick. */
+  robotChannels(robotId: number): ReadonlyMap<string, ReadonlyMap<string, number>> | undefined {
+    return this.channels.get(robotId);
   }
 
   /** Hex hash of tick count, RNG state, and every body's exact state. */
@@ -111,10 +152,33 @@ export class World {
     h.addInt(this.tickCount);
     for (const word of this.rng.state()) h.addInt(word);
     this.physics.hashInto(h);
+    // Held keys and toggles shape the future, so they are state too.
+    for (const [id, c] of this.controllers) {
+      const st = c.state();
+      h.addInt(id);
+      h.addInt(st.held.length);
+      for (const k of st.held) h.addString(k);
+      h.addInt(st.toggles.length);
+      for (const t of st.toggles) h.addInt(t);
+    }
     return StateHasher.hex(h.digest());
   }
 
   dispose(): void {
     this.physics.free();
   }
+}
+
+/** The controlled chunk is the one holding the primary core; tags resolve inside it only (`04`). */
+function controllerFor(robot: Robot): Controller | undefined {
+  const coreId = robot.primaryCoreId;
+  if (coreId === undefined) return undefined;
+  const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+  if (!chunk) return undefined;
+  const parts: ControlledPart[] = [];
+  for (const id of chunk.partIds) {
+    const p = robot.parts.get(id);
+    if (p) parts.push({ id, part: p.def.id, tags: p.tags, inputs: p.def.inputs });
+  }
+  return new Controller(robot.blueprint.bindings, parts);
 }
