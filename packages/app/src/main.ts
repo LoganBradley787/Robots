@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, type Blueprint } from '@robots/sim-core';
+import { addTagToParts, setBindings, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, type Blueprint } from '@robots/sim-core';
 import './ui/styles.css';
 import flatJson from '../../../worlds/flat.json';
 import { Renderer } from './render/Renderer';
@@ -16,8 +16,7 @@ import { BuilderScene } from './builder/BuilderScene';
 import { Builder } from './builder/Builder';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
-import type { BuilderActions } from './ui/BuilderUi';
-import type { SelectionActions } from './ui/SelectionPanel';
+import type { AppActions } from './ui/App';
 import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, saveBlueprintFile } from './storage/blueprintApi';
 
 async function boot(): Promise<void> {
@@ -104,7 +103,8 @@ async function boot(): Promise<void> {
     p.then(() => syncDoc(true)).catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
   };
 
-  const actions: BuilderActions & SelectionActions = {
+  const actions: AppActions = {
+    setBindings: (bindings) => builder.edit((bp) => setBindings(bp, bindings)),
     addTag: (ids, tag) => builder.edit((bp) => addTagToParts(bp, ids, tag)),
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
     rotate: (dir) => builder.dispatch({ type: 'rotate', dir }),
@@ -201,7 +201,7 @@ async function boot(): Promise<void> {
     const el = e.target as HTMLElement | null;
     if (el?.tagName === 'SELECT') el.blur();
   });
-  render(h(App, { store, defs: registry.list(), actions }), uiEl);
+  render(h(App, { store, registry, actions }), uiEl);
 
   renderer.app.ticker.add((ticker) => {
     if (modes.mode === 'world') worldScreen.frame(ticker);

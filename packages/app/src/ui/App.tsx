@@ -1,12 +1,16 @@
-import type { PartDef } from '@robots/sim-core';
+import type { PartDef, PartRegistry } from '@robots/sim-core';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import { Dialog } from './Dialog';
 import { BuilderHelp, IssuesPanel, Palette, StatsBadge, TopBar, type BuilderActions } from './BuilderUi';
 import { SelectionPanel, type SelectionActions } from './SelectionPanel';
+import { BindingsPanel, type BindingActions } from './BindingsPanel';
 
-export function App({ store, defs, actions }: { store: Store<AppState>; defs: PartDef[]; actions: BuilderActions & SelectionActions }) {
+export type AppActions = BuilderActions & SelectionActions & BindingActions;
+
+export function App({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
+  const defs: PartDef[] = registry.list();
   const mode = useStore(store, (s) => s.mode);
   const dialog = useStore(store, (s) => s.dialog);
   const notice = useStore(store, (s) => s.notice);
@@ -18,6 +22,7 @@ export function App({ store, defs, actions }: { store: Store<AppState>; defs: Pa
           <Palette store={store} defs={defs} actions={actions} />
           <div class="side panel">
             <SelectionPanel store={store} defs={defs} actions={actions} />
+            <BindingsPanel store={store} registry={registry} actions={actions} />
             <IssuesPanel store={store} actions={actions} />
           </div>
           <StatsBadge store={store} />

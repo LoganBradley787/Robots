@@ -88,3 +88,16 @@
 #ui .tag-remove { padding: 0 6px; border: none; background: transparent; color: var(--muted); border-radius: 10px; }
 #ui .tag-remove:hover { background: #2e4a80; color: var(--text); }
 .side-section p { margin: 4px 0 8px; }
+.binding {
+  display: grid; grid-template-columns: 38px 1fr 1fr 22px; grid-template-areas: 'key mode target remove' '. channel value .';
+  gap: 4px; align-items: center; padding: 6px; margin-bottom: 6px; border-radius: 6px; background: #101d38;
+}
+.binding .key { grid-area: key; }
+.binding .mode { grid-area: mode; }
+.binding .target { grid-area: target; }
+.binding .channel { grid-area: channel; }
+.binding .value { grid-area: value; }
+.binding .remove { grid-area: remove; }
+.binding select, .binding input { min-width: 0; padding: 3px 4px; font-size: 12px; }
+.binding .key { text-align: center; font: 12px ui-monospace, Menlo, monospace; cursor: pointer; caret-color: transparent; }
+.binding .key:focus { border-color: var(--accent); background: #16305e; }
