@@ -59,13 +59,15 @@ export interface ResourceSpec {
 
 /**
  * A blast (`03`, Explosions): `damage` at the center falling linearly to 0 at `radius` (meters), halved by every part
- * or terrain box in the way; and a push of `push` N s per cell at the center falling to 0 at `pushRadius`.
+ * or terrain box in the way; and a push of `push` N s per cell at the center falling to 0 at `pushRadius`, directed
+ * away from a point `lift` meters below the center (up and out).
  */
 export interface ExplodeSpec {
   radius: number;
   damage: number;
   pushRadius: number;
   push: number;
+  lift: number;
 }
 
 /** A part that breaks when a hit stops its body by more than `speed` m/s within one step (a warhead's fuze). */

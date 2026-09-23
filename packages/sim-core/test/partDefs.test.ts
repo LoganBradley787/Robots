@@ -42,7 +42,7 @@ describe('default part defs', () => {
 
   it('the warhead explodes when destroyed and breaks on a hard hit', () => {
     const w = defaultRegistry().get('warhead');
-    expect(w.onDestroyed?.explode).toEqual({ radius: 3, damage: 100, pushRadius: 5, push: 6 });
+    expect(w.onDestroyed?.explode).toEqual({ radius: 3, damage: 100, pushRadius: 5, push: 40, lift: 1.5 });
     expect(w.impact).toEqual({ speed: 5 });
   });
 

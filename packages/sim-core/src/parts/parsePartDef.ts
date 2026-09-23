@@ -163,10 +163,12 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   if (o.onDestroyed !== undefined) {
     const od = r.obj(o.onDestroyed, 'onDestroyed', ['explode']);
     if (od.explode !== undefined) {
-      const eo = r.obj(od.explode, 'onDestroyed.explode', ['radius', 'damage', 'pushRadius', 'push']);
+      const eo = r.obj(od.explode, 'onDestroyed.explode', ['radius', 'damage', 'pushRadius', 'push', 'lift']);
       const p = 'onDestroyed.explode';
+      const lift = eo.lift === undefined ? 0 : r.num(eo, 'lift', p);
+      if (lift < 0) r.fail(`${p}.lift`, 'must not be negative');
       def.onDestroyed = {
-        explode: { radius: r.positive(eo, 'radius', p), damage: r.positive(eo, 'damage', p), pushRadius: r.positive(eo, 'pushRadius', p), push: r.positive(eo, 'push', p) },
+        explode: { radius: r.positive(eo, 'radius', p), damage: r.positive(eo, 'damage', p), pushRadius: r.positive(eo, 'pushRadius', p), push: r.positive(eo, 'push', p), lift },
       };
     } else {
       def.onDestroyed = {};

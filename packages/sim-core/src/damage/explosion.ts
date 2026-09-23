@@ -34,7 +34,8 @@ const COVER_HALF = 0.45;
 /**
  * The v1 blast model (`03`, M6 plan): damage falls linearly from `damage` at the center to 0 at `radius`, halved by
  * every other part cell and terrain box the straight line to the cell's center crosses. Every cell within
- * `pushRadius` is pushed away from the center with `push * (1 - d / pushRadius)` N s. Pure and order independent.
+ * `pushRadius` is pushed with `push * (1 - d / pushRadius)` N s, away from a point `lift` below the center.
+ * Pure and order independent.
  */
 export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec, cells: readonly BlastCell[], terrain: readonly BlastBox[]): BlastEffect {
   const damage = cells.map(() => 0);
@@ -57,7 +58,11 @@ export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec
     }
     if (d < spec.pushRadius && d > 1e-9) {
       const j = spec.push * (1 - d / spec.pushRadius);
-      push[i] = { jx: (j * dx) / d, jy: (j * dy) / d };
+      // Measured from `lift` below the center: a blast throws things up and out, so it can knock a car over
+      // instead of only rolling it along on its wheels.
+      const ly = dy + spec.lift;
+      const l = Math.sqrt(dx * dx + ly * ly);
+      push[i] = { jx: (j * dx) / l, jy: (j * ly) / l };
     }
   });
   return { damage, push };
