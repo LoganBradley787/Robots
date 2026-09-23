@@ -10,3 +10,7 @@ export { InputLog } from './replay/InputLog';
 export type { InputFrame, LoggedTick } from './replay/InputLog';
 export { World } from './world/World';
 export type { WorldOptions } from './world/World';
+export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec, SpriteSpec, PartDef } from './parts/types';
+export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians } from './parts/faces';
+export { parsePartDef, PartDefError } from './parts/parsePartDef';
+export { PartRegistry, defaultRegistry } from './parts/registry';

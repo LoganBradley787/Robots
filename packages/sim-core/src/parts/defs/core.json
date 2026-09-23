@@ -1,0 +1,24 @@
+{
+  "id": "core",
+  "name": "Core",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 2,
+  "health": 1,
+  "symmetry": 4,
+  "inputs": [],
+  "outputs": [
+    { "name": "posX", "min": -100000, "max": 100000, "default": 0 },
+    { "name": "posY", "min": -100000, "max": 100000, "default": 0 },
+    { "name": "velX", "min": -1000, "max": 1000, "default": 0 },
+    { "name": "velY", "min": -1000, "max": 1000, "default": 0 },
+    { "name": "accX", "min": -10000, "max": 10000, "default": 0 },
+    { "name": "accY", "min": -10000, "max": 10000, "default": 0 },
+    { "name": "angle", "min": -3.141592653589793, "max": 3.141592653589793, "default": 0 },
+    { "name": "spin", "min": -1000, "max": 1000, "default": 0 },
+    { "name": "energy", "min": 0, "max": 1000000, "default": 0 },
+    { "name": "energyCapacity", "min": 0, "max": 1000000, "default": 0 }
+  ],
+  "powerDraw": 0,
+  "behavior": "core",
+  "sprite": { "frame": "part.core" }
+}

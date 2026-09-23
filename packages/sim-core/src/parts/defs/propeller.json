@@ -1,0 +1,14 @@
+{
+  "id": "propeller",
+  "name": "Propeller",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["S", "E", "W"] }],
+  "mass": 1,
+  "health": 1,
+  "symmetry": 4,
+  "inputs": [{ "name": "throttle", "min": 0, "max": 1, "default": 0 }],
+  "outputs": [],
+  "powerDraw": 10,
+  "behavior": "propeller",
+  "behaviorConfig": { "maxForce": 40 },
+  "sprite": { "frame": "part.propeller", "animation": "fx.propeller" }
+}

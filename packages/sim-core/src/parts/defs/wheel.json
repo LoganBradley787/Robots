@@ -1,0 +1,16 @@
+{
+  "id": "wheel",
+  "name": "Wheel",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N"] }],
+  "mass": 1.5,
+  "health": 1,
+  "symmetry": 4,
+  "inputs": [{ "name": "speed", "min": -1, "max": 1, "default": 0 }],
+  "outputs": [{ "name": "angularVelocity", "min": -1000, "max": 1000, "default": 0 }],
+  "powerDraw": 5,
+  "behavior": "wheel",
+  "behaviorConfig": { "maxSpeed": 20, "maxTorque": 12, "motorFactor": 4 },
+  "joint": { "kind": "revolute", "mountFace": "N", "motor": "velocity" },
+  "collider": { "shape": "ball", "radius": 0.45, "friction": 1 },
+  "sprite": { "frame": "part.wheel", "mountFrame": "part.wheel.mount" }
+}

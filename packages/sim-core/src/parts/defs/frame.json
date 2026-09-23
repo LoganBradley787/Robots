@@ -1,0 +1,12 @@
+{
+  "id": "frame",
+  "name": "Frame",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 1,
+  "health": 1,
+  "symmetry": 1,
+  "inputs": [],
+  "outputs": [],
+  "powerDraw": 0,
+  "sprite": { "frame": "part.frame" }
+}
