@@ -44,7 +44,7 @@ function parseArgs(argv: string[]): { command: string; flags: Map<string, string
 function numberFlag(flags: Map<string, string>, key: string, fallback: number): number {
   const raw = flags.get(key);
   if (raw === undefined) return fallback;
-  const v = Number(raw);
+  const v = raw.trim() === '' ? Number.NaN : Number(raw);
   if (!Number.isFinite(v)) throw new Error(`--${key} must be a number, got ${raw}`);
   return v;
 }

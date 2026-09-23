@@ -61,7 +61,10 @@ async function boot(): Promise<void> {
   let lastHash = world.hash();
 
   bindKeys(window, {
-    togglePause: () => time.togglePause(),
+    togglePause: () => {
+      time.togglePause();
+      if (!time.paused) stepper.resume();
+    },
     step: () => time.requestStep(),
     faster: () => time.faster(),
     slower: () => time.slower(),
@@ -88,7 +91,8 @@ async function boot(): Promise<void> {
     boxView.sync(boxState);
     cam = followTarget(cam, boxState, ticker.deltaMS / 1000);
     applyCamera(renderer.world, cam, renderer.screenWidth, renderer.screenHeight);
-    drawDebug(renderer.debug, world.physics.debugRender(), debugVisible);
+    if (debugVisible) drawDebug(renderer.debug, world.physics.debugRender(), true);
+    else renderer.debug.clear();
 
     hud.set([
       `tick ${world.tick}   t=${world.time.toFixed(2)}s   ${Math.round(ticker.FPS)} fps`,

@@ -30,6 +30,20 @@ describe('FixedStepper', () => {
     expect(s.advance(5000, 1)).toBe(15);
   });
 
+  it('caps ticks per frame and drops the backlog', () => {
+    const s = new FixedStepper(DT, 250, 8);
+    expect(s.advance(250, 4)).toBe(8);
+    expect(s.alpha).toBeLessThanOrEqual(1);
+    expect(s.advance(0, 4)).toBe(0);
+  });
+
+  it('resume shows the current tick without jumping', () => {
+    const s = new FixedStepper(DT);
+    s.resume();
+    expect(s.alpha).toBeGreaterThan(0.99);
+    expect(s.advance(0, 1)).toBe(0);
+  });
+
   it('reset drops the accumulator', () => {
     const s = new FixedStepper(DT);
     s.advance(10, 1);

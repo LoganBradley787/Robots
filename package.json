@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=24" },
+  "packageManager": "pnpm@11.1.3",
   "scripts": {
     "dev": "pnpm --filter @robots/app dev",
     "build": "pnpm --filter @robots/app build",
