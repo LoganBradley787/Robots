@@ -1,0 +1,75 @@
+/**
+ * The blueprint file API, as a pure function over a small file interface so it tests without Node or Vite.
+ * The Vite dev plugin wires it to the repo's `blueprints/` folder.
+ */
+export interface FileStore {
+  list(): string[];
+  read(file: string): string | undefined;
+  write(file: string, text: string): void;
+  remove(file: string): void;
+}
+
+export interface ApiResponse {
+  status: number;
+  body: string;
+}
+
+export const MAX_BODY_BYTES = 1_000_000;
+const FILE_NAME = /^[a-z0-9][a-z0-9-]*\.json$/;
+
+const json = (status: number, value: unknown): ApiResponse => ({ status, body: JSON.stringify(value) });
+
+function nameOf(file: string, text: string | undefined): string {
+  try {
+    const v: unknown = JSON.parse(text ?? '');
+    if (typeof v === 'object' && v !== null && typeof (v as { name?: unknown }).name === 'string') return (v as { name: string }).name;
+  } catch {
+    // fall through to the file stem
+  }
+  return file.slice(0, -'.json'.length);
+}
+
+/** `url` is relative to `/api/blueprints`: `/` for the list, `/<file>.json` for one blueprint. */
+export function handleBlueprintRequest(method: string, url: string, body: string, store: FileStore): ApiResponse {
+  const path = url.split('?')[0] ?? '/';
+  if (path === '/' || path === '') {
+    if (method !== 'GET') return json(405, { error: 'only GET is allowed on the list' });
+    const items = store
+      .list()
+      .filter((f) => FILE_NAME.test(f))
+      .map((file) => ({ file, name: nameOf(file, store.read(file)) }))
+      .sort((a, b) => {
+        const x = a.name.toLowerCase();
+        const y = b.name.toLowerCase();
+        return x < y ? -1 : x > y ? 1 : 0;
+      });
+    return json(200, items);
+  }
+  const file = path.slice(1);
+  if (!FILE_NAME.test(file)) return json(400, { error: `bad blueprint file name "${file}"` });
+  switch (method) {
+    case 'GET': {
+      const text = store.read(file);
+      return text === undefined ? json(404, { error: `no blueprint ${file}` }) : { status: 200, body: text };
+    }
+    case 'PUT': {
+      if (body.length > MAX_BODY_BYTES) return json(413, { error: 'blueprint is too large' });
+      let value: unknown;
+      try {
+        value = JSON.parse(body);
+      } catch {
+        return json(400, { error: 'body is not JSON' });
+      }
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) return json(400, { error: 'a blueprint must be a JSON object' });
+      store.write(file, `${JSON.stringify(value, null, 2)}\n`);
+      return json(200, { ok: true });
+    }
+    case 'DELETE': {
+      if (store.read(file) === undefined) return json(404, { error: `no blueprint ${file}` });
+      store.remove(file);
+      return json(200, { ok: true });
+    }
+    default:
+      return json(405, { error: `method ${method} is not allowed` });
+  }
+}

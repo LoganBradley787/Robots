@@ -4,5 +4,5 @@
     "lib": ["ES2023", "ESNext.Disposable"],
     "types": ["node"]
   },
-  "include": ["scripts"]
+  "include": ["scripts", "vite-plugins", "vite.config.ts", "src/storage/blueprintHandler.ts"]
 }
