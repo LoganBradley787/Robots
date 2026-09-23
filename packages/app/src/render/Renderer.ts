@@ -4,12 +4,15 @@ export class Renderer {
   readonly app = new Application();
   /** Everything in world space goes in here; the camera transforms this container. */
   readonly world = new Container();
+  /** Layers inside the world, back to front: grid and terrain, robots, debug outlines. */
+  readonly backdrop = new Container();
+  readonly bodies = new Container();
   readonly debug = new Graphics();
 
   async init(parent: HTMLElement): Promise<void> {
     await this.app.init({
       resizeTo: window,
-      background: 0x101418,
+      background: 0x141a22,
       antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
@@ -17,7 +20,7 @@ export class Renderer {
     });
     parent.appendChild(this.app.canvas);
     this.app.stage.addChild(this.world);
-    this.world.addChild(this.debug);
+    this.world.addChild(this.backdrop, this.bodies, this.debug);
   }
 
   get screenWidth(): number {

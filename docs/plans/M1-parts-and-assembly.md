@@ -27,7 +27,7 @@
 5. Spawn: the primary core (or the first part of a core-less blueprint) lands with its cell center on the given point, rotation 0. The main body's origin is that cell, so the body translation is the core position.
 6. Out of M1 scope, reserved in the format: sub-assembly legend tokens (`{ "blueprint": ... }`, M6) give an `UNSUPPORTED` error; `SCRIPT_SYNTAX` waits for QuickJS (M5); `mirror()` waits for the editor (M2). `toGrid()` ships now because the CLI uses it.
 7. `World.spawnBox` is removed. The M0 tests and CLI move to blueprints.
-8. The app spawns two robots: `car` at the world spawn point and `showcase` (every part in several rotations) 10 m to its right. `C` cycles the camera target. Debug outlines start hidden; `D` shows them. A faint 1 m grid (toggle `G`) sits behind the world to make scale readable.
+8. The app spawns two robots: `car` at the world spawn point and `showcase` (every part in several rotations) 13 m to its left, on clear ground. `C` cycles the camera target. Debug outlines start hidden; `D` shows them. A faint 1 m grid (toggle `G`) sits behind the world to make scale readable.
 9. World look: a tiled ground with a lighter top edge, tiled concrete for static boxes and the ramp, a dark blue-gray background. Everything is a PNG through the manifest.
 
 ## File structure

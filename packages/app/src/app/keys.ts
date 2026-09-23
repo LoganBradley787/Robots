@@ -5,6 +5,8 @@ export interface KeyActions {
   slower(): void;
   toggleDebug(): void;
   toggleFollow(): void;
+  cycleTarget(): void;
+  toggleGrid(): void;
   reset(): void;
 }
 
@@ -17,7 +19,7 @@ export function codeOf(e: { code: string; key: string }): string {
   return KEY_TO_CODE[e.key] ?? '';
 }
 
-/** Binds the M0 control keys. Returns an unbind function. Uses event.code so layouts do not matter. */
+/** Binds the control keys. Returns an unbind function. Uses event.code so layouts do not matter. */
 export function bindKeys(target: Window, actions: KeyActions): () => void {
   const onKey = (e: KeyboardEvent): void => {
     if (e.repeat) return;
@@ -40,6 +42,12 @@ export function bindKeys(target: Window, actions: KeyActions): () => void {
         break;
       case 'KeyF':
         actions.toggleFollow();
+        break;
+      case 'KeyC':
+        actions.cycleTarget();
+        break;
+      case 'KeyG':
+        actions.toggleGrid();
         break;
       case 'KeyR':
         actions.reset();

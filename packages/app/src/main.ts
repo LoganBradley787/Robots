@@ -1,9 +1,12 @@
-import { World, parseWorldFile } from '@robots/sim-core';
+import { World, parseWorldFile, sampleRobot, type Robot } from '@robots/sim-core';
 import flatJson from '../../../worlds/flat.json';
+import carJson from '../../../blueprints/car.json';
+import showcaseJson from '../../../blueprints/showcase.json';
 import { Renderer } from './render/Renderer';
 import { drawDebug } from './render/DebugDraw';
-import { BoxView } from './render/BoxView';
 import { interpolateState } from './render/interpolate';
+import { loadTextures } from './render/assets';
+import { RobotView } from './render/RobotView';
 import { createCamera, followTarget, panByPixels, setFollow, zoomBy } from './render/camera';
 import { applyCamera } from './render/cameraView';
 import { FixedStepper } from './app/FixedStepper';
@@ -11,24 +14,39 @@ import { TimeControls } from './app/TimeControls';
 import { Hud } from './app/Hud';
 import { bindKeys } from './app/keys';
 
-const HELP = 'Space pause   . step   [ ] speed   D debug   F follow   R reset';
+const HELP = 'Space pause   . step   [ ] speed   F follow   C next robot   D debug   G grid   R reset   wheel zoom   drag pan';
+
+/** Interpolated world position of the robot's core (or root part), for the camera. */
+function anchorPosition(world: World, robot: Robot, alpha: number): { x: number; y: number } {
+  const part = robot.parts.get(robot.primaryCoreId ?? robot.rootId);
+  const group = part ? robot.groups[part.group] : undefined;
+  if (!part || !group) return { x: robot.spawnX, y: robot.spawnY };
+  const s = interpolateState(world.physics.prevState(group.bodyId), world.physics.state(group.bodyId), alpha);
+  const c = Math.cos(s.angle);
+  const n = Math.sin(s.angle);
+  return { x: s.x + c * part.localX - n * part.localY, y: s.y + n * part.localX + c * part.localY };
+}
 
 async function boot(): Promise<void> {
   const file = parseWorldFile(flatJson);
   const world = await World.create({ seed: 1 }, file);
-  // Temporary until T9 renders robots: a one-frame blueprint is the old 1 m test box.
-  const box = world.spawnBlueprint({ format: 1, name: 'box', grid: ['F'] }, file.spawn).groups[0]?.bodyId ?? 0;
+  world.spawnBlueprint(carJson, file.spawn);
+  // Left of the car, where the flat world has clear ground (a box sits at x 8 and the ramp at x 12 to 18).
+  world.spawnBlueprint(showcaseJson, { x: file.spawn.x - 13, y: file.spawn.y });
 
   const root = document.getElementById('app');
   const hudEl = document.getElementById('hud');
   if (!root || !hudEl) throw new Error('missing #app or #hud');
   const renderer = new Renderer();
   await renderer.init(root);
+  const textures = await loadTextures();
   const hud = new Hud(hudEl);
 
-  const boxView = new BoxView(1, 1, 0x4c8dff);
-  renderer.world.addChild(boxView.gfx);
+  const views = world.robots.map((r) => new RobotView(r, (f) => textures.part(f)));
+  for (const v of views) renderer.bodies.addChild(v.root);
 
+  let targetIndex = 0;
+  const target = (): Robot => world.robots[targetIndex] ?? (world.robots[0] as Robot);
   let cam = createCamera(file.spawn.x, file.spawn.y - 3);
 
   const canvas = renderer.app.canvas;
@@ -58,7 +76,7 @@ async function boot(): Promise<void> {
 
   const stepper = new FixedStepper(1000 * world.dt);
   const time = new TimeControls();
-  let debugVisible = true;
+  let debugVisible = false;
   let lastHash = world.hash();
 
   bindKeys(window, {
@@ -75,6 +93,13 @@ async function boot(): Promise<void> {
     toggleFollow: () => {
       cam = setFollow(cam, !cam.follow);
     },
+    cycleTarget: () => {
+      targetIndex = (targetIndex + 1) % world.robots.length;
+      cam = setFollow(cam, true);
+    },
+    toggleGrid: () => {
+      renderer.backdrop.visible = !renderer.backdrop.visible;
+    },
     reset: () => location.reload(),
   });
 
@@ -88,16 +113,17 @@ async function boot(): Promise<void> {
     }
 
     const alpha = time.paused ? 1 : stepper.alpha;
-    const boxState = interpolateState(world.physics.prevState(box), world.physics.state(box), alpha);
-    boxView.sync(boxState);
-    cam = followTarget(cam, boxState, ticker.deltaMS / 1000);
+    for (const v of views) v.sync(world.physics, alpha);
+    cam = followTarget(cam, anchorPosition(world, target(), alpha), ticker.deltaMS / 1000);
     applyCamera(renderer.world, cam, renderer.screenWidth, renderer.screenHeight);
     if (debugVisible) drawDebug(renderer.debug, world.physics.debugRender(), true);
     else renderer.debug.clear();
 
+    const s = sampleRobot(world, target());
     hud.set([
       `tick ${world.tick}   t=${world.time.toFixed(2)}s   ${Math.round(ticker.FPS)} fps`,
       `${time.paused ? 'PAUSED' : 'running'}   x${time.timeScale}   zoom ${cam.zoom.toFixed(2)}   follow ${cam.follow ? 'on' : 'off'}`,
+      `robot ${target().name} (${targetIndex + 1}/${world.robots.length})   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`,
       `hash ${lastHash}`,
       HELP,
     ]);
