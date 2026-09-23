@@ -7,6 +7,8 @@ import { Controller } from '../control/controller';
 import type { ControlledPart, RobotInput } from '../control/types';
 import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
 import { allBindings } from '../control/autoControls';
+import { drainContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
+import type { PlannedAction } from '../behaviors/registry';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -20,6 +22,15 @@ export interface SpawnRecord {
   at: { x: number; y: number };
   /** The raw blueprint as passed in. */
   blueprint: unknown;
+}
+
+/** Something that happened in the sim, for the UI and reports. Not part of the state hash. */
+export interface WorldEvent {
+  tick: number;
+  robot: number;
+  kind: 'energyEmpty';
+  /** Index of the chunk whose pool ran dry. */
+  chunk: number;
 }
 
 export interface WorldOptions {
@@ -44,6 +55,15 @@ export class World {
   private nextRobotId = 1;
   /** One controller per robot with a primary core, keyed by robot id. */
   private readonly controllers = new Map<number, Controller>();
+  /** Sandbox switch: every energy request is granted and nothing drains. Simulation state, logged and hashed. */
+  private unlimited = false;
+  private pendingUnlimited: boolean | undefined;
+  /** Events so far, oldest first. Readers keep their own cursor. */
+  readonly events: WorldEvent[] = [];
+  /** Pools that have already reported running dry, by `robot:chunk`. */
+  private readonly emptied = new Set<string>();
+  /** Energy drawn so far, per robot. Reporting only. */
+  private readonly used = new Map<number, number>();
   /** Final channel values from the last tick, per robot, for behaviors, render, and UI. */
   private readonly channels = new Map<number, Map<string, Map<string, number>>>();
 
@@ -121,7 +141,10 @@ export class World {
     for (const input of inputs) {
       if (!this.controllers.has(input.robot)) throw new Error(`robot ${input.robot} does not exist or has no core to control`);
     }
-    this.inputLog.append(this.tickCount, inputs);
+    const change = this.pendingUnlimited === undefined ? undefined : { unlimitedEnergy: this.pendingUnlimited };
+    if (this.pendingUnlimited !== undefined) this.unlimited = this.pendingUnlimited;
+    this.pendingUnlimited = undefined;
+    this.inputLog.append(this.tickCount, inputs, change);
     for (const input of inputs) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     this.runBehaviors();
@@ -130,9 +153,22 @@ export class World {
     this.tickCount++;
   }
 
-  /** Every part with a known behavior acts on its channel values, robots in spawn order, parts in blueprint order. */
+  /** Unlimited energy on or off, from the next tick on (logged, so replays match). */
+  setUnlimitedEnergy(on: boolean): void {
+    this.pendingUnlimited = on === this.unlimited ? undefined : on;
+  }
+
+  get unlimitedEnergy(): boolean {
+    return this.pendingUnlimited ?? this.unlimited;
+  }
+
+  /**
+   * Every part with a known behavior plans its action, each chunk's pool grants what it can (`05`: proportional
+   * brownout), then every action runs with its grant. Robots in spawn order, parts in blueprint order.
+   */
   private runBehaviors(): void {
     for (const robot of this.robots) {
+      const planned: { action: PlannedAction; chunk: number; request: number }[] = [];
       const chans = this.channels.get(robot.id);
       for (const part of robot.parts.values()) {
         const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
@@ -148,9 +184,46 @@ export class World {
           value: (channel) => own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
           config: (key) => part.def.behaviorConfig?.[key] ?? 0,
         };
-        behavior.apply(ctx);
+        const action = behavior.plan(ctx);
+        if (action) planned.push({ action, chunk: chunkIndex(robot, part.id), request: part.def.powerDraw * Math.max(0, Math.min(1, action.load)) * this.dt });
       }
+      const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, planned.filter((p) => p.chunk === c).reduce((s, p) => s + p.request, 0)));
+      // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
+      for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
     }
+  }
+
+  /** Grants a chunk's requests for this tick and drains its pool. Returns the grant factor. */
+  private resolvePool(robot: Robot, chunk: number, requested: number): number {
+    if (requested <= 0) return 1;
+    if (this.unlimited) return 1;
+    const containers = poolContainers(robot, chunk);
+    const { stored } = poolTotals(containers);
+    const grant = grantFactor(stored, requested);
+    const taken = drainContainers(containers, Math.min(requested, stored));
+    for (const c of containers) {
+      const part = robot.parts.get(c.id);
+      if (part) part.stored = c.stored;
+    }
+    this.used.set(robot.id, (this.used.get(robot.id) ?? 0) + taken);
+    const key = `${robot.id}:${chunk}`;
+    if (stored - taken <= 0 && !this.emptied.has(key)) {
+      this.emptied.add(key);
+      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'energyEmpty', chunk });
+    }
+    return grant;
+  }
+
+  /**
+   * A robot's energy: the pool of the chunk it is controlled through (its primary core's), or of its first chunk
+   * when it has no core. `used` is everything drawn so far.
+   */
+  energy(robotId: number): { stored: number; capacity: number; used: number } | undefined {
+    const robot = this.robots.find((r) => r.id === robotId);
+    if (!robot) return undefined;
+    const core = robot.primaryCoreId;
+    const chunk = core === undefined ? 0 : Math.max(0, robot.chunks.findIndex((c) => c.partIds.includes(core)));
+    return { ...poolTotals(poolContainers(robot, chunk)), used: this.used.get(robotId) ?? 0 };
   }
 
   /** The robot's controller, or undefined when it has no core. Read-only use outside the sim. */
@@ -178,6 +251,9 @@ export class World {
     h.addInt(this.tickCount);
     for (const word of this.rng.state()) h.addInt(word);
     this.physics.hashInto(h);
+    // Energy shapes the future: the sandbox switch and what every container holds.
+    h.addInt(this.unlimited ? 1 : 0);
+    for (const robot of this.robots) for (const part of robot.parts.values()) if (part.stored !== undefined) h.addF64(part.stored);
     // Held keys and toggles shape the future, so they are state too.
     for (const [id, c] of this.controllers) {
       const st = c.state();
@@ -207,4 +283,19 @@ function controllerFor(robot: Robot, registry: PartRegistry): Controller | undef
     if (p) parts.push({ id, part: p.def.id, tags: p.tags, inputs: p.def.inputs });
   }
   return new Controller(allBindings(robot.blueprint, registry), parts);
+}
+
+/** Index of the chunk holding the part (every part is in exactly one). */
+function chunkIndex(robot: Robot, partId: string): number {
+  return Math.max(0, robot.chunks.findIndex((c) => c.partIds.includes(partId)));
+}
+
+/** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
+function poolContainers(robot: Robot, chunk: number): Container[] {
+  const out: Container[] = [];
+  for (const id of robot.chunks[chunk]?.partIds ?? []) {
+    const p = robot.parts.get(id);
+    if (p?.stored !== undefined && p.def.resource?.kind === 'energy') out.push({ id, stored: p.stored, capacity: p.def.resource.capacity });
+  }
+  return out;
 }

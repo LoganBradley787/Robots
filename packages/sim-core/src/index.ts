@@ -7,7 +7,7 @@ export type { BodyId, BodyState, DebugBuffers, JointId, BodySpec, ShapeSpec, Col
 export { parseWorldFile, buildWorld, WorldFileError } from './world/WorldFile';
 export type { WorldFile, WorldBox } from './world/WorldFile';
 export { InputLog } from './replay/InputLog';
-export type { LoggedTick } from './replay/InputLog';
+export type { LoggedTick, WorldChange } from './replay/InputLog';
 export { buildReplay, parseReplay, runReplay, ReplayError } from './replay/replayFile';
 export type { ReplayFile } from './replay/replayFile';
 export { Controller } from './control/controller';
@@ -19,7 +19,7 @@ export type { Container } from './resources/pools';
 export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
 export type { RobotInput, ControlledPart, ControlState } from './control/types';
 export { World } from './world/World';
-export type { WorldOptions, SpawnRecord } from './world/World';
+export type { WorldOptions, SpawnRecord, WorldEvent } from './world/World';
 export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec, SpriteSpec, PartDef, AutoControlSpec } from './parts/types';
 export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians } from './parts/faces';
 export { parsePartDef, PartDefError } from './parts/parsePartDef';

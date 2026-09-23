@@ -22,7 +22,17 @@ export interface Behavior {
   /** Whether the def must have a joint (wheels) or `acts` (thrust). */
   readonly needsJoint?: boolean;
   readonly needsActs?: boolean;
-  apply(ctx: BehaviorContext): void;
+  /**
+   * Decides what the part will do this tick, before energy is granted (`05`, two phases). Returns undefined when it
+   * does nothing. `load` (0 to 1) is how hard it works; the part requests `powerDraw * load * dt`.
+   */
+  plan(ctx: BehaviorContext): PlannedAction | undefined;
+}
+
+export interface PlannedAction {
+  load: number;
+  /** Acts with `grant` (0 to 1) of the energy it asked for: a brownout scales the output down. */
+  run(grant: number): void;
 }
 
 /**

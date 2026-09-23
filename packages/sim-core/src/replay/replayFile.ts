@@ -67,7 +67,10 @@ export function parseReplay(raw: unknown): ReplayFile {
   const inputs: LoggedTick[] = r.inputs.map((t, i) => {
     const o = obj(t, `inputs[${i}]`);
     if (!Array.isArray(o.inputs)) throw new ReplayError(`inputs[${i}].inputs must be a list`);
+    const world = o.world === undefined ? undefined : obj(o.world, `inputs[${i}].world`);
+    if (world && world.unlimitedEnergy !== undefined && typeof world.unlimitedEnergy !== 'boolean') throw new ReplayError(`inputs[${i}].world.unlimitedEnergy must be true or false`);
     return {
+      ...(world ? { world: world.unlimitedEnergy === undefined ? {} : { unlimitedEnergy: world.unlimitedEnergy as boolean } } : {}),
       tick: int(o.tick, `inputs[${i}].tick`),
       inputs: o.inputs.map((x, j) => {
         const e = obj(x, `inputs[${i}].inputs[${j}]`);
@@ -94,6 +97,8 @@ export async function runReplay(replay: ReplayFile, onTick?: (world: World) => v
       const s = spawns[next++];
       if (s) world.spawnBlueprint(s.blueprint, s.at);
     }
+    const change = log.worldAt(world.tick);
+    if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
     world.step(log.inputsAt(world.tick));
     onTick?.(world);
   }
