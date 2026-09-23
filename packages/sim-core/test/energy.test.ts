@@ -103,4 +103,13 @@ describe('energy', () => {
     expect(w.partOutput(car.id, 'frame@0,1', 'charge')).toBeUndefined();
     w.dispose();
   });
+
+  it('a robot that never held energy never runs out of it', async () => {
+    const w = await world();
+    const r = w.spawnBlueprint({ format: 1, name: 'loose gyro', grid: ['F  G  F'] }, { x: 0, y: 4 });
+    for (let i = 0; i < 240; i++) w.step(); // it tumbles on landing, so the gyro asks to damp
+    expect(w.energy(r.id)).toEqual({ stored: 0, capacity: 0, used: 0 });
+    expect(w.events).toEqual([]);
+    w.dispose();
+  });
 });

@@ -35,3 +35,11 @@ Brownout is proportional rather than first-come so the result does not depend on
 - **Stacking batteries is the way to range.** Logan: a huge robot might carry a block of 30 batteries, which becomes a target once damage exists (M6).
 - **No recharge in M4.** Producers (solar, generators) come later as parts with a negative request.
 - **Unlimited energy** is a sandbox switch on the world toolbar, off by default. It is part of the simulation (logged with its tick) so replays match.
+
+## As built (M4, 2026-09-23)
+- Behaviors plan, then run: `plan(ctx)` returns `{ load, run(grant) }`, the world sums each chunk's requests (`powerDraw * load * dt`), grants and drains the pool (`resources/pools.ts`), then runs every action with its grant. A part that asks for nothing acts in full.
+- Loads: wheel `|speed|` (coasting and an empty pool both leave the wheel slack), thrust = throttle, gyro `|spin|` or its damping torque over `maxTorque`.
+- `World.energy(robot)` is the pool of the chunk the robot is controlled through; `World.partOutput` serves `charge` (a container's own fraction) and `energy` / `energyCapacity` (its chunk's pool).
+- `World.setUnlimitedEnergy` applies on the next tick and is logged in the input log (`world: { unlimitedEnergy }`), so replays match; the hash includes the switch and every container's stored energy.
+- Events: `energyEmpty` once per pool, in `World.events` (not hashed). The app shows it as a notice.
+- Measured (`pnpm sim tune`): car (core + battery, 2100) drives 210 s; hopper thrusts 53 s at full. With no air drag a hopper that thrusts for the whole 53 s reaches about 20 km: flagged to Logan for M5 planning.

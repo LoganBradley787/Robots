@@ -39,7 +39,7 @@ export interface WorldView {
   follow: boolean;
   robots: number;
   /** The robot under your control, its keys, and its energy (whole units), or undefined. */
-  controlled?: { name: string; keys: KeyView[]; energy?: { stored: number; capacity: number } };
+  controlled?: { name: string; keys: KeyView[]; energy?: { percent: number; capacity: number } };
   unlimitedEnergy: boolean;
 }
 
@@ -330,7 +330,8 @@ export class WorldScreen {
       const e = this.world.energy(controlled.id);
       view.controlled = {
         name: controlled.name,
-        ...(e ? { energy: { stored: Math.ceil(e.stored), capacity: e.capacity } } : {}),
+        // Whole percent only: the view is compared every frame, and a finer number would re-render the UI every tick.
+        ...(e ? { energy: { percent: e.capacity > 0 ? Math.ceil((100 * e.stored) / e.capacity) : 0, capacity: e.capacity } } : {}),
         keys: keys.map(({ key }) => ({
           key,
           // Lit as soon as it is pressed, even while paused; the sim catches up on the next tick.

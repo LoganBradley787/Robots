@@ -2,19 +2,15 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
 
-- Current milestone: **M3 complete, Gate 3 (robot feel) passed 2026-09-23** ("I'm happy with this. This is fun. It's snappy enough that it still feels like it has weight"). Punch list `docs/critique/gate-3.md` is done. Plan `docs/plans/M3-control.md`, design `docs/design/11-control.md`.
-- Done: M0 (tag `m0`), M1 (tag `m1`, Gate 1 passed), M2 (tag `m2`, Gate 2 passed), M3 T1 to T12 (tag `m3`):
-  - Controller per robot: hold, toggle, pulse; sum and clamp; key edges addressed to a robot, logged per tick; held keys and toggles in the hash.
-  - Behaviors from part data: wheel as an electric motor that coasts when let go; thrust for thrusters and propellers along the way they point.
-  - Tuned headless (`pnpm sim tune`, table in `11`): the car does 6 m/s in 1.6 s and tops out near 17 m/s; double the mass takes about twice as long.
-  - Auto controls on by default (wheels D/A, push parts on the key they push toward), per-part and per-blueprint opt-out; type names ("all wheels") as binding targets.
-  - App: deploy takes control, `,` cycles, click a robot to control it; robots you leave hold their last input; blur and the builder release keys; keys bar; thruster flame and propeller spin follow throttle.
-  - Builder: right-click part menu (tags, auto on or off, rotate, delete) on the selection; eraser tool on `E`; controls panel lists auto controls; values in percent.
-  - CLI: `--keys "d:0-3, w:5"`, drive metrics (distance, max altitude, max tilt, top speed), `pnpm sim replay <file>`; CI runs a keyed determinism check.
-  - Replays: world toolbar Save replay writes `replays/` (gitignored); a browser session reran in Node with a MATCH.
-- Gate 3 fixes: wheels on multibody joints (the growing bounce, `03`), motors wake their bodies, camera Home and a 1000 m world, the gyro part (Q/E), part cells slide at friction 0.3, wheel torque 20 N m, tire grip 1.0. Logan's `big-guy` (54 kg, lots of frames on the car) checked for tunneling into the box: none; it tips over the box because it is top-heavy.
-- In progress: **M4 planning.** Logan answered the power questions (long battery life, core reserve like KSP, no recharge, unlimited switch); recorded in `05`. Plan `docs/plans/M4-power.md` waits for Logan's go.
-- Next: on Logan's go, build all of M4, then plan and build M5 (scripting), and stop at Gate 4 (power and scripts).
+- Current milestone: **M4 complete (tag `m4`), M5 not planned yet.** M4 has no gate of its own; Gate 4 judges M4 and M5 together. Plan `docs/plans/M4-power.md`, design `docs/design/05-power-and-resources.md` (decisions and as-built notes at the end).
+- Done: M0 to M3 (tags `m0` to `m3`, Gates 1 to 3 passed), M4 T1 to T6:
+  - Energy pools per chunk, proportional drain and brownout; cores hold 600 (like KSP command pods), batteries 1500.
+  - Behaviors plan, then run with a grant; coasting and idle parts draw nothing; an empty robot stops (wheels coast, thrusters and gyros go quiet).
+  - Unlimited energy switch (world toolbar), logged and hashed so replays match; `energyEmpty` events with a notice in the app.
+  - `charge`, `energy`, `energyCapacity` outputs for M5 scripts; builder stats show energy and full draw; CLI reports energy and takes `--unlimited`; `tune` prints battery life.
+  - Review fixes: no "ran out" event for a robot that never held energy; the world view carries whole percent so the UI does not re-render every tick; tune groups draw by behavior; a non-finite load never reaches a pool.
+- Next: **plan M5 (scripting).** Ask Logan the M5 taste questions (see `04` script API, `07` Q10 and Q12). Also raise air drag: with long battery life a hopper holding W for its whole 53 s climbs about 20 km at 450 m/s, since nothing slows robots in the air (see `docs/ideas.md`). Then build M5 and stop at Gate 4 (power and scripts).
+- Behavior change nobody signed off: a gyro on a robot with no core and no battery used to damp spin for free; now it has no energy and does nothing. Consistent with "no energy, no action"; mention at Gate 4.
 
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".

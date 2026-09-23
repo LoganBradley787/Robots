@@ -22,15 +22,15 @@ export function KeysBar({ store, actions }: { store: Store<AppState>; actions: K
   const unlimited = useStore(store, (s) => s.world?.unlimitedEnergy ?? false);
   if (!c || (c.keys.length === 0 && !c.energy)) return null;
   const e = c.energy;
-  const frac = e && e.capacity > 0 ? e.stored / e.capacity : 0;
+  const pct = e?.percent ?? 0;
   return (
     <div class="keys-bar panel" title={`${c.name}'s keys`}>
       {e && (
-        <div class="energy" title={unlimited ? 'unlimited energy is on' : `${e.stored} of ${e.capacity} energy`}>
+        <div class="energy" title={unlimited ? 'unlimited energy is on' : `${pct}% of ${e.capacity} energy`}>
           <div class="energy-track">
-            <div class={`energy-fill${frac < 0.15 ? ' low' : ''}${unlimited ? ' unlimited' : ''}`} style={{ width: `${unlimited ? 100 : Math.round(frac * 100)}%` }} />
+            <div class={`energy-fill${pct < 15 ? ' low' : ''}${unlimited ? ' unlimited' : ''}`} style={{ width: `${unlimited ? 100 : pct}%` }} />
           </div>
-          <span class="energy-text">{unlimited ? 'unlimited' : e.capacity === 0 ? 'no energy' : `${Math.round(frac * 100)}%`}</span>
+          <span class="energy-text">{unlimited ? 'unlimited' : e.capacity === 0 ? 'no energy' : `${pct}%`}</span>
         </div>
       )}
       {c.keys.map((k) => (

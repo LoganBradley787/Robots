@@ -185,7 +185,9 @@ export class World {
           config: (key) => part.def.behaviorConfig?.[key] ?? 0,
         };
         const action = behavior.plan(ctx);
-        if (action) planned.push({ action, chunk: chunkIndex(robot, part.id), request: part.def.powerDraw * Math.max(0, Math.min(1, action.load)) * this.dt });
+        // A load that is not a number (a hand-made def dividing by zero) must never reach the pool: NaN would stick.
+        const load = Number.isFinite(action?.load) ? Math.max(0, Math.min(1, action?.load ?? 0)) : 0;
+        if (action) planned.push({ action, chunk: chunkIndex(robot, part.id), request: part.def.powerDraw * load * this.dt });
       }
       const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, planned.filter((p) => p.chunk === c).reduce((s, p) => s + p.request, 0)));
       // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
@@ -207,7 +209,8 @@ export class World {
     }
     this.used.set(robot.id, (this.used.get(robot.id) ?? 0) + taken);
     const key = `${robot.id}:${chunk}`;
-    if (stored - taken <= 0 && !this.emptied.has(key)) {
+    // Only a pool this tick actually emptied: a chunk that never held energy never "runs out".
+    if (taken > 0 && stored - taken <= 0 && !this.emptied.has(key)) {
       this.emptied.add(key);
       this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'energyEmpty', chunk });
     }

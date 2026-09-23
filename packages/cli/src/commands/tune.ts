@@ -75,9 +75,11 @@ export async function tune(): Promise<string> {
     const v = validateBlueprint(TUNE_ROBOTS[name], reg);
     if (!v.blueprint) continue;
     const st = staticStats(v.blueprint, reg);
-    const byPart = (part: string): number => v.blueprint!.parts.filter((p) => p.part === part).reduce((sum, p) => sum + reg.get(p.part).powerDraw, 0);
-    const driveDraw = byPart('wheel');
-    const thrustDraw = byPart('thruster');
+    // Grouped by behavior, so every wheel-like or thrust-like part counts, whatever it is called.
+    const byBehavior = (behavior: string): number =>
+      v.blueprint!.parts.filter((p) => reg.get(p.part).behavior === behavior).reduce((sum, p) => sum + reg.get(p.part).powerDraw, 0);
+    const driveDraw = byBehavior('wheel');
+    const thrustDraw = byBehavior('thrust');
     lines.push(
       `energy   ${name}: ${st.energy} stored   ${driveDraw > 0 ? `driving ${Math.round(st.energy / driveDraw)} s` : ''}${thrustDraw > 0 ? `   full thrust ${Math.round(st.energy / thrustDraw)} s` : ''}`,
     );
