@@ -31,6 +31,29 @@ export interface ColliderPlacement {
   angle?: number;
   mass: number;
   friction?: number;
+  /**
+   * Reports contacts on this collider whose total force exceeds this many newtons (`takeImpacts`). The owner decides
+   * what a hit means; this only keeps quiet contacts out of the event stream.
+   */
+  impactForce?: number;
+}
+
+/** A contact on a collider with `impactForce`, above its threshold, from the last step. */
+export interface ImpactEvent {
+  body: BodyId;
+  /** The collider's owner (a part id). */
+  owner: string;
+  /** Total contact force on the collider pair, newtons. */
+  force: number;
+}
+
+/** A terrain collider (one without an owner), for line-of-sight tests. Boxes only. */
+export interface TerrainBox {
+  x: number;
+  y: number;
+  hx: number;
+  hy: number;
+  angle: number;
 }
 
 export interface MotorSpec {
@@ -45,10 +68,24 @@ export interface MotorSpec {
 interface JointEntry {
   parent: BodyId;
   child: BodyId;
-  /** Velocity motor: target rad/s of the child relative to the parent, gain, and torque cap (0 = no motor). */
+  /**
+   * `velocity`: target rad/s of the child relative to the parent, with gain `factor`. `position`: target angle of the
+   * child relative to the parent, held with stiffness `factor` and damping `damping`. Torque cap `maxTorque` (0 = off).
+   */
+  kind: 'velocity' | 'position';
   factor: number;
+  damping: number;
   target: number;
   maxTorque: number;
+}
+
+/** Mass of the invisible helper bodies (a multibody root, a joint pivot): small enough to change nothing measurable. */
+const HELPER_MASS = 0.001;
+
+/** An angle wrapped into [-pi, pi). */
+export function wrapAngle(a: number): number {
+  const t = (a + Math.PI) % (2 * Math.PI);
+  return (t < 0 ? t + 2 * Math.PI : t) - Math.PI;
 }
 
 export interface MassProperties {
@@ -101,6 +138,12 @@ export class PhysicsWorld {
   private readonly byHandle = new Map<number, BodyId>();
   /** Rapier colliders carry no user data, so owners (part ids) live here, keyed by the opaque handle. */
   private readonly owners = new Map<number, string>();
+  /** Impact thresholds by collider handle. */
+  private readonly impactForces = new Map<number, number>();
+  /** Invisible bodies that exist for another body (its multibody root, its joint pivot), removed with it. */
+  private readonly helpers = new Map<BodyId, BodyId[]>();
+  private readonly eventQueue = new RAPIER.EventQueue(true);
+  private impacts: ImpactEvent[] = [];
   private nextId: BodyId = 1;
   private nextJointId: JointId = 1;
 
@@ -112,8 +155,9 @@ export class PhysicsWorld {
   }
 
   /** Pose is set through the descriptor at creation, never with setRotation afterwards (determinism, see 01). */
-  createBody(spec: BodySpec): BodyId {
-    const base = spec.kind === 'fixed' ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic();
+  createBody(spec: BodySpec, helperMass?: number): BodyId {
+    let base = spec.kind === 'fixed' ? RAPIER.RigidBodyDesc.fixed() : RAPIER.RigidBodyDesc.dynamic();
+    if (helperMass !== undefined) base = base.setAdditionalMass(helperMass);
     const body = this.world.createRigidBody(base.setTranslation(spec.x, spec.y).setRotation(spec.angle ?? 0));
     const id = this.nextId++;
     this.bodies.set(id, body);
@@ -126,30 +170,124 @@ export class PhysicsWorld {
     const base = shape.shape === 'box' ? RAPIER.ColliderDesc.cuboid(shape.hx, shape.hy) : RAPIER.ColliderDesc.ball(shape.radius);
     let desc = base.setTranslation(place.offsetX, place.offsetY).setRotation(place.angle ?? 0).setMass(place.mass);
     if (place.friction !== undefined) desc = desc.setFriction(place.friction);
+    if (place.impactForce !== undefined) {
+      desc = desc.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(place.impactForce);
+    }
     const collider = this.world.createCollider(desc, this.body(bodyId));
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
       this.cells.set(bodyId, (this.cells.get(bodyId) ?? 0) + 1);
     }
+    if (place.impactForce !== undefined) this.impactForces.set(collider.handle, place.impactForce);
   }
 
-  /** Revolute joint at the given anchors (each in its own body's frame). Contacts between the two bodies are off. */
+  /** Removes a body with its colliders, its joints, and its helper bodies. */
+  removeBody(id: BodyId): void {
+    for (const h of this.helpers.get(id) ?? []) this.removeBody(h);
+    this.helpers.delete(id);
+    const body = this.body(id);
+    for (let i = 0; i < body.numColliders(); i++) {
+      const handle = body.collider(i).handle;
+      this.owners.delete(handle);
+      this.impactForces.delete(handle);
+    }
+    for (const [jointId, j] of this.joints) if (j.parent === id || j.child === id) this.joints.delete(jointId);
+    this.byHandle.delete(body.handle);
+    this.world.removeRigidBody(body);
+    this.bodies.delete(id);
+    this.prev.delete(id);
+    this.jointChildren.delete(id);
+    this.cells.delete(id);
+    this.forced.delete(id);
+  }
+
+  /**
+   * Makes a body that is about to get joints keep its rotation. Rapier starts a multibody's root at angle 0 whatever
+   * the body's pose (spike, M6), so a piece rebuilt mid-tumble would snap upright. The root becomes an invisible helper
+   * welded to the body with the angle in the weld's frame. Call before creating the body's joints; skip at angle 0.
+   */
+  keepRootAngle(id: BodyId, angle: number): void {
+    if (angle === 0) return;
+    const s = this.state(id);
+    const root = this.createBody({ x: s.x, y: s.y, kind: 'dynamic' }, HELPER_MASS);
+    this.addHelper(id, root);
+    const weld = this.world.createMultibodyJoint(RAPIER.JointData.fixed({ x: 0, y: 0 }, angle, { x: 0, y: 0 }, 0), this.body(root), this.body(id), true);
+    weld.setContactsEnabled(false);
+  }
+
+  private addHelper(owner: BodyId, helper: BodyId): void {
+    const list = this.helpers.get(owner) ?? [];
+    list.push(helper);
+    this.helpers.set(owner, list);
+  }
+
+  /**
+   * Gives a body a velocity for the next step: its center of mass moves at (vx, vy) and it turns at w. Applied as a
+   * one-step force and torque, because Rapier ignores velocity writes on multibody links (spike, M6). Rapier reports
+   * a link's new velocity one step late; positions move with it from the first step.
+   */
+  kick(id: BodyId, vx: number, vy: number, w: number): void {
+    const body = this.body(id);
+    const v = body.linvel();
+    const m = body.mass();
+    body.addForce({ x: (m * (vx - v.x)) / this.world.timestep, y: (m * (vy - v.y)) / this.world.timestep }, true);
+    body.addTorque((body.principalInertia() * (w - body.angvel())) / this.world.timestep, true);
+    this.forced.add(id);
+  }
+
+  /** Impacts from the last step, in the order Rapier reported them. */
+  takeImpacts(): ImpactEvent[] {
+    const out = this.impacts;
+    this.impacts = [];
+    return out;
+  }
+
+  /** Terrain colliders (no owner) that are boxes, in creation order. */
+  terrainBoxes(): TerrainBox[] {
+    const out: TerrainBox[] = [];
+    this.world.forEachCollider((c) => {
+      if (this.owners.has(c.handle) || !(c.shape instanceof RAPIER.Cuboid)) return;
+      const t = c.translation();
+      const h = c.shape.halfExtents;
+      out.push({ x: t.x, y: t.y, hx: h.x, hy: h.y, angle: c.rotation() });
+    });
+    return out;
+  }
+
+  /**
+   * Revolute joint at the given anchors (each in its own body's frame). Contacts between the two bodies are off.
+   * `relAngle` is the child's angle relative to the parent now (0 at spawn). Rapier starts every multibody joint at
+   * relative angle 0 (spike, M6), so a nonzero one goes through an invisible pivot welded to the parent at that angle.
+   */
   createRevoluteJoint(
     parent: BodyId,
     child: BodyId,
     anchorParent: { x: number; y: number },
     anchorChild: { x: number; y: number },
     motor?: MotorSpec,
+    relAngle = 0,
   ): JointId {
     // A multibody joint, not an impulse joint: impulse joints stretch and feed energy back under a driven wheel that
     // slips and lands (a car driven off a ledge bounced higher each time and flipped, Gate 3). Multibody joints are
     // exact, but Rapier's JS API has no motor for them, so the motor is ours (applied as torques in `step`).
-    const data = RAPIER.JointData.revolute(anchorParent, anchorChild);
-    const joint = this.world.createMultibodyJoint(data, this.body(parent), this.body(child), true);
+    let from = this.body(parent);
+    let fromAnchor = anchorParent;
+    if (relAngle !== 0) {
+      const p = this.state(parent);
+      const c = Math.cos(p.angle);
+      const n = Math.sin(p.angle);
+      const pivot = this.createBody({ x: p.x + c * anchorParent.x - n * anchorParent.y, y: p.y + n * anchorParent.x + c * anchorParent.y, kind: 'dynamic' }, HELPER_MASS);
+      this.addHelper(child, pivot);
+      const weld = this.world.createMultibodyJoint(RAPIER.JointData.fixed(anchorParent, relAngle, { x: 0, y: 0 }, 0), from, this.body(pivot), true);
+      weld.setContactsEnabled(false);
+      from = this.body(pivot);
+      fromAnchor = { x: 0, y: 0 };
+    }
+    const joint = this.world.createMultibodyJoint(RAPIER.JointData.revolute(fromAnchor, anchorChild), from, this.body(child), true);
     joint.setContactsEnabled(false);
     this.jointChildren.add(child);
     const id = this.nextJointId++;
-    this.joints.set(id, { parent, child, factor: motor?.factor ?? 0, target: motor?.targetVelocity ?? 0, maxTorque: motor?.maxTorque ?? 0 });
+    this.joints.set(id, { parent, child, kind: 'velocity', factor: motor?.factor ?? 0, damping: 0, target: motor?.targetVelocity ?? 0, maxTorque: motor?.maxTorque ?? 0 });
     return id;
   }
 
@@ -165,9 +303,29 @@ export class PhysicsWorld {
    */
   setMotor(jointId: JointId, targetVelocity: number, factor: number, maxTorque: number): void {
     const entry = this.joint(jointId);
+    entry.kind = 'velocity';
     entry.target = targetVelocity;
     entry.factor = factor;
     entry.maxTorque = maxTorque;
+  }
+
+  /**
+   * Sets a position motor: holds the child at `targetAngle` (radians, relative to the parent, counterclockwise
+   * positive) with torque `stiffness * error - damping * relative spin`, capped at `maxTorque`.
+   */
+  setPositionMotor(jointId: JointId, targetAngle: number, stiffness: number, damping: number, maxTorque: number): void {
+    const entry = this.joint(jointId);
+    entry.kind = 'position';
+    entry.target = targetAngle;
+    entry.factor = stiffness;
+    entry.damping = damping;
+    entry.maxTorque = maxTorque;
+  }
+
+  /** The child's angle relative to the parent, wrapped into [-pi, pi). */
+  jointAngle(jointId: JointId): number {
+    const j = this.joint(jointId);
+    return wrapAngle(this.body(j.child).rotation() - this.body(j.parent).rotation());
   }
 
   private joint(jointId: JointId): JointEntry {
@@ -267,7 +425,9 @@ export class PhysicsWorld {
       if (j.maxTorque === 0) continue;
       const p = this.body(j.parent);
       const c = this.body(j.child);
-      const tau = Math.max(-j.maxTorque, Math.min(j.maxTorque, j.factor * (j.target - (c.angvel() - p.angvel()))));
+      const rel = c.angvel() - p.angvel();
+      const want = j.kind === 'velocity' ? j.factor * (j.target - rel) : j.factor * wrapAngle(j.target - wrapAngle(c.rotation() - p.rotation())) - j.damping * rel;
+      const tau = Math.max(-j.maxTorque, Math.min(j.maxTorque, want));
       if (tau === 0) continue;
       c.addTorque(tau, true);
       p.addTorque(-tau, true);
@@ -286,7 +446,17 @@ export class PhysicsWorld {
       if (!this.jointChildren.has(id)) b.addTorque(-AIR_SPIN_DRAG * cells * Math.abs(w) * w, false);
       this.forced.add(id);
     }
-    this.world.step();
+    this.world.step(this.eventQueue);
+    this.eventQueue.drainContactForceEvents((e) => {
+      for (const c of [e.collider1(), e.collider2()]) {
+        const threshold = this.impactForces.get(c);
+        const owner = this.owners.get(c);
+        const parent = this.world.getCollider(c)?.parent();
+        const body = parent ? this.byHandle.get(parent.handle) : undefined;
+        if (threshold === undefined || owner === undefined || body === undefined || e.totalForceMagnitude() <= threshold) continue;
+        this.impacts.push({ body, owner, force: e.totalForceMagnitude() });
+      }
+    });
     for (const id of this.forced) {
       const b = this.body(id);
       b.resetForces(false);
@@ -309,7 +479,10 @@ export class PhysicsWorld {
     return [...this.bodies.keys()];
   }
 
-  /** Feeds every body's exact state into the hasher in creation order. */
+  /**
+   * Feeds every body's exact state into the hasher in creation order, then the forces waiting for the next step
+   * (a kick or a blast push applied between steps shapes the future).
+   */
   hashInto(h: StateHasher): void {
     for (const [, body] of this.bodies) {
       const s = readState(body);
@@ -320,6 +493,14 @@ export class PhysicsWorld {
       h.addF64(s.vy);
       h.addF64(s.w);
     }
+    for (const id of this.forced) {
+      const b = this.body(id);
+      const f = b.userForce();
+      h.addInt(id);
+      h.addF64(f.x);
+      h.addF64(f.y);
+      h.addF64(b.userTorque());
+    }
   }
 
   debugRender(): DebugBuffers {
@@ -328,6 +509,7 @@ export class PhysicsWorld {
   }
 
   free(): void {
+    this.eventQueue.free();
     this.world.free();
   }
 }
