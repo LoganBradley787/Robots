@@ -15,8 +15,19 @@ import { applyCamera } from '../render/cameraView';
 import { FixedStepper } from '../app/FixedStepper';
 import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
+import { KeyboardSource } from '../control/KeyboardSource';
+import { isClick, nextRobot } from '../control/possession';
 
-const HELP = 'wheel zoom   drag pan   (world controls are on the toolbar below)';
+const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the toolbar below)';
+
+/** One key of the controlled robot, for the keys bar. */
+export interface KeyView {
+  key: string;
+  held: boolean;
+  /** Whether a toggle binding on this key is on. */
+  on: boolean;
+  toggle: boolean;
+}
 
 /** What the world toolbar shows. */
 export interface WorldView {
@@ -26,6 +37,8 @@ export interface WorldView {
   grid: boolean;
   follow: boolean;
   robots: number;
+  /** The robot under your control and its keys, or undefined. */
+  controlled?: { name: string; keys: KeyView[] };
 }
 
 /** Interpolated world position of the robot's core (or root part), for the camera. */
@@ -49,8 +62,11 @@ export class WorldScreen {
   private readonly grid: Graphics;
   private debugVisible = false;
   private lastHash: string;
-  private targetIndex = 0;
-  private dragging: { id: number; x: number; y: number } | null = null;
+  /** Key edges for the robot under control. */
+  readonly keys = new KeyboardSource();
+  /** The robot the camera follows (and controls, when it can be controlled). */
+  private focusId: number | undefined;
+  private dragging: { id: number; x: number; y: number; startX: number; startY: number } | null = null;
   /** Called when anything the toolbar shows changes. */
   onView?: (v: WorldView) => void;
   private lastView = '';
@@ -93,7 +109,8 @@ export class WorldScreen {
     this.world = next;
     for (const v of this.views) v.root.destroy({ children: true });
     this.views = [];
-    this.targetIndex = 0;
+    this.keys.clear();
+    this.focusId = undefined;
     this.lastHash = next.hash();
     this.stepper.reset();
   }
@@ -103,9 +120,19 @@ export class WorldScreen {
     const view = new RobotView(robot, (f) => this.textures.part(f));
     this.renderer.bodies.addChild(view.root);
     this.views.push(view);
-    this.targetIndex = this.world.robots.length - 1;
-    this.cam = setFollow(this.cam, true);
+    this.focus(robot.id);
     return robot;
+  }
+
+  /** Follows the robot and takes control of it when it has a core (`11`). */
+  focus(robotId: number): void {
+    this.focusId = robotId;
+    this.cam = setFollow(this.cam, true);
+    if (this.world.canControl(robotId)) this.keys.setControlled(robotId);
+  }
+
+  get controlledId(): number | undefined {
+    return this.keys.robot;
   }
 
   get isPlacing(): boolean {
@@ -154,8 +181,11 @@ export class WorldScreen {
           this.cam = setFollow(this.cam, true);
           return;
         }
-        if (this.world.robots.length === 0) return;
-        this.targetIndex = (this.targetIndex + 1) % this.world.robots.length;
+        const next = nextRobot(
+          this.world.robots.map((r) => ({ id: r.id, controllable: this.world.canControl(r.id) })),
+          this.focusId,
+        );
+        if (next !== undefined) this.focus(next);
       },
       toggleGrid: () => {
         this.grid.visible = !this.grid.visible;
@@ -185,18 +215,30 @@ export class WorldScreen {
       }
       return;
     }
-    this.dragging = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    this.dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY };
   }
 
   onPointerMove(e: PointerEvent, sx: number, sy: number): void {
     if (this.placing) this.updateGhost(sx, sy);
     if (!this.dragging || e.pointerId !== this.dragging.id) return;
     this.cam = panByPixels(this.cam, e.clientX - this.dragging.x, e.clientY - this.dragging.y);
-    this.dragging = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    this.dragging = { ...this.dragging, x: e.clientX, y: e.clientY };
   }
 
-  onPointerUp(e: PointerEvent): void {
-    if (this.dragging && e.pointerId === this.dragging.id) this.dragging = null;
+  /** A click (not a drag) on a robot takes control of it. */
+  onPointerUp(e: PointerEvent, sx: number, sy: number): void {
+    const d = this.dragging;
+    if (!d || e.pointerId !== d.id) return;
+    this.dragging = null;
+    if (e.button !== 0 || !isClick({ x: d.startX, y: d.startY }, { x: e.clientX, y: e.clientY })) return;
+    const p = screenToWorld(this.cam, sx, sy, this.renderer.screenWidth, this.renderer.screenHeight);
+    const body = this.world.physics.dynamicBodyAt(p.x, p.y);
+    const robot = body === undefined ? undefined : this.world.robots.find((r) => r.groups.some((g) => g.bodyId === body));
+    if (robot) {
+      // A click drags the camera by a pixel or two; undo that so the robot does not jump.
+      this.cam = panByPixels(this.cam, d.startX - e.clientX, d.startY - e.clientY);
+      this.focus(robot.id);
+    }
   }
 
   frame(ticker: Ticker): void {
@@ -205,22 +247,24 @@ export class WorldScreen {
     if (time.paused) this.stepper.reset();
     else ticks += this.stepper.advance(ticker.deltaMS, time.timeScale);
     for (let i = 0; i < ticks; i++) {
-      this.world.step();
+      // Keys are sampled once per tick: this frame's edges go into its first tick. While paused they wait.
+      this.world.step(i === 0 ? this.keys.drain() : []);
       if (this.world.tick % 60 === 0) this.lastHash = this.world.hash();
     }
 
     const alpha = time.paused ? 1 : this.stepper.alpha;
     for (const v of this.views) v.sync(this.world.physics, alpha);
-    const focus = this.world.robots[this.targetIndex];
+    const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
     if (this.debugVisible) drawDebug(this.renderer.debug, this.world.physics.debugRender(), true);
     else this.renderer.debug.clear();
 
     const s = focus ? sampleRobot(this.world, focus) : undefined;
+    const controlled = this.keys.robot === undefined ? undefined : this.world.robots.find((r) => r.id === this.keys.robot);
     const robotLine =
       focus && s
-        ? `robot ${focus.name} (${this.targetIndex + 1}/${this.world.robots.length})   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
+        ? `${focus.id === controlled?.id ? 'controlling' : 'watching'} ${focus.name} (${this.world.robots.indexOf(focus) + 1}/${this.world.robots.length})   ${s.speed.toFixed(1)} m/s   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
         : 'no robots yet: build one and press Deploy';
     const p = this.placing;
     const placingLines = p
@@ -234,6 +278,14 @@ export class WorldScreen {
       follow: this.cam.follow,
       robots: this.world.robots.length,
     };
+    const controller = controlled ? this.world.controller(controlled.id) : undefined;
+    if (controlled && controller) {
+      const toggles = new Set(controller.toggleKeys);
+      view.controlled = {
+        name: controlled.name,
+        keys: controller.keys.map((key) => ({ key, held: controller.isHeld(key), on: controller.isToggledOn(key), toggle: toggles.has(key) })),
+      };
+    }
     const key = JSON.stringify(view);
     if (key !== this.lastView) {
       this.lastView = key;

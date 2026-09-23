@@ -103,6 +103,11 @@ export class Controller {
     return this.held.has(key);
   }
 
+  /** Keys that have at least one toggle binding. */
+  get toggleKeys(): string[] {
+    return [...new Set(this.writers.filter((w) => w.mode === 'toggle').map((w) => w.key))];
+  }
+
   /** Whether any toggle binding on this key is on. */
   isToggledOn(key: string): boolean {
     return this.writers.some((w) => w.key === key && w.mode === 'toggle' && this.toggles.has(w.index));

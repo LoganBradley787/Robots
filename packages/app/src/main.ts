@@ -6,7 +6,8 @@ import flatJson from '../../../worlds/flat.json';
 import { Renderer } from './render/Renderer';
 import { loadTextures } from './render/assets';
 import { Hud } from './app/Hud';
-import { bindKeys, isTypingTarget } from './app/keys';
+import { bindKeys, codeOf, isTypingTarget, worldKeyLabel } from './app/keys';
+import { keyName } from './builder/bindings';
 import { enterWorld, toggleMode, type ModeState } from './app/modes';
 import { deployDecision } from './builder/deployFlow';
 import { WorldScreen } from './world/WorldScreen';
@@ -178,6 +179,8 @@ async function boot(): Promise<void> {
   store.set({ icons });
   let modes: ModeState = { mode: 'world', paused: false, pausedBeforeBuilder: false };
   const setMode = (next: ModeState): void => {
+    // Leaving the world releases the controlled robot's keys, so none sticks down while you are away (`11`).
+    if (next.mode === 'builder') worldScreen.keys.releaseAll();
     modes = next;
     worldScreen.setPaused(next.paused);
     renderer.showScene(next.mode);
@@ -215,7 +218,7 @@ async function boot(): Promise<void> {
     else builder.onPointerMove(e, cellOf(e));
   });
   const up = (e: PointerEvent): void => {
-    if (modes.mode === 'world') worldScreen.onPointerUp(e);
+    if (modes.mode === 'world') worldScreen.onPointerUp(e, ...local(e));
     else builder.onPointerUp(e, cellOf(e));
   };
   canvas.addEventListener('pointerup', up);
@@ -243,11 +246,25 @@ async function boot(): Promise<void> {
       worldScreen.cancelPlacing();
       return;
     }
-    if (modes.mode !== 'builder') return;
+    if (modes.mode === 'world') {
+      // Every key that is not a world key belongs to the controlled robot (Gate 2).
+      const code = codeOf(e);
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || code === '' || worldKeyLabel(code) !== undefined) return;
+      if (worldScreen.controlledId !== undefined) e.preventDefault();
+      worldScreen.keys.down('keyboard', keyName({ code }));
+      return;
+    }
     if (builder.onKeyDown(e)) e.preventDefault();
   });
-  window.addEventListener('keyup', (e) => builder.onKeyUp(e));
-  window.addEventListener('blur', () => builder.endGesture());
+  window.addEventListener('keyup', (e) => {
+    const code = codeOf(e);
+    if (code !== '') worldScreen.keys.up('keyboard', keyName({ code }));
+    builder.onKeyUp(e);
+  });
+  window.addEventListener('blur', () => {
+    builder.endGesture();
+    worldScreen.keys.releaseAll();
+  });
   bindKeys(window, worldKeys, () => modes.mode === 'world' && !store.get().dialog);
 
   // Buttons and dropdowns give focus back after use, so builder keys (and Space) never land on them.
