@@ -35,10 +35,15 @@ export interface StoreOptions {
   maxBytes: number;
   /** Write indented JSON (readable in diffs) or one line. */
   pretty: boolean;
+  /** Also serve `.js` script files as plain text (M5: scripts live next to their blueprint). */
+  scripts?: boolean;
 }
 
-export const BLUEPRINTS: StoreOptions = { noun: 'blueprint', maxBytes: MAX_BODY_BYTES, pretty: true };
+export const BLUEPRINTS: StoreOptions = { noun: 'blueprint', maxBytes: MAX_BODY_BYTES, pretty: true, scripts: true };
 export const REPLAYS: StoreOptions = { noun: 'replay', maxBytes: 20_000_000, pretty: false };
+/** A script file: a plain name, no path, ending in `.js`. */
+const SCRIPT_NAME = /^[a-z0-9][a-z0-9._-]*\.js$/;
+const MAX_SCRIPT_BYTES = 200_000;
 
 /** `url` is relative to the route (`/api/blueprints`): `/` for the list, `/<file>.json` for one file. */
 export function handleBlueprintRequest(method: string, url: string, body: string, store: FileStore, opts: StoreOptions = BLUEPRINTS): ApiResponse {
@@ -58,6 +63,7 @@ export function handleBlueprintRequest(method: string, url: string, body: string
     return json(200, items);
   }
   const file = path.slice(1);
+  if (opts.scripts && SCRIPT_NAME.test(file) && !file.includes('..')) return scriptRequest(method, file, body, store);
   if (!FILE_NAME.test(file)) return json(400, { error: `bad ${noun} file name "${file}"` });
   switch (method) {
     case 'GET': {
@@ -81,6 +87,26 @@ export function handleBlueprintRequest(method: string, url: string, body: string
       store.remove(file);
       return json(200, { ok: true });
     }
+    default:
+      return json(405, { error: `method ${method} is not allowed` });
+  }
+}
+
+/** Script files are stored as they are: plain text, no JSON. */
+function scriptRequest(method: string, file: string, body: string, store: FileStore): ApiResponse {
+  switch (method) {
+    case 'GET': {
+      const text = store.read(file);
+      return text === undefined ? json(404, { error: `no script ${file}` }) : { status: 200, body: text };
+    }
+    case 'PUT':
+      if (body.length > MAX_SCRIPT_BYTES) return json(413, { error: 'script is too large' });
+      store.write(file, body);
+      return json(200, { ok: true });
+    case 'DELETE':
+      if (store.read(file) === undefined) return json(404, { error: `no script ${file}` });
+      store.remove(file);
+      return json(200, { ok: true });
     default:
       return json(405, { error: `method ${method} is not allowed` });
   }

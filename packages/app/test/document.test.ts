@@ -22,6 +22,10 @@ function setup(files: Record<string, unknown> = {}, answers: { unsaved?: Unsaved
       remove: async (file) => {
         delete files[file];
       },
+      loadText: async (file) => (typeof files[file] === 'string' ? (files[file] as string) : undefined),
+      saveText: async (file, text) => {
+        files[file] = text;
+      },
     },
     getDraft: () => draft,
     setDraft: (bp) => {
@@ -44,7 +48,7 @@ function setup(files: Record<string, unknown> = {}, answers: { unsaved?: Unsaved
     },
   };
   const doc = new DocumentController(deps);
-  return { doc, files, asked, renamed, edit: (fn: (b: Blueprint) => Blueprint) => (draft = fn(draft)), draft: () => draft };
+  return { doc, files, asked, renamed, deps, edit: (fn: (b: Blueprint) => Blueprint) => (draft = fn(draft)), draft: () => draft };
 }
 
 const carFile = { format: 1, name: 'car', grid: ['F C F', 'W . W'] };
@@ -179,5 +183,43 @@ describe('DocumentController', () => {
     expect(t.draft().parts).toHaveLength(6);
     expect(t.doc.isDirty()).toBe(true);
     expect(await t.doc.confirmLeave()).toBe(false);
+  });
+
+  it('opens a blueprint with its script files; editing a script makes it dirty; Save writes the script file', async () => {
+    const t = setup({
+      'drone.json': { format: 1, name: 'drone', grid: ['C'], scripts: [{ id: 'hover', source: { file: 'drone.hover.js' } }] },
+      'drone.hover.js': 'function tick() {}',
+    });
+    expect(await t.doc.open('drone.json')).toBe(true);
+    expect(t.draft().scripts[0]).toMatchObject({ source: 'function tick() {}', file: 'drone.hover.js' });
+    expect(t.doc.isDirty()).toBe(false);
+    t.edit((b) => ({ ...b, scripts: b.scripts.map((s) => ({ ...s, source: 'function tick() { log(1); }' })) }));
+    expect(t.doc.isDirty()).toBe(true);
+    expect(await t.doc.save()).toBe(true);
+    expect(t.files['drone.hover.js']).toBe('function tick() { log(1); }');
+    expect((t.files['drone.json'] as { scripts: unknown[] }).scripts).toEqual([{ id: 'hover', source: { file: 'drone.hover.js' } }]);
+    expect(t.doc.isDirty()).toBe(false);
+  });
+
+  it('a new script gets a file named after the blueprint on Save; Save As copies scripts and leaves the originals', async () => {
+    const t = setup({ 'drone.json': { format: 1, name: 'drone', grid: ['C'] } }, { names: ['drone two'] });
+    await t.doc.open('drone.json');
+    t.edit((b) => ({ ...b, scripts: [{ id: 'hover', enabled: true, params: {}, source: 'function tick() {}' }] }));
+    await t.doc.save();
+    expect(t.files['drone.hover.js']).toBe('function tick() {}');
+    expect(t.draft().scripts[0]?.file).toBe('drone.hover.js');
+    t.edit((b) => ({ ...b, scripts: b.scripts.map((s) => ({ ...s, source: 'function tick() { /* v2 */ }' })) }));
+    expect(await t.doc.saveAs()).toBe(true);
+    expect(t.files['drone-two.hover.js']).toBe('function tick() { /* v2 */ }');
+    expect(t.files['drone.hover.js']).toBe('function tick() {}');
+    expect(t.draft().scripts[0]?.file).toBe('drone-two.hover.js');
+  });
+
+  it('reports script files that are missing', async () => {
+    const notes: string[] = [];
+    const t = setup({ 'drone.json': { format: 1, name: 'drone', grid: ['C'], scripts: [{ id: 'hover', source: { file: 'gone.js' } }] } });
+    t.deps.notify = (m) => notes.push(m);
+    expect(await t.doc.open('drone.json')).toBe(true);
+    expect(notes).toEqual(['drone.json: script file not found: gone.js']);
   });
 });

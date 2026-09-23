@@ -63,3 +63,14 @@ export function replayFileName(now: Date, robot: string | undefined): string {
   const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`;
   return `${stamp}-${slug(robot ?? 'world')}.json`;
 }
+
+/** A script file's text from `blueprints/`, or undefined when there is none. */
+export async function loadScriptFile(file: string): Promise<string | undefined> {
+  const res = await fetch(`${BASE}/${file}`);
+  if (res.status === 404) return undefined;
+  return (await check(res)).text();
+}
+
+export async function saveScriptFile(file: string, text: string): Promise<void> {
+  await check(await fetch(`${BASE}/${file}`, { method: 'PUT', headers: { 'content-type': 'text/javascript' }, body: text }));
+}

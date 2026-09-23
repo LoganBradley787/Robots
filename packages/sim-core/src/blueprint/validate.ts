@@ -133,6 +133,7 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
     });
   }
 
+  checkScripts(blueprint, err);
   checkBindings(blueprint, registry, err, warn);
   const ok = !issues.some((i) => i.severity === 'error');
   return { blueprint, plan, issues, ok };
@@ -155,6 +156,20 @@ function describeFaces(p: PlacedPart, registry: PartRegistry): string {
 }
 
 type Report = (code: string, message: string, extra?: Partial<Issue>) => void;
+
+/** Script ids are names you bind keys to; files live in `blueprints/` and must be plain `.js` names. */
+export const SCRIPT_FILE = /^[a-z0-9][a-z0-9._-]*\.js$/;
+
+function checkScripts(bp: Blueprint, err: Report): void {
+  const seen = new Set<string>();
+  for (const s of bp.scripts) {
+    if (seen.has(s.id)) err('BAD_SCRIPT', `script id '${s.id}' is used twice`);
+    seen.add(s.id);
+    if (s.file !== undefined && (!SCRIPT_FILE.test(s.file) || s.file.includes('..'))) {
+      err('BAD_SCRIPT', `script '${s.id}' file '${s.file}' must be a plain name in blueprints/ like 'drone.hover.js'`);
+    }
+  }
+}
 
 function checkBindings(bp: Blueprint, registry: PartRegistry, err: Report, warn: Report): void {
   for (const b of bp.bindings) {

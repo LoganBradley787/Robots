@@ -243,7 +243,7 @@ function readScripts(raw: unknown, err: Err): ScriptSpec[] {
     const path = `scripts[${i}]`;
     const bad = (msg: string): void => err('BAD_SCRIPT', `${path}: ${msg}`, { path });
     if (!isObj(s)) return bad('must be an object');
-    const extra = unknownKeys(s, ['id', 'enabled', 'params', 'source']);
+    const extra = unknownKeys(s, ['id', 'enabled', 'params', 'source', 'file']);
     if (extra.length > 0) return bad(`unknown field '${extra[0]}'`);
     if (!isNonEmptyString(s.id)) return bad('id must be a non-empty string');
     if (s.enabled !== undefined && typeof s.enabled !== 'boolean') return bad('enabled must be true or false');
@@ -259,8 +259,10 @@ function readScripts(raw: unknown, err: Err): ScriptSpec[] {
     if (typeof s.source === 'string') source = s.source;
     else if (isObj(s.source) && isNonEmptyString(s.source.file) && unknownKeys(s.source, ['file']).length === 0) source = { file: s.source.file };
     else return bad('source must be a string or { "file": "name.js" }');
+    if (s.file !== undefined && !isNonEmptyString(s.file)) return bad('file must be a file name like "drone.hover.js"');
+    const file = typeof source === 'string' ? (s.file as string | undefined) : source.file;
     // A script starts on deploy unless it says otherwise (Logan, before M5).
-    out.push({ id: s.id, enabled: s.enabled !== false, params, source });
+    out.push({ id: s.id, enabled: s.enabled !== false, params, source, ...(file !== undefined ? { file } : {}) });
   });
   return out;
 }

@@ -1,5 +1,5 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
-import { DEFAULT_WORLD, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
+import { DEFAULT_WORLD, readBlueprint, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
@@ -107,7 +107,9 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 2;
   }
-  const blueprint = readJson(resolveBlueprint(bpArg));
+  const loaded = readBlueprint(resolveBlueprint(bpArg));
+  for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to the blueprint`);
+  const blueprint = loaded.raw;
 
   if (command === 'show') {
     const s = showBlueprint(blueprint);

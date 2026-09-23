@@ -1,4 +1,5 @@
 import { DriveTracker, parseReplay, runReplay, sampleRobot, type DriveMetrics } from '@robots/sim-core';
+import { scriptHost } from '../scriptHost';
 import { energyOf, formatDrive, formatEnergy, type RunReport } from './run';
 
 export interface ReplayReport {
@@ -13,13 +14,17 @@ export interface ReplayReport {
 export async function replayCommand(raw: unknown): Promise<ReplayReport> {
   const replay = parseReplay(raw);
   const trackers = new Map<number, DriveTracker>();
-  const r = await runReplay(replay, (world) => {
-    for (const robot of world.robots) {
-      let t = trackers.get(robot.id);
-      if (!t) trackers.set(robot.id, (t = new DriveTracker()));
-      t.add(sampleRobot(world, robot));
-    }
-  });
+  const r = await runReplay(
+    replay,
+    (world) => {
+      for (const robot of world.robots) {
+        let t = trackers.get(robot.id);
+        if (!t) trackers.set(robot.id, (t = new DriveTracker()));
+        t.add(sampleRobot(world, robot));
+      }
+    },
+    await scriptHost(),
+  );
   try {
     return {
       ticks: r.world.tick,

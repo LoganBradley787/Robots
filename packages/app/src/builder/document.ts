@@ -1,4 +1,4 @@
-import { blankBlueprint, expandBlueprint, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
+import { assignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
 import { fileForName, type BlueprintListing } from '../storage/blueprintApi';
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel';
@@ -10,6 +10,9 @@ export interface DocumentDeps {
     load(file: string): Promise<unknown>;
     save(file: string, json: unknown): Promise<void>;
     remove(file: string): Promise<void>;
+    /** Script files (`.js`) next to the blueprints. `loadText` gives undefined for a file that is not there. */
+    loadText(file: string): Promise<string | undefined>;
+    saveText(file: string, text: string): Promise<void>;
   };
   getDraft(): Blueprint;
   /** `keepHistory` is true for a rename during Save As; false when a different blueprint is loaded. */
@@ -53,8 +56,15 @@ export class DocumentController {
     return false;
   }
 
+  /** Script code counts: editing a script makes the blueprint dirty even though the file only references it. */
   private serialize(bp: Blueprint): string {
-    return JSON.stringify(toFileJson(bp, this.deps.registry));
+    return JSON.stringify(toFileJson(bp, this.deps.registry, { inlineScripts: true }));
+  }
+
+  /** Writes every script the draft has code for to its file, then the blueprint (which references them). */
+  private async write(file: string, bp: Blueprint, json: unknown): Promise<void> {
+    for (const s of scriptFiles(bp)) await this.deps.api.saveText(s.file, s.text);
+    await this.deps.api.save(file, json);
   }
 
   isDirty(): boolean {
@@ -73,7 +83,7 @@ export class DocumentController {
     if (!(await this.confirmLeave())) return false;
     let raw: unknown;
     try {
-      raw = await this.deps.api.load(file);
+      raw = await this.loadWithScripts(file);
     } catch (e) {
       this.deps.notify?.(`Could not open ${file}: ${e instanceof Error ? e.message : String(e)}`);
       return false;
@@ -105,12 +115,32 @@ export class DocumentController {
   async save(): Promise<boolean> {
     const file = this.state.file;
     if (file === undefined) return this.saveAs();
-    const draft = this.deps.getDraft();
+    // Scripts without a file yet get one named after the blueprint.
+    const draft = assignScriptFiles(this.deps.getDraft(), file, true);
     const json = toFileJson(draft, this.deps.registry);
     if (!this.writable(json)) return false;
-    await this.deps.api.save(file, json);
+    await this.write(file, draft, json);
+    if (draft.scripts.some((s, i) => s.file !== this.deps.getDraft().scripts[i]?.file)) this.deps.setDraft(draft, { keepHistory: true });
     this.savedJson = this.serialize(draft);
     return true;
+  }
+
+  /** Loads a blueprint file and the code of its scripts. Missing script files are reported, not fatal. */
+  private async loadWithScripts(file: string): Promise<unknown> {
+    const raw = await this.deps.api.load(file);
+    const wanted = new Set<string>();
+    resolveScripts(raw, (f) => {
+      wanted.add(f);
+      return undefined;
+    });
+    const texts = new Map<string, string>();
+    for (const f of wanted) {
+      const t = await this.deps.api.loadText(f);
+      if (t !== undefined) texts.set(f, t);
+    }
+    const r = resolveScripts(raw, (f) => texts.get(f));
+    if (r.missing.length > 0) this.deps.notify?.(`${file}: script file${r.missing.length === 1 ? '' : 's'} not found: ${r.missing.join(', ')}`);
+    return r.raw;
   }
 
   async saveAs(): Promise<boolean> {
@@ -121,15 +151,17 @@ export class DocumentController {
     // Ask even when the name maps to the open file: Save As must never replace the original silently.
     const existing = (await this.deps.api.list()).find((b) => b.file === file);
     if (existing && !(await this.deps.confirm(`"${existing.name}" (blueprints/${file}) already exists. Replace it?`))) return false;
-    const json = toFileJson({ ...this.deps.getDraft(), name }, this.deps.registry);
+    // Scripts are copied to files named after the new blueprint, so the original's scripts stay as they were.
+    const copy = assignScriptFiles({ ...this.deps.getDraft(), name }, file, false);
+    const json = toFileJson(copy, this.deps.registry);
     if (!this.writable(json)) return false;
-    await this.deps.api.save(file, json);
+    await this.write(file, copy, json);
     // Rename after the write, from the current draft, so edits made while saving are kept.
-    const renamed = { ...this.deps.getDraft(), name };
+    const renamed = { ...assignScriptFiles(this.deps.getDraft(), file, false), name };
     this.deps.setDraft(renamed, { keepHistory: true });
     this.deps.renameHistory?.(name);
     this.state = { file, name };
-    this.savedJson = JSON.stringify(json);
+    this.savedJson = this.serialize(copy);
     return true;
   }
 

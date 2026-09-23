@@ -44,8 +44,10 @@ export interface ScriptSpec {
   id: string;
   enabled: boolean;
   params: Record<string, number>;
-  /** Inline source in memory; `{ file }` on disk, relative to the blueprint file. */
+  /** The code, or `{ file }` when it has not been loaded from its file yet. */
   source: string | { file: string };
+  /** The `.js` file in `blueprints/` the code lives in (M5: scripts are separate files). Absent for inline scripts. */
+  file?: string;
 }
 
 /** A blueprint after expansion: a flat part list in blueprint order. */

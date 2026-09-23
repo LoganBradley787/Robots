@@ -114,7 +114,7 @@ describe('expandBlueprint', () => {
     });
     expect(issues).toEqual([]);
     expect(blueprint?.bindings).toHaveLength(2);
-    expect(blueprint?.scripts[0]).toEqual({ id: 'hover', enabled: false, params: { kp: 0.6 }, source: { file: 'hover.js' } });
+    expect(blueprint?.scripts[0]).toEqual({ id: 'hover', enabled: false, params: { kp: 0.6 }, source: { file: 'hover.js' }, file: 'hover.js' });
   });
 
   it('legend lookups ignore object prototype names', () => {

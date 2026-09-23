@@ -1,3 +1,4 @@
+import { scriptHost } from '../scriptHost';
 import { DriveTracker, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type RobotSample, type WorldFile } from '@robots/sim-core';
 
 export interface RunOptions {
@@ -39,7 +40,7 @@ export class InvalidBlueprint extends Error {
 
 /** Validates, spawns, and steps the blueprint, sampling the robot once per `sampleEverySeconds`. */
 export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptions): Promise<RunReport> {
-  const world = await World.create({ seed: opts.seed }, file);
+  const world = await World.create({ seed: opts.seed, scripts: await scriptHost() }, file);
   try {
     const v = validateBlueprint(blueprint, world.registry);
     if (!v.ok) throw new InvalidBlueprint(v.issues);

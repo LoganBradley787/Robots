@@ -81,3 +81,23 @@ describe('replays', () => {
     expect(replayFileName(new Date(2026, 0, 2, 3, 4, 5), undefined)).toBe('2026-01-02-030405-world.json');
   });
 });
+
+describe('script files in blueprints/', () => {
+  it('serves, writes, and deletes .js files as plain text, refusing paths', () => {
+    const store = memoryStore();
+    expect(handleBlueprintRequest('PUT', '/drone.hover.js', 'function tick() {}\n', store).status).toBe(200);
+    expect(store.files['drone.hover.js']).toBe('function tick() {}\n');
+    expect(handleBlueprintRequest('GET', '/drone.hover.js', '', store).body).toBe('function tick() {}\n');
+    expect(handleBlueprintRequest('GET', '/..%2Fevil.js', '', store).status).toBe(400);
+    expect(handleBlueprintRequest('GET', '/a..b.js', '', store).status).toBe(400);
+    expect(handleBlueprintRequest('PUT', '/big.js', 'x'.repeat(300_000), store).status).toBe(413);
+    // The blueprint list only lists blueprints.
+    expect(JSON.parse(handleBlueprintRequest('GET', '/', '', store).body)).toEqual([]);
+    expect(handleBlueprintRequest('DELETE', '/drone.hover.js', '', store).status).toBe(200);
+  });
+
+  it('replays do not serve scripts', () => {
+    const store = memoryStore();
+    expect(handleBlueprintRequest('PUT', '/x.js', 'code', store, REPLAYS).status).toBe(400);
+  });
+});

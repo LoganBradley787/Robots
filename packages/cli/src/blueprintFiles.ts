@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { resolveScripts } from '@robots/sim-core';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -42,4 +43,13 @@ export function resolveReplay(arg: string): string {
   const p = resolve(REPLAY_DIR, arg.endsWith('.json') ? arg : `${arg}.json`);
   if (!existsSync(p)) throw new Error(`no replay '${arg}' (looked in ${REPLAY_DIR})`);
   return p;
+}
+
+/** A blueprint file with its scripts' code loaded from the `.js` files next to it. Missing files are listed. */
+export function readBlueprint(path: string): { raw: unknown; missing: string[] } {
+  const dir = dirname(path);
+  return resolveScripts(readJson(path), (file) => {
+    const p = join(dir, file);
+    return existsSync(p) ? readFileSync(p, 'utf8') : undefined;
+  });
 }

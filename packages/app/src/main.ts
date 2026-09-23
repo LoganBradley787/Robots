@@ -19,7 +19,7 @@ import { Builder } from './builder/Builder';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
 import type { AppActions } from './ui/App';
-import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, replayFileName, saveBlueprintFile, saveReplayFile } from './storage/blueprintApi';
+import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadScriptFile, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile } from './storage/blueprintApi';
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');
@@ -45,7 +45,7 @@ async function boot(): Promise<void> {
 
   const doc = new DocumentController({
     registry,
-    api: { list: listBlueprints, load: loadBlueprintFile, save: saveBlueprintFile, remove: deleteBlueprintFile },
+    api: { list: listBlueprints, load: loadBlueprintFile, save: saveBlueprintFile, remove: deleteBlueprintFile, loadText: loadScriptFile, saveText: saveScriptFile },
     getDraft: () => builder.draft,
     setDraft: (bp: Blueprint, opts) => (opts?.keepHistory ? builder.edit(() => bp) : builder.load(bp)),
     renameHistory: (name) => builder.renameHistory(name),
@@ -170,7 +170,8 @@ async function boot(): Promise<void> {
         if (d.step === 'confirm-unsaved' && !(await doc.confirmLeave())) return;
         await syncDoc(true);
         setMode(enterWorld({ ...modes, paused: worldScreen.time.paused }));
-        worldScreen.startPlacing(toFileJson(builder.draft, registry), registry);
+        // Deploy carries script code inline, so the spawn log and replays never depend on files.
+        worldScreen.startPlacing(toFileJson(builder.draft, registry, { inlineScripts: true }), registry);
       };
       go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
     },
