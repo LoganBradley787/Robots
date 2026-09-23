@@ -1,6 +1,7 @@
 import type { Blueprint, Issue, Rotation, StaticStats } from '@robots/sim-core';
 import type { Mode } from '../app/modes';
 import type { BlueprintListing } from '../storage/blueprintApi';
+import type { WorldView } from '../world/WorldScreen';
 
 export interface BuilderView {
   draft: Blueprint;
@@ -50,4 +51,6 @@ export interface AppState {
   notice?: string;
   /** Palette icons: part id to a PNG data URL. */
   icons: Record<string, string>;
+  /** What the world toolbar shows; absent until the world has drawn a frame. */
+  world?: WorldView;
 }

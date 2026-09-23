@@ -1,4 +1,6 @@
+import { useState } from 'preact/hooks';
 import type { Binding, BindingMode, PartRegistry } from '@robots/sim-core';
+import { worldKeyLabel } from '../app/keys';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
@@ -12,6 +14,7 @@ const MODES: BindingMode[] = ['hold', 'toggle', 'pulse'];
 
 export function BindingsPanel({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: BindingActions }) {
   const draft = useStore(store, (s) => s.builder.draft);
+  const [refused, setRefused] = useState<string | undefined>(undefined);
   const bindings = draft.bindings;
   const targets = bindingTargets(draft, registry);
   const update = (i: number, patch: Partial<Binding>): void => {
@@ -42,6 +45,12 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
               onKeyDown={(e) => {
                 if (e.key === 'Tab' || e.key === 'Escape') return;
                 e.preventDefault();
+                const reserved = worldKeyLabel(e.code);
+                if (reserved) {
+                  setRefused(`${reserved}, so it cannot drive the robot. Letters and digits are all yours.`);
+                  return;
+                }
+                setRefused(undefined);
                 update(i, { key: keyName(e) });
                 (e.target as HTMLInputElement).blur();
               }}
@@ -101,6 +110,7 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
           </div>
         );
       })}
+      {refused && <p class="refused small">{refused}</p>}
       <button onClick={() => actions.setBindings([...bindings, defaultBinding(draft, registry)])} disabled={targets.tags.length + targets.parts.length === 0}>
         Add control
       </button>

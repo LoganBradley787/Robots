@@ -24,7 +24,8 @@ export function channelsForTarget(bp: Blueprint, registry: PartRegistry, target:
   return out;
 }
 
-const KEY_ORDER = 'wasdqezxcfrtgvbyhnujmikolp1234567890'.split('');
+// Side view: A and D drive, so they come first (Logan, Gate 2).
+const KEY_ORDER = 'dawsqezxcfrtgvbyhnujmikolp1234567890'.split('');
 
 /** A new binding: the first unused key, the first tag that has channels, its first channel at full value. */
 export function defaultBinding(bp: Blueprint, registry: PartRegistry): Binding {

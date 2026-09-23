@@ -22,14 +22,14 @@ describe('binding helpers', () => {
   });
 
   it('a default binding targets the first tag and its first channel at full value', () => {
-    expect(defaultBinding(bp, reg)).toEqual({ key: 'w', mode: 'hold', target: 'props', channel: 'throttle', value: 1 });
-    const withW = { ...bp, bindings: [{ key: 'w', mode: 'hold' as const, target: 'props', channel: 'throttle', value: 1 }] };
-    expect(defaultBinding(withW, reg).key).toBe('a');
+    expect(defaultBinding(bp, reg)).toEqual({ key: 'd', mode: 'hold', target: 'props', channel: 'throttle', value: 1 });
+    const withD = { ...bp, bindings: [{ key: 'd', mode: 'hold' as const, target: 'props', channel: 'throttle', value: 1 }] };
+    expect(defaultBinding(withD, reg).key).toBe('a');
   });
 
   it('a default binding without targets still has the shape', () => {
     const empty = expandBlueprint({ format: 1, name: 'e', grid: ['C'] }).blueprint as Blueprint;
-    expect(defaultBinding(empty, reg)).toEqual({ key: 'w', mode: 'hold', target: '', channel: '', value: 1 });
+    expect(defaultBinding(empty, reg)).toEqual({ key: 'd', mode: 'hold', target: '', channel: '', value: 1 });
   });
 
   it('keyName comes from the physical key, not the layout or Shift', () => {

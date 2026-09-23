@@ -28,7 +28,7 @@ The app opens in the builder. `Tab` switches between the builder and the world (
 
 ## World controls
 
-Space pause, `.` single step, `[` and `]` time scale (0.25x to 4x), F follow, C next robot, D debug outlines, G grid, R reset (clears robots), mouse wheel zoom, drag to pan.
+Every letter and digit belongs to your robot (A and D drive). World controls are on the toolbar at the bottom and on punctuation keys: Space pause, `.` single step, `[` and `]` time scale (0.25x to 4x), `,` camera (follow again, or next robot), `\` debug outlines, `` ` `` grid. Clear robots is a toolbar button that asks first. Mouse wheel zooms, drag pans.
 
 ## Art
 

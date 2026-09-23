@@ -105,7 +105,33 @@ async function boot(): Promise<void> {
     p.then(() => syncDoc(true)).catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
   };
 
+  const worldKeys = worldScreen.keyActions();
+  worldScreen.onView = (world) => store.set({ world });
   const actions: AppActions = {
+    worldTogglePause: worldKeys.togglePause,
+    worldStep: worldKeys.step,
+    worldSlower: worldKeys.slower,
+    worldFaster: worldKeys.faster,
+    worldCamera: worldKeys.camera,
+    worldToggleDebug: worldKeys.toggleDebug,
+    worldToggleGrid: worldKeys.toggleGrid,
+    worldReset: () => {
+      void ask(store, {
+        title: 'Clear robots?',
+        message: 'Removes every robot from the world. Your blueprints are not touched.',
+        buttons: [
+          { label: 'Cancel', value: 'no' },
+          { label: 'Clear', value: 'yes', kind: 'danger' },
+        ],
+        cancelValue: 'no',
+      }).then((a) => {
+        if (a.value === 'yes') worldKeys.reset();
+      });
+    },
+    toBuilder: () => {
+      worldScreen.cancelPlacing();
+      setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
+    },
     setBindings: (bindings) => builder.edit((bp) => setBindings(bp, bindings)),
     addTag: (ids, tag) => builder.edit((bp) => addTagToParts(bp, ids, tag)),
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
@@ -222,7 +248,7 @@ async function boot(): Promise<void> {
   });
   window.addEventListener('keyup', (e) => builder.onKeyUp(e));
   window.addEventListener('blur', () => builder.endGesture());
-  bindKeys(window, worldScreen.keyActions(), () => modes.mode === 'world');
+  bindKeys(window, worldKeys, () => modes.mode === 'world' && !store.get().dialog);
 
   // Buttons and dropdowns give focus back after use, so builder keys (and Space) never land on them.
   uiEl.addEventListener('click', (e) => {

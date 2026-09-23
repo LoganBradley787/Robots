@@ -24,7 +24,6 @@ Run `pnpm dev`, open http://localhost:5180. The app opens in the builder.
 - Undo and redo across drags; mirror mode placed flipped thrusters; box select and tagging; the ghost refuses the ground, the underground, and existing robots.
 
 ## Known issues
-- For M3: robot bindings and world keys overlap. New bindings default to `w`, `a`, `s`, `d`, ... while the world uses `D` (debug), `F`, `C`, `R`, `G`, Space, `.`, `[`, `]`. The M3 plan must decide which wins while a robot is possessed (likely: world keys move to modifiers or the possessed robot's bindings take priority) and add a validator warning for bindings on reserved keys.
 - A save round trip rewrites parts in grid reading order; with two or more cores and no `primaryCore`, the root core could change after reopening. Deploy is unaffected (it goes through the same file form).
 - Mirror mode's axis defaults to the core's column. On an asymmetric robot (the car: core in cell 2 of 6) mirroring overwrites parts on the far side. Alternative for Logan to judge: default to the center of the robot's bounding box.
 - The app is desktop-sized; panels overlap the canvas below about 1100 px wide.
@@ -32,6 +31,7 @@ Run `pnpm dev`, open http://localhost:5180. The app opens in the builder.
 - Propeller spin and thruster flame animations are not played until channels exist (M3).
 
 ## Decisions since the plans (newest first)
+- Gate 2 item 1 (Logan): letters and digits belong to the robot; A and D drive. World keys are punctuation (`\` debug, `` ` `` grid, `,` camera, Space, `.`, `[`, `]`), reset is a toolbar button with a confirm, the world has a clickable toolbar, the builder refuses world keys, and new controls default to D then A. Recorded in `docs/design/04`.
 - M2 review fixes: Save As always asks before replacing an existing file, including the open one; a blueprint that could not be reopened is never written; Delete keeps what is on screen as an unsaved blueprint; Save As renames every undo step; binding targets are only tags whose parts have input channels; binding keys are named from the physical key (`KeyboardEvent.code`); Esc, `Tab`, and window blur close an open drag; undo and redo are ignored mid-drag; Enter in a dialog presses the focused button; Cmd+S never opens the browser's Save Page; blueprint files are written atomically (temp file then rename).
 - M2: Preact without `@preact/preset-vite` (it needs Babel as a peer); Vite's built-in JSX transform with `jsxImportSource: preact`. Panel edits reload the page instead of hot swapping.
 - M2: `World.canPlace` tests each collider directly with `Shape.intersectsShape`; Rapier 0.20's scene queries only see colliders after a step, so they missed robots just spawned and the ground in a paused new world. Placement below the ground surface (y < 0) is refused even under the 2 m physics slab.

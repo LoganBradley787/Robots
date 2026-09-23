@@ -1,0 +1,114 @@
+{
+  "format": 1,
+  "name": "le car",
+  "parts": [
+    {
+      "part": "core",
+      "x": 0,
+      "y": 4
+    },
+    {
+      "part": "frame",
+      "x": -1,
+      "y": 4
+    },
+    {
+      "part": "frame",
+      "x": -1,
+      "y": 3
+    },
+    {
+      "part": "frame",
+      "x": 0,
+      "y": 3
+    },
+    {
+      "part": "frame",
+      "x": 1,
+      "y": 3
+    },
+    {
+      "part": "frame",
+      "x": 1,
+      "y": 4
+    },
+    {
+      "part": "frame",
+      "x": -2,
+      "y": 3
+    },
+    {
+      "part": "frame",
+      "x": 2,
+      "y": 3
+    },
+    {
+      "part": "wheel",
+      "x": -3,
+      "y": 2,
+      "rot": 270
+    },
+    {
+      "part": "wheel",
+      "x": 3,
+      "y": 2,
+      "rot": 90
+    },
+    {
+      "part": "frame",
+      "x": 2,
+      "y": 2
+    },
+    {
+      "part": "frame",
+      "x": -2,
+      "y": 2
+    },
+    {
+      "part": "wheel",
+      "x": -2,
+      "y": 1
+    },
+    {
+      "part": "wheel",
+      "x": 2,
+      "y": 1
+    },
+    {
+      "part": "propeller",
+      "x": 2,
+      "y": 4,
+      "rot": 270
+    }
+  ],
+  "bindings": [
+    {
+      "key": "d",
+      "mode": "hold",
+      "target": "wheel@-3,2",
+      "channel": "speed",
+      "value": 1
+    },
+    {
+      "key": "d",
+      "mode": "hold",
+      "target": "wheel@3,2",
+      "channel": "speed",
+      "value": 1
+    },
+    {
+      "key": "d",
+      "mode": "hold",
+      "target": "wheel@-2,1",
+      "channel": "speed",
+      "value": 1
+    },
+    {
+      "key": "d",
+      "mode": "hold",
+      "target": "wheel@2,1",
+      "channel": "speed",
+      "value": 1
+    }
+  ]
+}

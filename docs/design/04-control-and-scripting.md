@@ -62,6 +62,7 @@ interface InputFrame {
 ```
 
 - `KeyboardSource` lives in `packages/app` (it touches the DOM) and implements the `sim-core` interface. DOM key events accumulate into the next frame.
+- Key ownership (Logan, Gate 2, 2026-09-23): every letter and digit belongs to the robot; A and D are the main drive keys in this side view. World controls use punctuation only: Space pause, `.` step, `[` `]` speed, `\` debug outlines, `` ` `` grid, `,` camera (re-follow, or next robot). Reset has no key; it is on the world toolbar with a confirm. The builder refuses to bind a world key. Binding keys are named from the physical key (`a`, `1`, else the `KeyboardEvent.code`).
 - `ReplaySource` reads the input log.
 - `NullSource` for unpossessed chunks.
 - `AiCoreSource` (later) presses virtual buttons and writes channels from an AI policy. An AI core refuses possession but can be viewed.

@@ -6,8 +6,9 @@ import { Dialog } from './Dialog';
 import { BuilderHelp, IssuesPanel, Palette, StatsBadge, TopBar, type BuilderActions } from './BuilderUi';
 import { SelectionPanel, type SelectionActions } from './SelectionPanel';
 import { BindingsPanel, type BindingActions } from './BindingsPanel';
+import { WorldToolbar, type WorldActions } from './WorldToolbar';
 
-export type AppActions = BuilderActions & SelectionActions & BindingActions;
+export type AppActions = BuilderActions & SelectionActions & BindingActions & WorldActions;
 
 export function App({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
   const defs: PartDef[] = registry.list();
@@ -29,7 +30,7 @@ export function App({ store, registry, actions }: { store: Store<AppState>; regi
           <BuilderHelp />
         </>
       ) : (
-        <div class="mode-badge">World (Tab: builder)</div>
+        <WorldToolbar store={store} actions={actions} />
       )}
       {notice && <div class="notice panel">{notice}</div>}
       {dialog && <Dialog dialog={dialog} />}

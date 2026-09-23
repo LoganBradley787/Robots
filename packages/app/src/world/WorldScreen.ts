@@ -16,7 +16,17 @@ import { FixedStepper } from '../app/FixedStepper';
 import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
 
-const HELP = 'Tab builder   Space pause   . step   [ ] speed   F follow   C next robot   D debug   G grid   R reset   wheel zoom   drag pan';
+const HELP = 'wheel zoom   drag pan   (world controls are on the toolbar below)';
+
+/** What the world toolbar shows. */
+export interface WorldView {
+  paused: boolean;
+  timeScale: number;
+  debug: boolean;
+  grid: boolean;
+  follow: boolean;
+  robots: number;
+}
 
 /** Interpolated world position of the robot's core (or root part), for the camera. */
 function anchorPosition(world: World, robot: Robot, alpha: number): { x: number; y: number } {
@@ -41,6 +51,9 @@ export class WorldScreen {
   private lastHash: string;
   private targetIndex = 0;
   private dragging: { id: number; x: number; y: number } | null = null;
+  /** Called when anything the toolbar shows changes. */
+  onView?: (v: WorldView) => void;
+  private lastView = '';
   /** A blueprint waiting to be dropped, following the cursor. */
   private placing?: { ghost: SpawnGhost; at?: { x: number; y: number }; ok: boolean; reason?: string };
 
@@ -136,13 +149,13 @@ export class WorldScreen {
       toggleDebug: () => {
         this.debugVisible = !this.debugVisible;
       },
-      toggleFollow: () => {
-        this.cam = setFollow(this.cam, !this.cam.follow);
-      },
-      cycleTarget: () => {
+      camera: () => {
+        if (!this.cam.follow) {
+          this.cam = setFollow(this.cam, true);
+          return;
+        }
         if (this.world.robots.length === 0) return;
         this.targetIndex = (this.targetIndex + 1) % this.world.robots.length;
-        this.cam = setFollow(this.cam, true);
       },
       toggleGrid: () => {
         this.grid.visible = !this.grid.visible;
@@ -213,6 +226,19 @@ export class WorldScreen {
     const placingLines = p
       ? [`PLACING ${p.ghost.name}: click to drop   Esc cancels   ${p.ok ? 'fits here' : `blocked: ${p.reason ?? 'move the cursor into the world'}`}`]
       : [];
+    const view: WorldView = {
+      paused: time.paused,
+      timeScale: time.timeScale,
+      debug: this.debugVisible,
+      grid: this.grid.visible,
+      follow: this.cam.follow,
+      robots: this.world.robots.length,
+    };
+    const key = JSON.stringify(view);
+    if (key !== this.lastView) {
+      this.lastView = key;
+      this.onView?.(view);
+    }
     this.hud.set([
       `tick ${this.world.tick}   t=${this.world.time.toFixed(2)}s   ${Math.round(ticker.FPS)} fps`,
       `${time.paused ? 'PAUSED' : 'running'}   x${time.timeScale}   zoom ${this.cam.zoom.toFixed(2)}   follow ${this.cam.follow ? 'on' : 'off'}`,
