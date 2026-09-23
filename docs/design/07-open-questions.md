@@ -48,6 +48,7 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 
 ### Q10. Script API
 - The draft in `04` stands, including `world.robots()` with perfect information for later targeting. Revisited at Gate 4 with a real hover script in hand.
+- M5 built it (see `04`, As built): the tick number is `frame`, `world.robots()` and `self.acc` wait for M6. Logan (before M5): scripts are separate `.js` files, edited in the builder, and each says whether it starts on deploy.
 
 ### Q12. Script sandbox: QuickJS in WASM
 - `quickjs-emscripten`, one runtime per script, instruction-count budget. A spike confirmed the interrupt is bytecode based, deterministic, and uncatchable. Details in `04`, `08`, and `docs/research/script-sandbox.md`.
