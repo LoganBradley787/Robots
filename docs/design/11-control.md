@@ -31,10 +31,28 @@ What that becomes:
 - All numbers live in the wheel's part def, so tuning never touches engine code. Starting numbers and measured results are in the M3 plan and move here after tuning.
 
 ## On-screen keys panel (Logan)
-- A small bar in the world shows the controlled robot's keys only: `D`, `A`, `W`. No descriptions, because one key can drive wheels, a propeller, and later a script, and no label can say all of that. A fuller "what does each key do" view can come later.
+- A small bar in the world shows every key the controlled robot has (bound or auto), as the key letter only: bind K and a K button appears. No descriptions, because one key can drive wheels, a propeller, and later a script, and no label can say all of that. A fuller "what does each key do" view can come later.
 - A key lights up while it is held. A toggle key shows whether it is on.
 - The buttons act as the keys: press and hold the button to hold the key, click to tap it. A toggle flips on the click.
 - Editing controls stays in the builder.
 
 ## Replays
 - Every run in the world can be saved as a replay file: the world, every spawn, and every key press and release, by tick. `pnpm sim replay <file>` reruns it headless and checks it ends in the same state. This is how Logan can hand Claude a bug ("it flips when I do this").
+
+## Auto controls (Logan, 2026-09-23)
+Binding every wheel by hand (Logan's `le-car`) is tedious, so robots control themselves by default:
+- **On by default** for every blueprint, and derived from the parts whenever the robot is deployed, so a part added later just works. A blueprint can turn auto off entirely (`"autoControls": false`).
+- **Per part:** any part can opt out (`"auto": false` on the part). 31 wheels on auto and one special wheel is one checkbox, not 31 bindings.
+- **Wheels:** D drives right, A drives left, whatever the wheel's rotation. A wheel's forward is rolling toward +x.
+- **Thrusters and propellers:** the key for the direction the part pushes. Up W, down S, right D, left A. So S fires down-facing propellers and top thrusters, and D fires right-pushing thrusters together with the wheels.
+- Parts are data: which channel a part's auto control drives, and whether it is an axis (wheels) or follows the push direction (thrust), is in the part def (`autoControl`). The engine never names a part.
+- Custom bindings sit on top (K for a warhead). Auto and custom writers on the same channel sum and clamp, like any two bindings.
+- The builder's controls panel lists the auto controls as read-only lines, grouped by key, so it is visible what every key does.
+
+## Group tags
+- Every part carries an implicit tag for its type (`wheel`, `thruster`, `propeller`), so "all wheels" is a binding target without tagging anything. User tags remain for finer groups.
+- Channel values show as percent in the builder: `speed +100%` is full forward, `-100%` full reverse.
+
+## Builder: part menu and eraser (Logan, 2026-09-23; changes `10`)
+- **Right-click a part** opens a small menu next to it, in the spirit of Kerbal Space Program's part menu. It edits the selection when the clicked part is selected (box-select 5 wheels, right-click one, all 5 change), else just that part. Contents: tags (add, remove, pick an existing group), auto controls on or off, rotation, delete. It replaces the side selection panel.
+- **Erasing** is a tool: press `E` (or click the eraser in the palette) and left-click or left-drag to erase. Right-click no longer erases. Delete still removes the selection.

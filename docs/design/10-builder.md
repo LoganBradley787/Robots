@@ -19,8 +19,8 @@ Logan: building is more than dragging pieces. Later it means scripts and sensor 
 
 ## Placing parts: pick then paint
 - Click a part in the palette (or press its number key) to hold it. Click a cell to place it; hold and drag to place a run of them. A ghost shows where it goes and whether it fits.
-- Right-click (or right-drag) erases. `R` rotates the held part (`Shift+R` the other way). `Esc` drops what you are holding.
-- With nothing held, click selects a part; drag selects a box of parts. The side panel edits the selection's tags and rotation.
+- Erasing is the eraser tool (`E`, then left-click or drag); right-click opens the part menu (changed in M3, see `11`). `R` rotates the held part (`Shift+R` the other way). `Esc` drops what you are holding.
+- With nothing held, click selects a part; drag selects a box of parts. The part menu (right-click, `11`) edits the selection's tags, auto controls, and rotation.
 - Undo and redo (`Cmd/Ctrl+Z`, `Shift+Cmd/Ctrl+Z`). One drag is one undo step.
 
 ## Helpers
