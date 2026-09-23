@@ -123,6 +123,14 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
     }
   }
 
+  for (const id of plan.lockedJoints) {
+    const p = blueprint.parts.find((q) => q.id === id);
+    err('LOCKED_JOINT', `${id} cannot turn: the parts it carries also attach to its base another way, or another joint carries them too (a loop)`, {
+      partId: id,
+      ...(p ? { cell: { x: p.x, y: p.y } } : {}),
+    });
+  }
+
   const rootChunk = plan.chunks.find((c) => c.partIds.includes(rootId));
   const disconnected = blueprint.parts.map((p) => p.id).filter((id) => !rootChunk?.partIds.includes(id) && !unattached.has(id));
   if (disconnected.length > 0) {

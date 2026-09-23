@@ -3,7 +3,7 @@
   "name": "Gyro",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
-  "health": 1,
+  "health": 30,
   "symmetry": 1,
   "inputs": [
     { "name": "spin", "min": -1, "max": 1, "default": 0 },

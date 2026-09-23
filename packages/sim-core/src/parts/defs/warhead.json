@@ -3,12 +3,13 @@
   "name": "Warhead",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
-  "health": 1,
+  "health": 20,
   "symmetry": 4,
   "inputs": [{ "name": "detonate", "min": 0, "max": 1, "default": 0 }],
   "outputs": [],
   "powerDraw": 0,
   "behavior": "warhead",
-  "onDestroyed": { "explode": { "radius": 3, "impulseRadius": 5, "impulse": 30 } },
+  "onDestroyed": { "explode": { "radius": 3, "damage": 100, "pushRadius": 5, "push": 6 } },
+  "impact": { "speed": 5 },
   "sprite": { "frame": "part.warhead" }
 }

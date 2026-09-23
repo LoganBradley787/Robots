@@ -9,6 +9,7 @@ import propeller from './defs/propeller.json';
 import decoupler from './defs/decoupler.json';
 import warhead from './defs/warhead.json';
 import gyro from './defs/gyro.json';
+import rotator from './defs/rotator.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -50,6 +51,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['decoupler.json', decoupler],
   ['warhead.json', warhead],
   ['gyro.json', gyro],
+  ['rotator.json', rotator],
 ];
 
 let shipped: PartRegistry | null = null;

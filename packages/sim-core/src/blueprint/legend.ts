@@ -2,7 +2,7 @@ import type { LegendEntry } from './types';
 
 /**
  * Shipped tokens. Arrow tokens point the way the part acts: thrust direction, lift direction, release direction,
- * or the side the wheel sits on relative to what it mounts to.
+ * the side the wheel sits on relative to what it mounts to, or the side a rotator carries its turret on.
  */
 export const DEFAULT_LEGEND: Readonly<Record<string, LegendEntry>> = {
   C: { part: 'core' },
@@ -24,4 +24,8 @@ export const DEFAULT_LEGEND: Readonly<Record<string, LegendEntry>> = {
   Dv: { part: 'decoupler', rot: 180 },
   'D<': { part: 'decoupler', rot: 90 },
   'D>': { part: 'decoupler', rot: 270 },
+  R: { part: 'rotator', rot: 0 },
+  Rv: { part: 'rotator', rot: 180 },
+  'R<': { part: 'rotator', rot: 90 },
+  'R>': { part: 'rotator', rot: 270 },
 };

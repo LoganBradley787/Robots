@@ -27,14 +27,30 @@ describe('default part defs', () => {
       'decoupler',
       'warhead',
       'gyro',
+      'rotator',
     ]);
   });
 
-  it('every def has health 1 and a part sprite frame', () => {
-    for (const d of defaultRegistry().list()) {
-      expect(d.health).toBe(1);
-      expect(d.sprite.frame.startsWith('part.')).toBe(true);
-    }
+  it('every def has a part sprite frame', () => {
+    for (const d of defaultRegistry().list()) expect(d.sprite.frame.startsWith('part.')).toBe(true);
+  });
+
+  it('health (M6): frames are armor, propellers are fragile', () => {
+    const health = Object.fromEntries(defaultRegistry().list().map((d) => [d.id, d.health]));
+    expect(health).toEqual({ core: 50, frame: 60, battery: 30, wheel: 25, thruster: 25, propeller: 15, decoupler: 30, warhead: 20, gyro: 30, rotator: 40 });
+  });
+
+  it('the warhead explodes when destroyed and breaks on a hard hit', () => {
+    const w = defaultRegistry().get('warhead');
+    expect(w.onDestroyed?.explode).toEqual({ radius: 3, damage: 100, pushRadius: 5, push: 6 });
+    expect(w.impact).toEqual({ speed: 5 });
+  });
+
+  it('the rotator mounts below and carries parts on its other faces', () => {
+    const r = defaultRegistry().get('rotator');
+    expect(r.joint).toMatchObject({ motor: 'position', mountFace: 'S' });
+    expect(r.footprint[0]?.faces).toEqual(['N', 'E', 'S', 'W']);
+    expect(r.autoControl).toMatchObject({ channel: 'turn', keys: ['z', 'x'] });
   });
 
   it('the wheel is a jointed ball that mounts on its north face', () => {
@@ -84,14 +100,16 @@ describe('parsePartDef', () => {
     expect(() => parsePartDef(bad, 'thing.json')).toThrow('thing.json: joint.mountFace N is not an attachable face');
   });
 
-  it('a joint part attaches only through its mount face', () => {
+  it('a velocity joint part attaches only through its mount face', () => {
     const bad = { ...minimal, joint: { kind: 'revolute', mountFace: 'N', motor: 'velocity', maxTorque: 1, motorFactor: 1 } };
     expect(() => parsePartDef(bad, 'thing.json')).toThrow('thing.json: footprint[0].faces must be exactly [N]');
   });
 
-  it('rejects position motors until the rotator exists', () => {
-    const bad = { ...minimal, footprint: [{ x: 0, y: 0, faces: ['N'] }], joint: { kind: 'revolute', mountFace: 'N', motor: 'position' } };
-    expect(() => parsePartDef(bad, 'thing.json')).toThrow('not supported yet');
+  it('a position joint part carries parts on its other faces and takes no motorFactor', () => {
+    const ok = { ...minimal, joint: { kind: 'revolute', mountFace: 'S', motor: 'position', maxTorque: 5 } };
+    expect(parsePartDef(ok, 'thing.json').joint).toEqual({ kind: 'revolute', mountFace: 'S', motor: 'position', maxTorque: 5, motorFactor: 0 });
+    const bad = { ...minimal, joint: { kind: 'revolute', mountFace: 'S', motor: 'position', maxTorque: 5, motorFactor: 1 } };
+    expect(() => parsePartDef(bad, 'thing.json')).toThrow('joint.motorFactor');
   });
 
   it('requires a radius for ball colliders', () => {

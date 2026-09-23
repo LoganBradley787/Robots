@@ -3,7 +3,7 @@
   "name": "Frame",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
-  "health": 1,
+  "health": 60,
   "symmetry": 1,
   "inputs": [],
   "outputs": [],

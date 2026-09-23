@@ -16,17 +16,21 @@ export interface ChannelDef {
 }
 
 /**
- * A part that is its own rigid body, joined to the part across its mount face, which must be its only
- * attachable face. The motor settings belong to the joint; the behavior maps channels to motor targets.
+ * A part that is its own rigid body, joined to the part across its mount face. Parts attached through its other
+ * faces ride on its body (a rotator's turret). The motor settings belong to the joint; the behavior maps channels to
+ * motor targets.
  */
 export interface JointSpec {
   kind: 'revolute';
   mountFace: Face;
-  /** Only velocity motors exist so far. Position motors arrive with the rotator (M6). */
-  motor: 'velocity';
+  /**
+   * `velocity` (wheel): spins at a target speed; a velocity joint part attaches only through its mount face.
+   * `position` (rotator, M6): holds a target angle, gains set by its behavior each tick.
+   */
+  motor: 'velocity' | 'position';
   /** Torque cap in N m. The motor is force based, so heavy robots need stronger motors. */
   maxTorque: number;
-  /** Velocity gain: torque per rad/s of error, before the cap. */
+  /** Velocity gain: torque per rad/s of error, before the cap. Velocity motors only (0 for position motors). */
   motorFactor: number;
 }
 
@@ -53,10 +57,20 @@ export interface ResourceSpec {
   capacity: number;
 }
 
+/**
+ * A blast (`03`, Explosions): `damage` at the center falling linearly to 0 at `radius` (meters), halved by every part
+ * or terrain box in the way; and a push of `push` N s per cell at the center falling to 0 at `pushRadius`.
+ */
 export interface ExplodeSpec {
   radius: number;
-  impulseRadius: number;
-  impulse: number;
+  damage: number;
+  pushRadius: number;
+  push: number;
+}
+
+/** A part that breaks when a hit stops its body by more than `speed` m/s within one step (a warhead's fuze). */
+export interface ImpactSpec {
+  speed: number;
 }
 
 /**
@@ -94,6 +108,7 @@ export interface PartDef {
   collider?: ColliderSpec;
   resource?: ResourceSpec;
   onDestroyed?: { explode?: ExplodeSpec };
+  impact?: ImpactSpec;
   sprite: SpriteSpec;
   defaultTags?: string[];
 }

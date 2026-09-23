@@ -513,6 +513,39 @@ function drawGyro(): Canvas {
   return cv;
 }
 
+const TURRET = hex('#b8732e');
+
+/** Drawn on the parent body at the joint (it does not turn): a base block from the cell center down to the bottom edge. */
+function drawRotatorMount(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  cv.fill(poly([[10, 64], [54, 64], [46, 36], [18, 36]]), OUTLINE);
+  cv.fill(poly([[12.5, 62.5], [51.5, 62.5], [44.5, 38], [19.5, 38]]), STEEL);
+  cv.fill(rect(12.5, 58, 51.5, 62.5), BLACK, 0.25);
+  for (const x of [18, 46] as const) rivet(cv, x, 56, 2.2);
+  return cv;
+}
+
+/** The turning part: a turntable with a turret plate on top; the notch points where it aims (N at rotation 0). */
+function drawRotator(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  // Turret plate across the top and sides (what it carries attaches there).
+  cv.fill(rect(0, 0, 64, 30), OUTLINE);
+  cv.fill(rect(2.5, 2.5, 61.5, 27.5), TURRET);
+  bevel(cv, 2.5, 2.5, 61.5, 27.5, 2, 0.3, 0.3);
+  for (const [x, y] of [[9, 9], [55, 9]] as const) rivet(cv, x, y);
+  // Turntable disc on the axle.
+  cv.fill(circle(32.8, 32.8, 20), BLACK, 0.35);
+  cv.fill(circle(32, 32, 19.5), OUTLINE);
+  shadedDisc(cv, 32, 32, 17, lighten(TURRET, 0.15), 1.2, 0.35, 0.35);
+  cv.fill(ring(32, 32, 11, 12.5), DARK_METAL, 0.7);
+  // Aim notch toward N.
+  cv.fill(poly([[32, 6], [39, 20], [25, 20]]), YELLOW);
+  cv.fill(poly([[32, 6], [39, 20], [25, 20]]), BLACK, 0.15);
+  cv.fill(circle(32, 32, 4.5), DARK_METAL);
+  shadedDisc(cv, 32, 32, 3, STEEL, 0.8, 0.4, 0.3);
+  return cv;
+}
+
 function drawFlame(length: number, width: number, seed: number): Canvas {
   const cv = new Canvas(CELL, CELL);
   const rnd = mulberry32(seed);
@@ -732,6 +765,8 @@ function main(): void {
     { name: 'part.decoupler', canvas: drawDecoupler() },
     { name: 'part.warhead', canvas: drawWarhead() },
     { name: 'part.gyro', canvas: drawGyro() },
+    { name: 'part.rotator', canvas: drawRotator() },
+    { name: 'part.rotator.mount', canvas: drawRotatorMount() },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
   write('sheets/parts.png', partsSheet.png);

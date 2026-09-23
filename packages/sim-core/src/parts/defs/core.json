@@ -3,7 +3,7 @@
   "name": "Core",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 2,
-  "health": 1,
+  "health": 50,
   "symmetry": 4,
   "inputs": [],
   "outputs": [

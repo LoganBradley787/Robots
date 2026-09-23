@@ -3,12 +3,13 @@
   "name": "Decoupler",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
-  "health": 1,
+  "health": 30,
   "symmetry": 4,
   "inputs": [{ "name": "fire", "min": 0, "max": 1, "default": 0 }],
   "outputs": [{ "name": "armed", "min": 0, "max": 1, "default": 1 }],
   "powerDraw": 0,
+  "acts": "N",
   "behavior": "decoupler",
-  "behaviorConfig": { "separationImpulse": 2 },
+  "behaviorConfig": { "separation": 2 },
   "sprite": { "frame": "part.decoupler" }
 }

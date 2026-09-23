@@ -64,7 +64,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -163,14 +163,18 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   if (o.onDestroyed !== undefined) {
     const od = r.obj(o.onDestroyed, 'onDestroyed', ['explode']);
     if (od.explode !== undefined) {
-      const eo = r.obj(od.explode, 'onDestroyed.explode', ['radius', 'impulseRadius', 'impulse']);
+      const eo = r.obj(od.explode, 'onDestroyed.explode', ['radius', 'damage', 'pushRadius', 'push']);
       const p = 'onDestroyed.explode';
       def.onDestroyed = {
-        explode: { radius: r.positive(eo, 'radius', p), impulseRadius: r.positive(eo, 'impulseRadius', p), impulse: r.positive(eo, 'impulse', p) },
+        explode: { radius: r.positive(eo, 'radius', p), damage: r.positive(eo, 'damage', p), pushRadius: r.positive(eo, 'pushRadius', p), push: r.positive(eo, 'push', p) },
       };
     } else {
       def.onDestroyed = {};
     }
+  }
+  if (o.impact !== undefined) {
+    const io = r.obj(o.impact, 'impact', ['speed']);
+    def.impact = { speed: r.positive(io, 'speed', 'impact') };
   }
   if (o.defaultTags !== undefined) {
     def.defaultTags = r.arr(o, 'defaultTags', '').map((t, i) => {
@@ -194,19 +198,19 @@ function joint(r: Reader, v: unknown, footprint: FootprintCell[]): JointSpec {
   const jo = r.obj(v, 'joint', ['kind', 'mountFace', 'motor', 'maxTorque', 'motorFactor']);
   if (jo.kind !== 'revolute') r.fail('joint.kind', 'must be "revolute"');
   if (!isFace(jo.mountFace)) r.fail('joint.mountFace', 'must be one of N, E, S, W');
-  if (jo.motor === 'position') r.fail('joint.motor', '"position" is not supported yet (the rotator arrives in M6)');
-  if (jo.motor !== 'velocity') r.fail('joint.motor', 'must be "velocity"');
+  if (jo.motor !== 'velocity' && jo.motor !== 'position') r.fail('joint.motor', 'must be "velocity" or "position"');
   if (footprint.length !== 1) r.fail('joint', 'is only supported on one-cell parts');
   const faces = footprint[0]?.faces ?? [];
   if (!faces.includes(jo.mountFace)) r.fail('joint.mountFace', `${jo.mountFace} is not an attachable face`);
-  // A joint part attached through any other face would count as connected but spawn as a loose body.
-  if (faces.length !== 1) r.fail('footprint[0].faces', `must be exactly [${jo.mountFace}]: a joint part attaches only through its mount face`);
+  // A wheel is a ball: anything welded to its other faces would spin with it. Position joints carry parts.
+  if (jo.motor === 'velocity' && faces.length !== 1) r.fail('footprint[0].faces', `must be exactly [${jo.mountFace}]: a velocity joint part attaches only through its mount face`);
+  if (jo.motor === 'position' && jo.motorFactor !== undefined) r.fail('joint.motorFactor', 'is for velocity motors; a position motor gets its gains from its behavior');
   return {
     kind: 'revolute',
     mountFace: jo.mountFace,
-    motor: 'velocity',
+    motor: jo.motor,
     maxTorque: r.positive(jo, 'maxTorque', 'joint'),
-    motorFactor: r.positive(jo, 'motorFactor', 'joint'),
+    motorFactor: jo.motor === 'velocity' ? r.positive(jo, 'motorFactor', 'joint') : 0,
   };
 }
 
