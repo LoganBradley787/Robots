@@ -7,8 +7,9 @@ import { BuilderHelp, IssuesPanel, Palette, StatsBadge, TopBar, type BuilderActi
 import { PartMenu, type PartMenuActions } from './PartMenu';
 import { BindingsPanel, type BindingActions } from './BindingsPanel';
 import { WorldToolbar, type WorldActions } from './WorldToolbar';
+import { KeysBar, type KeysBarActions } from './KeysBar';
 
-export type AppActions = BuilderActions & PartMenuActions & BindingActions & WorldActions;
+export type AppActions = BuilderActions & PartMenuActions & BindingActions & WorldActions & KeysBarActions;
 
 export function App({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
   const defs: PartDef[] = registry.list();
@@ -30,7 +31,10 @@ export function App({ store, registry, actions }: { store: Store<AppState>; regi
           <BuilderHelp />
         </>
       ) : (
-        <WorldToolbar store={store} actions={actions} />
+        <>
+          <KeysBar store={store} actions={actions} />
+          <WorldToolbar store={store} actions={actions} />
+        </>
       )}
       {notice && <div class="notice panel">{notice}</div>}
       {dialog && <Dialog dialog={dialog} />}

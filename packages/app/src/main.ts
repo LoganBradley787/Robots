@@ -140,6 +140,8 @@ async function boot(): Promise<void> {
     setAutoControls: (on) => builder.edit((bp) => setAutoControls(bp, on)),
     closeMenu: () => builder.dispatch({ type: 'closeMenu' }),
     eraser: () => builder.dispatch({ type: 'eraser' }),
+    robotKeyDown: (key) => worldScreen.keys.down('mouse', key),
+    robotKeyUp: (key) => worldScreen.keys.up('mouse', key),
     rotate: (dir) => builder.dispatch({ type: 'rotate', dir }),
     deleteSelection: () => builder.dispatch({ type: 'deleteSelection' }),
     hold: (part) => builder.dispatch({ type: 'hold', part }),

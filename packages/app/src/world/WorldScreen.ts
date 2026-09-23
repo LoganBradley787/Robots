@@ -17,6 +17,7 @@ import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
 import { KeyboardSource } from '../control/KeyboardSource';
 import { isClick, nextRobot } from '../control/possession';
+import { AUTO_KEYS } from '@robots/sim-core';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the toolbar below)';
 
@@ -284,9 +285,18 @@ export class WorldScreen {
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
     if (controlled && controller) {
       const toggles = new Set(controller.toggleKeys);
+      // W A S D first (auto controls), then custom keys in binding order.
+      const rank = (k: string): number => (AUTO_KEYS.includes(k) ? AUTO_KEYS.indexOf(k) : AUTO_KEYS.length);
+      const keys = controller.keys.map((key, i) => ({ key, i })).sort((a, b) => rank(a.key) - rank(b.key) || a.i - b.i);
       view.controlled = {
         name: controlled.name,
-        keys: controller.keys.map((key) => ({ key, held: controller.isHeld(key), on: controller.isToggledOn(key), toggle: toggles.has(key) })),
+        keys: keys.map(({ key }) => ({
+          key,
+          // Lit as soon as it is pressed, even while paused; the sim catches up on the next tick.
+          held: controller.isHeld(key) || this.keys.isDown(key),
+          on: controller.isToggledOn(key),
+          toggle: toggles.has(key),
+        })),
       };
     }
     const key = JSON.stringify(view);
