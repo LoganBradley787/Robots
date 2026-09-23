@@ -71,7 +71,7 @@ docs/                  design, research, plans
 - Sim state reaches the UI through a small store the tick loop writes and components read. The UI sends commands (spawn, possess, toggle script, set param) to the sim; it never mutates sim objects.
 - Keyboard capture is suspended while a text field has focus.
 
-## Persistence
-- Autosave every editor change, debounced, to IndexedDB via `idb-keyval` under `{ schemaVersion, savedAt, blueprint }` with a migrations table keyed by `schemaVersion`.
-- Export and import: `showSaveFilePicker` when present (Chromium only, about a third of browsers), else Blob download and `<input type="file">`.
-- `localStorage` only for UI preferences. Call `navigator.storage.persist()` once after the first save. Safari evicts script-written storage after 7 days without interaction, so the UI nudges export.
+## Persistence (revised 2026-09-23, see `10-builder.md`)
+- Blueprints are JSON files in `blueprints/`. A Vite dev-server plugin serves `GET /api/blueprints`, `GET/PUT/DELETE /api/blueprints/:file`; the app calls it on explicit Save, Save As, and Delete. Names are slugged into safe file names; paths outside `blueprints/` are rejected.
+- A production build has no dev server, so it lists the blueprints bundled at build time and cannot save. That is acceptable for a local sandbox.
+- `idb-keyval` is no longer planned. `localStorage` only for UI preferences.

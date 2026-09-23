@@ -11,5 +11,6 @@ Read in order. Status lines at the top of each doc say whether it is draft, prop
 - `07-open-questions.md`: every open question with a recommendation and the milestone it blocks.
 - `08-tech-stack.md`: library choices, versions, repo layout, rendering and sandbox packaging conventions.
 - `09-execution-strategy.md`: roles, task units, handoff protocol, verification gates, parallelism, milestone boundaries.
+- `10-builder.md`: the blueprint builder screen, saving, and deploy, as decided with Logan.
 
 Source of truth for the vision: `../handoff-2026-09-22.md`. Working rules: `../../CLAUDE.md`.

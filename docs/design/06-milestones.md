@@ -21,11 +21,11 @@ Status: proposed, 2026-09-23. See "What changed" at the end. Each milestone gets
 - Done when: a hand-written car blueprint spawns, rests on its wheels, and the headless harness reports its resting pose.
 - Gate 1, Look: textures, sprite fit, scale, world look, camera and time controls.
 
-## M2: editor and persistence
-- Editor mode: palette, place, rotate, delete, tag parts, grid text box that round-trips with the canvas.
-- Bindings panel (data only; keys do nothing until M3). Live validator output.
-- Save and load: browser storage plus JSON file export and import. Shipped examples in `blueprints/`.
-- Spawn from the editor at a chosen point, and a way back into the editor.
+## M2: editor and persistence (details in `10-builder.md`, decided with Logan 2026-09-23)
+- Builder screen: palette, pick-then-paint placement, rotate, erase, select and tag, undo and redo, mirror mode, live stats with a center-of-mass marker. No ASCII text box (dropped by Logan).
+- Bindings panel (data only; keys do nothing until M3). Live validator output with highlighted cells.
+- Save and load: files in `blueprints/` through the dev server, explicit Save and Save As, unsaved-changes prompts.
+- Deploy from the builder: ghost on the cursor in the world, click to drop, `Tab` back to the builder.
 - Done when: a robot built in the editor is saved, reloaded, spawned, and rests in the world without touching a file.
 - Gate 2, Builder: placement, rotation, tags, save and load, and the trip between builder and world.
 

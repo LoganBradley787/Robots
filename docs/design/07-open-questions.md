@@ -42,8 +42,8 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 ### Q8. Camera and time
 - Follow the possessed core with smoothing, wheel zoom, drag to pan (pauses follow until a re-follow key), pause, single step, 0.25x to 4x. Time scale is ticks per frame so determinism holds. Judged at Gate 1.
 
-### Q9. Persistence: both
-- IndexedDB autosave with a versioned envelope, JSON export and import, and a `blueprints/` folder in the repo for shipped examples and Claude-authored robots. Details in `08`.
+### Q9. Persistence: files in the repo, explicit save (revised by Logan, 2026-09-23)
+- Originally IndexedDB autosave plus export and import. Logan chose instead: blueprints are files in `blueprints/`, written through the dev server, with explicit Save and Save As (autosave would wreck a design you are experimenting on). Claude and Logan share one set of blueprints. Details in `10-builder.md`.
 
 ### Q10. Script API
 - The draft in `04` stands, including `world.robots()` with perfect information for later targeting. Revisited at Gate 4 with a real hover script in hand.
@@ -66,8 +66,8 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 ### Q19. Binding conflicts: sum and clamp
 - Multiple held bindings on one channel sum and clamp, so A plus D gives 0. A toggle that is on counts as manual and overrides scripts on that channel until toggled off. Scripts read keys freely to blend.
 
-### Q20. Spawn: click to place
-- Ghost preview, primary core (or the single part for core-less blueprints like a bomb) lands on the cursor, works while the sim runs and in mid-air. A shortcut respawns the last blueprint at the same spot. Overlap is refused.
+### Q20. Spawn: click to place, from the builder
+- Ghost preview, primary core (or the single part for core-less blueprints like a bomb) lands on the cursor, works in mid-air. Overlap is refused. Revised with Logan 2026-09-23: spawning starts only from the builder's Deploy button (one drop per deploy); a quick-spawn menu and a respawn shortcut in the world are not planned for now.
 
 ### Q21. Terrain: immune
 - Terrain takes no damage in v1. Destructible terrain later means terrain made of cells, a separate feature.
