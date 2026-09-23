@@ -3,7 +3,7 @@ export { Prng } from './rng/Prng';
 export { StateHasher } from './replay/StateHasher';
 export { loadRapier, rapierVersion } from './physics/rapier';
 export { PhysicsWorld } from './physics/PhysicsWorld';
-export type { BodyId, BodyState, DebugBuffers } from './physics/PhysicsWorld';
+export type { BodyId, BodyState, DebugBuffers, JointId, BodySpec, ShapeSpec, ColliderPlacement, MotorSpec, MassProperties } from './physics/PhysicsWorld';
 export { parseWorldFile, buildWorld, WorldFileError } from './world/WorldFile';
 export type { WorldFile, WorldBox } from './world/WorldFile';
 export { InputLog } from './replay/InputLog';
