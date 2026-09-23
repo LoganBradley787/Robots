@@ -30,15 +30,17 @@ What that becomes:
 - Braking is pressing the opposite key (the motor pushes backward), or thrust. There is no automatic brake. Parked robots on a slope can roll.
 - All numbers live in the part defs, so tuning never touches engine code.
 
-### Tuned numbers (Gate 3 retune after the switch to multibody joints, `pnpm sim tune`, flat ground, D held)
-Wheel: `maxTorque` 12 N m, `motorFactor` 0.4, `maxSpeed` 50 rad/s (22.5 m/s at the rim), `coastTorque` 0.3 N m. Thruster `maxForce` 120 N, propeller 60 N.
+### Tuned numbers (Gate 3, after the switch to multibody joints and Logan's "the torque is too low", `pnpm sim tune`, flat ground, D held)
+Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), `maxSpeed` 50 rad/s (22.5 m/s at the rim), `coastTorque` 0.3 N m. Thruster `maxForce` 120 N, propeller 60 N. Part cells without their own friction slide at 0.3.
 
-| robot | mass | 1.5 s | 4 s | 8 s | 12 s | to 6 m/s |
-|---|---|---|---|---|---|---|
-| car (6 cells, 2 wheels) | 12 kg | 5.6 m/s | 12.7 | 16.7 | 17.6 | 1.6 s |
-| heavy car (double) | 24 kg | 3.0 | 7.7 | 13.2 | | 3.1 s |
+| robot | mass | 1.5 s | 4 s | 8 s | to 6 m/s |
+|---|---|---|---|---|---|
+| car (6 cells, 2 wheels) | 12 kg | 8.6 m/s | 16.2 | 18.7 | 1.05 s |
+| heavy car (double) | 24 kg | 5.1 | 11.8 | 16.6 | 1.8 s |
+| car with one wheel, body dragging | 11 kg | | 1 s: 2.3, 6 s: 11.0 | | 2.7 s |
 
-- Coasting from 12.7 m/s loses 15% in 2 s (the multibody joints' own damping plus the coast drag). Holding A from there stops the car in 2.8 s.
+- Why 20 N m: at 12 a one-wheel car dragging its body did 0.8 m/s after 1 s ("maxed out at 2 mph"). Above about 20 a single wheel slips at its grip limit, so more torque buys nothing there.
+- Coasting from 16 m/s loses 15% in 2 s. Holding A from there stops the car in 2.6 s.
 - The hopper (`blueprints/hopper.json`: two upward thrusters in the body row, 12 kg) is off the ground 0.2 s after W and climbs about 20 m in 2 s of holding: tap W to hop.
 - A part in the wheel row rests on the ground: wheels are 0.45 m balls and a box cell reaches 0.05 m lower, so a thruster between the wheels drags. Put such parts one row up.
 

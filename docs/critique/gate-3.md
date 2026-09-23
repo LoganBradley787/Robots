@@ -27,6 +27,11 @@ From Logan's first play session, 2026-09-23. Overall: "A couple minor issues, bu
 - Fix: part cells without a friction of their own use 0.3 (steel sliding on ground). The car now drives off from any overlap. A box robot still holds on the 18 degree ramp. `test/stability.test.ts` covers the screenshot pose and fails at 0.5.
 - Not the same as high-centering (the body fully on the 1 m block with both wheels in the air). That is real geometry (0.95 m clearance), kept as is.
 
+## 6. Wheels too weak (done)
+- Logan: a car with one wheel removed, dragging its body, "can barely move either direction... A real car would scrape along the ground, but it would still drive pretty dang fast."
+- Measured: at 12 N m that car did 0.8 m/s after 1 s and 4.5 m/s after 6 s. At 20 N m: 2.3 m/s after 1 s, 11 m/s after 6 s. More than about 20 only spins the wheel.
+- Changed: wheel torque 20 N m, motor gain 0.6. The normal car now reaches 6 m/s in about 1 s (was 1.6 s). Weight still matters: double the mass takes 1.8 s.
+
 ## Noted, not changed
 - Driving mechanics: fine as they are. Retuned after the joint change to keep the same feel (`11`).
 - Thrusters and propellers have no top speed (no air drag), so a propeller car keeps accelerating. Flag for Gate 4 or later.
