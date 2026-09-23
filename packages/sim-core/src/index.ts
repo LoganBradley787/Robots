@@ -10,7 +10,7 @@ export { InputLog } from './replay/InputLog';
 export type { LoggedTick } from './replay/InputLog';
 export { Controller } from './control/controller';
 export { matchesTarget } from './control/target';
-export { autoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
+export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
 export type { RobotInput, ControlledPart, ControlState } from './control/types';
 export { World } from './world/World';
 export type { WorldOptions, SpawnRecord } from './world/World';

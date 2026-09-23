@@ -16,6 +16,8 @@ export class Builder {
   private readonly store: Store<AppState>;
   private issues: Issue[] = [];
   private panning: { id: number; x: number; y: number } | null = null;
+  /** Where the part menu opened, in page pixels. It stays put while you pan. */
+  private menuAt = { x: 0, y: 0 };
   private spaceDown = false;
 
   constructor(registry: PartRegistry, scene: BuilderScene, store: Store<AppState>, initial: Blueprint) {
@@ -88,6 +90,7 @@ export class Builder {
       return;
     }
     if (e.button !== 0 && e.button !== 2) return;
+    if (e.button === 2) this.menuAt = { x: e.clientX, y: e.clientY };
     this.dispatch({ type: 'down', cell, button: e.button === 2 ? 'right' : 'left', shift: e.shiftKey });
   }
 
@@ -139,6 +142,9 @@ export class Builder {
     switch (e.code) {
       case 'Space':
         this.spaceDown = true;
+        return true;
+      case 'KeyE':
+        this.dispatch({ type: 'eraser' });
         return true;
       case 'KeyR':
         this.dispatch({ type: 'rotate', dir: e.shiftKey ? -1 : 1 });
@@ -199,7 +205,9 @@ export class Builder {
       builder: {
         draft: bp,
         ...(e.held ? { held: e.held } : {}),
+        eraser: e.eraser === true,
         selection: e.selection,
+        ...(e.menu ? { menu: { ids: e.menu.ids.filter((id) => bp.parts.some((p) => p.id === id)), ...this.menuAt } } : {}),
         mirror: e.mirror,
         canUndo: this.history.canUndo,
         canRedo: this.history.canRedo,

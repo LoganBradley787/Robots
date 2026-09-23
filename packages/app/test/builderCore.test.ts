@@ -80,7 +80,7 @@ describe('editor reducer', () => {
     expect(r.gestures).toEqual(['begin', 'end']);
   });
 
-  it('a right drag erases', () => {
+  it('the eraser tool erases with a left drag, and E toggles it off', () => {
     const painted = run([
       { type: 'pick', index: 1 },
       { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
@@ -89,7 +89,8 @@ describe('editor reducer', () => {
     ]);
     const r = run(
       [
-        { type: 'down', cell: { x: 0, y: 0 }, button: 'right', shift: false },
+        { type: 'eraser' },
+        { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
         { type: 'move', cell: { x: 1, y: 0 } },
         { type: 'up', cell: { x: 1, y: 0 } },
       ],
@@ -97,6 +98,39 @@ describe('editor reducer', () => {
       painted.editor,
     );
     expect(cellsOf(r.bp)).toEqual(['frame@2,0:0']);
+    expect(r.editor.held).toBeUndefined();
+    expect(r.gestures).toEqual(['begin', 'end']);
+    expect(run([{ type: 'eraser' }], r.bp, r.editor).editor.eraser).toBeUndefined();
+    expect(run([{ type: 'hold', part: 'frame' }], r.bp, r.editor).editor.eraser).toBeUndefined();
+  });
+
+  it('right-click opens the part menu on that part, or on the selection when the part is in it', () => {
+    const painted = run([
+      { type: 'pick', index: 1 },
+      { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
+      { type: 'move', cell: { x: 2, y: 0 } },
+      { type: 'up', cell: { x: 2, y: 0 } },
+      { type: 'escape' },
+    ]);
+    const one = run([{ type: 'down', cell: { x: 1, y: 0 }, button: 'right', shift: false }], painted.bp, painted.editor);
+    expect(one.editor.menu).toEqual({ ids: ['frame@1,0'] });
+    expect(one.editor.selection).toEqual(['frame@1,0']);
+    expect(cellsOf(one.bp)).toHaveLength(3);
+    const boxed = run(
+      [
+        { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
+        { type: 'move', cell: { x: 1, y: 0 } },
+        { type: 'up', cell: { x: 1, y: 0 } },
+        { type: 'down', cell: { x: 0, y: 0 }, button: 'right', shift: false },
+      ],
+      painted.bp,
+      painted.editor,
+    );
+    expect(boxed.editor.menu).toEqual({ ids: ['frame@0,0', 'frame@1,0'] });
+    const outside = run([{ type: 'down', cell: { x: 2, y: 0 }, button: 'right', shift: false }], boxed.bp, boxed.editor);
+    expect(outside.editor.menu).toEqual({ ids: ['frame@2,0'] });
+    expect(run([{ type: 'down', cell: { x: 9, y: 9 }, button: 'right', shift: false }], boxed.bp, boxed.editor).editor.menu).toBeUndefined();
+    expect(run([{ type: 'escape' }], boxed.bp, boxed.editor).editor.menu).toBeUndefined();
   });
 
   it('rotate cycles the held part and escape drops it', () => {

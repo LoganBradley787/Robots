@@ -5,6 +5,7 @@ import type { AppState } from './appState';
 
 export interface BuilderActions {
   hold(part: string): void;
+  eraser(): void;
   open(file: string): void;
   newBlank(): void;
   save(): void;
@@ -58,6 +59,7 @@ export function TopBar({ store, actions }: { store: Store<AppState>; actions: Bu
 
 export function Palette({ store, defs, actions }: { store: Store<AppState>; defs: PartDef[]; actions: BuilderActions }) {
   const held = useStore(store, (s) => s.builder.held);
+  const eraser = useStore(store, (s) => s.builder.eraser);
   const icons = useStore(store, (s) => s.icons);
   return (
     <div class="palette panel">
@@ -68,6 +70,11 @@ export function Palette({ store, defs, actions }: { store: Store<AppState>; defs
           <span class="part-key">{i + 1}</span>
         </button>
       ))}
+      <button class={eraser ? 'part eraser active' : 'part eraser'} onClick={actions.eraser} title="Eraser (E): click or drag to erase">
+        <span class="eraser-icon" />
+        <span class="part-name">Eraser</span>
+        <span class="part-key">E</span>
+      </button>
     </div>
   );
 }
@@ -99,6 +106,7 @@ export function StatsBadge({ store }: { store: Store<AppState> }) {
   const stats = useStore(store, (s) => s.builder.stats);
   const mirror = useStore(store, (s) => s.builder.mirror);
   const held = useStore(store, (s) => s.builder.held);
+  const eraser = useStore(store, (s) => s.builder.eraser);
   return (
     <div class="stats panel">
       <span>{stats.parts} parts</span>
@@ -110,6 +118,7 @@ export function StatsBadge({ store }: { store: Store<AppState> }) {
       )}
       <span class={mirror.on ? 'on' : 'muted'}>mirror {mirror.on ? `on at x ${(mirror.axisHalfCells / 2).toFixed(1)}` : 'off'}</span>
       {held && <span>holding {held.part} {held.rot}°</span>}
+      {eraser && <span class="on">eraser</span>}
     </div>
   );
 }
@@ -117,8 +126,8 @@ export function StatsBadge({ store }: { store: Store<AppState> }) {
 export function BuilderHelp() {
   return (
     <div class="help">
-      1-8 pick part · click or drag to paint · right-drag erase · R rotate · Esc drop · M mirror ([ ] move axis) · Space+drag or middle-drag pan ·
-      wheel zoom · Cmd+Z undo · Tab world
+      1-8 pick part · click or drag to paint · E eraser · right-click a part for its menu · R rotate · Esc drop · M mirror ([ ] move axis) ·
+      Space+drag or middle-drag pan · wheel zoom · Cmd+Z undo · Tab world
     </div>
   );
 }

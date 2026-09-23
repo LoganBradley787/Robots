@@ -6,7 +6,10 @@ import type { WorldView } from '../world/WorldScreen';
 export interface BuilderView {
   draft: Blueprint;
   held?: { part: string; rot: Rotation };
+  eraser: boolean;
   selection: string[];
+  /** The part menu: which parts it edits and where it opened (page pixels). */
+  menu?: { ids: string[]; x: number; y: number };
   mirror: { on: boolean; axisHalfCells: number; axisSet: boolean };
   canUndo: boolean;
   canRedo: boolean;

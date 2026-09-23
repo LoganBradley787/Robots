@@ -20,6 +20,10 @@ export interface Cell {
 export interface EditorState {
   /** The part being painted, if any. */
   held?: { part: string; rot: Rotation };
+  /** The eraser tool (`E`): left-click or drag erases. Never together with `held`. */
+  eraser?: true;
+  /** The part menu (right-click, `11`) is open on these parts. */
+  menu?: { ids: string[] };
   hover?: Cell;
   gesture?: { kind: 'paint' | 'erase' | 'select'; start: Cell; last: Cell };
   /** Shift was held when the current gesture started. */
@@ -32,6 +36,8 @@ export interface EditorState {
 export type EditorEvent =
   | { type: 'pick'; index: number }
   | { type: 'hold'; part: string }
+  | { type: 'eraser' }
+  | { type: 'closeMenu' }
   | { type: 'rotate'; dir: 1 | -1 }
   | { type: 'escape' }
   | { type: 'down'; cell: Cell; button: 'left' | 'right'; shift: boolean }
@@ -122,7 +128,16 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
     }
     case 'hold': {
       const rot = editor.held?.part === e.part ? editor.held.rot : 0;
-      return { editor: { ...editor, held: { part: e.part, rot }, selection: [] }, bp };
+      const { eraser: _eraser, menu: _menu, ...rest } = editor;
+      return { editor: { ...rest, held: { part: e.part, rot }, selection: [] }, bp };
+    }
+    case 'eraser': {
+      const { held: _held, menu: _menu, eraser, ...rest } = editor;
+      return { editor: eraser ? rest : { ...rest, eraser: true, selection: [] }, bp };
+    }
+    case 'closeMenu': {
+      const { menu: _menu, ...rest } = editor;
+      return { editor: rest, bp };
     }
     case 'rotate': {
       if (editor.held) return { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp };
@@ -133,10 +148,13 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       }
       return { editor, bp: out };
     }
-    case 'deleteSelection':
-      return editor.selection.length === 0 ? { editor, bp } : { editor: { ...editor, selection: [] }, bp: removeParts(bp, editor.selection) };
+    case 'deleteSelection': {
+      if (editor.selection.length === 0) return { editor, bp };
+      const { menu: _menu, ...rest } = editor;
+      return { editor: { ...rest, selection: [] }, bp: removeParts(bp, editor.selection) };
+    }
     case 'escape': {
-      const { held: _held, gesture: g, gestureShift: _shift, ...rest } = editor;
+      const { held: _held, eraser: _eraser, menu: _menu, gesture: g, gestureShift: _shift, ...rest } = editor;
       return { editor: { ...rest, selection: [] }, bp, ...(g && g.kind !== 'select' ? { gesture: 'end' as const } : {}) };
     }
     case 'endGesture': {
@@ -157,9 +175,17 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       return { editor: { ...editor, mirror: { ...editor.mirror, axisHalfCells: editor.mirror.axisHalfCells + e.delta, axisSet: true } }, bp };
     case 'down': {
       if (editor.gesture) return { editor, bp };
-      const kind = e.button === 'right' ? 'erase' : editor.held ? 'paint' : 'select';
+      const { menu: _menu, ...closed } = editor;
+      if (e.button === 'right') {
+        // Right-click opens the part menu: on the selection when the part is in it, else on just that part.
+        const hit = partAt(bp, registry, e.cell.x, e.cell.y);
+        if (!hit) return { editor: closed, bp };
+        const ids = editor.selection.includes(hit.id) ? editor.selection : [hit.id];
+        return { editor: { ...closed, selection: ids, menu: { ids } }, bp };
+      }
+      const kind = editor.eraser ? 'erase' : editor.held ? 'paint' : 'select';
       const next = {
-        ...editor,
+        ...closed,
         hover: e.cell,
         gesture: { kind, start: e.cell, last: e.cell },
         gestureShift: e.shift,

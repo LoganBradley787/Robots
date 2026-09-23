@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultRegistry, expandBlueprint, type Blueprint } from '@robots/sim-core';
-import { bindingTargets, channelsForTarget, defaultBinding, keyName } from '../src/builder/bindings';
+import { autoLabel, autoSummary, bindingTargets, channelsForTarget, defaultBinding, keyName, percent, typeLabel } from '../src/builder/bindings';
+import { setAutoControls, setPartsAuto } from '@robots/sim-core';
 
 const reg = defaultRegistry();
 const bp = expandBlueprint({
@@ -11,8 +12,14 @@ const bp = expandBlueprint({
 }).blueprint as Blueprint;
 
 describe('binding helpers', () => {
-  it('targets list explicit tags first, then parts that have inputs', () => {
-    expect(bindingTargets(bp, reg)).toEqual({ tags: ['props', 'wheels'], parts: ['propeller@0,1', 'propeller@2,1', 'wheel@0,0', 'wheel@2,0'] });
+  it('targets list part types, explicit tags, then parts that have inputs', () => {
+    expect(bindingTargets(bp, reg)).toEqual({
+      types: ['propeller', 'wheel'],
+      tags: ['props', 'wheels'],
+      parts: ['propeller@0,1', 'propeller@2,1', 'wheel@0,0', 'wheel@2,0'],
+    });
+    expect(typeLabel(reg, 'wheel')).toBe('all wheels');
+    expect(channelsForTarget(bp, reg, 'wheel')).toEqual([{ name: 'speed', min: -1, max: 1, default: 0 }]);
   });
 
   it('channels for a target are the inputs of its parts', () => {
@@ -21,10 +28,36 @@ describe('binding helpers', () => {
     expect(channelsForTarget(bp, reg, 'nothing')).toEqual([]);
   });
 
-  it('a default binding targets the first tag and its first channel at full value', () => {
-    expect(defaultBinding(bp, reg)).toEqual({ key: 'd', mode: 'hold', target: 'props', channel: 'throttle', value: 1 });
-    const withD = { ...bp, bindings: [{ key: 'd', mode: 'hold' as const, target: 'props', channel: 'throttle', value: 1 }] };
+  it('a default binding targets the first tag and its first channel at full value, on a key auto controls leave free', () => {
+    // Auto controls use D and A (wheels) and W (the propellers push up).
+    expect(defaultBinding(bp, reg)).toEqual({ key: 's', mode: 'hold', target: 'props', channel: 'throttle', value: 1 });
+    const off = setAutoControls(bp, false);
+    expect(defaultBinding(off, reg).key).toBe('d');
+    const withD = { ...off, bindings: [{ key: 'd', mode: 'hold' as const, target: 'props', channel: 'throttle', value: 1 }] };
     expect(defaultBinding(withD, reg).key).toBe('a');
+  });
+
+  it('summarizes auto controls by key, grouped by part type and direction', () => {
+    expect(autoSummary(bp, reg)).toEqual([
+      { key: 'W', text: '2 propellers' },
+      { key: 'A', text: '2 wheels reverse' },
+      { key: 'D', text: '2 wheels forward' },
+    ]);
+    const one = setPartsAuto(bp, ['wheel@0,0'], false);
+    expect(autoSummary(one, reg).find((l) => l.key === 'D')?.text).toBe('1 wheel forward');
+  });
+
+  it('labels what auto controls give one part', () => {
+    const part = (id: string) => bp.parts.find((p) => p.id === id)!;
+    expect(autoLabel(reg, part('wheel@0,0'))).toBe('D forward, A reverse');
+    expect(autoLabel(reg, part('propeller@0,1'))).toBe('W (pushes up)');
+    expect(autoLabel(reg, part('core@1,1'))).toBeUndefined();
+  });
+
+  it('shows values as percent', () => {
+    expect(percent(1)).toBe('+100%');
+    expect(percent(-0.5)).toBe('-50%');
+    expect(percent(0)).toBe('0%');
   });
 
   it('a default binding without targets still has the shape', () => {
@@ -42,6 +75,6 @@ describe('binding helpers', () => {
 
   it('tags on parts without inputs are not offered as targets', () => {
     const framed = expandBlueprint({ format: 1, name: 'f', grid: ['C F'], legend: { F: { part: 'frame', tags: ['body'] } } }).blueprint as Blueprint;
-    expect(bindingTargets(framed, reg)).toEqual({ tags: [], parts: [] });
+    expect(bindingTargets(framed, reg)).toEqual({ types: [], tags: [], parts: [] });
   });
 });

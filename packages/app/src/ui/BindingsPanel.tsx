@@ -4,10 +4,11 @@ import { worldKeyLabel } from '../app/keys';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
-import { bindingTargets, channelsForTarget, defaultBinding, keyName } from '../builder/bindings';
+import { autoSummary, bindingTargets, channelsForTarget, defaultBinding, keyName, percent, typeLabel } from '../builder/bindings';
 
 export interface BindingActions {
   setBindings(bindings: Binding[]): void;
+  setAutoControls(on: boolean): void;
 }
 
 const MODES: BindingMode[] = ['hold', 'toggle', 'pulse'];
@@ -17,6 +18,9 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
   const [refused, setRefused] = useState<string | undefined>(undefined);
   const bindings = draft.bindings;
   const targets = bindingTargets(draft, registry);
+  const known = [...targets.types, ...targets.tags, ...targets.parts];
+  const auto = autoSummary(draft, registry);
+  const autoOn = draft.autoControls !== false;
   const update = (i: number, patch: Partial<Binding>): void => {
     actions.setBindings(bindings.map((b, n) => (n === i ? { ...b, ...patch } : b)));
   };
@@ -30,7 +34,21 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
   return (
     <section class="side-section">
       <h3>Controls</h3>
-      <p class="muted small">Keys do nothing until M3 (driving). Set them up now; they are saved with the blueprint.</p>
+      <label class="check">
+        <input type="checkbox" checked={autoOn} onChange={(e) => actions.setAutoControls((e.target as HTMLInputElement).checked)} />
+        <span>Auto controls</span>
+      </label>
+      {autoOn && auto.length > 0 && (
+        <ul class="auto-lines">
+          {auto.map((l) => (
+            <li key={l.key}>
+              <kbd>{l.key}</kbd> {l.text}
+            </li>
+          ))}
+        </ul>
+      )}
+      {autoOn && auto.length === 0 && <p class="muted small">No parts with auto controls yet. Wheels drive on D and A; thrusters and propellers use the key they push toward.</p>}
+      <p class="muted small">Right-click a part to turn its auto controls off. Custom controls below add to the auto ones.</p>
       {bindings.map((b, i) => {
         const channels = channelsForTarget(draft, registry, b.target ?? '');
         const ch = channels.find((c) => c.name === b.channel);
@@ -63,7 +81,16 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
               ))}
             </select>
             <select class="target" value={b.target} onChange={(e) => retarget(i, (e.target as HTMLSelectElement).value)}>
-              {b.target !== undefined && !targets.tags.includes(b.target) && !targets.parts.includes(b.target) && <option value={b.target}>{b.target} (missing)</option>}
+              {b.target !== undefined && !known.includes(b.target) && <option value={b.target}>{b.target} (missing)</option>}
+              {targets.types.length > 0 && (
+                <optgroup label="Part types">
+                  {targets.types.map((t) => (
+                    <option key={t} value={t}>
+                      {typeLabel(registry, t)}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               {targets.tags.length > 0 && (
                 <optgroup label="Tags">
                   {targets.tags.map((t) => (
@@ -94,16 +121,17 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
             <input
               class="value"
               type="number"
-              step="0.1"
-              min={ch?.min}
-              max={ch?.max}
-              value={b.value}
-              title={ch ? `${ch.min} to ${ch.max}` : ''}
+              step="10"
+              min={ch ? ch.min * 100 : undefined}
+              max={ch ? ch.max * 100 : undefined}
+              value={Math.round((b.value ?? 0) * 100)}
+              title={ch ? `${percent(ch.min)} to ${percent(ch.max)}: +100% is full forward or full throttle` : ''}
               onChange={(e) => {
-                const v = Number((e.target as HTMLInputElement).value);
+                const v = Number((e.target as HTMLInputElement).value) / 100;
                 if (Number.isFinite(v)) update(i, { value: ch ? Math.min(ch.max, Math.max(ch.min, v)) : v });
               }}
             />
+            <span class="unit">%</span>
             <button class="tag-remove remove" aria-label="remove binding" onClick={() => actions.setBindings(bindings.filter((_, n) => n !== i))}>
               ×
             </button>
@@ -111,7 +139,7 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
         );
       })}
       {refused && <p class="refused small">{refused}</p>}
-      <button onClick={() => actions.setBindings([...bindings, defaultBinding(draft, registry)])} disabled={targets.tags.length + targets.parts.length === 0}>
+      <button onClick={() => actions.setBindings([...bindings, defaultBinding(draft, registry)])} disabled={known.length === 0}>
         Add control
       </button>
     </section>

@@ -1,4 +1,4 @@
-import type { Binding, Blueprint } from '../blueprint/types';
+import type { Binding, Blueprint, PlacedPart } from '../blueprint/types';
 import { rotateFace } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Face } from '../parts/types';
@@ -16,21 +16,24 @@ export const AUTO_KEYS: readonly string[] = ['w', 'a', 's', 'd'];
  */
 export function autoBindings(bp: Blueprint, registry: PartRegistry): Binding[] {
   if (bp.autoControls === false) return [];
-  const out: Binding[] = [];
-  for (const p of bp.parts) {
-    if (p.auto === false || !registry.has(p.part)) continue;
-    const def = registry.get(p.part);
-    const ac = def.autoControl;
-    const channel = ac ? def.inputs.find((c) => c.name === ac.channel) : undefined;
-    if (!ac || !channel) continue;
-    if (ac.kind === 'axis') {
-      out.push({ key: 'd', mode: 'hold', target: p.id, channel: channel.name, value: channel.max });
-      out.push({ key: 'a', mode: 'hold', target: p.id, channel: channel.name, value: -channel.max });
-    } else if (def.acts !== undefined) {
-      out.push({ key: PUSH_KEY[rotateFace(def.acts, p.rot)], mode: 'hold', target: p.id, channel: channel.name, value: channel.max });
-    }
+  return bp.parts.flatMap((p) => (p.auto === false ? [] : partAutoBindings(p, registry)));
+}
+
+/** The auto bindings one part would get, ignoring its opt-out (the builder shows them next to the checkbox). */
+export function partAutoBindings(p: PlacedPart, registry: PartRegistry): Binding[] {
+  if (!registry.has(p.part)) return [];
+  const def = registry.get(p.part);
+  const ac = def.autoControl;
+  const channel = ac ? def.inputs.find((c) => c.name === ac.channel) : undefined;
+  if (!ac || !channel) return [];
+  if (ac.kind === 'axis') {
+    return [
+      { key: 'd', mode: 'hold', target: p.id, channel: channel.name, value: channel.max },
+      { key: 'a', mode: 'hold', target: p.id, channel: channel.name, value: -channel.max },
+    ];
   }
-  return out;
+  if (def.acts === undefined) return [];
+  return [{ key: PUSH_KEY[rotateFace(def.acts, p.rot)], mode: 'hold', target: p.id, channel: channel.name, value: channel.max }];
 }
 
 /** Auto bindings first (so the keys bar shows W A S D before custom keys), then the blueprint's own. */

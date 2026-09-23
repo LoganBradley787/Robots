@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, setBindings, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Blueprint } from '@robots/sim-core';
+import { addTagToParts, setAutoControls, setBindings, setPartsAuto, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Blueprint } from '@robots/sim-core';
 import './ui/styles.css';
 import flatJson from '../../../worlds/flat.json';
 import { Renderer } from './render/Renderer';
@@ -36,7 +36,7 @@ async function boot(): Promise<void> {
   const blank = blankBlueprint('untitled');
   const store = createStore<AppState>({
     mode: 'builder',
-    builder: { draft: blank, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry) },
+    builder: { draft: blank, eraser: false, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry) },
     doc: { name: blank.name, dirty: false, files: [] },
     icons: {},
   });
@@ -136,6 +136,10 @@ async function boot(): Promise<void> {
     setBindings: (bindings) => builder.edit((bp) => setBindings(bp, bindings)),
     addTag: (ids, tag) => builder.edit((bp) => addTagToParts(bp, ids, tag)),
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
+    setAuto: (ids, on) => builder.edit((bp) => setPartsAuto(bp, ids, on)),
+    setAutoControls: (on) => builder.edit((bp) => setAutoControls(bp, on)),
+    closeMenu: () => builder.dispatch({ type: 'closeMenu' }),
+    eraser: () => builder.dispatch({ type: 'eraser' }),
     rotate: (dir) => builder.dispatch({ type: 'rotate', dir }),
     deleteSelection: () => builder.dispatch({ type: 'deleteSelection' }),
     hold: (part) => builder.dispatch({ type: 'hold', part }),

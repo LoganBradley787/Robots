@@ -126,6 +126,12 @@ export class BuilderScene {
         .fill({ color: 0x6fd3ff, alpha: 0.08 })
         .stroke({ color: 0x6fd3ff, width: 1, alpha: 0.8 });
     }
+    if (editor.eraser && editor.hover) {
+      // The eraser shows the cells it would clear (both sides in mirror mode).
+      const mx = mirrorX(editor.hover.x, editor.mirror.axisHalfCells);
+      for (const x of editor.mirror.on && mx !== editor.hover.x ? [editor.hover.x, mx] : [editor.hover.x]) cellRect({ x, y: editor.hover.y }, 0.02);
+      g.fill({ color: 0xff4d4d, alpha: 0.18 }).stroke({ color: 0xff7a7a, width: 2 });
+    }
     if (editor.mirror.on) {
       const ax = editor.mirror.axisHalfCells / 2;
       for (let y = -GRID_EXTENT; y < GRID_EXTENT; y += 0.5) {
