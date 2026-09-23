@@ -135,6 +135,28 @@ export class PhysicsWorld {
     return { mass: body.mass(), comX: com.x, comY: com.y };
   }
 
+  /**
+   * True when any of the shapes (world space, unrotated) overlaps an existing collider. Shapes are shrunk by
+   * `margin` so resting exactly against something counts as free.
+   * Tests every collider directly rather than through Rapier's scene queries: in 0.20 the query index only
+   * refreshes during a step, so it misses colliders created since (a robot just spawned, or a world that is paused).
+   */
+  overlapsShapes(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin = 0.02): boolean {
+    const shrink = (v: number): number => Math.max(0.001, v - margin);
+    const probes = shapes.map((s) => ({
+      pos: { x: s.x, y: s.y },
+      shape: s.shape.shape === 'box' ? new RAPIER.Cuboid(shrink(s.shape.hx), shrink(s.shape.hy)) : new RAPIER.Ball(shrink(s.shape.radius)),
+    }));
+    let hit = false;
+    this.world.forEachCollider((c) => {
+      if (hit) return;
+      const pos = c.translation();
+      const rot = c.rotation();
+      hit = probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0));
+    });
+    return hit;
+  }
+
   /** Owners of every collider that has one, in creation order. */
   colliderOwners(): string[] {
     return [...this.owners.values()];
