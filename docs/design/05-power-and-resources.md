@@ -1,6 +1,6 @@
 # 05 Power and resources
 
-Status: draft, 2026-09-22.
+Status: draft 2026-09-22; decisions with Logan 2026-09-23 (M4) below, which win where they differ.
 
 ## Generic resource system
 - `ResourceKind` is a string. v1 ships `"energy"`. Fuel later is a second kind with no engine changes.
@@ -28,3 +28,10 @@ Brownout is proportional rather than first-come so the result does not depend on
 ## Metrics
 - The headless runner reports `energyRemaining` (sum over the robot's chunks) and `energyUsed`.
 - The UI shows the possessed chunk's pool as a bar.
+
+## Decisions with Logan (before M4, 2026-09-23)
+- **Energy lasts long; it rarely runs out.** Numbers (tunable in part defs): the core holds a reserve of 600, like Kerbal Space Program's command pods. That is about a minute of driving on two wheels, or 15 s of full thrust on two thrusters. A battery holds 1500 (2.5 times the core). A car with one battery drives about 3.5 minutes.
+- **The core is a container like any battery** (`resource` in its def), so a robot without batteries still moves for a while. No engine special case.
+- **Stacking batteries is the way to range.** Logan: a huge robot might carry a block of 30 batteries, which becomes a target once damage exists (M6).
+- **No recharge in M4.** Producers (solar, generators) come later as parts with a negative request.
+- **Unlimited energy** is a sandbox switch on the world toolbar, off by default. It is part of the simulation (logged with its tick) so replays match.

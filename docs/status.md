@@ -12,9 +12,9 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M3
   - Builder: right-click part menu (tags, auto on or off, rotate, delete) on the selection; eraser tool on `E`; controls panel lists auto controls; values in percent.
   - CLI: `--keys "d:0-3, w:5"`, drive metrics (distance, max altitude, max tilt, top speed), `pnpm sim replay <file>`; CI runs a keyed determinism check.
   - Replays: world toolbar Save replay writes `replays/` (gitignored); a browser session reran in Node with a MATCH.
-- In progress: none.
 - Gate 3 fixes: wheels on multibody joints (the growing bounce, `03`), motors wake their bodies, camera Home and a 1000 m world, the gyro part (Q/E), part cells slide at friction 0.3, wheel torque 20 N m, tire grip 1.0. Logan's `big-guy` (54 kg, lots of frames on the car) checked for tunneling into the box: none; it tips over the box because it is top-heavy.
-- Next: **plan M4 (power) and M5 (scripting)**. They share Gate 4, so plan M4 first, build it, then plan M5 and build it, and stop at Gate 4. Start with Logan's taste questions for M4 (see `05`).
+- In progress: **M4 planning.** Logan answered the power questions (long battery life, core reserve like KSP, no recharge, unlimited switch); recorded in `05`. Plan `docs/plans/M4-power.md` waits for Logan's go.
+- Next: on Logan's go, build all of M4, then plan and build M5 (scripting), and stop at Gate 4 (power and scripts).
 
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
