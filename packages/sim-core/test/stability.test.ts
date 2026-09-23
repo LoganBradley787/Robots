@@ -50,4 +50,17 @@ describe('driving stability', () => {
       expect(r.top, `drop from ${y} m`).toBeLessThan(RIM_SPEED);
     }
   }, 60_000);
+
+  it('a car with one frame corner caught on a block drives off it (Gate 3 screenshot)', async () => {
+    for (const overlap of [0.05, 0.3, 0.8]) {
+      const w = await World.create({ seed: 1 }, ledge);
+      const car = w.spawnBlueprint(carJson, { x: -5 - overlap, y: 1.52 });
+      for (let i = 0; i < 90; i++) w.step();
+      const x0 = sampleRobot(w, car).coreX;
+      w.step([{ robot: car.id, pressed: ['d'], released: [] }]);
+      for (let i = 0; i < 240; i++) w.step();
+      expect(sampleRobot(w, car).coreX - x0, `overlap ${overlap}`).toBeGreaterThan(10);
+      w.dispose();
+    }
+  });
 });

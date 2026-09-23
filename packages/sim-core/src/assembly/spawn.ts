@@ -5,6 +5,13 @@ import type { PartRegistry } from '../parts/registry';
 import type { BodyGroup, Chunk, PartInstance, Robot } from '../world/Robot';
 import { isCore, rootPartId, type AssemblyPlan } from './assemble';
 
+/**
+ * Friction of a part cell with no `collider.friction` of its own: steel sliding on ground (Rapier's default is 0.5).
+ * At 0.5 a car with one frame corner caught on a block could not drive off it: that corner's friction matched the
+ * grounded wheel's whole push (Gate 3). At 0.3 it drives off; a box robot still holds on the 18 degree ramp.
+ */
+export const PART_FRICTION = 0.3;
+
 export interface SpawnArgs {
   id: number;
   tick: number;
@@ -47,7 +54,7 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
         if (def.collider?.shape === 'ball') {
           physics.addCollider(bodyId, { shape: 'ball', radius: def.collider.radius ?? 0.5 }, { offsetX, offsetY, mass: cellMass, friction: def.collider.friction }, id);
         } else {
-          physics.addCollider(bodyId, { shape: 'box', hx: 0.5, hy: 0.5 }, { offsetX, offsetY, mass: cellMass, friction: def.collider?.friction }, id);
+          physics.addCollider(bodyId, { shape: 'box', hx: 0.5, hy: 0.5 }, { offsetX, offsetY, mass: cellMass, friction: def.collider?.friction ?? PART_FRICTION }, id);
         }
       }
       parts.set(id, { id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: g.index, localX: p.x - origin.x, localY: p.y - origin.y });
