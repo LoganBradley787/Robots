@@ -1,0 +1,160 @@
+import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
+import { mirrorRotation, mirrorX, partAt, rotationRadians, type Blueprint, type PartRegistry, type Rotation } from '@robots/sim-core';
+import { applyCamera } from '../render/cameraView';
+import { createCamera, screenToWorld, type CameraState } from '../render/camera';
+import { PIXELS_PER_METER, toScreen, toScreenAngle } from '../render/units';
+import type { Cell, EditorState } from './editorState';
+
+export const BUILDER_BG = 0x13203a;
+const GRID_EXTENT = 60;
+
+export interface Overlay {
+  /** Cells with validator errors and warnings. */
+  errorCells: Cell[];
+  warningCells: Cell[];
+  /** Center of mass in cell coordinates, if there are parts. */
+  com?: { x: number; y: number };
+  selection: string[];
+  /** Selection box corners while box selecting. */
+  box?: { a: Cell; b: Cell };
+}
+
+/** Draws the builder: background, grid, parts, the held-part ghost, and overlays. Reads state, never edits it. */
+export class BuilderScene {
+  cam: CameraState = { ...createCamera(3, 2), zoom: 2 };
+  private readonly bg = new Graphics();
+  private readonly content = new Container();
+  private readonly parts = new Container();
+  private readonly ghost = new Container();
+  private readonly overlay = new Graphics();
+  private readonly texture: (name: string) => Texture;
+  private bgSize = { w: 0, h: 0 };
+
+  constructor(root: Container, frame: (name: string) => Texture) {
+    this.texture = frame;
+    this.content.addChild(this.buildGrid(), this.parts, this.overlay, this.ghost);
+    root.addChild(this.bg, this.content);
+  }
+
+  private buildGrid(): Graphics {
+    const g = new Graphics();
+    const line = (ax: number, ay: number, bx: number, by: number): void => {
+      const a = toScreen({ x: ax, y: ay });
+      const b = toScreen({ x: bx, y: by });
+      g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+    };
+    // Lines sit on cell edges (half-integers), since parts sit on integer cell centers.
+    const levels: Array<{ keep: (i: number) => boolean; alpha: number }> = [
+      { keep: (i) => i % 5 !== 0, alpha: 0.07 },
+      { keep: (i) => i % 5 === 0, alpha: 0.16 },
+    ];
+    for (const { keep, alpha } of levels) {
+      for (let i = -GRID_EXTENT; i <= GRID_EXTENT; i++) {
+        if (!keep(i)) continue;
+        line(i - 0.5, -GRID_EXTENT, i - 0.5, GRID_EXTENT);
+        line(-GRID_EXTENT, i - 0.5, GRID_EXTENT, i - 0.5);
+      }
+      g.stroke({ color: 0x9fb4d8, alpha, pixelLine: true });
+    }
+    return g;
+  }
+
+  private sprite(name: string, x: number, y: number, rot: Rotation, alpha = 1): Sprite {
+    const s = new Sprite(this.texture(name));
+    s.anchor.set(0.5);
+    s.width = PIXELS_PER_METER;
+    s.height = PIXELS_PER_METER;
+    const p = toScreen({ x, y });
+    s.position.set(p.x, p.y);
+    s.rotation = toScreenAngle(rotationRadians(rot));
+    s.alpha = alpha;
+    return s;
+  }
+
+  private addPart(into: Container, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, alpha = 1): void {
+    if (!registry.has(part)) return;
+    const spec = registry.get(part).sprite;
+    into.addChild(this.sprite(spec.frame, x, y, rot, alpha));
+    if (spec.mountFrame) into.addChild(this.sprite(spec.mountFrame, x, y, rot, alpha));
+  }
+
+  drawParts(bp: Blueprint, registry: PartRegistry): void {
+    for (const c of this.parts.removeChildren()) c.destroy();
+    for (const p of bp.parts) this.addPart(this.parts, registry, p.part, p.x, p.y, p.rot);
+  }
+
+  drawGhost(editor: EditorState, bp: Blueprint, registry: PartRegistry): void {
+    for (const c of this.ghost.removeChildren()) c.destroy();
+    const held = editor.held;
+    const h = editor.hover;
+    if (!held || !h || editor.gesture?.kind === 'erase') return;
+    const spots: Array<{ x: number; rot: Rotation }> = [{ x: h.x, rot: held.rot }];
+    const mx = mirrorX(h.x, editor.mirror.axisHalfCells);
+    if (editor.mirror.on && mx !== h.x) spots.push({ x: mx, rot: mirrorRotation(held.rot) });
+    for (const s of spots) {
+      const before = this.ghost.children.length;
+      this.addPart(this.ghost, registry, held.part, s.x, h.y, s.rot, 0.55);
+      const other = partAt(bp, registry, s.x, h.y);
+      const replaces = other !== undefined && (other.part !== held.part || other.rot !== s.rot);
+      if (replaces) for (const c of this.ghost.children.slice(before)) (c as Sprite).tint = 0xff7a7a;
+    }
+  }
+
+  drawOverlay(o: Overlay, editor: EditorState, bp: Blueprint, registry: PartRegistry): void {
+    const g = this.overlay;
+    g.clear();
+    const cellRect = (c: Cell, inset = 0.04): void => {
+      const tl = toScreen({ x: c.x - 0.5 + inset, y: c.y + 0.5 - inset });
+      g.rect(tl.x, tl.y, (1 - 2 * inset) * PIXELS_PER_METER, (1 - 2 * inset) * PIXELS_PER_METER);
+    };
+    for (const c of o.warningCells) cellRect(c);
+    if (o.warningCells.length > 0) g.stroke({ color: 0xffb347, width: 2 });
+    for (const c of o.errorCells) cellRect(c);
+    if (o.errorCells.length > 0) g.stroke({ color: 0xff4d4d, width: 2 });
+    for (const id of o.selection) {
+      const p = bp.parts.find((q) => q.id === id);
+      if (p) cellRect(p, 0.01);
+    }
+    if (o.selection.length > 0) g.stroke({ color: 0x6fd3ff, width: 2 });
+    if (o.box) {
+      const minX = Math.min(o.box.a.x, o.box.b.x);
+      const maxX = Math.max(o.box.a.x, o.box.b.x);
+      const minY = Math.min(o.box.a.y, o.box.b.y);
+      const maxY = Math.max(o.box.a.y, o.box.b.y);
+      const tl = toScreen({ x: minX - 0.5, y: maxY + 0.5 });
+      g.rect(tl.x, tl.y, (maxX - minX + 1) * PIXELS_PER_METER, (maxY - minY + 1) * PIXELS_PER_METER)
+        .fill({ color: 0x6fd3ff, alpha: 0.08 })
+        .stroke({ color: 0x6fd3ff, width: 1, alpha: 0.8 });
+    }
+    if (editor.mirror.on) {
+      const ax = editor.mirror.axisHalfCells / 2;
+      for (let y = -GRID_EXTENT; y < GRID_EXTENT; y += 0.5) {
+        const a = toScreen({ x: ax, y });
+        const b = toScreen({ x: ax, y: y + 0.25 });
+        g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+      }
+      g.stroke({ color: 0xc792ea, width: 2, alpha: 0.9 });
+    }
+    if (o.com) {
+      const c = toScreen(o.com);
+      const r = PIXELS_PER_METER * 0.22;
+      g.circle(c.x, c.y, r).fill({ color: 0xffffff, alpha: 0.9 }).stroke({ color: 0x13203a, width: 2 });
+      g.moveTo(c.x - r, c.y).lineTo(c.x + r, c.y).moveTo(c.x, c.y - r).lineTo(c.x, c.y + r).stroke({ color: 0x13203a, width: 2 });
+    }
+    void registry;
+  }
+
+  /** Called every frame while the builder is visible. */
+  frame(w: number, h: number): void {
+    if (this.bgSize.w !== w || this.bgSize.h !== h) {
+      this.bg.clear().rect(0, 0, w, h).fill(BUILDER_BG);
+      this.bgSize = { w, h };
+    }
+    applyCamera(this.content, this.cam, w, h);
+  }
+
+  cellAt(sx: number, sy: number, w: number, h: number): Cell {
+    const p = screenToWorld(this.cam, sx, sy, w, h);
+    return { x: Math.floor(p.x + 0.5), y: Math.floor(p.y + 0.5) };
+  }
+}
