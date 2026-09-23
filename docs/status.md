@@ -2,40 +2,45 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5)
 
-- Current milestone: M1 complete, plan `docs/plans/M1-parts-and-assembly.md`. Gate 1 (Look) passed 2026-09-23; punch list `docs/critique/gate-1.md` is done.
-- Done: M0 T1 to T10 (tag `m0`). M1 T1 to T10 (tag `m1`): part defs as JSON, blueprint format with ASCII grid, validator, pure assembly plan, compound bodies with jointed motor wheels, `spawnBlueprint`, robot metrics, blueprint CLI (`run`, `show`, `validate`, `determinism`), placeholder art generator, sprite rendering per body, tiled terrain, 1 m grid.
+- Current milestone: M2 complete, plan `docs/plans/M2-builder.md`, design `docs/design/10-builder.md`. **Gate 2 (Builder) is open.** No M3 work until Logan's punch list is empty.
+- Done: M0 (tag `m0`), M1 (tag `m1`, Gate 1 passed), M2 T1 to T10 (tag `m2`): builder screen, pick-then-paint, erase, rotate, select and tag, undo and redo, mirror mode, live stats and center of mass, live validator with outlined cells, controls (bindings) panel, blueprint files in `blueprints/` with explicit Save and Save As, unsaved-changes prompts, deploy with a spawn ghost.
 - In progress: none
-- Next: M2 T1. Logan approved `docs/plans/M2-builder.md` on 2026-09-23 and asked to run through to Gate 2.
+- Next: Logan plays Gate 2 and drops notes in `docs/critique/inbox.md` or in chat. A session turns them into `docs/critique/gate-2.md` and fixes them one at a time. Then the M3 plan (control: keybinds drive wheels, thrusters, propellers; possession).
 
-## Gate 1: what Logan looked at
+## Gate 2: what to look at
 
-Run `pnpm dev`, open http://localhost:5180.
+Run `pnpm dev`, open http://localhost:5180. The app opens in the builder.
 
-- Two robots: `car` (follows by default) and `showcase` (every part type). `C` switches the camera between them.
-- Judge: textures (every part), sprite fit (press `D` to overlay physics outlines), scale (a 1 m grid is behind everything, `G` toggles it; one cell = 1 m), world look (ground, blocks, ramp, background), camera (wheel zoom, drag pan, `F` re-follow), time controls (Space, `.`, `[`, `]`, `R`).
-- Nothing drives yet. Driving, keybinds, and physics feel are Gate 3.
-- Headless: `pnpm sim run car`, `pnpm sim show showcase`.
+- Build something from blank: pick parts (palette or 1 to 8), click and drag to paint, right-drag to erase, `R` to rotate, `M` for mirror mode.
+- Select parts (click, or drag a box with nothing held) and tag them; add controls in the side panel (they do nothing until M3).
+- Save As, open another blueprint from the dropdown, come back, Save. Try to lose work: every path should ask first.
+- Deploy: the ghost turns green where it fits and red where it does not; click to drop. `Tab` goes back and forth.
+- Judge: is building intuitive, does the trip between builder and world suck, does anything feel slow or fiddly.
 
 ## Demo checklist results (2026-09-23)
-- `pnpm sim run car --seconds 5`: resting at 2 s, core (-0.003, 1.450), tilt 0.00, mass 12 kg. `pnpm sim run showcase`: resting, tilt 0.00, 21 kg.
-- Browser: both robots rest level on their wheels, every part type visible, sprites match debug outlines, art clean at about 3x zoom, grid readable, pause, step, speed, follow, pan, and `C` work, no console errors.
-- Determinism: same hash twice in one process, browser matches Node, and CI on Linux matches the golden hashes recorded on macOS.
+- Built a robot from blank, tagged its wheels, added two controls, Save As `test-bot`, reopened it from the dropdown with tags and controls intact, deployed it (no prompt, nothing unsaved), dropped it mid-air, it fell and rested. Test file deleted afterwards.
+- Opened `car`, added a battery, Deploy asked Save / Don't save / Cancel; Don't save deployed the edited car; `Tab` back showed the same draft still marked unsaved; `blueprints/car.json` unchanged on disk.
+- Save As `Car Test` wrote `car-test.json` and left `car.json` untouched; Delete (with confirm) removed it and returned to a blank blueprint.
+- Undo and redo across drags; mirror mode placed flipped thrusters; box select and tagging; the ghost refuses the ground, the underground, and existing robots.
 
 ## Known issues
-- Multi-cell parts (none exist yet) would draw one cell-sized sprite and count mass at the anchor cell in `pnpm sim show`; fix when the first multi-cell part arrives.
-- The HUD help line runs off narrow windows.
-- Propeller spin and thruster flame animations exist in the fx sheet but are not played until channels exist (M3).
-- Dynamic world-file boxes would not be drawn (none exist; `TerrainView` draws static ones only).
+- For M3: robot bindings and world keys overlap. New bindings default to `w`, `a`, `s`, `d`, ... while the world uses `D` (debug), `F`, `C`, `R`, `G`, Space, `.`, `[`, `]`. The M3 plan must decide which wins while a robot is possessed (likely: world keys move to modifiers or the possessed robot's bindings take priority) and add a validator warning for bindings on reserved keys.
+- A save round trip rewrites parts in grid reading order; with two or more cores and no `primaryCore`, the root core could change after reopening. Deploy is unaffected (it goes through the same file form).
+- Mirror mode's axis defaults to the core's column. On an asymmetric robot (the car: core in cell 2 of 6) mirroring overwrites parts on the far side. Alternative for Logan to judge: default to the center of the robot's bounding box.
+- The app is desktop-sized; panels overlap the canvas below about 1100 px wide.
+- Multi-cell parts (none exist yet) would draw one cell-sized sprite and count mass at the anchor cell in `pnpm sim show`.
+- Propeller spin and thruster flame animations are not played until channels exist (M3).
 
 ## Decisions since the plans (newest first)
-- M1 review fixes: joint motor settings (`maxTorque`, `motorFactor`) live in the part's `joint` block, and a joint part may only attach through its mount face; `position` motors are rejected until M6. A chunk's core honors `primaryCore` and `corePriority`. `toGrid` keeps parts at their cells and returns null when a grid cannot express the blueprint (the CLI then prints the parts list). Legend lookups use a Map. The mount-down wheel token is `W^` (it sits above its parent), not `Wv`; `02` updated.
-- M1: solver iterations raised to 8 and internal PGS iterations to 8 (from 4 and 1). The defaults let the car's 9 kg body rebound off its 1.5 kg jointed wheels at 4.3 m/s after a 1.5 m drop. Measurements in `docs/design/03`.
-- M1: the core is identified by a def field `role: "core"`, not by its id, so no engine code names a part.
-- M1: the root part (primary core) is never reported `UNATTACHED`; the parts that cannot reach it are.
-- M1: textures are 64 px per cell with linear filtering (not `nearest`); `docs/design/08` updated.
-- M1: the showcase spawns 13 m left of the car on clear ground (10 m right put it on the box and ramp).
-- M1: the ground is drawn 40 m deep for looks; physics keeps the 2 m slab.
-- M1: this session (Opus) wrote the M1 plan and ran through without a separate approval stop, at Logan's request. Every judgment call is listed in the plan under "Decisions made in this plan".
-- M0: root `sim` script has no trailing `--`; pnpm 11 `allowBuilds` for esbuild; dev port 5180 (Docker holds 5173); keys fall back to `event.key`; world hash includes RNG state; strict world file keys; tick cap per frame in the fixed stepper; `packageManager` pins pnpm 11.1.3.
+- M2 review fixes: Save As always asks before replacing an existing file, including the open one; a blueprint that could not be reopened is never written; Delete keeps what is on screen as an unsaved blueprint; Save As renames every undo step; binding targets are only tags whose parts have input channels; binding keys are named from the physical key (`KeyboardEvent.code`); Esc, `Tab`, and window blur close an open drag; undo and redo are ignored mid-drag; Enter in a dialog presses the focused button; Cmd+S never opens the browser's Save Page; blueprint files are written atomically (temp file then rename).
+- M2: Preact without `@preact/preset-vite` (it needs Babel as a peer); Vite's built-in JSX transform with `jsxImportSource: preact`. Panel edits reload the page instead of hot swapping.
+- M2: `World.canPlace` tests each collider directly with `Shape.intersectsShape`; Rapier 0.20's scene queries only see colliders after a step, so they missed robots just spawned and the ground in a paused new world. Placement below the ground surface (y < 0) is refused even under the 2 m physics slab.
+- M2: new bindings get the first unused key (`w`, `a`, `s`, `d`, ...) so a saved blueprint never has an empty key (which would not reopen). Key names: the lowercase character for printable keys, else the `KeyboardEvent.code` (`Space`, `ArrowUp`).
+- M2: the browser's own "leave page?" prompt guards closing or reloading with unsaved changes.
+- M2: UI buttons and dropdowns give focus back after use, so builder keys and Space never trigger them.
+- M1: solver iterations 8 and internal PGS iterations 8 (from 4 and 1); measurements in `docs/design/03`.
+- M1: the core is identified by `role: "core"`; joint motor settings live in `joint`; a joint part attaches only through its mount face; `toGrid` keeps cells; `W^` is the mount-down wheel token.
+- M1: textures 64 px per cell with linear filtering; ground drawn 40 m deep; static blocks drawn behind the ground; ramp flush with the surface.
+- M0: `sim` script without a trailing `--`; pnpm 11 `allowBuilds` for esbuild; dev port 5180; world hash includes RNG state; tick cap per frame.
 
-- Next gate: Gate 2 (Builder) at the end of M2.
+- Next gate: Gate 2 (Builder), open now.

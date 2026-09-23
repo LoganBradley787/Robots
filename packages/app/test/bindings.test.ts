@@ -32,10 +32,16 @@ describe('binding helpers', () => {
     expect(defaultBinding(empty, reg)).toEqual({ key: 'w', mode: 'hold', target: '', channel: '', value: 1 });
   });
 
-  it('keyName uses the lowercase character for printable keys and the code otherwise', () => {
+  it('keyName comes from the physical key, not the layout or Shift', () => {
     expect(keyName({ key: 'A', code: 'KeyA' })).toBe('a');
-    expect(keyName({ key: '1', code: 'Digit1' })).toBe('1');
+    expect(keyName({ key: '!', code: 'Digit1' })).toBe('1');
+    expect(keyName({ key: 'q', code: 'KeyA' })).toBe('a');
     expect(keyName({ key: ' ', code: 'Space' })).toBe('Space');
     expect(keyName({ key: 'ArrowUp', code: 'ArrowUp' })).toBe('ArrowUp');
+  });
+
+  it('tags on parts without inputs are not offered as targets', () => {
+    const framed = expandBlueprint({ format: 1, name: 'f', grid: ['C F'], legend: { F: { part: 'frame', tags: ['body'] } } }).blueprint as Blueprint;
+    expect(bindingTargets(framed, reg)).toEqual({ tags: [], parts: [] });
   });
 });

@@ -47,6 +47,7 @@ async function boot(): Promise<void> {
     api: { list: listBlueprints, load: loadBlueprintFile, save: saveBlueprintFile, remove: deleteBlueprintFile },
     getDraft: () => builder.draft,
     setDraft: (bp: Blueprint, opts) => (opts?.keepHistory ? builder.edit(() => bp) : builder.load(bp)),
+    renameHistory: (name) => builder.renameHistory(name),
     askUnsaved: async () => {
       const a = await ask(store, {
         title: 'Unsaved changes',
@@ -195,10 +196,20 @@ async function boot(): Promise<void> {
   canvas.addEventListener('pointercancel', up);
 
   window.addEventListener('keydown', (e) => {
+    // Cmd+S never opens the browser's Save Page dialog; in the builder it saves, even from a text field.
+    if ((e.metaKey || e.ctrlKey) && e.code === 'KeyS') {
+      e.preventDefault();
+      if (modes.mode === 'builder' && !store.get().dialog) {
+        if (e.shiftKey) actions.saveAs();
+        else actions.save();
+      }
+      return;
+    }
     if (isTypingTarget(e.target) || store.get().dialog) return;
     if (e.code === 'Tab') {
       e.preventDefault();
       worldScreen.cancelPlacing();
+      builder.endGesture();
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
       return;
     }
@@ -206,16 +217,11 @@ async function boot(): Promise<void> {
       worldScreen.cancelPlacing();
       return;
     }
-    if (modes.mode !== 'builder' || store.get().dialog) return;
-    if ((e.metaKey || e.ctrlKey) && e.code === 'KeyS') {
-      e.preventDefault();
-      if (e.shiftKey) actions.saveAs();
-      else actions.save();
-      return;
-    }
+    if (modes.mode !== 'builder') return;
     if (builder.onKeyDown(e)) e.preventDefault();
   });
   window.addEventListener('keyup', (e) => builder.onKeyUp(e));
+  window.addEventListener('blur', () => builder.endGesture());
   bindKeys(window, worldScreen.keyActions(), () => modes.mode === 'world');
 
   // Buttons and dropdowns give focus back after use, so builder keys (and Space) never land on them.

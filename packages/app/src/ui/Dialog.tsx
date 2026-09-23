@@ -25,6 +25,8 @@ export function Dialog({ dialog }: { dialog: ActiveDialog }) {
         e.stopPropagation();
         answer(dialog.cancelValue);
       } else if (e.key === 'Enter' && primary) {
+        // Enter on a focused button presses that button (native click), not the primary one.
+        if ((document.activeElement as HTMLElement | null)?.tagName === 'BUTTON') return;
         e.stopPropagation();
         answer(primary.value);
       }

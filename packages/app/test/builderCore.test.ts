@@ -130,6 +130,23 @@ describe('editor reducer', () => {
     expect(cellsOf(r.bp)).toEqual(['core@2,1:0']);
   });
 
+  it('escape mid-drag closes the gesture', () => {
+    const r = run([
+      { type: 'pick', index: 1 },
+      { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
+      { type: 'move', cell: { x: 1, y: 0 } },
+      { type: 'escape' },
+    ]);
+    expect(r.gestures).toEqual(['begin', 'end']);
+    expect(r.editor.gesture).toBeUndefined();
+  });
+
+  it('endGesture closes a drag without dropping the held part', () => {
+    const r = run([{ type: 'pick', index: 1 }, { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false }, { type: 'endGesture' }]);
+    expect(r.gestures).toEqual(['begin', 'end']);
+    expect(r.editor.held?.part).toBe('frame');
+  });
+
   it('hover moves without editing', () => {
     const r = run([{ type: 'pick', index: 1 }, { type: 'move', cell: { x: 5, y: 5 } }]);
     expect(r.bp.parts).toEqual([]);

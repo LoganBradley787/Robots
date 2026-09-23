@@ -14,6 +14,8 @@ export interface DocumentDeps {
   getDraft(): Blueprint;
   /** `keepHistory` is true for a rename during Save As; false when a different blueprint is loaded. */
   setDraft(bp: Blueprint, opts?: { keepHistory: boolean }): void;
+  /** Renames every undo step too, so undoing after Save As never brings back the old name. */
+  renameHistory?(name: string): void;
   askUnsaved(): Promise<UnsavedChoice>;
   askName(current: string): Promise<string | null>;
   confirm(message: string): Promise<boolean>;
@@ -41,6 +43,14 @@ export class DocumentController {
     const draft = deps.getDraft();
     this.state = { name: draft.name };
     this.savedJson = this.serialize(draft);
+  }
+
+  /** A file that expandBlueprint would reject could never be opened again, so it is never written. */
+  private writable(json: unknown): boolean {
+    const { blueprint, issues } = expandBlueprint(json);
+    if (blueprint) return true;
+    this.deps.notify?.(`Cannot save yet: ${issues.map((i) => i.message).join('; ')}`);
+    return false;
   }
 
   private serialize(bp: Blueprint): string {
@@ -96,7 +106,9 @@ export class DocumentController {
     const file = this.state.file;
     if (file === undefined) return this.saveAs();
     const draft = this.deps.getDraft();
-    await this.deps.api.save(file, toFileJson(draft, this.deps.registry));
+    const json = toFileJson(draft, this.deps.registry);
+    if (!this.writable(json)) return false;
+    await this.deps.api.save(file, json);
     this.savedJson = this.serialize(draft);
     return true;
   }
@@ -106,26 +118,30 @@ export class DocumentController {
     const name = answer?.trim();
     if (!name) return false;
     const file = fileForName(name);
-    if (file !== this.state.file) {
-      const existing = await this.deps.api.list();
-      if (existing.some((b) => b.file === file) && !(await this.deps.confirm(`A blueprint named "${name}" already exists. Replace it?`))) {
-        return false;
-      }
-    }
+    // Ask even when the name maps to the open file: Save As must never replace the original silently.
+    const existing = (await this.deps.api.list()).find((b) => b.file === file);
+    if (existing && !(await this.deps.confirm(`"${existing.name}" (blueprints/${file}) already exists. Replace it?`))) return false;
+    const json = toFileJson({ ...this.deps.getDraft(), name }, this.deps.registry);
+    if (!this.writable(json)) return false;
+    await this.deps.api.save(file, json);
+    // Rename after the write, from the current draft, so edits made while saving are kept.
     const renamed = { ...this.deps.getDraft(), name };
-    await this.deps.api.save(file, toFileJson(renamed, this.deps.registry));
     this.deps.setDraft(renamed, { keepHistory: true });
+    this.deps.renameHistory?.(name);
     this.state = { file, name };
-    this.savedJson = this.serialize(renamed);
+    this.savedJson = JSON.stringify(json);
     return true;
   }
 
+  /** Deletes the file. What's on screen stays as an unsaved blueprint, so nothing on screen is lost. */
   async remove(): Promise<boolean> {
     const file = this.state.file;
     if (file === undefined) return false;
-    if (!(await this.deps.confirm(`Delete "${this.state.name}"? This removes blueprints/${file}.`))) return false;
+    const msg = `Delete "${this.state.name}"? This removes blueprints/${file}. What's on screen stays, as an unsaved blueprint.`;
+    if (!(await this.deps.confirm(msg))) return false;
     await this.deps.api.remove(file);
-    this.startBlank();
+    this.state = { name: this.state.name };
+    this.savedJson = this.serialize(blankBlueprint(this.state.name));
     return true;
   }
 }

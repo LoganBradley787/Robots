@@ -61,12 +61,25 @@ export class Builder {
     this.refresh(r.bp !== before);
   }
 
+  /** Ignored mid-drag: undoing inside an open gesture would cut the rest of the drag out of history. */
   undo(): void {
-    if (this.history.undo()) this.refresh(true);
+    if (!this.editor.gesture && this.history.undo()) this.refresh(true);
   }
 
   redo(): void {
-    if (this.history.redo()) this.refresh(true);
+    if (!this.editor.gesture && this.history.redo()) this.refresh(true);
+  }
+
+  renameHistory(name: string): void {
+    this.history.renameAll(name);
+    this.refresh(true);
+  }
+
+  /** Closes any open drag (leaving the builder, losing focus). */
+  endGesture(): void {
+    this.panning = null;
+    this.spaceDown = false;
+    if (this.editor.gesture) this.dispatch({ type: 'endGesture' });
   }
 
   onPointerDown(e: PointerEvent, cell: Cell): void {

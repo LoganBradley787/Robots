@@ -40,7 +40,8 @@ export type EditorEvent =
   | { type: 'toggleMirror' }
   | { type: 'setAxis'; axisHalfCells: number }
   | { type: 'shiftAxis'; delta: number }
-  | { type: 'deleteSelection' };
+  | { type: 'deleteSelection' }
+  | { type: 'endGesture' };
 
 export interface ReduceResult {
   editor: EditorState;
@@ -135,8 +136,12 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
     case 'deleteSelection':
       return editor.selection.length === 0 ? { editor, bp } : { editor: { ...editor, selection: [] }, bp: removeParts(bp, editor.selection) };
     case 'escape': {
-      const { held: _held, gesture: _gesture, gestureShift: _shift, ...rest } = editor;
-      return { editor: { ...rest, selection: [] }, bp };
+      const { held: _held, gesture: g, gestureShift: _shift, ...rest } = editor;
+      return { editor: { ...rest, selection: [] }, bp, ...(g && g.kind !== 'select' ? { gesture: 'end' as const } : {}) };
+    }
+    case 'endGesture': {
+      const { gesture: g, gestureShift: _shift, ...rest } = editor;
+      return { editor: rest, bp, ...(g && g.kind !== 'select' ? { gesture: 'end' as const } : {}) };
     }
     case 'toggleMirror': {
       const m = editor.mirror;
@@ -153,7 +158,14 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
     case 'down': {
       if (editor.gesture) return { editor, bp };
       const kind = e.button === 'right' ? 'erase' : editor.held ? 'paint' : 'select';
-      const next = { ...editor, hover: e.cell, gesture: { kind, start: e.cell, last: e.cell }, gestureShift: e.shift } satisfies EditorState;
+      const next = {
+        ...editor,
+        hover: e.cell,
+        gesture: { kind, start: e.cell, last: e.cell },
+        gestureShift: e.shift,
+        // Painting or erasing ends a selection, so a stale id never lands on a new part in the same cell.
+        selection: kind === 'select' ? editor.selection : [],
+      } satisfies EditorState;
       if (kind === 'select') return { editor: next, bp };
       return { editor: next, bp: applyAt(editor, bp, kind, e.cell, registry), gesture: 'begin' };
     }

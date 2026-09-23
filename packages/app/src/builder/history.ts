@@ -66,6 +66,14 @@ export class History {
     return next;
   }
 
+  /** Applies a name to every entry, so undo and redo never bring back an old name after Save As. */
+  renameAll(name: string): void {
+    const rename = (bp: Blueprint): Blueprint => (bp.name === name ? bp : { ...bp, name });
+    this.past = this.past.map(rename);
+    this.future = this.future.map(rename);
+    this.current = rename(this.current);
+  }
+
   /** Start over from a blueprint (opening a file, New). */
   reset(bp: Blueprint): void {
     this.past = [];

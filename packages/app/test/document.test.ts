@@ -7,6 +7,7 @@ const reg = defaultRegistry();
 function setup(files: Record<string, unknown> = {}, answers: { unsaved?: UnsavedChoice[]; names?: (string | null)[]; confirms?: boolean[] } = {}) {
   let draft: Blueprint = blankBlueprint('untitled');
   const asked: string[] = [];
+  const renamed: string[] = [];
   const deps: DocumentDeps = {
     registry: reg,
     api: {
@@ -26,6 +27,9 @@ function setup(files: Record<string, unknown> = {}, answers: { unsaved?: Unsaved
     setDraft: (bp) => {
       draft = bp;
     },
+    renameHistory: (name) => {
+      renamed.push(name);
+    },
     askUnsaved: async () => {
       asked.push('unsaved');
       return answers.unsaved?.shift() ?? 'cancel';
@@ -40,7 +44,7 @@ function setup(files: Record<string, unknown> = {}, answers: { unsaved?: Unsaved
     },
   };
   const doc = new DocumentController(deps);
-  return { doc, files, asked, edit: (fn: (b: Blueprint) => Blueprint) => (draft = fn(draft)), draft: () => draft };
+  return { doc, files, asked, renamed, edit: (fn: (b: Blueprint) => Blueprint) => (draft = fn(draft)), draft: () => draft };
 }
 
 const carFile = { format: 1, name: 'car', grid: ['F C F', 'W . W'] };
@@ -102,8 +106,34 @@ describe('DocumentController', () => {
     const t = setup({ 'car.json': carFile, 'truck.json': { format: 1, name: 'truck', grid: ['C'] } }, { names: ['truck'], confirms: [false] });
     await t.doc.open('car.json');
     expect(await t.doc.saveAs()).toBe(false);
-    expect(t.asked).toContain('confirm:A blueprint named "truck" already exists. Replace it?');
+    expect(t.asked).toContain('confirm:"truck" (blueprints/truck.json) already exists. Replace it?');
     expect(t.files['truck.json']).toEqual({ format: 1, name: 'truck', grid: ['C'] });
+  });
+
+  it('Save As onto the open file itself also asks, so the original is never replaced silently', async () => {
+    const t = setup({ 'car.json': carFile }, { names: ['CAR!'], confirms: [false] });
+    await t.doc.open('car.json');
+    t.edit((b) => placePart(b, reg, 'battery', 1, 0, 0));
+    expect(await t.doc.saveAs()).toBe(false);
+    expect(t.files['car.json']).toEqual(carFile);
+  });
+
+  it('refuses to save a blueprint that could not be reopened', async () => {
+    const notes: string[] = [];
+    const t = setup({ 'car.json': carFile });
+    await t.doc.open('car.json');
+    t.edit((b) => ({ ...b, bindings: [{ key: 'w', mode: 'hold', target: '', channel: '', value: 1 }] }));
+    (t.doc as unknown as { deps: { notify: (m: string) => void } }).deps.notify = (m) => notes.push(m);
+    expect(await t.doc.save()).toBe(false);
+    expect(t.files['car.json']).toEqual(carFile);
+    expect(notes[0]).toContain('Cannot save');
+  });
+
+  it('Save As renames every undo step, so undoing never brings the old name back', async () => {
+    const t = setup({ 'car.json': carFile }, { names: ['Car 2'] });
+    await t.doc.open('car.json');
+    await t.doc.saveAs();
+    expect(t.renamed).toEqual(['Car 2']);
   });
 
   it('Save on a never-saved blueprint behaves like Save As', async () => {
@@ -119,13 +149,16 @@ describe('DocumentController', () => {
     expect(Object.keys(t.files)).toEqual([]);
   });
 
-  it('delete asks, removes the file, and starts a blank blueprint', async () => {
+  it('delete asks, removes the file, and keeps what is on screen as an unsaved blueprint', async () => {
     const t = setup({ 'car.json': carFile }, { confirms: [true] });
     await t.doc.open('car.json');
+    t.edit((b) => placePart(b, reg, 'battery', 1, 0, 0));
     expect(await t.doc.remove()).toBe(true);
     expect(t.files['car.json']).toBeUndefined();
-    expect(t.doc.state).toEqual({ name: 'untitled' });
-    expect(t.draft().parts).toEqual([]);
+    expect(t.doc.state).toEqual({ name: 'car' });
+    expect(t.draft().parts).toHaveLength(6);
+    expect(t.doc.isDirty()).toBe(true);
+    expect(t.asked[0]).toContain("What's on screen stays");
   });
 
   it('newBlank while dirty with Save saves first', async () => {
