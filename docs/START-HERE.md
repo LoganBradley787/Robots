@@ -8,6 +8,9 @@ For any session picking up this project, on any model. Read in this order, then 
 4. The current plan in `docs/plans/`. M0 is `docs/plans/M0-skeleton.md`.
 5. `docs/research/` only when a task touches that library (Rapier, PixiJS and tooling, script sandbox). The plans already carry the verified facts.
 
+## Building a robot on request
+If Logan asks for a robot rather than milestone work, read `docs/claude-robot-playbook.md` instead of the plan.
+
 ## How to work a plan
 - Use the superpowers `subagent-driven-development` skill (recommended) or `executing-plans`. One task at a time, tests first, then implementation, then the plan's verification step.
 - Commit after every task: `M0 T3: rapier loader and PhysicsWorld`. Never leave the tree red.

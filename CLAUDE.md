@@ -4,6 +4,8 @@ Browser, TypeScript, Rapier 2D (WASM, deterministic), PixiJS, Vite. See `docs/de
 
 Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`.
 
+**Asked to build a robot** ("build me a drone with missiles")? Read `docs/claude-robot-playbook.md` and follow its loop: write the blueprint in `blueprints/`, check it with `pnpm sim validate`, `show`, and `run`, and hand it over when it works. That work does not need the milestone plan.
+
 ## Working with Logan (read this first)
 
 - Logan is a CS student and software engineer. This is a personal side project pushed far with AI while Logan spends little time. Fun sandbox, not a product.
