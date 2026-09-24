@@ -19,7 +19,7 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   const legend = Object.entries(g?.legend ?? {});
   if (legend.length > 0) {
     lines.push('legend:');
-    for (const [token, e] of legend) lines.push(`  ${token} = ${e.part} rot ${e.rot ?? 0}${e.tags ? ` tags ${e.tags.join(', ')}` : ''}`);
+    for (const [token, e] of legend) lines.push(`  ${token} = ${e.part} rot ${e.rot ?? 0}${e.tags ? ` tags ${e.tags.join(', ')}` : ''}${e.auto === false ? ', auto controls off' : ''}`);
   }
   let mass = 0;
   let mx = 0;

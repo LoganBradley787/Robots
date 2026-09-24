@@ -32,6 +32,8 @@ export interface PieceReport {
   final: PieceState;
   /** The core's (else the root part's) position every `trackEvery` seconds, plus its first and last. */
   track: { t: number; x: number; y: number }[];
+  /** Where each of its parts is at the end (empty when it is gone), so the side view shows its shape. */
+  finalParts: { x: number; y: number }[];
 }
 
 export interface TraceEvent {
@@ -214,6 +216,7 @@ export class Tracer {
       p.core = coreLabel(r);
       p.final = { x: s.coreX, y: s.coreY, tiltDeg: s.tiltDeg, speed: s.speed, resting: s.resting, parts: s.parts, ...(e && e.capacity > 0 ? { energy: { stored: e.stored, capacity: e.capacity } } : {}) };
       addPoint(p, { t: w.time, x: s.coreX, y: s.coreY });
+      p.finalParts = [...r.parts.keys()].map((id) => partWorldPose(w, r, id)).map((q) => ({ x: q.x, y: q.y }));
     }
     const order = (k: string): number => (k === 'key' || k === 'drop' ? 0 : 1);
     const events = this.events.map((e, i) => ({ e, i })).sort((a, b) => a.e.t - b.e.t || order(a.e.kind) - order(b.e.kind) || a.i - b.i).map((x) => x.e);
@@ -233,6 +236,7 @@ export class Tracer {
       appearedAt: this.world.tick * this.world.dt,
       final: { x: pose.x, y: pose.y, tiltDeg: 0, speed: 0, resting: false, parts: r.parts.size },
       track: [{ t: this.world.time, x: pose.x, y: pose.y }],
+      finalParts: [],
     };
     if (r.brokeFrom !== undefined) {
       const from = this.pieces.get(r.brokeFrom);

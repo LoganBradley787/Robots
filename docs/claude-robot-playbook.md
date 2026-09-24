@@ -34,10 +34,10 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 
 ## Reading a run report
 - **Once per second:** robot A's core position, tilt in degrees (counterclockwise positive), speed, resting.
-- **drive / energy / destruction:** distance, max altitude (the core's highest y; the ground is y 0, so a high spawn counts), max tilt, top speed; energy used and left; parts destroyed and blasts. While attached, a placed missile's core and cell share the robot's energy pool, so a drone with two missiles shows their energy too; each piece's own energy is in the pieces list.
+- **drive / energy / destruction:** distance, max altitude (the core's highest y; the ground is y 0, so a high spawn counts), max tilt, top speed; energy used and left; parts destroyed and blasts. While attached, a placed missile's core and cell share the robot's energy pool (the pilot drains them too), so a drone with two missiles shows a bigger capacity until they leave; each piece's own energy is in the pieces list.
 - **events:** everything in time order with the robot's letter. A is the spawned robot; B, C, ... are pieces that broke off (missiles) and drops, in the order they appeared. Keys, drops, decouplers firing, splits, a core waking with its keys and scripts, scripts turning on or off, parts lost, explosions, `log()` lines (a repeated line is folded: "and 40 more times until t=3.20"), script crashes, energy running out.
 - **pieces:** each letter's final state, or "gone at t=..., last seen at (x, y)". Pieces with no core are counted at the end.
-- **side view:** lowercase letters are each piece's path (every 0.1 s), uppercase where it ended, `*` an explosion, `#` the ground and boxes where they started. The header gives the scale of a column and a row; they differ, so slopes look steeper or flatter than they are.
+- **side view:** lowercase letters are each piece's core path (every 0.1 s), uppercase its parts where it ended (so a dropped wall shows its shape), `*` an explosion, `#` the ground and boxes where they started. The header gives the scale of a column and a row; they differ, so slopes look steeper or flatter than they are.
 - A piece that keeps flying after its core died is debris (a blown missile's thruster and gyro); its path can arc up after the blast.
 
 ## Blueprint format
@@ -78,7 +78,7 @@ function tick() {
 }
 ```
 - `self`: `{ pos: {x, y}, vel: {x, y}, angle, angVel, mass, energy: { stored, capacity } }` of the script's core and its piece. Angles in radians, counterclockwise positive, 0 as built.
-- `parts`: `[{ id, type, tags, pos, angle, in, out }]` for every part in the piece (`in` the input channels, `out` the outputs like a decoupler's `armed`).
+- `parts`: `[{ id, type, tags, pos, angle, in, out }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `in` the input channels, `out` the outputs like a decoupler's `armed`.
 - `set(target, channel, value)`, `get(target, channel)`: target is a tag, a part type, or an id.
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
 - `state` (kept between ticks), `dt`, `time`, `frame`, `param()`, `log(...)` (up to 20 lines per second per robot; the run report shows them), `random()`, `clamp`, `lerp`, `sign`, `Math`.
@@ -98,6 +98,7 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 
 ## Placing one blueprint on another
 - `pnpm sim place launcher-base missile --at 8,6 --save launcher` copies `missile` onto the base with the missile's core at cell (8, 6). The copy is ordinary parts of the new robot; editing `missile.json` later changes nothing already placed.
+- `--at` is where the source's root lands after `--mirror` and `--rot` (the flip and the turn happen around it). A bottom row or left column of dots in the target is allowed, as room to place into.
 - If the target has a core, the copy gets a scope `missile1` (then `missile2`): its parts get the tag `missile1`, its own tags become `missile1.<tag>`, and its bindings and scripts move to its core's entry in `cores`. They stay asleep while attached and start when its piece breaks off (a decoupler fires, or a blast cuts it free). Inside the missile's own controls, `thruster` means that missile's thruster only.
 - The robot's own controls reach the copy's parts by part type or id (`decoupler`, `thruster@3,0`) or by the scope tag (`missile1`). Tag the robot's own parts (`left`, `right`) so its controls never grab a missile's parts by type.
 - Parts must not overlap. Leave an empty row or column of dots where the copy goes if it would land below row 0 or left of column 0; otherwise the file falls back to the long `parts` form (`place` says so).
@@ -122,14 +123,15 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - **Tuning a hover** (both loops are a spring and a damper, so pick them from the robot's numbers instead of guessing):
   - Height: throttle `base + kp * err - kd * vel.y`. The force per unit of throttle is F = total lift (N); with mass m, `kp = m * w^2 / F` and `kd = 2 * m * w / F` settle in about 4 / w seconds (w of 1.5 to 2 feels right).
   - Lean: left and right throttle differ by `k * off - c * angVel`. Torque per unit of difference is T = sum over props of (lift x |distance from the core column|); with I about m * width^2 / 12, `k = I * w^2 / T` and `c = 2 * I * w / T`.
-  - Add a slow integral (a trim that creeps toward what holds level) for weight that moves off center, like a fired missile.
+  - Weight off center (a missile gone from one side): compute it instead of learning it. The pilot's `parts` list is what is still attached, with world positions; the torque of their weight about the core is known, so feed the differential that cancels it straight away (a table of part masses from `pnpm sim parts` in the script).
+  - Then a slow integral (a trim that creeps toward what holds level) for what is left: gain about 0.05 per radian second. Higher (0.4) winds up during a held lean and the drone swings and will not settle.
   - `param()` the gains so Logan can tune them in the builder.
 - **The second shot goes where the drone points.** Losing one missile shifts the weight and tilts the drone until its trim catches up (a few seconds). A missile released while the drone is tilted flies along that tilt, into the ground if the tilt is down. Wait for level, or fire both together, or balance the load (one missile each side facing opposite ways fires in any order).
 - **A graze does not fuze a warhead.** The fuze needs a 5 m/s change in one step; a missile that glances off the ground slides on, armed. Check the pieces list: a piece at y about 0.5 is on the ground.
 - **Name your own parts by tag in the robot's scripts.** `set('gyro', ...)` from the pilot also turns any attached missile's gyro (types reach every part). Tag the robot's own gyro (`stab`) and use the tag.
 - **Keys in the app:** keys go to the robot Logan controls. After a missile is released the player stays on the launcher; `,` cycles to other robots they can control, and clicking a robot takes it, so a missile's own keys (`x` detonate) work only after switching to it. Headless, `--keys` reach robot A only.
 - **Fire order:** when two missiles hang side by side pointing the same way, fire the front one first, or the back one flies through it.
-- **Spawn in the open.** The flat world has a box at x 8 (2 m tall), a ramp at x 15, a box at x -8, and its ground ends at x plus or minus 500.
+- **Spawn in the open.** `worlds/flat.json`: a 2 by 2 m box from x 7 to 9, the ramp (a 6 by 1 m box tilted 18 degrees, x 12 to 18, top about 1.9 m), a 1 by 1 m box from x -8.5 to -7.5, and ground from x -500 to 500. Open ground: x below -10 or between 20 and 490. In the app Logan deploys wherever they click, so a robot for the ramp can start anywhere left of it; headless, the gap between the 2 m box and the ramp is only 3 m (x 9 to 12), so a car tested there must be at most about 5 wide with its rear edge past x 9, or spawn at x 20 and drive left.
 - **Energy.** Check `energy:` in the report; fliers run dry in tens of seconds on one battery.
 
 ## Done checks for common requests

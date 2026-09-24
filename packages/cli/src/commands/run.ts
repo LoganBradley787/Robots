@@ -127,7 +127,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
 
 function traced(tracer: Tracer, file: WorldFile): Pick<RunReport, 'events' | 'pieces' | 'plot'> {
   const { pieces, events, blasts } = tracer.finish();
-  const plot = plotPaths({ world: file, tracks: pieces.map((p) => ({ mark: p.mark, points: p.track })), blasts });
+  const plot = plotPaths({ world: file, tracks: pieces.map((p) => ({ mark: p.mark, points: p.track, shape: p.finalParts })), blasts });
   return { events, pieces, plot };
 }
 
