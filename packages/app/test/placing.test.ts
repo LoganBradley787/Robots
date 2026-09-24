@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { defaultRegistry, expandBlueprint, placeBlueprint, type Blueprint } from '@robots/sim-core';
 import { controlCores, controlsOf, withControls } from '../src/builder/coreControls';
 import { placeStamp, stampGhost, type Stamp } from '../src/builder/stamp';
+import { initialEditor, reduce, type EditorEvent } from '../src/builder/editorState';
 
 const reg = defaultRegistry();
 const bp = (raw: unknown): Blueprint => {
@@ -43,6 +44,38 @@ describe('placing a held blueprint (M7)', () => {
     expect(g.ok).toBe(false);
     expect(g.parts.map((p) => `${p.x},${p.y}`)).toEqual(['1,1', '2,1', '3,1']);
     expect(stampGhost(car, stamp(), { x: 2, y: 2 }, off, reg).ok).toBe(true);
+  });
+});
+
+describe('the builder holds and places a blueprint (M7)', () => {
+  const run = (events: EditorEvent[], start: Blueprint = car) => {
+    let editor = initialEditor();
+    let b = start;
+    const changes: Blueprint[] = [];
+    for (const e of events) {
+      const r = reduce(editor, b, e, reg, reg.ids());
+      if (r.bp !== b) changes.push(r.bp);
+      editor = r.editor;
+      b = r.bp;
+      expect(r.gesture).toBeUndefined();
+    }
+    return { editor, bp: b, changes };
+  };
+
+  it('R turns it, F flips it, a click places it as one change, and it stays held for the next', () => {
+    const r = run([{ type: 'holdBlueprint', name: 'missile', bp: missile }, { type: 'rotate', dir: 1 }, { type: 'flip' }, { type: 'down', cell: { x: 2, y: 3 }, button: 'left', shift: false }, { type: 'up', cell: { x: 2, y: 3 } }]);
+    expect(r.changes).toHaveLength(1);
+    expect(r.editor.stamp).toMatchObject({ name: 'missile', rot: 90, flipped: true });
+    expect(r.bp.cores?.[0]?.scope).toBe('missile1');
+  });
+
+  it('a refused click changes nothing and says why; Esc or picking a part lets go', () => {
+    const r = run([{ type: 'holdBlueprint', name: 'missile', bp: missile }, { type: 'down', cell: { x: 2, y: 1 }, button: 'left', shift: false }]);
+    expect(r.changes).toEqual([]);
+    expect(r.editor.refused).toBe('missile would overlap frame@1,1 at (1, 1)');
+    expect(run([{ type: 'holdBlueprint', name: 'missile', bp: missile }, { type: 'escape' }]).editor.stamp).toBeUndefined();
+    const picked = run([{ type: 'holdBlueprint', name: 'missile', bp: missile }, { type: 'hold', part: 'frame' }]).editor;
+    expect([picked.stamp, picked.held?.part]).toEqual([undefined, 'frame']);
   });
 });
 

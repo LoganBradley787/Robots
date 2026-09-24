@@ -1,4 +1,10 @@
-import type { Blueprint, ScriptSpec } from '@robots/sim-core';
+import type { Binding, ScriptSpec } from '@robots/sim-core';
+
+/** What these edit: a blueprint's top-level controls, or one core's (M7, `coreControls.ts`). */
+interface Controls {
+  bindings: readonly Binding[];
+  scripts: readonly ScriptSpec[];
+}
 
 /** What a new script starts with: the shape of the API, and nothing that moves the robot yet. */
 export const NEW_SCRIPT = `// Runs every tick while it is on. You get exact data: self.pos, self.vel, self.angle, self.angVel,
@@ -23,7 +29,7 @@ export function cleanScriptId(raw: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-export function addScript(bp: Blueprint): { bp: Blueprint; id: string } {
+export function addScript<T extends Controls>(bp: T): { bp: T; id: string } {
   let n = 1;
   const taken = new Set(bp.scripts.map((s) => s.id));
   while (taken.has(n === 1 ? 'script' : `script${n}`)) n++;
@@ -33,7 +39,7 @@ export function addScript(bp: Blueprint): { bp: Blueprint; id: string } {
 }
 
 /** Renames a script and the bindings that toggle it. Refuses empty or taken ids (returns the blueprint as is). */
-export function renameScript(bp: Blueprint, from: string, to: string): Blueprint {
+export function renameScript<T extends Controls>(bp: T, from: string, to: string): T {
   const id = cleanScriptId(to);
   if (id === '' || id === from || bp.scripts.some((s) => s.id === id)) return bp;
   return {
@@ -45,11 +51,11 @@ export function renameScript(bp: Blueprint, from: string, to: string): Blueprint
 }
 
 /** Removes a script and every binding that toggles it. */
-export function removeScript(bp: Blueprint, id: string): Blueprint {
+export function removeScript<T extends Controls>(bp: T, id: string): T {
   return { ...bp, scripts: bp.scripts.filter((s) => s.id !== id), bindings: bp.bindings.filter((b) => !(b.mode === 'script' && b.script === id)) };
 }
 
-export function updateScript(bp: Blueprint, id: string, patch: Partial<Pick<ScriptSpec, 'source' | 'enabled' | 'params'>>): Blueprint {
+export function updateScript<T extends Controls>(bp: T, id: string, patch: Partial<Pick<ScriptSpec, 'source' | 'enabled' | 'params'>>): T {
   let changed = false;
   const scripts = bp.scripts.map((s) => {
     if (s.id !== id) return s;

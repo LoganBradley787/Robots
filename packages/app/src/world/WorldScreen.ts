@@ -1,5 +1,5 @@
 import type { Graphics, Ticker } from 'pixi.js';
-import { World, activeControls, sampleRobot, type PartRegistry, type Robot, type WorldFile } from '@robots/sim-core';
+import { World, activeControls, keysScriptsRead, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
 import { interpolateState } from '../render/interpolate';
@@ -43,6 +43,8 @@ export interface WorldView {
   controlled?: {
     name: string;
     keys: KeyView[];
+    /** Keys its running scripts read (M7): no binding, but they do something. */
+    scriptKeys: { key: string; held: boolean }[];
     energy?: { percent: number; capacity: number };
     /** The robot's scripts: running, off, or stopped with an error. */
     scripts: { id: string; state: 'on' | 'off' | 'crashed'; error?: string }[];
@@ -87,6 +89,8 @@ export class WorldScreen {
   /** How many world events have been shown. */
   private eventCursor = 0;
   private lastView = '';
+  /** Keys each script source reads, cached by source (it only changes when the robot is redeployed). */
+  private readonly readCache = new Map<string, Set<string>>();
   /** A blueprint waiting to be dropped, following the cursor. */
   private placing?: { ghost: SpawnGhost; at?: { x: number; y: number }; ok: boolean; reason?: string };
 
@@ -94,6 +98,20 @@ export class WorldScreen {
   private readonly textures: GameTextures;
   private readonly file: WorldFile;
   private readonly hud: { set(lines: string[]): void };
+
+  private scriptKeysOf(scripts: readonly ScriptSpec[]): Set<string> {
+    const out = new Set<string>();
+    for (const sc of scripts) {
+      if (typeof sc.source !== 'string') continue;
+      let keys = this.readCache.get(sc.source);
+      if (!keys) {
+        keys = keysScriptsRead([sc.source]).keys;
+        this.readCache.set(sc.source, keys);
+      }
+      for (const k of keys) out.add(k);
+    }
+    return out;
+  }
 
   private constructor(renderer: Renderer, textures: GameTextures, file: WorldFile, world: World, hud: { set(lines: string[]): void }) {
     this.renderer = renderer;
@@ -392,6 +410,9 @@ export class WorldScreen {
       // Auto control keys first (Q W E A S D), then custom keys in binding order.
       const rank = (k: string): number => (AUTO_KEYS.includes(k) ? AUTO_KEYS.indexOf(k) : AUTO_KEYS.length);
       const keys = controller.keys.map((key, i) => ({ key, i })).sort((a, b) => rank(a.key) - rank(b.key) || a.i - b.i);
+      // Keys the running scripts read themselves (a hover's W and S): shown after the bound keys, marked as script keys.
+      const running = activeControls(controlled).scripts.filter((sc) => scripts.some((r) => r.id === sc.id && r.enabled && !r.crashed));
+      const read = [...this.scriptKeysOf(running)].filter((k) => !controller.keys.includes(k)).sort((a, b) => rank(a) - rank(b));
       const e = this.world.energy(controlled.id);
       view.controlled = {
         name: controlled.name,
@@ -409,6 +430,7 @@ export class WorldScreen {
           on: controller.isToggledOn(key) || scriptOn(key),
           toggle: toggles.has(key),
         })),
+        scriptKeys: read.map((key) => ({ key, held: this.keys.isDown(key) })),
       };
     }
     const key = JSON.stringify(view);

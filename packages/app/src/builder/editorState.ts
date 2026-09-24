@@ -11,6 +11,7 @@ import {
   type PartRegistry,
   type Rotation,
 } from '@robots/sim-core';
+import { placeStamp, type Stamp } from './stamp';
 
 export interface Cell {
   x: number;
@@ -20,6 +21,10 @@ export interface Cell {
 export interface EditorState {
   /** The part being painted, if any. */
   held?: { part: string; rot: Rotation };
+  /** A saved blueprint held to place as a copy (M7). Never together with `held` or `eraser`. */
+  stamp?: Stamp;
+  /** Why the last click with a held blueprint did not place it. */
+  refused?: string;
   /** The eraser tool (`E`): left-click or drag erases. Never together with `held`. */
   eraser?: true;
   /** The part menu (right-click, `11`) is open on these parts. */
@@ -36,6 +41,8 @@ export interface EditorState {
 export type EditorEvent =
   | { type: 'pick'; index: number }
   | { type: 'hold'; part: string }
+  | { type: 'holdBlueprint'; name: string; bp: Blueprint }
+  | { type: 'flip' }
   | { type: 'eraser' }
   | { type: 'closeMenu' }
   | { type: 'rotate'; dir: 1 | -1 }
@@ -128,11 +135,17 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
     }
     case 'hold': {
       const rot = editor.held?.part === e.part ? editor.held.rot : 0;
-      const { eraser: _eraser, menu: _menu, ...rest } = editor;
+      const { eraser: _eraser, menu: _menu, stamp: _stamp, refused: _refused, ...rest } = editor;
       return { editor: { ...rest, held: { part: e.part, rot }, selection: [] }, bp };
     }
+    case 'holdBlueprint': {
+      const { eraser: _eraser, menu: _menu, held: _held, refused: _refused, ...rest } = editor;
+      return { editor: { ...rest, stamp: { name: e.name, bp: e.bp, rot: 0, flipped: false }, selection: [] }, bp };
+    }
+    case 'flip':
+      return editor.stamp ? { editor: { ...editor, stamp: { ...editor.stamp, flipped: !editor.stamp.flipped } }, bp } : { editor, bp };
     case 'eraser': {
-      const { held: _held, menu: _menu, eraser, ...rest } = editor;
+      const { held: _held, menu: _menu, stamp: _stamp, refused: _refused, eraser, ...rest } = editor;
       return { editor: eraser ? rest : { ...rest, eraser: true, selection: [] }, bp };
     }
     case 'closeMenu': {
@@ -142,6 +155,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
     case 'rotate': {
       // With the part menu open, rotation is for the parts it is on, not the part in your hand.
       if (editor.held && !editor.menu) return { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp };
+      if (editor.stamp && !editor.menu) return { editor: { ...editor, stamp: { ...editor.stamp, rot: rotateBy(editor.stamp.rot, e.dir) } }, bp };
       let out = bp;
       for (const id of editor.selection) {
         const p = out.parts.find((q) => q.id === id);
@@ -155,7 +169,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       return { editor: { ...rest, selection: [] }, bp: removeParts(bp, editor.selection) };
     }
     case 'escape': {
-      const { held: _held, eraser: _eraser, menu: _menu, gesture: g, gestureShift: _shift, ...rest } = editor;
+      const { held: _held, eraser: _eraser, menu: _menu, stamp: _stamp, refused: _refused, gesture: g, gestureShift: _shift, ...rest } = editor;
       return { editor: { ...rest, selection: [] }, bp, ...(g && g.kind !== 'select' ? { gesture: 'end' as const } : {}) };
     }
     case 'endGesture': {
@@ -183,6 +197,12 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
         if (!hit) return { editor: closed, bp };
         const ids = editor.selection.includes(hit.id) ? editor.selection : [hit.id];
         return { editor: { ...closed, selection: ids, menu: { ids } }, bp };
+      }
+      if (editor.stamp) {
+        // A held blueprint is placed whole in one click (one undo step), or refused whole.
+        const r = placeStamp(bp, editor.stamp, e.cell, editor.mirror, registry);
+        const { refused: _refused, ...rest } = closed;
+        return r.ok ? { editor: { ...rest, hover: e.cell, selection: [] }, bp: r.bp } : { editor: { ...rest, hover: e.cell, refused: r.error }, bp };
       }
       const kind = editor.eraser ? 'erase' : editor.held ? 'paint' : 'select';
       const next = {

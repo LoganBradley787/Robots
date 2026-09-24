@@ -1,9 +1,10 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, createQuickJsHost, setAutoControls, setBindings, setPartsAuto, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Blueprint } from '@robots/sim-core';
+import { addTagToParts, createQuickJsHost, setPartsAuto, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
+import { controlsOf, withControls } from './builder/coreControls';
 import flatJson from '../../../worlds/flat.json';
 import { Renderer } from './render/Renderer';
 import { loadTextures } from './render/assets';
@@ -40,7 +41,7 @@ async function boot(): Promise<void> {
   const blank = blankBlueprint('untitled');
   const store = createStore<AppState>({
     mode: 'builder',
-    builder: { draft: blank, eraser: false, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry) },
+    builder: { draft: blank, eraser: false, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry), controls: { bindings: [], scripts: [], autoOn: true }, cores: [{ label: 'main core' }] },
     doc: { name: blank.name, dirty: false, files: [] },
     icons: {},
   });
@@ -113,6 +114,18 @@ async function boot(): Promise<void> {
   const worldKeys = worldScreen.keyActions();
   worldScreen.onView = (world) => store.set({ world });
   worldScreen.onNotice = (message) => notify(store, message);
+  /**
+   * An edit to the controls of the core the panels are on (M7: the main core's are the blueprint's top level, another
+   * core's its `cores` entry), as one undo step. Nothing is committed when nothing changed.
+   */
+  type Controls = { bindings: readonly Binding[]; scripts: readonly ScriptSpec[] };
+  const editControls = (fn: (c: Controls) => Controls): void =>
+    builder.edit((bp) => {
+      const before = controlsOf(bp, registry, builder.controlsFor);
+      const after = fn({ bindings: before.bindings, scripts: before.scripts });
+      if (after.bindings === before.bindings && after.scripts === before.scripts) return bp;
+      return withControls(bp, registry, builder.controlsFor, after);
+    });
   const actions: AppActions = {
     worldTogglePause: worldKeys.togglePause,
     worldStep: worldKeys.step,
@@ -148,17 +161,33 @@ async function boot(): Promise<void> {
       worldScreen.cancelPlacing();
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
     },
-    setBindings: (bindings) => builder.edit((bp) => setBindings(bp, bindings)),
+    setBindings: (bindings) => editControls((c) => ({ ...c, bindings })),
     addTag: (ids, tag) => builder.edit((bp) => addTagToParts(bp, ids, tag)),
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
     setAuto: (ids, on) => builder.edit((bp) => setPartsAuto(bp, ids, on)),
-    setAutoControls: (on) => builder.edit((bp) => setAutoControls(bp, on)),
+    setAutoControls: (on) => builder.edit((bp) => (controlsOf(bp, registry, builder.controlsFor).autoOn === on ? bp : withControls(bp, registry, builder.controlsFor, { autoOn: on }))),
+    setControlsFor: (core) => {
+      builder.setControlsFor(core);
+      store.set({ scriptEditor: undefined });
+    },
+    holdBlueprint: (file) => {
+      doc
+        .loadForPlacing(file)
+        .then((bp) => {
+          if (bp) builder.dispatch({ type: 'holdBlueprint', name: bp.name, bp });
+        })
+        .catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+    },
     closeMenu: () => builder.dispatch({ type: 'closeMenu' }),
     eraser: () => builder.dispatch({ type: 'eraser' }),
     addScript: () => {
-      const r = addScript(builder.draft);
-      builder.edit(() => r.bp);
-      store.set({ scriptEditor: r.id });
+      let id = '';
+      editControls((c) => {
+        const r = addScript(c);
+        id = r.id;
+        return r.bp;
+      });
+      store.set({ scriptEditor: id });
     },
     removeScript: (id) => {
       void ask(store, {
@@ -171,27 +200,27 @@ async function boot(): Promise<void> {
         cancelValue: 'no',
       }).then((a) => {
         if (a.value !== 'yes') return;
-        builder.edit((bp) => removeScript(bp, id));
+        editControls((c) => removeScript(c, id));
         if (store.get().scriptEditor === id) store.set({ scriptEditor: undefined });
       });
     },
     renameScript: (from, to) => {
-      builder.edit((bp) => renameScript(bp, from, to));
+      editControls((c) => renameScript(c, from, to));
       const renamed = cleanScriptId(to);
-      if (store.get().scriptEditor === from && builder.draft.scripts.some((x) => x.id === renamed)) store.set({ scriptEditor: renamed });
+      if (store.get().scriptEditor === from && controlsOf(builder.draft, registry, builder.controlsFor).scripts.some((x) => x.id === renamed)) store.set({ scriptEditor: renamed });
     },
-    setScriptEnabled: (id, on) => builder.edit((bp) => updateScript(bp, id, { enabled: on })),
+    setScriptEnabled: (id, on) => editControls((c) => updateScript(c, id, { enabled: on })),
     openScript: (id) => store.set({ scriptEditor: id }),
     closeScript: () => store.set({ scriptEditor: undefined }),
-    setScriptSource: (id, source) => builder.edit((bp) => updateScript(bp, id, { source })),
+    setScriptSource: (id, source) => editControls((c) => updateScript(c, id, { source })),
     setScriptParam: (id, name, value) =>
-      builder.edit((bp) => {
-        const s = bp.scripts.find((x) => x.id === id);
-        if (!s) return bp;
+      editControls((c) => {
+        const s = c.scripts.find((x) => x.id === id);
+        if (!s) return c;
         const params = { ...s.params };
         if (value === undefined) delete params[name];
         else params[name] = value;
-        return updateScript(bp, id, { params });
+        return updateScript(c, id, { params });
       }),
     checkScript: (source, name) => {
       const r = scriptHost.compile(source, { name, seed: 0 });

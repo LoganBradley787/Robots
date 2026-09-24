@@ -5,6 +5,7 @@ import type { AppState } from '../ui/appState';
 import { History } from './history';
 import { initialEditor, reduce, type Cell, type EditorEvent, type EditorState } from './editorState';
 import type { BuilderScene, Overlay } from './BuilderScene';
+import { controlCores, controlsOf } from './coreControls';
 
 /** The builder screen's controller: input goes through the pure reducer and history, output goes to the scene and store. */
 export class Builder {
@@ -19,6 +20,8 @@ export class Builder {
   /** Where the part menu opened, in page pixels. It stays put while you pan. */
   private menuAt = { x: 0, y: 0 };
   private spaceDown = false;
+  /** The core whose controls the panels edit (M7); undefined is the main core. */
+  controlsFor: string | undefined;
 
   constructor(registry: PartRegistry, scene: BuilderScene, store: Store<AppState>, initial: Blueprint) {
     this.registry = registry;
@@ -37,7 +40,14 @@ export class Builder {
   load(bp: Blueprint): void {
     this.history.reset(bp);
     this.editor = initialEditor();
+    this.controlsFor = undefined;
     this.refresh(true);
+  }
+
+  /** Picks the core the Controls and Scripts panels edit. */
+  setControlsFor(core: string | undefined): void {
+    this.controlsFor = core;
+    this.refresh(false);
   }
 
   /** Apply an edit made outside the canvas (panels), as one undo step. */
@@ -165,6 +175,11 @@ export class Builder {
       case 'KeyR':
         this.dispatch({ type: 'rotate', dir: e.shiftKey ? -1 : 1 });
         return true;
+      case 'KeyF':
+        // Flips a held blueprint left to right.
+        if (!this.editor.stamp) return false;
+        this.dispatch({ type: 'flip' });
+        return true;
       case 'Delete':
       case 'Backspace':
         this.dispatch({ type: 'deleteSelection' });
@@ -217,10 +232,18 @@ export class Builder {
     this.scene.drawGhost(this.editor, bp, this.registry);
     this.scene.drawOverlay(this.overlay(), this.editor, bp, this.registry);
     const e = this.editor;
+    const cores = controlCores(bp, this.registry);
+    // A core that was erased (or undone away) falls back to the main core.
+    if (this.controlsFor !== undefined && !cores.some((c) => c.core === this.controlsFor)) this.controlsFor = undefined;
     this.store.set({
       builder: {
         draft: bp,
         ...(e.held ? { held: e.held } : {}),
+        ...(e.stamp ? { stamp: { name: e.stamp.name, rot: e.stamp.rot, flipped: e.stamp.flipped } } : {}),
+        ...(e.refused !== undefined ? { refused: e.refused } : {}),
+        ...(this.controlsFor !== undefined ? { controlsFor: this.controlsFor } : {}),
+        controls: controlsOf(bp, this.registry, this.controlsFor),
+        cores,
         eraser: e.eraser === true,
         selection: e.selection,
         ...(e.menu ? { menu: { ids: e.menu.ids.filter((id) => bp.parts.some((p) => p.id === id)), ...this.menuAt } } : {}),

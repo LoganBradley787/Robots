@@ -1,7 +1,7 @@
 import { scriptHost } from '../scriptHost';
 import { plotPaths } from '../report/plot';
 import { Tracer, type PieceReport, type TraceEvent } from '../report/trace';
-import { DriveTracker, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type RobotSample, type WorldFile } from '@robots/sim-core';
+import { DriveTracker, keysScriptsRead, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type RobotSample, type WorldFile } from '@robots/sim-core';
 
 export interface RunOptions {
   seconds: number;
@@ -131,21 +131,7 @@ function traced(tracer: Tracer, file: WorldFile): Pick<RunReport, 'events' | 'pi
   return { events, pieces, plot };
 }
 
-/**
- * Keys the scripts read with `keys.down('w')` and friends, so a timeline key only a script uses is not reported as
- * doing nothing. `any` when a script reads a key that is not a plain string (it could be any key).
- */
-export function keysScriptsRead(sources: readonly string[]): { keys: Set<string>; any: boolean } {
-  const keys = new Set<string>();
-  let any = false;
-  for (const src of sources) {
-    for (const m of src.matchAll(/keys\s*\.\s*(?:down|pressed|released)\s*\(\s*(?:(['"])([^'"]*)\1\s*\)|)/g)) {
-      if (m[2] !== undefined) keys.add(m[2]);
-      else any = true;
-    }
-  }
-  return { keys, any };
-}
+export { keysScriptsRead };
 
 const f = (v: number, digits = 3): string => v.toFixed(digits);
 

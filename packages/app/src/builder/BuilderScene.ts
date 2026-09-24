@@ -4,6 +4,7 @@ import { applyCamera } from '../render/cameraView';
 import { createCamera, screenToWorld, type CameraState } from '../render/camera';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from '../render/units';
 import type { Cell, EditorState } from './editorState';
+import { stampGhost } from './stamp';
 
 export const BUILDER_BG = 0x13203a;
 const GRID_EXTENT = 60;
@@ -87,6 +88,13 @@ export class BuilderScene {
     for (const c of this.ghost.removeChildren()) c.destroy();
     const held = editor.held;
     const h = editor.hover;
+    if (editor.stamp && h) {
+      // A held blueprint: every part it would add, red where a click would be refused (an overlap).
+      const g = stampGhost(bp, editor.stamp, h, editor.mirror, registry);
+      for (const p of g.parts) this.addPart(this.ghost, registry, p.part, p.x, p.y, p.rot, 0.55);
+      if (!g.ok) for (const c of this.ghost.children) (c as Sprite).tint = 0xff7a7a;
+      return;
+    }
     if (!held || !h || editor.gesture?.kind === 'erase') return;
     const spots: Array<{ x: number; rot: Rotation }> = [{ x: h.x, rot: held.rot }];
     const mx = mirrorX(h.x, editor.mirror.axisHalfCells);

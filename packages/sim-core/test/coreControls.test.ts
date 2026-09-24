@@ -72,13 +72,13 @@ describe('a woken core runs its own controls (M7)', () => {
     w.dispose();
   });
 
-  it('its scripts see their own tags without the scope', async () => {
+  it('its scripts see their own tags without the scope, and part masses', async () => {
     const tagged = bp({
       format: 1,
       name: 'missile',
       grid: ['C  M'],
       legend: { M: { part: 'gyro', tags: ['stab'] } },
-      scripts: [{ id: 'look', source: "function tick() { const g = parts.find((p) => p.type === 'gyro'); log(g.tags.join(' ')); }" }],
+      scripts: [{ id: 'look', source: "function tick() { const g = parts.find((p) => p.type === 'gyro'); log(g.tags.join(' '), g.mass); }" }],
     });
     const parent = bp({ format: 1, name: 'rail', grid: ['C  D>'], bindings: [{ key: 'f', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 }] });
     const placed = placeBlueprint(parent, tagged, { x: 2, y: 0 }, reg);
@@ -87,7 +87,7 @@ describe('a woken core runs its own controls (M7)', () => {
     const r = w.spawnBlueprint(toFileJson(placed.blueprint, reg, { inlineScripts: true }), { x: 0, y: 3 });
     w.step([{ robot: r.id, pressed: ['f'], released: [] }]);
     w.step();
-    expect(w.scriptLogs.map((l) => l.text)).toEqual(['gyro@3,0 stab']);
+    expect(w.scriptLogs.map((l) => l.text)).toEqual(['gyro@3,0 stab 1']);
     w.dispose();
   });
 

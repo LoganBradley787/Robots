@@ -20,7 +20,8 @@ export interface ScriptEditorActions {
 /** The code editor (M5, textarea first per Q15), over the canvas. Tab indents; Esc leaves the text; errors show live. */
 export function ScriptEditor({ store, actions }: { store: Store<AppState>; actions: ScriptEditorActions }) {
   const id = useStore(store, (s) => s.scriptEditor);
-  const spec = useStore(store, (s) => s.builder.draft.scripts.find((x) => x.id === s.scriptEditor));
+  // M7: the script of the core the panels are on.
+  const spec = useStore(store, (s) => s.builder.controls.scripts.find((x) => x.id === s.scriptEditor));
   const [check, setCheck] = useState<ScriptCheck | undefined>(undefined);
   const area = useRef<HTMLTextAreaElement>(null);
   const source = typeof spec?.source === 'string' ? spec.source : undefined;

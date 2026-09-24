@@ -1,21 +1,23 @@
-import { AUTO_KEYS, autoBindings, matchesTarget, partAutoBindings, type Binding, type Blueprint, type ChannelDef, type PartRegistry, type PlacedPart } from '@robots/sim-core';
+import { AUTO_KEYS, autoBindings, matchesTarget, partAutoBindings, scopedView, type Binding, type Blueprint, type ChannelDef, type PartRegistry, type PlacedPart } from '@robots/sim-core';
 
 /**
  * What a binding can target: part types present ("all wheels"), explicit tags (groups), then single parts. Only
  * targets with at least one input channel are offered, so a binding can always name a channel (an empty channel
  * would make the file unreadable).
  */
-export function bindingTargets(bp: Blueprint, registry: PartRegistry): { types: string[]; tags: string[]; parts: string[] } {
+export function bindingTargets(bp: Blueprint, registry: PartRegistry, scope?: string): { types: string[]; tags: string[]; parts: string[] } {
   const types: string[] = [];
   const tags = new Set<string>();
   const parts: string[] = [];
-  for (const p of bp.parts) {
+  // A placed copy's core (M7) sees its own parts' tags without the scope, and every part by type and id.
+  const members = scope === undefined ? bp.parts : bp.parts.filter((p) => p.tags.includes(scope));
+  for (const p of members) {
     const hasInputs = registry.has(p.part) && registry.get(p.part).inputs.length > 0;
     if (hasInputs && !types.includes(p.part)) types.push(p.part);
-    for (const t of p.tags) if (t !== p.id) tags.add(t);
+    for (const t of scopedView(p, scope).tags) if (t !== p.id) tags.add(t);
     if (hasInputs) parts.push(p.id);
   }
-  return { types, tags: [...tags].filter((t) => !types.includes(t) && channelsForTarget(bp, registry, t).length > 0).sort(), parts };
+  return { types, tags: [...tags].filter((t) => !types.includes(t) && channelsForTarget(bp, registry, t, scope).length > 0).sort(), parts };
 }
 
 /** "all wheels": how the target list names a part type. */
@@ -25,10 +27,10 @@ export function typeLabel(registry: PartRegistry, part: string): string {
 }
 
 /** Input channels available on the parts this target reaches (tag, type, or id), by name, in first-seen order. */
-export function channelsForTarget(bp: Blueprint, registry: PartRegistry, target: string): ChannelDef[] {
+export function channelsForTarget(bp: Blueprint, registry: PartRegistry, target: string, scope?: string): ChannelDef[] {
   const out: ChannelDef[] = [];
   for (const p of bp.parts) {
-    if (!matchesTarget(p, target) || !registry.has(p.part)) continue;
+    if (!matchesTarget(scopedView(p, scope), target) || !registry.has(p.part)) continue;
     for (const c of registry.get(p.part).inputs) if (!out.some((o) => o.name === c.name)) out.push(c);
   }
   return out;
@@ -41,11 +43,12 @@ const KEY_ORDER = 'dawsqezxcfrtgvbyhnujmikolp1234567890'.split('');
  * A new binding: the first key not used by a custom or an auto control (so it never doubles up on the wheels), the
  * first target that has channels, its first channel at full value.
  */
-export function defaultBinding(bp: Blueprint, registry: PartRegistry): Binding {
-  const t = bindingTargets(bp, registry);
+export function defaultBinding(bp: Blueprint, registry: PartRegistry, controls?: { bindings: readonly Binding[]; scope?: string }): Binding {
+  const scope = controls?.scope;
+  const t = bindingTargets(bp, registry, scope);
   const target = t.tags[0] ?? t.types[0] ?? t.parts[0] ?? '';
-  const channel = channelsForTarget(bp, registry, target)[0];
-  const used = new Set([...bp.bindings, ...autoBindings(bp, registry)].map((b) => b.key));
+  const channel = channelsForTarget(bp, registry, target, scope)[0];
+  const used = new Set([...(controls?.bindings ?? bp.bindings), ...autoBindings(bp, registry)].map((b) => b.key));
   const key = KEY_ORDER.find((k) => !used.has(k)) ?? 'q';
   return { key, mode: 'hold', target, channel: channel?.name ?? '', value: channel?.max ?? 1 };
 }

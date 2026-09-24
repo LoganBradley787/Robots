@@ -5,6 +5,7 @@ import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import { autoSummary, bindingTargets, channelsForTarget, defaultBinding, keyName, percent, typeLabel } from '../builder/bindings';
+import { ControlsFor, type BuilderActions } from './BuilderUi';
 
 export interface BindingActions {
   setBindings(bindings: Binding[]): void;
@@ -13,19 +14,24 @@ export interface BindingActions {
 
 const MODES: BindingMode[] = ['hold', 'toggle', 'pulse', 'script'];
 
-export function BindingsPanel({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: BindingActions }) {
+export function BindingsPanel({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: BindingActions & Pick<BuilderActions, 'setControlsFor'> }) {
   const draft = useStore(store, (s) => s.builder.draft);
   const [refused, setRefused] = useState<string | undefined>(undefined);
-  const bindings = draft.bindings;
-  const targets = bindingTargets(draft, registry);
+  // M7: the picked core's controls (the main core's are the blueprint's top level).
+  const controls = useStore(store, (s) => s.builder.controls);
+  const main = controls.core === undefined;
+  const scope = controls.scope;
+  const bindings = controls.bindings;
+  const scripts = controls.scripts;
+  const targets = bindingTargets(draft, registry, scope);
   const known = [...targets.types, ...targets.tags, ...targets.parts];
-  const auto = autoSummary(draft, registry);
-  const autoOn = draft.autoControls !== false;
+  const auto = main ? autoSummary(draft, registry) : [];
+  const autoOn = controls.autoOn;
   const update = (i: number, patch: Partial<Binding>): void => {
     actions.setBindings(bindings.map((b, n) => (n === i ? { ...b, ...patch } : b)));
   };
   const retarget = (i: number, target: string): void => {
-    const channels = channelsForTarget(draft, registry, target);
+    const channels = channelsForTarget(draft, registry, target, scope);
     const current = bindings[i]?.channel;
     const keep = channels.find((c) => c.name === current) ?? channels[0];
     update(i, { target, channel: keep?.name ?? '', value: keep ? Math.min(keep.max, Math.max(keep.min, bindings[i]?.value ?? keep.max)) : 1 });
@@ -34,6 +40,8 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
   return (
     <section class="side-section">
       <h3>Controls</h3>
+      <ControlsFor store={store} actions={actions} />
+      {!main && <p class="muted small">These start when this core's piece breaks off (a decoupler fires, or a blast cuts it free).{scope !== undefined ? ` Targets mean ${scope}'s own parts.` : ''}</p>}
       <label class="check">
         <input type="checkbox" checked={autoOn} onChange={(e) => actions.setAutoControls((e.target as HTMLInputElement).checked)} />
         <span>Auto controls</span>
@@ -47,18 +55,19 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
           ))}
         </ul>
       )}
-      {autoOn && auto.length === 0 && <p class="muted small">No parts with auto controls yet. Wheels drive on D and A; thrusters and propellers use the key they push toward; gyros spin on Q and E.</p>}
+      {!main && autoOn && <p class="muted small">Its piece's parts get auto controls when it wakes.</p>}
+      {main && autoOn && auto.length === 0 && <p class="muted small">No parts with auto controls yet. Wheels drive on D and A; thrusters and propellers use the key they push toward; gyros spin on Q and E.</p>}
       <p class="muted small">Right-click a part to turn its auto controls off. Custom controls below add to the auto ones.</p>
       {bindings.map((b, i) => {
-        const channels = channelsForTarget(draft, registry, b.target ?? '');
+        const channels = channelsForTarget(draft, registry, b.target ?? '', scope);
         const ch = channels.find((c) => c.name === b.channel);
         const setMode = (mode: BindingMode): void => {
           if (mode === b.mode) return;
           if (mode === 'script') {
-            actions.setBindings(bindings.map((x, n) => (n === i ? { key: x.key, mode, script: draft.scripts[0]?.id ?? '' } : x)));
+            actions.setBindings(bindings.map((x, n) => (n === i ? { key: x.key, mode, script: scripts[0]?.id ?? '' } : x)));
             return;
           }
-          const d = defaultBinding(draft, registry);
+          const d = defaultBinding(draft, registry, controls);
           const base = b.mode === 'script' ? { key: b.key, mode, target: d.target, channel: d.channel, value: d.value } : { ...b, mode };
           actions.setBindings(bindings.map((x, n) => (n === i ? base : x)));
         };
@@ -91,8 +100,8 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
             </select>
             {b.mode === 'script' ? (
               <select class="target script-target" value={b.script} title="the script this key turns on and off" onChange={(e) => update(i, { script: (e.target as HTMLSelectElement).value })}>
-                {draft.scripts.length === 0 && <option value="">(add a script first)</option>}
-                {draft.scripts.map((s) => (
+                {scripts.length === 0 && <option value="">(add a script first)</option>}
+                {scripts.map((s) => (
                   <option key={s.id} value={s.id}>
                     script {s.id}
                   </option>
@@ -163,7 +172,7 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
         );
       })}
       {refused && <p class="refused small">{refused}</p>}
-      <button onClick={() => actions.setBindings([...bindings, defaultBinding(draft, registry)])} disabled={known.length === 0}>
+      <button onClick={() => actions.setBindings([...bindings, defaultBinding(draft, registry, controls)])} disabled={known.length === 0}>
         Add control
       </button>
     </section>

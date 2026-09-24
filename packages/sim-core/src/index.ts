@@ -50,4 +50,5 @@ export { resolveScripts, allScripts, scriptFiles, scriptFileName, assignScriptFi
 export { SCRIPT_FILE } from './blueprint/validate';
 export { createQuickJsHost } from './script/quickjs';
 export { DEFAULT_LIMITS } from './script/types';
+export { keysScriptsRead } from './script/keysRead';
 export type { ScriptHost, ScriptInstance, ScriptError, ScriptInput, ScriptResult, ScriptWrite, ParamSpec, ScriptLimits, CompileOptions, CompileResult } from './script/types';

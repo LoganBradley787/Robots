@@ -1,4 +1,4 @@
-import { assignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, SCRIPT_FILE, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
+import { allScripts, assignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, SCRIPT_FILE, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
 import { fileForName, type BlueprintListing } from '../storage/blueprintApi';
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel';
@@ -123,7 +123,8 @@ export class DocumentController {
     // File names go onto the current draft, so edits made while saving are kept (as Save As does).
     const current = this.deps.getDraft();
     const named = assignScriptFiles(current, file, true);
-    if (named.scripts.some((s, i) => s.file !== current.scripts[i]?.file)) this.deps.setDraft(named, { keepHistory: true });
+    const before = allScripts(current);
+    if (allScripts(named).some((s, i) => s.file !== before[i]?.file)) this.deps.setDraft(named, { keepHistory: true });
     this.savedJson = this.serialize(draft);
     return true;
   }
@@ -145,6 +146,18 @@ export class DocumentController {
     const r = resolveScripts(raw, (f) => texts.get(f));
     if (r.missing.length > 0) this.deps.notify?.(`${file}: script file${r.missing.length === 1 ? '' : 's'} not found: ${r.missing.join(', ')}`);
     return r.raw;
+  }
+
+  /** A saved blueprint with its scripts loaded, to hold and place a copy of (M7). Undefined (and a notice) when it cannot be read. */
+  async loadForPlacing(file: string): Promise<Blueprint | undefined> {
+    try {
+      const { blueprint, issues } = expandBlueprint(await this.loadWithScripts(file));
+      if (blueprint) return blueprint;
+      this.deps.notify?.(`${file} is not a readable blueprint: ${issues.map((i) => i.message).join('; ')}`);
+    } catch (e) {
+      this.deps.notify?.(`Could not open ${file}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    return undefined;
   }
 
   async saveAs(): Promise<boolean> {

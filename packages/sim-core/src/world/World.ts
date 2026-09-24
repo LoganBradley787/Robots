@@ -559,7 +559,7 @@ export class World {
         const v = this.partOutput(robot.id, id, o.name);
         if (v !== undefined) out[o.name] = v;
       }
-      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, in: Object.fromEntries(chans?.get(id) ?? []), out });
+      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: p.def.mass, in: Object.fromEntries(chans?.get(id) ?? []), out });
     }
     return {
       frame: this.tickCount,

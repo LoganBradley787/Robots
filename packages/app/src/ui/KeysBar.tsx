@@ -20,8 +20,23 @@ function label(key: string): string {
 export function KeysBar({ store, actions }: { store: Store<AppState>; actions: KeysBarActions }) {
   const c = useStore(store, (s) => s.world?.controlled);
   const unlimited = useStore(store, (s) => s.world?.unlimitedEnergy ?? false);
-  if (!c || (c.keys.length === 0 && !c.energy)) return null;
+  if (!c || (c.keys.length === 0 && c.scriptKeys.length === 0 && !c.energy)) return null;
   const e = c.energy;
+  const press = (key: string) => ({
+    onPointerDown: (ev: PointerEvent) => {
+      ev.preventDefault();
+      actions.robotKeyDown(key);
+      // Keep the key held if the pointer slides off the button; it lets go on release anywhere.
+      try {
+        (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
+      } catch {
+        // A pointer that is not active (synthetic events) cannot be captured; pointerup still releases.
+      }
+    },
+    onPointerUp: () => actions.robotKeyUp(key),
+    onPointerCancel: () => actions.robotKeyUp(key),
+    onLostPointerCapture: () => actions.robotKeyUp(key),
+  });
   const pct = e?.percent ?? 0;
   return (
     <div class="keys-bar panel" title={`${c.name}'s keys`}>
@@ -34,26 +49,15 @@ export function KeysBar({ store, actions }: { store: Store<AppState>; actions: K
         </div>
       )}
       {c.keys.map((k) => (
-        <button
-          key={k.key}
-          tabIndex={-1}
-          class={`robot-key${k.held ? ' held' : ''}`}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            actions.robotKeyDown(k.key);
-            // Keep the key held if the pointer slides off the button; it lets go on release anywhere.
-            try {
-              (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-            } catch {
-              // A pointer that is not active (synthetic events) cannot be captured; pointerup still releases.
-            }
-          }}
-          onPointerUp={() => actions.robotKeyUp(k.key)}
-          onPointerCancel={() => actions.robotKeyUp(k.key)}
-          onLostPointerCapture={() => actions.robotKeyUp(k.key)}
-        >
+        <button key={k.key} tabIndex={-1} class={`robot-key${k.held ? ' held' : ''}`} {...press(k.key)}>
           {label(k.key)}
           {k.toggle && <span class={k.on ? 'toggle-dot on' : 'toggle-dot'} />}
+        </button>
+      ))}
+      {c.scriptKeys.length > 0 && <span class="keys-divider" title="keys its running scripts read" />}
+      {c.scriptKeys.map((k) => (
+        <button key={`script-${k.key}`} tabIndex={-1} class={`robot-key script-key${k.held ? ' held' : ''}`} title="read by a running script" {...press(k.key)}>
+          {label(k.key)}
         </button>
       ))}
     </div>

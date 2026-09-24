@@ -43,7 +43,8 @@ export interface ScriptInput {
     mass: number;
     energy: { stored: number; capacity: number };
   };
-  parts: { id: string; type: string; tags: string[]; pos: { x: number; y: number }; angle: number; in: Record<string, number>; out: Record<string, number> }[];
+  /** Every part still attached to the script's core, in world coordinates, with its mass (kg) from its def. */
+  parts: { id: string; type: string; tags: string[]; pos: { x: number; y: number }; angle: number; mass: number; in: Record<string, number>; out: Record<string, number> }[];
   keys: { down: string[]; pressed: string[]; released: string[] };
 }
 

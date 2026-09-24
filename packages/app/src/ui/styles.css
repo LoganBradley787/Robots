@@ -39,7 +39,14 @@
 .palette {
   position: absolute; top: 56px; left: 12px; width: 92px; display: flex; flex-direction: column; gap: 6px; padding: 8px;
   background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px;
+  max-height: calc(100vh - 110px); overflow-y: auto;
 }
+.palette > * { flex-shrink: 0; }
+.palette h4 { margin: 6px 0 0; font-size: 11px; font-weight: 600; color: var(--muted); text-align: center; }
+.palette .blueprint { padding: 5px 4px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.palette .blueprint.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: #213a66; }
+.controls-for { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+.controls-for select { flex: 1; min-width: 0; }
 .palette .part { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; }
 .palette .part img { width: 40px; height: 40px; }
 .palette .part.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; background: #213a66; }
@@ -125,6 +132,8 @@ kbd { font: 10px ui-monospace, Menlo, monospace; padding: 0 4px; border: 1px sol
 /* Keys bar: the controlled robot's keys, above the world toolbar. */
 .keys-bar { position: absolute; bottom: 64px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; padding: 6px 8px; background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; }
 #ui .robot-key { position: relative; min-width: 38px; height: 38px; padding: 0 10px; font: 600 14px ui-monospace, Menlo, monospace; user-select: none; touch-action: none; }
+#ui .robot-key.script-key { border-style: dashed; color: #b9c6dd; }
+#ui .keys-divider { width: 1px; align-self: stretch; margin: 4px 2px; background: rgba(255, 255, 255, 0.18); }
 #ui .robot-key.held { background: #2f6fd8; border-color: #7fb0ff; color: white; box-shadow: 0 0 10px rgba(90, 150, 255, 0.55); }
 .toggle-dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: #3a4f7d; }
 .toggle-dot.on { background: #6fe39a; box-shadow: 0 0 6px #6fe39a; }

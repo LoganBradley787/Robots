@@ -2,10 +2,19 @@ import type { Blueprint, Issue, Rotation, StaticStats } from '@robots/sim-core';
 import type { Mode } from '../app/modes';
 import type { BlueprintListing } from '../storage/blueprintApi';
 import type { WorldView } from '../world/WorldScreen';
+import type { ControlsView } from '../builder/coreControls';
 
 export interface BuilderView {
   draft: Blueprint;
   held?: { part: string; rot: Rotation };
+  /** A saved blueprint held to place as a copy (M7). */
+  stamp?: { name: string; rot: Rotation; flipped: boolean };
+  /** Why the last click with it was refused. */
+  refused?: string;
+  /** The core the Controls and Scripts panels edit (absent: the main core), its controls, and every core to pick. */
+  controlsFor?: string;
+  controls: ControlsView;
+  cores: { core?: string; label: string }[];
   eraser: boolean;
   selection: string[];
   /** The part menu: which parts it edits and where it opened (page pixels). */

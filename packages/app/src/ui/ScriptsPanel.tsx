@@ -1,6 +1,7 @@
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
+import { ControlsFor, type BuilderActions } from './BuilderUi';
 
 export interface ScriptActions {
   addScript(): void;
@@ -11,11 +12,14 @@ export interface ScriptActions {
 }
 
 /** The blueprint's scripts (M5): each one's name, whether it starts on deploy, and a button to edit its code. */
-export function ScriptsPanel({ store, actions }: { store: Store<AppState>; actions: ScriptActions }) {
-  const scripts = useStore(store, (s) => s.builder.draft.scripts);
+export function ScriptsPanel({ store, actions }: { store: Store<AppState>; actions: ScriptActions & Pick<BuilderActions, 'setControlsFor'> }) {
+  // M7: the picked core's scripts (the same pick as the Controls panel).
+  const scripts = useStore(store, (s) => s.builder.controls.scripts);
+  const main = useStore(store, (s) => s.builder.controls.core === undefined);
   return (
     <section class="side-section">
       <h3>Scripts</h3>
+      <ControlsFor store={store} actions={actions} />
       {scripts.length === 0 && <p class="muted small">Scripts are JavaScript that runs every tick with exact sensor data. They are saved as .js files next to the blueprint.</p>}
       {scripts.map((s) => (
         <div class="script-row" key={s.id}>
@@ -28,9 +32,9 @@ export function ScriptsPanel({ store, actions }: { store: Store<AppState>; actio
               if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur();
             }}
           />
-          <label class="check inline" title="runs as soon as the robot is deployed">
+          <label class="check inline" title={main ? 'runs as soon as the robot is deployed' : "runs as soon as this core's piece breaks off"}>
             <input type="checkbox" checked={s.enabled} onChange={(e) => actions.setScriptEnabled(s.id, (e.target as HTMLInputElement).checked)} />
-            <span>on at deploy</span>
+            <span>{main ? 'on at deploy' : 'on at release'}</span>
           </label>
           <button onClick={() => actions.openScript(s.id)}>Edit</button>
           <button class="tag-remove" aria-label={`remove script ${s.id}`} onClick={() => actions.removeScript(s.id)}>
