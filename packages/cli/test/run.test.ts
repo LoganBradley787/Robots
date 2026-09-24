@@ -140,6 +140,14 @@ describe('validate and show', () => {
     expect(text).toContain('group 1: 1 part origin wheel@0,0 joint -> group 0');
     expect(showBlueprint({ format: 1, name: 'x', grid: ['C . F'] }).ok).toBe(false);
   });
+
+  it('show prints the controls of every core (M7)', () => {
+    const text = showBlueprint(readBlueprint(resolveBlueprint('launcher')).raw).text;
+    expect(text).toContain('controls of core@4,1 (the primary core, active from deploy):');
+    expect(text).toMatch(/controls of core@8,6 \(scope missile1[^\n]*active when its piece breaks off:\n {2}auto controls: on/);
+    expect(text).toContain('    g script guide');
+    expect(text).toContain('    guide: on, launcher.missile1.guide.js');
+  });
 });
 
 describe('blueprint files', () => {
@@ -163,6 +171,28 @@ describe('replay', () => {
     expect(r.robots[0]?.drive.distance).toBeGreaterThan(3);
     expect(formatReplay(r)).toContain('MATCH');
     expect((await replayCommand({ ...saved, endHash: 'ffffffff' })).matches).toBe(false);
+  });
+});
+
+describe('mirrorCommand (M7)', () => {
+  it('flips the launcher in place and its missile flies the other way', async () => {
+    const { mirrorCommand } = await import('../src/commands/mirror');
+    const out = mirrorCommand(readBlueprint(resolveBlueprint('launcher')).raw, {});
+    expect(out.ok).toBe(true);
+    expect(out.text).toContain('scripts are copied unchanged');
+    const json = JSON.parse(out.text.slice(0, out.text.lastIndexOf('}') + 1));
+    expect(json.primaryCore).toBe('core@5,1');
+    expect(Object.keys(json.cores)).toEqual(['core@1,6']);
+    const r = await runSim(flat, json, { seconds: 4, seed: 1, at: { x: 100, y: 1.5 }, keys: [{ key: 'f', down: 1, up: 1 }] });
+    const missile = r.pieces.find((p) => p.core.includes('missile1'));
+    expect(missile).toBeDefined();
+    expect((missile?.final.x ?? 0) - (missile?.track[0]?.x ?? 0)).toBeLessThan(-10);
+  });
+
+  it('saves under a new name with its own script files', async () => {
+    const { mirrorCommand } = await import('../src/commands/mirror');
+    const out = mirrorCommand(readBlueprint(resolveBlueprint('launcher')).raw, { saveAs: 'rehcnual' });
+    expect(out.files.map((f) => f.file)).toEqual(['rehcnual.json', 'rehcnual.missile1.guide.js']);
   });
 });
 

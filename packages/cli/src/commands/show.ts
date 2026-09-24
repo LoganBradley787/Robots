@@ -1,4 +1,4 @@
-import { autoBindings, defaultRegistry, formatIssues, toGrid, validateBlueprint } from '@robots/sim-core';
+import { autoBindings, defaultRegistry, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type ScriptSpec } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -34,18 +34,39 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
     const joint = grp.joint ? ` joint -> group ${grp.joint.parentGroup}` : '';
     lines.push(`  group ${grp.index}: ${grp.partIds.length} part${grp.partIds.length === 1 ? '' : 's'} origin ${grp.originId}${joint}`);
   }
+  const pilot = rootPartId(bp, registry);
+  lines.push(`controls of ${pilot ?? 'the robot'}${pilot !== undefined ? ' (the primary core, active from deploy)' : ''}:`);
   const auto = autoBindings(bp, registry);
-  if (bp.autoControls === false) lines.push('auto controls: off');
+  if (bp.autoControls === false) lines.push('  auto controls: off');
   else if (auto.length > 0) {
-    lines.push('auto controls:');
+    lines.push('  auto controls:');
     const byKey = new Map<string, string[]>();
     for (const b of auto) byKey.set(b.key, [...(byKey.get(b.key) ?? []), `${b.target} ${b.channel} ${(b.value ?? 0) > 0 ? '+' : ''}${Math.round((b.value ?? 0) * 100)}%`]);
-    for (const [key, what] of byKey) lines.push(`  ${key.toUpperCase()}: ${what.join(', ')}`);
+    for (const [key, what] of byKey) lines.push(`    ${key.toUpperCase()}: ${what.join(', ')}`);
   }
-  if (bp.bindings.length > 0) {
-    lines.push('bindings:');
-    for (const b of bp.bindings) lines.push(`  ${b.key} ${b.mode} ${b.mode === 'script' ? `script ${b.script}` : `${b.target} ${b.channel} ${b.value}`}`);
+  lines.push(...controlLines(bp.bindings, bp.scripts));
+  for (const c of bp.cores ?? []) {
+    lines.push(`controls of ${c.core}${c.scope !== undefined ? ` (scope ${c.scope}: its parts are tagged ${c.scope}, and its targets mean only those parts)` : ''}, active when its piece breaks off:`);
+    lines.push(`  auto controls: ${c.autoControls === false ? 'off' : "on for its piece's parts"}`);
+    lines.push(...controlLines(c.bindings, c.scripts));
   }
   if (v.issues.length > 0) lines.push(formatIssues(v.issues));
   return { ok: v.ok, text: lines.join('\n') };
+}
+
+function controlLines(bindings: readonly Binding[], scripts: readonly ScriptSpec[]): string[] {
+  const out: string[] = [];
+  if (bindings.length > 0) {
+    out.push('  bindings:');
+    for (const b of bindings) out.push(`    ${b.key} ${b.mode} ${b.mode === 'script' ? `${b.script}` : `${b.target} ${b.channel} ${b.value}`}`);
+  }
+  if (scripts.length > 0) {
+    out.push('  scripts:');
+    for (const sc of scripts) {
+      const params = Object.entries(sc.params).map(([k, v]) => `${k}=${v}`);
+      const where = sc.file ?? (typeof sc.source === 'string' ? 'inline' : sc.source.file);
+      out.push(`    ${sc.id}: ${sc.enabled ? 'on' : 'off until its key is pressed'}, ${where}${params.length > 0 ? `, params ${params.join(' ')}` : ''}`);
+    }
+  }
+  return out;
 }
