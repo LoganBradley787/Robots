@@ -50,6 +50,25 @@ export interface ScriptSpec {
   file?: string;
 }
 
+/**
+ * Controls of a core other than the primary core (M7): they start when that core wakes, which happens when its piece
+ * breaks off with no other core in it (`04`). A blueprint placed on another brings its controls along this way.
+ */
+export interface CoreControls {
+  /** The core part's id. */
+  core: string;
+  /**
+   * Set on a placed blueprint (`missile1`): its parts carry the tag `missile1` and their own tags as `missile1.<tag>`.
+   * Targets in these bindings and scripts are resolved inside that scope, so `thrusters` means this missile's
+   * thrusters and nothing else. Absent: targets resolve over the core's whole piece, like the primary core's.
+   */
+  scope?: string;
+  bindings: Binding[];
+  scripts: ScriptSpec[];
+  /** `false` turns auto controls off for this core's piece once it wakes. */
+  autoControls?: false;
+}
+
 /** A blueprint after expansion: a flat part list in blueprint order. */
 export interface Blueprint {
   format: 1;
@@ -61,6 +80,8 @@ export interface Blueprint {
   corePriority?: string[];
   /** `false` turns auto controls off for the whole blueprint (`11`). Absent means on. */
   autoControls?: false;
+  /** Controls of other cores, in file order (M7). Absent or empty when only the primary core has controls. */
+  cores?: CoreControls[];
   /** Grid cells written as `=`, checked against multi-cell footprints by the validator. */
   continuations: { x: number; y: number }[];
 }

@@ -1,9 +1,9 @@
 import { isRotation } from '../parts/faces';
 import type { Rotation } from '../parts/types';
 import { DEFAULT_LEGEND } from './legend';
-import type { Binding, BindingMode, Blueprint, Issue, LegendEntry, PlacedPart, ScriptSpec } from './types';
+import type { Binding, BindingMode, Blueprint, CoreControls, Issue, LegendEntry, PlacedPart, ScriptSpec } from './types';
 
-const TOP_KEYS = ['format', 'name', 'grid', 'legend', 'parts', 'bindings', 'scripts', 'primaryCore', 'corePriority', 'autoControls'];
+const TOP_KEYS = ['format', 'name', 'grid', 'legend', 'parts', 'bindings', 'scripts', 'primaryCore', 'corePriority', 'autoControls', 'cores'];
 const MODES: readonly BindingMode[] = ['hold', 'toggle', 'pulse', 'script'];
 
 type Obj = Record<string, unknown>;
@@ -74,12 +74,14 @@ export function expandBlueprint(raw: unknown): { blueprint?: Blueprint; issues: 
 
   const bindings = readBindings(raw.bindings, err);
   const scripts = readScripts(raw.scripts, err);
+  const cores = readCores(raw.cores, err);
   if (issues.length > 0) return { issues };
 
   const blueprint: Blueprint = { format: 1, name: raw.name as string, parts, bindings, scripts, continuations };
   if (raw.primaryCore !== undefined) blueprint.primaryCore = raw.primaryCore as string;
   if (raw.corePriority !== undefined) blueprint.corePriority = raw.corePriority as string[];
   if (raw.autoControls === false) blueprint.autoControls = false;
+  if (cores.length > 0) blueprint.cores = cores;
   return { blueprint, issues };
 }
 
@@ -104,7 +106,7 @@ function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
       continue;
     }
     if (entry.blueprint !== undefined) {
-      err('UNSUPPORTED', `${path} places a sub-assembly; sub-assemblies arrive in M6`, { path });
+      err('UNSUPPORTED', `${path} names a blueprint; blueprints are not referenced, they are copied in (\`pnpm sim place\` or the builder's Blueprints palette)`, { path });
       continue;
     }
     const extra = unknownKeys(entry, ['part', 'rot', 'tags', 'auto']);
@@ -203,15 +205,50 @@ function expandParts(raw: unknown, parts: PlacedPart[], err: Err): void {
   });
 }
 
-function readBindings(raw: unknown, err: Err): Binding[] {
+/** `cores`: an object of core part id to that core's controls, in file order. */
+function readCores(raw: unknown, err: Err): CoreControls[] {
+  if (raw === undefined) return [];
+  if (!isObj(raw)) {
+    err('BAD_FORMAT', 'cores must be an object of core part id to { bindings, scripts, scope, autoControls }', { path: 'cores' });
+    return [];
+  }
+  const out: CoreControls[] = [];
+  for (const [core, entry] of Object.entries(raw)) {
+    const path = `cores.${core}`;
+    if (!isObj(entry)) {
+      err('BAD_FORMAT', `${path} must be an object like { "bindings": [], "scripts": [] }`, { path });
+      continue;
+    }
+    const extra = unknownKeys(entry, ['scope', 'bindings', 'scripts', 'autoControls']);
+    if (extra.length > 0) {
+      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected scope, bindings, scripts, autoControls)`, { path });
+      continue;
+    }
+    if (entry.scope !== undefined && !isNonEmptyString(entry.scope)) {
+      err('BAD_FORMAT', `${path}.scope must be a tag like "missile1"`, { path: `${path}.scope` });
+      continue;
+    }
+    if (entry.autoControls !== undefined && typeof entry.autoControls !== 'boolean') {
+      err('BAD_FORMAT', `${path}.autoControls must be true or false`, { path: `${path}.autoControls` });
+      continue;
+    }
+    const c: CoreControls = { core, bindings: readBindings(entry.bindings, err, `${path}.bindings`), scripts: readScripts(entry.scripts, err, `${path}.scripts`) };
+    if (entry.scope !== undefined) c.scope = entry.scope as string;
+    if (entry.autoControls === false) c.autoControls = false;
+    out.push(c);
+  }
+  return out;
+}
+
+function readBindings(raw: unknown, err: Err, at = 'bindings'): Binding[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
-    err('BAD_BINDING', 'bindings must be a list', { path: 'bindings' });
+    err('BAD_BINDING', `${at} must be a list`, { path: at });
     return [];
   }
   const out: Binding[] = [];
   raw.forEach((b, i) => {
-    const path = `bindings[${i}]`;
+    const path = `${at}[${i}]`;
     const bad = (msg: string): void => err('BAD_BINDING', `${path}: ${msg}`, { path });
     if (!isObj(b)) return bad('must be an object');
     const extra = unknownKeys(b, ['key', 'mode', 'target', 'channel', 'value', 'script']);
@@ -232,15 +269,15 @@ function readBindings(raw: unknown, err: Err): Binding[] {
   return out;
 }
 
-function readScripts(raw: unknown, err: Err): ScriptSpec[] {
+function readScripts(raw: unknown, err: Err, at = 'scripts'): ScriptSpec[] {
   if (raw === undefined) return [];
   if (!Array.isArray(raw)) {
-    err('BAD_SCRIPT', 'scripts must be a list', { path: 'scripts' });
+    err('BAD_SCRIPT', `${at} must be a list`, { path: at });
     return [];
   }
   const out: ScriptSpec[] = [];
   raw.forEach((s, i) => {
-    const path = `scripts[${i}]`;
+    const path = `${at}[${i}]`;
     const bad = (msg: string): void => err('BAD_SCRIPT', `${path}: ${msg}`, { path });
     if (!isObj(s)) return bad('must be an object');
     const extra = unknownKeys(s, ['id', 'enabled', 'params', 'source', 'file']);

@@ -1,7 +1,7 @@
 import type { PartRegistry } from '../parts/registry';
 import { partId } from './expand';
 import { toGrid } from './toGrid';
-import type { Blueprint } from './types';
+import type { Blueprint, ScriptSpec } from './types';
 
 /**
  * The JSON written to a blueprint file: the grid form when a grid can express the blueprint (readable in diffs and
@@ -32,20 +32,35 @@ export function toFileJson(bp: Blueprint, registry: PartRegistry, opts: { inline
   if (bp.corePriority !== undefined) out.corePriority = bp.corePriority;
   if (bp.autoControls === false) out.autoControls = false;
   if (bp.bindings.length > 0) out.bindings = bp.bindings;
-  if (bp.scripts.length > 0) {
-    // On disk a script with a file is a reference (its code is in the .js file). Deploys and replays inline the code,
-    // so a run never depends on files that change later.
-    out.scripts = bp.scripts.map((s) => {
-      const e: Record<string, unknown> = { id: s.id };
-      if (!s.enabled) e.enabled = false;
-      if (Object.keys(s.params).length > 0) e.params = s.params;
-      if (s.file !== undefined && !(opts.inlineScripts && typeof s.source === 'string')) e.source = { file: s.file };
-      else {
-        e.source = s.source;
-        if (s.file !== undefined) e.file = s.file;
-      }
-      return e;
-    });
+  if (bp.scripts.length > 0) out.scripts = bp.scripts.map((s) => scriptJson(s, opts));
+  if (bp.cores && bp.cores.length > 0) {
+    const cores: Record<string, unknown> = {};
+    for (const c of bp.cores) {
+      const e: Record<string, unknown> = {};
+      if (c.scope !== undefined) e.scope = c.scope;
+      if (c.autoControls === false) e.autoControls = false;
+      if (c.bindings.length > 0) e.bindings = c.bindings;
+      if (c.scripts.length > 0) e.scripts = c.scripts.map((s) => scriptJson(s, opts));
+      // defineProperty: a core id is data, never `__proto__` magic.
+      Object.defineProperty(cores, c.core, { value: e, enumerable: true, writable: true, configurable: true });
+    }
+    out.cores = cores;
   }
   return out;
+}
+
+/**
+ * On disk a script with a file is a reference (its code is in the .js file). Deploys and replays inline the code,
+ * so a run never depends on files that change later.
+ */
+function scriptJson(s: ScriptSpec, opts: { inlineScripts?: boolean }): Record<string, unknown> {
+  const e: Record<string, unknown> = { id: s.id };
+  if (!s.enabled) e.enabled = false;
+  if (Object.keys(s.params).length > 0) e.params = s.params;
+  if (s.file !== undefined && !(opts.inlineScripts && typeof s.source === 'string')) e.source = { file: s.file };
+  else {
+    e.source = s.source;
+    if (s.file !== undefined) e.file = s.file;
+  }
+  return e;
 }

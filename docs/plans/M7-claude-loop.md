@@ -32,14 +32,17 @@ Revised with Logan before "go" (2026-09-24): placing a blueprint **copies** it. 
    - Its parts become the target's parts with ordinary ids (`core@3,2`). Nothing links back to the source file; editing `missile.json` later changes nothing already placed.
    - Its primary core's bindings, scripts, and `autoControls` become that core's entry in `cores`; its other cores' entries come along too (a placed launcher keeps its missiles' brains).
    - Overlap with existing parts is refused (the builder's ghost shows it; `placeBlueprint` returns an error).
-3. **Tags get a prefix on placement,** so the parent and the placed copy never reach into each other by accident:
-   - Every explicit tag of the copy becomes `<name><n>.<tag>` (`missile1.thrusters`), where `n` is the first number not already used in the target, and every binding that came with it is rewritten to match.
-   - Every placed part also gets the tag `<name><n>` (`missile1`), so the parent can bind a whole missile, or one missile of several.
-   - A part's own id tag stays as it is (ids are positions).
-4. **Script files.** A placed script's code is copied into the target's own script file (`launcher.guide.js`), named like any new script; two copies of the same missile in one blueprint share one file (same id and same code), so fixing it fixes both. The source's `.js` file is never touched.
+3. **Scopes keep the copy and the robot apart** (as built in T1):
+   - When the target already has a core, the copy gets a scope, `<name><n>` (`missile1`, the first free number). Every copied part gets the tag `missile1`, and its own tags become `missile1.<tag>`.
+   - The copy's controls are stored with that scope and are **not rewritten**: inside the scope, a target resolves against members only, with the prefix stripped, and part types (`warhead`) mean the scope's own parts. So the missile's binding on `motor` and its script's `set('motor', ...)` keep meaning that missile's thruster, and a second missile is `missile2` with its own.
+   - The robot's own (unscoped) controls see the prefixed tags, so they reach a copy only through `missile1` or `missile1.<tag>` (or part types and ids, which are global: that is the "built it wrong" case Logan accepted).
+   - Bindings that named a part by id are rewritten to the part's new id. Scripts should name parts by tag (the playbook says so).
+   - When the target has no core yet, the copy's core becomes the robot's pilot and everything is copied as it is, no scope.
+   - Placing also writes the target's `primaryCore` if it had none, because saving writes parts in grid reading order and a missile placed above the pilot would otherwise become the first core.
+4. **Script files.** A placed script's code is copied; on save it gets a file named after the robot and the core's scope, `launcher.missile1.guide.js`. Every copy has its own file (Logan chose copies over links, so fixing one missile's script does not change another's). The source's `.js` file is never touched.
 5. **Types, serialize, validate.**
    - `Blueprint.cores: Record<string, CoreControls>` (empty when none). `expand`, `toFileJson` (writes `cores` only when non-empty), and script resolution (`resolveScripts`, `scriptFiles`, `assignScriptFiles`) handle scripts under `cores` like top-level ones.
-   - Validator: `BAD_CORE_CONTROLS` (error: a `cores` key that is not a core part, or the primary core, which uses the top-level fields). Binding checks (`BAD_TARGET`, `BAD_CHANNEL`, `BAD_KEY`, `BAD_SCRIPT_REF`) run per core. `UNSUPPORTED` for sub-assembly legend entries goes away (there are no references).
+   - Validator: `BAD_CORE_CONTROLS` (error: a `cores` key that is not a core part, or the primary core, which uses the top-level fields). Binding checks (`BAD_TARGET`, `BAD_CHANNEL`, `BAD_KEY`, `BAD_SCRIPT_REF`) run per core, in its scope. `UNSUPPORTED` stays for a legend entry naming a blueprint, with a message pointing at placing instead.
    - Q1 is unchanged: the primary core is the active core; every other core is dormant while attached, even if the pilot dies.
 6. **Replays stay self-contained** as today: deploys inline every script, now including those under `cores`.
 7. **Waking with its own controls.** When a piece wakes (exactly one core, M6 rule), its controller gets that core's bindings plus auto controls for the piece's parts (by that core's `autoControls`), and its scripts start with `setup()`, seeded from the world seed and the new robot id like any script. A decoupler fired in tick `t` wakes the piece in tick `t`; its scripts first run in tick `t + 1` (scripts run before behaviors), which the missile script expects.
@@ -64,7 +67,7 @@ Revised with Logan before "go" (2026-09-24): placing a blueprint **copies** it. 
 ## Tasks
 
 ### T1: controls per core, and placing a blueprint (sim-core)
-- Tests first (`blueprint/place.test.ts`, `expand` and `serialize` tests): `cores` in grid and parts forms; round trip file to blueprint to file; scripts under `cores` resolve, inline, and get files; `placeBlueprint` at the core cell with `rot` 90/180/270 and `mirror` (cells, part rotations, wheel and thruster directions); core-less source lands on its root part; tag prefixing, numbering (`missile1`, `missile2`), binding rewrite; the source's controls land under its core's id; nested cores carried along; overlap refused; validator `BAD_CORE_CONTROLS` and per-core binding checks.
+- Tests first (`blueprint/place.test.ts`, `expand` and `serialize` tests): `cores` in grid and parts forms; round trip file to blueprint to file; scripts under `cores` resolve, inline, and get files; `placeBlueprint` at the core cell with `rot` 90/180/270 and `mirror` (cells, part rotations, wheel and thruster directions); core-less source lands on its root part; scope tags, numbering (`missile1`, `missile2`), id targets rewritten; the source's controls land under its core's id; nested cores carried along; overlap refused; validator `BAD_CORE_CONTROLS` and per-core binding checks.
 - `blueprint/place.ts`, changes in `types.ts`, `expand.ts`, `serialize.ts`, `scripts.ts`, `validate.ts`, `index.ts` exports.
 - Verify: `pnpm -r test`, `pnpm -r typecheck`.
 

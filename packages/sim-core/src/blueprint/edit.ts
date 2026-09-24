@@ -47,7 +47,14 @@ export function erasePartAt(bp: Blueprint, registry: PartRegistry, x: number, y:
 
 export function removeParts(bp: Blueprint, ids: readonly string[]): Blueprint {
   if (!bp.parts.some((p) => ids.includes(p.id))) return bp;
-  return { ...bp, parts: bp.parts.filter((p) => !ids.includes(p.id)) };
+  const out: Blueprint = { ...bp, parts: bp.parts.filter((p) => !ids.includes(p.id)) };
+  // A core's controls go with it (M7).
+  if (bp.cores?.some((c) => ids.includes(c.core))) {
+    const cores = bp.cores.filter((c) => !ids.includes(c.core));
+    if (cores.length > 0) out.cores = cores;
+    else delete out.cores;
+  }
+  return out;
 }
 
 /** Explicit tags first, the implicit id tag last, like the grid expansion writes them. */

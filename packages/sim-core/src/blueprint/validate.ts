@@ -1,11 +1,11 @@
 import { assemble, isCore, partCells, rootPartId, type AssemblyPlan } from '../assembly/assemble';
-import { matchesTarget } from '../control/target';
+import { matchesTarget, scopedView } from '../control/target';
 import { keyProblem } from '../control/keys';
 import { FACES, rotateFace } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Face } from '../parts/types';
 import { expandBlueprint } from './expand';
-import type { Blueprint, Issue, PlacedPart } from './types';
+import type { Binding, Blueprint, Issue, PlacedPart, ScriptSpec } from './types';
 
 export interface ValidationResult {
   blueprint?: Blueprint;
@@ -141,8 +141,28 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
     });
   }
 
-  checkScripts(blueprint, err);
-  checkBindings(blueprint, registry, err, warn);
+  checkScripts(blueprint.scripts, err, '');
+  checkBindings(blueprint.bindings, blueprint.scripts, blueprint.parts, registry, err, warn, '');
+  const seenCores = new Set<string>();
+  for (const c of blueprint.cores ?? []) {
+    const label = `core ${c.core}${c.scope !== undefined ? ` (${c.scope})` : ''}: `;
+    if (c.core === rootId) err('BAD_CORE_CONTROLS', `cores lists ${c.core}, the primary core; its controls are the top-level bindings and scripts`, { path: `cores.${c.core}` });
+    else if (!cores.some((p) => p.id === c.core)) err('BAD_CORE_CONTROLS', `cores lists '${c.core}', which is not a core in this blueprint`, { path: `cores.${c.core}` });
+    if (seenCores.has(c.core)) err('BAD_CORE_CONTROLS', `cores lists ${c.core} twice`);
+    seenCores.add(c.core);
+    checkScripts(c.scripts, err, label);
+    // A scoped core sees its members' tags without the prefix, like its bindings were written (M7).
+    const view = blueprint.parts.map((p) => {
+      const v = scopedView(p, c.scope);
+      return { ...p, tags: [...v.tags], matchPart: v.part };
+    });
+    checkBindings(c.bindings, c.scripts, view, registry, err, warn, label);
+  }
+  const files = new Set<string>();
+  for (const s of [...blueprint.scripts, ...(blueprint.cores ?? []).flatMap((c) => c.scripts)]) {
+    if (s.file !== undefined && files.has(s.file)) err('BAD_SCRIPT', `two scripts use the file '${s.file}'; give each its own`);
+    if (s.file !== undefined) files.add(s.file);
+  }
   const ok = !issues.some((i) => i.severity === 'error');
   return { blueprint, plan, issues, ok };
 }
@@ -168,45 +188,51 @@ type Report = (code: string, message: string, extra?: Partial<Issue>) => void;
 /** Script ids are names you bind keys to; files live in `blueprints/` and must be plain `.js` names. */
 export const SCRIPT_FILE = /^[a-z0-9][a-z0-9._-]*\.js$/;
 
-function checkScripts(bp: Blueprint, err: Report): void {
+function checkScripts(scripts: readonly ScriptSpec[], err: Report, label: string): void {
   const seen = new Set<string>();
-  const files = new Set<string>();
-  for (const s of bp.scripts) {
-    if (seen.has(s.id)) err('BAD_SCRIPT', `script id '${s.id}' is used twice`);
+  for (const s of scripts) {
+    if (seen.has(s.id)) err('BAD_SCRIPT', `${label}script id '${s.id}' is used twice`);
     seen.add(s.id);
-    if (s.file !== undefined && files.has(s.file)) err('BAD_SCRIPT', `two scripts use the file '${s.file}'; give each its own`);
-    if (s.file !== undefined) files.add(s.file);
     if (s.file !== undefined && (!SCRIPT_FILE.test(s.file) || s.file.includes('..'))) {
-      err('BAD_SCRIPT', `script '${s.id}' file '${s.file}' must be a plain name in blueprints/ like 'drone.hover.js'`);
+      err('BAD_SCRIPT', `${label}script '${s.id}' file '${s.file}' must be a plain name in blueprints/ like 'drone.hover.js'`);
     }
   }
 }
 
-function checkBindings(bp: Blueprint, registry: PartRegistry, err: Report, warn: Report): void {
-  for (const b of bp.bindings) {
+function checkBindings(
+  bindings: readonly Binding[],
+  scripts: readonly ScriptSpec[],
+  /** `matchPart` stands in for the part type when a scope hides it (`scopedView`). */
+  parts: readonly (PlacedPart & { matchPart?: string })[],
+  registry: PartRegistry,
+  err: Report,
+  warn: Report,
+  label: string,
+): void {
+  for (const b of bindings) {
     const problem = keyProblem(b.key);
-    if (problem) err('BAD_KEY', `binding ${problem}`);
+    if (problem) err('BAD_KEY', `${label}binding ${problem}`);
     if (b.mode === 'script') {
-      if (!bp.scripts.some((s) => s.id === b.script)) {
-        err('BAD_SCRIPT_REF', `binding key '${b.key}' toggles script '${b.script}', which is not in scripts`);
+      if (!scripts.some((s) => s.id === b.script)) {
+        err('BAD_SCRIPT_REF', `${label}binding key '${b.key}' toggles script '${b.script}', which is not in scripts`);
       }
       continue;
     }
-    const tagged = bp.parts.filter((p) => matchesTarget(p, b.target as string));
+    const tagged = parts.filter((p) => matchesTarget({ part: p.matchPart ?? p.part, tags: p.tags }, b.target as string));
     if (tagged.length === 0) {
-      err('BAD_TARGET', `binding key '${b.key}' targets '${b.target}' but no part has that tag or part type`);
+      err('BAD_TARGET', `${label}binding key '${b.key}' targets '${b.target}' but no part has that tag or part type`);
       continue;
     }
     const hasInput = (p: PlacedPart): boolean => registry.get(p.part).inputs.some((c) => c.name === b.channel);
     const lacking = tagged.filter((p) => !hasInput(p));
     if (lacking.length === tagged.length) {
       const kinds = [...new Set(tagged.map((p) => p.part))].join(' and ');
-      err('BAD_CHANNEL', `binding key '${b.key}' writes channel '${b.channel}' on tag '${b.target}' but ${kinds} has no input '${b.channel}'`);
+      err('BAD_CHANNEL', `${label}binding key '${b.key}' writes channel '${b.channel}' on tag '${b.target}' but ${kinds} has no input '${b.channel}'`);
     } else if (lacking.length > 0) {
       const ids = listIds(lacking.map((p) => p.id));
       warn(
         'CHANNEL_SKIPPED',
-        `binding key '${b.key}' writes channel '${b.channel}' on tag '${b.target}'; ${ids} ${lacking.length === 1 ? 'has' : 'have'} no input '${b.channel}' and ${lacking.length === 1 ? 'is' : 'are'} skipped`,
+        `${label}binding key '${b.key}' writes channel '${b.channel}' on tag '${b.target}'; ${ids} ${lacking.length === 1 ? 'has' : 'have'} no input '${b.channel}' and ${lacking.length === 1 ? 'is' : 'are'} skipped`,
       );
     }
   }
