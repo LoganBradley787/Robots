@@ -1,4 +1,4 @@
-import { autoBindings, defaultRegistry, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type ScriptSpec } from '@robots/sim-core';
+import { autoBindings, defaultRegistry, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -8,7 +8,9 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   const bp = v.blueprint;
   const plan = v.plan;
   const lines: string[] = [`${bp.name}: ${bp.parts.length} parts`];
-  const g = toGrid(bp, registry);
+  // The file's own grid and legend when it has one, so the letters match what was written; else one made from the parts.
+  const own = ownGrid(blueprint);
+  const g = own ?? toGrid(bp, registry);
   if (g) lines.push('grid:', ...g.grid.map((r) => `  ${r}`));
   else {
     lines.push('parts (not expressible as a grid):');
@@ -52,6 +54,13 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   }
   if (v.issues.length > 0) lines.push(formatIssues(v.issues));
   return { ok: v.ok, text: lines.join('\n') };
+}
+
+function ownGrid(raw: unknown): GridForm | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const r = raw as { grid?: unknown; legend?: unknown };
+  if (!Array.isArray(r.grid) || !r.grid.every((row) => typeof row === 'string')) return undefined;
+  return { grid: r.grid as string[], legend: (typeof r.legend === 'object' && r.legend !== null ? r.legend : {}) as GridForm['legend'] };
 }
 
 function controlLines(bindings: readonly Binding[], scripts: readonly ScriptSpec[]): string[] {

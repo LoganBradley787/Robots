@@ -10,7 +10,7 @@ import { placeCommand } from './commands/place';
 import { mirrorCommand } from './commands/mirror';
 import { formatParts, partRows } from './commands/parts';
 import { existsSync, renameSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { defaultRegistry, isRotation, type Rotation } from '@robots/sim-core';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
@@ -32,11 +32,12 @@ commands
   place <target> <source> --at x,y [--rot 90] [--mirror] [--save <name>] [--force]
                      place a copy of <source> on <target> with its root part at cell (x, y) of <target>'s
                      grid (x right, y up, the bottom row is y 0), as the builder's Blueprints palette does.
-                     Prints the result; --save writes blueprints/<name>.json and its scripts (--force to
-                     replace an existing file)
+                     Prints the result's json (notes go to stderr, so > file.json is clean). --save <name>
+                     writes blueprints/<name>.json and its scripts as files; --save <path>.json writes them
+                     there instead (a drafts folder). --force replaces an existing file
   mirror <bp> [--axis <half cells>] [--save <name>] [--force]
                      print the blueprint flipped left to right (x becomes axis - x; the default axis keeps it
-                     in place). --save writes blueprints/<name>.json and its scripts
+                     in place). --save works as for place
 
 flags
   --world <path>     world json (default: worlds/flat.json)
@@ -52,7 +53,7 @@ flags
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
-const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'mirror', 'force']);
+const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'mirror', 'force', 'help']);
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string>; drops: string[] } {
   const flags = new Map<string, string>();
@@ -117,7 +118,7 @@ function loadWorld(flags: Map<string, string>): WorldFile {
 async function main(): Promise<number> {
   const { positional, flags, drops: dropArgs } = parseArgs(process.argv.slice(2));
   const [command = '', bpArg] = positional;
-  if (command === '' || command === 'help') {
+  if (command === '' || command === 'help' || flags.has('help')) {
     console.log(USAGE);
     return 0;
   }
@@ -219,8 +220,8 @@ function place(positional: string[], flags: Map<string, string>): number {
     console.error(`--rot must be 0, 90, 180, or 270, got ${rot}`);
     return 2;
   }
-  const saveAs = saveName(flags);
-  if (saveAs === null) return 2;
+  const save = saveTarget(flags);
+  if (save === null) return 2;
   const target = readBlueprint(resolveBlueprint(targetArg));
   const source = readBlueprint(resolveBlueprint(sourceArg));
   for (const f of [...target.missing, ...source.missing]) console.error(`warning: script file ${f} not found`);
@@ -228,36 +229,58 @@ function place(positional: string[], flags: Map<string, string>): number {
     at: { x: Number(at[1]), y: Number(at[2]) },
     ...(rot !== undefined ? { rot: rot as Rotation } : {}),
     ...(flags.has('mirror') ? { mirror: true } : {}),
-    ...(saveAs !== undefined ? { saveAs } : {}),
+    ...(save ? { saveAs: save.name } : {}),
   });
-  if (!writeSaved(saveAs, out.files, flags)) return 1;
-  console.log(out.text);
-  return out.ok ? 0 : 1;
+  if (!writeSaved(save, out.files, flags)) return 1;
+  return printOutput(out);
 }
 
-function saveName(flags: Map<string, string>): string | undefined | null {
-  const saveAs = flags.get('save');
-  if (saveAs !== undefined && !/^[a-z0-9][a-z0-9-]*$/.test(saveAs)) {
-    console.error(`--save takes a blueprint name of lowercase letters, digits, and dashes, like missile-car; got ${saveAs}`);
+/** Where `--save` writes: a name in blueprints/ (`missile-car`) or a path to a .json file anywhere (a draft folder). */
+interface SaveTarget {
+  name: string;
+  dir: string;
+}
+
+function saveTarget(flags: Map<string, string>): SaveTarget | undefined | null {
+  const raw = flags.get('save');
+  if (raw === undefined) return undefined;
+  if (raw.endsWith('.json') || raw.includes('/')) {
+    const path = resolveUserPath(raw.endsWith('.json') ? raw : `${raw}.json`);
+    const name = basename(path, '.json');
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+      console.error(`--save: the file name must be lowercase letters, digits, and dashes, like drafts/missile-car.json; got ${name}.json`);
+      return null;
+    }
+    return { name, dir: dirname(path) };
+  }
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(raw)) {
+    console.error(`--save takes a blueprint name of lowercase letters, digits, and dashes (like missile-car) or a path to a .json file; got ${raw}`);
     return null;
   }
-  return saveAs;
+  return { name: raw, dir: BLUEPRINT_DIR };
 }
 
-/** Writes saved files atomically; refuses to replace blueprints/<name>.json without --force. */
-function writeSaved(saveAs: string | undefined, files: readonly { file: string; text: string }[], flags: Map<string, string>): boolean {
-  if (files.length === 0) return true;
-  const json = resolve(BLUEPRINT_DIR, `${saveAs}.json`);
+/** Writes saved files atomically; refuses to replace an existing <name>.json without --force. */
+function writeSaved(target: SaveTarget | undefined, files: readonly { file: string; text: string }[], flags: Map<string, string>): boolean {
+  if (target === undefined || files.length === 0) return true;
+  const json = resolve(target.dir, `${target.name}.json`);
   if (existsSync(json) && !flags.has('force')) {
-    console.error(`blueprints/${saveAs}.json exists; add --force to replace it`);
+    console.error(`${json} exists; add --force to replace it`);
     return false;
   }
   for (const f of files) {
-    const p = resolve(BLUEPRINT_DIR, f.file);
+    const p = resolve(target.dir, f.file);
     writeFileSync(`${p}.tmp`, f.text);
     renameSync(`${p}.tmp`, p);
   }
   return true;
+}
+
+/** The json (or what was saved) on stdout, notes on stderr, so `> file.json` captures a clean blueprint. */
+function printOutput(out: { ok: boolean; text: string; notes: string[] }): number {
+  if (out.text !== '') console.log(out.text);
+  for (const n of out.notes) console.error(n);
+  return out.ok ? 0 : 1;
 }
 
 function mirror(positional: string[], flags: Map<string, string>): number {
@@ -271,14 +294,13 @@ function mirror(positional: string[], flags: Map<string, string>): number {
     console.error(`--axis is in half cells and must be a whole number (4 mirrors across column 2, 5 across the line between columns 2 and 3), got ${axis}`);
     return 2;
   }
-  const saveAs = saveName(flags);
-  if (saveAs === null) return 2;
+  const save = saveTarget(flags);
+  if (save === null) return 2;
   const loaded = readBlueprint(resolveBlueprint(bpArg));
   for (const f of loaded.missing) console.error(`warning: script file ${f} not found`);
-  const out = mirrorCommand(loaded.raw, { ...(axis !== undefined ? { axis } : {}), ...(saveAs !== undefined ? { saveAs } : {}) });
-  if (!writeSaved(saveAs, out.files, flags)) return 1;
-  console.log(out.text);
-  return out.ok ? 0 : 1;
+  const out = mirrorCommand(loaded.raw, { ...(axis !== undefined ? { axis } : {}), ...(save ? { saveAs: save.name } : {}) });
+  if (!writeSaved(save, out.files, flags)) return 1;
+  return printOutput(out);
 }
 
 main().then(

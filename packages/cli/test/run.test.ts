@@ -144,7 +144,7 @@ describe('validate and show', () => {
     expect(shown.ok).toBe(true);
     const text = shown.text;
     expect(text).toContain('car: 8 parts');
-    expect(text).toContain('F F C B F F');
+    expect(text).toContain('F  F  C  B  F  F');
     expect(text).toContain('mass: 12.000 kg');
     expect(text).toContain('group 1: 1 part origin wheel@0,0 joint -> group 0');
     expect(showBlueprint({ format: 1, name: 'x', grid: ['C . F'] }).ok).toBe(false);
@@ -188,8 +188,8 @@ describe('mirrorCommand (M7)', () => {
     const { mirrorCommand } = await import('../src/commands/mirror');
     const out = mirrorCommand(readBlueprint(resolveBlueprint('launcher')).raw, {});
     expect(out.ok).toBe(true);
-    expect(out.text).toContain('scripts are copied unchanged');
-    const json = JSON.parse(out.text.slice(0, out.text.lastIndexOf('}') + 1));
+    expect(out.notes.join('\n')).toContain('scripts are copied unchanged');
+    const json = JSON.parse(out.text);
     expect(json.primaryCore).toBe('core@5,1');
     expect(Object.keys(json.cores)).toEqual(['core@1,6']);
     const r = await runSim(flat, json, { seconds: 4, seed: 1, at: { x: 100, y: 1.5 }, keys: [{ key: 'f', down: 1, up: 1 }] });
@@ -213,9 +213,10 @@ describe('placeCommand (M7)', () => {
     const out = placeCommand(carJson, missile, { at: { x: 2, y: 2 } });
     expect(out.ok).toBe(true);
     expect(out.files).toEqual([]);
-    const json = JSON.parse(out.text.slice(0, out.text.lastIndexOf('}') + 1));
+    // stdout is the json alone; what happened goes to stderr.
+    const json = JSON.parse(out.text);
     expect(json.cores).toEqual({ 'core@2,2': { scope: 'missile1', scripts: [{ id: 'arm', source: 'function tick() {}' }] } });
-    expect(out.text).toContain('placed missile as missile1');
+    expect(out.notes.join('\n')).toContain('placed missile as missile1');
   });
 
   it('saves under a new name with its own script files', async () => {
@@ -228,13 +229,13 @@ describe('placeCommand (M7)', () => {
   it('notes when the copy lands below row 0, which the grid form cannot hold', async () => {
     const { placeCommand } = await import('../src/commands/place');
     const out = placeCommand(carJson, { format: 1, name: 'm', grid: ['C', 'X'] }, { at: { x: 1, y: -1 } });
-    expect(out.text).toContain('note: parts landed left of column 0 or below row 0');
+    expect(out.notes.join('\n')).toContain('note: parts landed left of column 0 or below row 0');
   });
 
   it('refuses an overlap', async () => {
     const { placeCommand } = await import('../src/commands/place');
     const out = placeCommand(carJson, missile, { at: { x: 0, y: 1 } });
     expect(out.ok).toBe(false);
-    expect(out.text).toMatch(/^cannot place: missile would overlap/);
+    expect(out.notes[0]).toMatch(/^cannot place: missile would overlap/);
   });
 });

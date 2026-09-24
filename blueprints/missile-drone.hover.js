@@ -1,7 +1,8 @@
 // Hover: hold a height. W and S move the height, A and D lean the drone to fly sideways. H turns it off and on.
 // The propellers are off auto controls, so this script owns them. It leans by giving the left propellers (tag lprop)
 // and the right ones (tag rprop) different throttle, which turns a wide drone far harder than a gyro can, and it
-// slowly learns the trim that holds it level when its weight is off center (after one missile is gone).
+// slowly learns the trim that holds it level when its weight is off center (after one missile is gone). Its own
+// gyro is tagged stab: `gyro` by type would also turn the missiles' gyros while they hang on the rails.
 
 const climb = param('climb', 3, { min: 0.5, max: 10 }); // m/s the target height moves while W or S is held
 const lean = param('lean', 0.3, { min: 0, max: 1 }); // radians of lean with A or D
@@ -31,5 +32,5 @@ function tick() {
   const diff = clamp(state.trim + 0.5 * off - 0.45 * self.angVel, -0.4, 0.4);
   set('lprop', 'throttle', clamp(lift - diff, 0, 1));
   set('rprop', 'throttle', clamp(lift + diff, 0, 1));
-  set('gyro', 'spin', clamp(-(3 * off - 1.5 * self.angVel), -1, 1)); // the gyro's spin is clockwise positive
+  set('stab', 'spin', clamp(-(3 * off - 1.5 * self.angVel), -1, 1)); // the gyro's spin is clockwise positive
 }

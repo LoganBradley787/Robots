@@ -2,9 +2,9 @@
 
 Browser, TypeScript, Rapier 2D (WASM, deterministic), PixiJS, Vite. See `docs/design/` for the design and `docs/handoff-2026-09-22.md` for the original vision.
 
-Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`.
+Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`, except a request to build a robot (next paragraph).
 
-**Asked to build a robot** ("build me a drone with missiles")? Read `docs/claude-robot-playbook.md` and follow its loop: write the blueprint in `blueprints/`, check it with `pnpm sim validate`, `show`, and `run`, and hand it over when it works. That work does not need the milestone plan.
+**Asked to build a robot** ("build me a drone with missiles")? Read `docs/claude-robot-playbook.md` and follow its loop: write the blueprint in `blueprints/`, check it with `pnpm sim validate`, `show`, and `run`, and hand it over when it works. That work skips `START-HERE.md`, `status.md`, and the milestone plan.
 
 ## Working with Logan (read this first)
 

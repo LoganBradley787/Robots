@@ -1,6 +1,6 @@
 # Claude robot playbook
 
-For a Claude Code session asked to build a robot in plain words ("build me a drone with missiles"). Read `CLAUDE.md` first (no em dashes, bullets, push back when Logan is wrong), then this. You build blueprints as files, test them headless with `pnpm sim`, and hand Logan something that validates, does what was asked in the sim, and works when Logan opens it in the builder and deploys it, with no manual editing.
+For a Claude Code session asked to build a robot in plain words ("build me a drone with missiles"). Read `CLAUDE.md` first (no em dashes, bullets, push back when Logan is wrong), then this. You do not need `START-HERE.md`, `status.md`, or the milestone plans. You build blueprints as files, test them headless with `pnpm sim`, and hand Logan something that validates, does what was asked in the sim, and works when Logan opens it in the builder and deploys it, with no manual editing.
 
 ## The loop
 1. **Understand the ask.** If it is vague ("a cool robot"), ask one or two questions with a recommendation each. If it is clear ("a car that climbs the ramp"), go.
@@ -27,12 +27,14 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
   - `--unlimited`: energy never runs out. `--json`: the whole report as JSON.
   - `--world <path>`: another world file (`worlds/flat.json` is the default).
 - `pnpm sim determinism <bp> [run flags]`: runs twice, compares hashes.
-- `pnpm sim place <target> <source> --at x,y [--rot 90] [--mirror] [--save <name>] [--force]`: copies `source` onto `target` with its core (else its first part) at cell (x, y). See Placing.
-- `pnpm sim mirror <bp> [--axis <half cells>] [--save <name>] [--force]`: flips left to right in place.
+- `pnpm sim place <target> <source> --at x,y [--rot 90] [--mirror] [--save <name or path.json>] [--force]`: copies `source` onto `target` with its core (else its first part) at cell (x, y). See Placing.
+- `pnpm sim mirror <bp> [--axis <half cells>] [--save <name or path.json>] [--force]`: flips left to right in place.
+- `place` and `mirror` print the blueprint's JSON on stdout (scripts inline) and their notes on stderr, so `> draft.json` captures a clean file. Better: `--save drafts/x.json` writes the blueprint and every script as files there (`x.hover.js`, `x.missile1.guide.js`); `--save x` writes them into `blueprints/`.
+- Every command takes `--help`.
 
 ## Reading a run report
 - **Once per second:** robot A's core position, tilt in degrees (counterclockwise positive), speed, resting.
-- **drive / energy / destruction:** distance, max altitude, max tilt, top speed; energy used and left; parts destroyed and blasts.
+- **drive / energy / destruction:** distance, max altitude (the core's highest y; the ground is y 0, so a high spawn counts), max tilt, top speed; energy used and left; parts destroyed and blasts. While attached, a placed missile's core and cell share the robot's energy pool, so a drone with two missiles shows their energy too; each piece's own energy is in the pieces list.
 - **events:** everything in time order with the robot's letter. A is the spawned robot; B, C, ... are pieces that broke off (missiles) and drops, in the order they appeared. Keys, drops, decouplers firing, splits, a core waking with its keys and scripts, scripts turning on or off, parts lost, explosions, `log()` lines (a repeated line is folded: "and 40 more times until t=3.20"), script crashes, energy running out.
 - **pieces:** each letter's final state, or "gone at t=..., last seen at (x, y)". Pieces with no core are counted at the end.
 - **side view:** lowercase letters are each piece's path (every 0.1 s), uppercase where it ended, `*` an explosion, `#` the ground and boxes where they started. The header gives the scale of a column and a row; they differ, so slopes look steeper or flatter than they are.
@@ -57,6 +59,7 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - **Legend entries** `{ "part", "rot", "tags", "auto" }` define your own tokens (lowercase letters are free). `rot` is 0, 90, 180, 270 counterclockwise. `"auto": false` takes a part off auto controls (do this for every part a script drives, or the auto keys fight the script).
 - **Attachment:** parts join through faces that touch (`pnpm sim parts` lists them). A wheel attaches only by its mount face; a propeller has no N face (nothing on top of it); a thruster has no S face (its nozzle). Everything must connect to the core.
 - **Tags** group parts for bindings and scripts: `"tags": ["lprop"]`.
+- **`primaryCore` and `cores`** appear once something is placed: `primaryCore` names the pilot, and `cores` holds each placed copy's controls under its core's id with its scope (`"core@3,0": { "scope": "missile1", "bindings": [...], "scripts": [...] }`). You may edit them by hand like the top-level ones; targets inside a scoped entry mean that copy's parts.
 - **Auto controls** (on unless `"autoControls": false`): wheels get D and A, thrusters and propellers the key for the way they push (W up, S down, D right, A left), gyros E and Q, rotators Z and X. Most robots need no bindings at all for driving.
 - **Bindings:** `{ key, mode, target, channel, value }` with `mode` `hold` (while held), `toggle` (press on, press off), `pulse` (one tick: decouplers, warheads), or `{ key, "mode": "script", "script": "<id>" }` to turn a script on and off. Keys are one lowercase letter or digit; avoid the auto keys unless you mean to add to them. Two writers on one channel add and clamp; a key held by the player beats a script on the same channel.
 - **Scripts:** `{ id, enabled, params, source: { file } }`. `enabled` defaults to true (the script runs from deploy, and its key turns it off). The file sits next to the blueprint, named `<blueprint>.<id>.js`.
@@ -116,13 +119,22 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - **Heavy turrets tip cars.** Keep the turret's weight near its hinge and give the car a long base.
 - **Missiles need drop room.** A flat shot sinks about 3 m before it levels out, and its tail hangs lower still: fire from at least 5 m up, higher over boxes.
 - **Wide fliers wobble** on gyros alone. Lean with differential propeller throttle and damp with the angular speed.
+- **Tuning a hover** (both loops are a spring and a damper, so pick them from the robot's numbers instead of guessing):
+  - Height: throttle `base + kp * err - kd * vel.y`. The force per unit of throttle is F = total lift (N); with mass m, `kp = m * w^2 / F` and `kd = 2 * m * w / F` settle in about 4 / w seconds (w of 1.5 to 2 feels right).
+  - Lean: left and right throttle differ by `k * off - c * angVel`. Torque per unit of difference is T = sum over props of (lift x |distance from the core column|); with I about m * width^2 / 12, `k = I * w^2 / T` and `c = 2 * I * w / T`.
+  - Add a slow integral (a trim that creeps toward what holds level) for weight that moves off center, like a fired missile.
+  - `param()` the gains so Logan can tune them in the builder.
+- **The second shot goes where the drone points.** Losing one missile shifts the weight and tilts the drone until its trim catches up (a few seconds). A missile released while the drone is tilted flies along that tilt, into the ground if the tilt is down. Wait for level, or fire both together, or balance the load (one missile each side facing opposite ways fires in any order).
+- **A graze does not fuze a warhead.** The fuze needs a 5 m/s change in one step; a missile that glances off the ground slides on, armed. Check the pieces list: a piece at y about 0.5 is on the ground.
+- **Name your own parts by tag in the robot's scripts.** `set('gyro', ...)` from the pilot also turns any attached missile's gyro (types reach every part). Tag the robot's own gyro (`stab`) and use the tag.
+- **Keys in the app:** keys go to the robot Logan controls. After a missile is released the player stays on the launcher; `,` cycles to other robots they can control, and clicking a robot takes it, so a missile's own keys (`x` detonate) work only after switching to it. Headless, `--keys` reach robot A only.
 - **Fire order:** when two missiles hang side by side pointing the same way, fire the front one first, or the back one flies through it.
 - **Spawn in the open.** The flat world has a box at x 8 (2 m tall), a ramp at x 15, a box at x -8, and its ground ends at x plus or minus 500.
 - **Energy.** Check `energy:` in the report; fliers run dry in tens of seconds on one battery.
 
 ## Done checks for common requests
 - **Drives:** `run --keys "d:0.5-4.5"` gives drive distance well over 20 m, max tilt under 30, and it ends upright (`tilt` near 0).
-- **Climbs the ramp:** spawn at `--x 10 --y 1.5`, hold D; max altitude goes above 2.5 and it ends past x 25 upright.
+- **Climbs the ramp:** the flat world's ramp is a 6 by 1 m box tilted 18 degrees, centered at (15, 0.45): it rises from x 12 to about 1.9 m at x 18 and drops off sharply there. Spawn at `--x 10 --y 1.5`, hold D; max altitude goes above 2.5 and it ends past x 25 upright.
 - **Hovers:** the core holds a height within about 0.5 m for 5 s after the climb, tilt within a few degrees, energy left at the end.
 - **Fires:** the events show the decoupler firing, a piece breaking off and waking with its script, and its path in the side view going where it should.
 - **Hits a target:** `--drop wall@...` and the events show the wall losing parts, with the explosion belonging to the missile's letter.
