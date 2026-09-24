@@ -22,7 +22,7 @@ import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
-import type { Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
+import type { Binding, Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
 
 export interface SpawnRecord {
@@ -784,6 +784,16 @@ function latchedFor(values: ReadonlyMap<string, ReadonlyMap<string, number>>, ro
     if (v) out.set(id, new Map(v));
   }
   return out;
+}
+
+/**
+ * The bindings and scripts a robot's active core runs: the top-level ones, or for a core that woke in a piece that
+ * broke off, its own entry in `cores` (M7; none when it has no entry). For the UI: the keys bar's script keys.
+ */
+export function activeControls(robot: Robot): { bindings: readonly Binding[]; scripts: readonly ScriptSpec[] } {
+  if (!robot.woke) return { bindings: robot.blueprint.bindings, scripts: robot.blueprint.scripts };
+  const own = coreControls(robot);
+  return { bindings: own?.bindings ?? [], scripts: own?.scripts ?? [] };
 }
 
 /**

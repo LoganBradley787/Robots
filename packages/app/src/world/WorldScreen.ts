@@ -1,5 +1,5 @@
 import type { Graphics, Ticker } from 'pixi.js';
-import { World, sampleRobot, type PartRegistry, type Robot, type WorldFile } from '@robots/sim-core';
+import { World, activeControls, sampleRobot, type PartRegistry, type Robot, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
 import { interpolateState } from '../render/interpolate';
@@ -385,8 +385,8 @@ export class WorldScreen {
       // A key bound to a script is a toggle too, lit while any of its scripts runs.
       const scripts = this.world.scripts(controlled.id);
       const scriptKeys = new Map<string, string[]>();
-      // A core that woke in a broken-off piece has only auto controls: its blueprint's script keys are not its own.
-      if (!controlled.woke) for (const b of controlled.blueprint.bindings) if (b.mode === 'script' && b.script !== undefined) scriptKeys.set(b.key, [...(scriptKeys.get(b.key) ?? []), b.script]);
+      // A core that woke in a broken-off piece runs its own controls (M7), not its blueprint's top-level ones.
+      for (const b of activeControls(controlled).bindings) if (b.mode === 'script' && b.script !== undefined) scriptKeys.set(b.key, [...(scriptKeys.get(b.key) ?? []), b.script]);
       const toggles = new Set([...controller.toggleKeys, ...scriptKeys.keys()]);
       const scriptOn = (key: string): boolean => (scriptKeys.get(key) ?? []).some((id) => scripts.find((s) => s.id === id)?.enabled === true);
       // Auto control keys first (Q W E A S D), then custom keys in binding order.
