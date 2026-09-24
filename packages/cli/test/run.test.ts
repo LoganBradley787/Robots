@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { parseWorldFile } from '@robots/sim-core';
 import flatJson from '../../../worlds/flat.json';
 import carJson from '../../../blueprints/car.json';
-import { formatReport, InvalidBlueprint, runSim } from '../src/commands/run';
+import { formatReport, InvalidBlueprint, keysScriptsRead, runSim } from '../src/commands/run';
 import { checkDeterminism } from '../src/commands/determinism';
 import { validateCommand } from '../src/commands/validate';
 import { showBlueprint } from '../src/commands/show';
 import { formatReplay, replayCommand } from '../src/commands/replay';
-import { buildReplay, World } from '@robots/sim-core';
-import { listBlueprints, resolveBlueprint } from '../src/blueprintFiles';
+import { buildReplay, defaultRegistry, expandBlueprint, placeBlueprint, toFileJson, World, type Blueprint } from '@robots/sim-core';
+import { listBlueprints, readBlueprint, resolveBlueprint } from '../src/blueprintFiles';
 
 const flat = parseWorldFile(flatJson);
 
@@ -73,6 +73,52 @@ describe('runSim', () => {
   it('is deterministic', async () => {
     const d = await checkDeterminism(flat, carJson, { seconds: 3, seed: 2 });
     expect(d.equal).toBe(true);
+  });
+});
+
+describe('run report: events, pieces, and the path plot (M7)', () => {
+  // A pilot with a missile placed on its decoupler; the missile's script logs every tick.
+  const railed = (): unknown => {
+    const missile = expandBlueprint({ format: 1, name: 'missile', grid: ['C  G'], scripts: [{ id: 'say', source: "function tick() { log('flying'); }" }] }).blueprint as Blueprint;
+    const rail = expandBlueprint({ format: 1, name: 'rail', grid: ['F  C  D>', 'W  .  W'], bindings: [{ key: 'f', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 }] }).blueprint as Blueprint;
+    const r = placeBlueprint(rail, missile, { x: 3, y: 1 }, defaultRegistry());
+    if (!r.ok) throw new Error(r.error);
+    return toFileJson(r.blueprint, defaultRegistry(), { inlineScripts: true });
+  };
+
+  it('lists what happened in order, with a letter per robot', async () => {
+    const r = await runSim(flat, railed(), { seconds: 2, seed: 1, at: { x: -30, y: 2 }, keys: [{ key: 'f', down: 1, up: 1 }] });
+    const kinds = r.events.map((e) => `${e.robot} ${e.kind}`);
+    expect(kinds.slice(0, 5)).toEqual(['A key', 'A decoupled', 'A split', 'B woke', 'B log']);
+    expect(r.events[0]?.text).toBe('key f tapped');
+    expect(r.events[2]?.text).toBe('split: B broke off');
+    expect(r.events[3]?.text).toMatch(/^woke: core@3,1 \(missile1\) runs its own controls; keys e, q; scripts say$/);
+    const log = r.events[4];
+    expect(log?.text).toBe('say: flying');
+    expect(log?.repeats).toBeGreaterThan(10); // the world keeps a few log lines per second per robot
+    expect(formatReport(r)).toMatch(/B {2}say: flying \(and \d+ more times until t=\d\.\d\d\)/);
+  });
+
+  it('reports every piece and draws their paths', async () => {
+    const r = await runSim(flat, railed(), { seconds: 2, seed: 1, at: { x: -30, y: 2 }, keys: [{ key: 'f', down: 1, up: 1 }] });
+    expect(r.pieces.map((p) => [p.mark, p.from, p.core])).toEqual([
+      ['A', undefined, 'core@1,1'],
+      ['B', 'A', 'core@3,1 (missile1)'],
+    ]);
+    expect(r.pieces[1]?.appearedAt).toBeCloseTo(1, 1);
+    expect(r.pieces[0]?.track.length).toBeGreaterThan(15);
+    const text = formatReport(r);
+    expect(text).toMatch(/^ {2}B {2}broke off A at t=1\.0\d, core@3,1 \(missile1\): at \(/m);
+    expect(r.plot.join('\n')).toMatch(/B/);
+    expect(text).toContain('side view: 1 column =');
+  });
+
+  it('does not warn about keys a script reads', async () => {
+    expect(keysScriptsRead(["if (keys.down('w')) x(); keys.pressed(\"h\")"])).toEqual({ keys: new Set(['w', 'h']), any: false });
+    expect(keysScriptsRead(['keys.down(k)']).any).toBe(true);
+    const drone = readBlueprint(resolveBlueprint('drone')).raw;
+    const r = await runSim(flat, drone, { seconds: 0.5, seed: 1, keys: [{ key: 'w', down: 0, up: 0.2 }, { key: 'k', down: 0, up: 0.2 }] });
+    expect(r.warnings).toEqual(["key 'k' does nothing on drone (its keys: e, q, h, w, s, a, d)"]);
   });
 });
 

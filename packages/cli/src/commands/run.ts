@@ -1,4 +1,6 @@
 import { scriptHost } from '../scriptHost';
+import { plotPaths } from '../report/plot';
+import { Tracer, type PieceReport, type TraceEvent } from '../report/trace';
 import { DriveTracker, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type RobotSample, type WorldFile } from '@robots/sim-core';
 
 export interface RunOptions {
@@ -41,6 +43,12 @@ export interface RunReport {
   scriptCrashes: { script: string; t: number; kind: string; message: string }[];
   /** What broke (M6): parts destroyed anywhere, blasts, and how many pieces the robot is in now (0: all gone). */
   destruction: { destroyed: string[]; explosions: number; pieces: number };
+  /** M7: what happened, in order: keys, drops, decouplers, splits, wakes, parts lost, blasts, script logs and crashes. */
+  events: TraceEvent[];
+  /** M7: every robot seen, by letter (A is the spawned robot), with its path and final state. */
+  pieces: PieceReport[];
+  /** M7: an ASCII side view of every piece's path over the terrain. */
+  plot: string[];
 }
 
 export class InvalidBlueprint extends Error {
@@ -68,21 +76,27 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     if (opts.keys && opts.keys.length > 0 && !world.canControl(robot.id)) throw new Error(`${robot.name} has no core, so keys cannot control it`);
     const inputs = timelineInputs(opts.keys ?? [], robot.id, world.dt);
     const known = world.controller(robot.id)?.keys ?? [];
-    const warnings = [...new Set((opts.keys ?? []).map((k) => k.key))]
-      .filter((k) => !known.includes(k))
-      .map((k) => `key '${k}' does nothing on ${robot.name} (its keys: ${known.join(', ') || 'none'})`);
+    const read = keysScriptsRead((v.blueprint?.scripts ?? []).map((sc) => (typeof sc.source === 'string' ? sc.source : '')));
+    const warnings = read.any
+      ? []
+      : [...new Set((opts.keys ?? []).map((k) => k.key))]
+          .filter((k) => !known.includes(k) && !read.keys.has(k))
+          .map((k) => `key '${k}' does nothing on ${robot.name} (its keys: ${[...new Set([...known, ...read.keys])].join(', ') || 'none'})`);
     const ticks = Math.round(opts.seconds / world.dt);
     const every = Math.max(1, Math.round((opts.sampleEverySeconds ?? 1) / world.dt));
     const samples: RobotSample[] = [];
     const drive = new DriveTracker();
+    const tracer = new Tracer(world, robot, opts.keys ?? [], Math.max(1, Math.round(0.1 / world.dt)));
     let last = sampleRobot(world, robot);
     drive.add(last);
     for (let i = 0; i < ticks; i++) {
       while (drops.length > 0 && Math.round((drops[0]?.t ?? 0) / world.dt) <= world.tick) {
         const d = drops.shift() as Drop;
-        world.spawnBlueprint(d.blueprint, d.at);
+        tracer.dropped(world.spawnBlueprint(d.blueprint, d.at), d.name);
       }
+      tracer.beforeStep();
       world.step(inputs.get(world.tick) ?? []);
+      tracer.afterStep();
       // A robot blown to nothing has no pose: its report ends where it was last seen.
       if (!world.robots.includes(robot)) continue;
       last = sampleRobot(world, robot);
@@ -104,13 +118,39 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       scriptCrashes: world.events.flatMap((e) => (e.kind === 'scriptCrashed' ? [{ script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message }] : [])),
       destruction: destructionOf(world, robot.id),
       finalHash: world.hash(),
+      ...traced(tracer, file),
     };
   } finally {
     world.dispose();
   }
 }
 
+function traced(tracer: Tracer, file: WorldFile): Pick<RunReport, 'events' | 'pieces' | 'plot'> {
+  const { pieces, events, blasts } = tracer.finish();
+  const plot = plotPaths({ world: file, tracks: pieces.map((p) => ({ mark: p.mark, points: p.track })), blasts });
+  return { events, pieces, plot };
+}
+
+/**
+ * Keys the scripts read with `keys.down('w')` and friends, so a timeline key only a script uses is not reported as
+ * doing nothing. `any` when a script reads a key that is not a plain string (it could be any key).
+ */
+export function keysScriptsRead(sources: readonly string[]): { keys: Set<string>; any: boolean } {
+  const keys = new Set<string>();
+  let any = false;
+  for (const src of sources) {
+    for (const m of src.matchAll(/keys\s*\.\s*(?:down|pressed|released)\s*\(\s*(?:(['"])([^'"]*)\1\s*\)|)/g)) {
+      if (m[2] !== undefined) keys.add(m[2]);
+      else any = true;
+    }
+  }
+  return { keys, any };
+}
+
 const f = (v: number, digits = 3): string => v.toFixed(digits);
+
+/** Events shown in the text report; `--json` has them all. */
+const EVENTS_SHOWN = 60;
 
 export function formatSample(s: RobotSample): string {
   return `t=${f(s.time, 2).padStart(6)}  core x=${f(s.coreX)} y=${f(s.coreY)} tilt=${f(s.tiltDeg, 2)}  speed=${f(s.speed)}  resting=${s.resting ? 'yes' : 'no'}`;
@@ -121,6 +161,7 @@ export function formatReport(r: RunReport): string {
   if (r.issues.length > 0) lines.push(formatIssues(r.issues));
   for (const w of r.warnings) lines.push(`warning: ${w}`);
   for (const c of r.scriptCrashes) lines.push(`script ${c.script} stopped at t=${f(c.t, 2)}s (${c.kind}): ${c.message}`);
+  lines.push('robot A, once per second:');
   for (const s of r.samples) lines.push(formatSample(s));
   const fin = r.final;
   lines.push(formatDrive(r.drive));
@@ -131,10 +172,44 @@ export function formatReport(r: RunReport): string {
     const pieces = d.pieces === 0 ? 'the robot is gone' : `the robot is in ${d.pieces} piece${d.pieces === 1 ? '' : 's'}`;
     lines.push(`destruction: ${d.destroyed.length} part${d.destroyed.length === 1 ? '' : 's'} destroyed (${shown})   ${d.explosions} explosion${d.explosions === 1 ? '' : 's'}   ${pieces}`);
   }
+  if (r.events.length > 0) {
+    lines.push('events (A is the robot; other letters are pieces and drops, listed below):');
+    for (const e of r.events.slice(0, EVENTS_SHOWN)) lines.push(formatEvent(e));
+    if (r.events.length > EVENTS_SHOWN) lines.push(`  ... and ${r.events.length - EVENTS_SHOWN} more events (--json has them all)`);
+  }
+  if (r.pieces.length > 1) lines.push(...formatPieces(r.pieces));
+  lines.push(...r.plot);
   lines.push(
     `final: ticks=${r.ticks} hash=${r.finalHash} resting=${fin.resting ? 'yes' : 'no'} core=(${f(fin.coreX)}, ${f(fin.coreY)}) tilt=${f(fin.tiltDeg, 2)} mass=${f(fin.massKg)} com=(${f(fin.comX)}, ${f(fin.comY)})`,
   );
   return lines.join('\n');
+}
+
+export function formatEvent(e: TraceEvent): string {
+  const again = e.repeats ? ` (and ${e.repeats} more time${e.repeats === 1 ? '' : 's'} until t=${f(e.until ?? e.t, 2)})` : '';
+  return `  t=${f(e.t, 2).padStart(6)}  ${e.robot}  ${e.text}${again}`;
+}
+
+/** Robots with a core and drops get a line each; core-less debris is counted. */
+export function formatPieces(pieces: readonly PieceReport[]): string[] {
+  const lines = ['pieces:'];
+  const debris: string[] = [];
+  for (const p of pieces) {
+    if (p.mark !== 'A' && p.dropped === undefined && p.core === 'no core') {
+      debris.push(p.mark);
+      continue;
+    }
+    const origin = p.dropped !== undefined ? `dropped ${p.dropped}` : p.from !== undefined ? `broke off ${p.from} at t=${f(p.appearedAt, 2)}` : p.name;
+    const s = p.final;
+    const where = `(${f(s.x, 2)}, ${f(s.y, 2)})`;
+    const state =
+      p.goneAt !== undefined
+        ? `gone at t=${f(p.goneAt, 2)}, last seen at ${where}`
+        : `at ${where} tilt ${f(s.tiltDeg, 1)} speed ${f(s.speed, 2)}${s.resting ? ' resting' : ''}, ${s.parts} part${s.parts === 1 ? '' : 's'}${s.energy ? `, energy ${f(s.energy.stored, 0)} of ${f(s.energy.capacity, 0)} J` : ''}`;
+    lines.push(`  ${p.mark}  ${origin}, ${p.core}: ${state}`);
+  }
+  if (debris.length > 0) lines.push(`  and ${debris.length} piece${debris.length === 1 ? '' : 's'} with no core: ${debris.join(', ')}`);
+  return lines;
 }
 
 export function formatDrive(d: DriveMetrics): string {

@@ -110,6 +110,21 @@ describe('mirror', () => {
       { id: 'core@1,0', part: 'core', x: 1, y: 0, rot: 0, tags: ['brain', 'core@1,0'] },
     ]);
   });
+
+  it('mirrorBlueprint moves everything that names a part by id', () => {
+    const src = expandBlueprint({
+      format: 1,
+      name: 'm',
+      grid: ['C  F  C  T>'],
+      primaryCore: 'core@0,0',
+      bindings: [{ key: 'f', mode: 'hold', target: 'thruster@3,0', channel: 'throttle', value: 1 }],
+      cores: { 'core@2,0': { bindings: [{ key: 'g', mode: 'hold', target: 'thruster@3,0', channel: 'throttle', value: 1 }] } },
+    }).blueprint as Blueprint;
+    const bp = mirrorBlueprint(src, 3);
+    expect(bp.primaryCore).toBe('core@3,0');
+    expect(bp.bindings[0]?.target).toBe('thruster@0,0');
+    expect(bp.cores?.map((c) => [c.core, c.bindings[0]?.target])).toEqual([['core@1,0', 'thruster@0,0']]);
+  });
 });
 
 describe('staticStats', () => {

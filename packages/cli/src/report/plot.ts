@@ -1,0 +1,120 @@
+import type { WorldFile } from '@robots/sim-core';
+
+export interface PlotTrack {
+  /** One character; letters are drawn lowercase along the path and uppercase where the track ends. */
+  mark: string;
+  points: readonly { x: number; y: number }[];
+}
+
+export interface PlotInput {
+  world: WorldFile;
+  tracks: readonly PlotTrack[];
+  blasts: readonly { x: number; y: number }[];
+  /** Most columns of the plot (default 72). */
+  width?: number;
+  /** Most rows of the plot (default 24). */
+  maxRows?: number;
+}
+
+const MIN_ROWS = 8;
+const NICE = [1, 2, 2.5, 5];
+
+/** The smallest of 0.1, 0.2, 0.25, 0.5, 1, 2, ... that is at least `v`. */
+function nice(v: number): number {
+  for (let exp = Math.floor(Math.log10(v)) - 1; ; exp++) {
+    for (const n of NICE) {
+      const s = n * 10 ** exp;
+      if (s >= v - 1e-12) return Number(s.toPrecision(6));
+    }
+  }
+}
+
+function inTerrain(world: WorldFile, x: number, y: number): boolean {
+  if (Math.abs(x) <= world.ground.width / 2 && y <= 0 && y >= -world.ground.thickness) return true;
+  for (const b of world.boxes) {
+    const a = (-b.angleDeg * Math.PI) / 180;
+    const dx = x - b.x;
+    const dy = y - b.y;
+    const lx = dx * Math.cos(a) - dy * Math.sin(a);
+    const ly = dx * Math.sin(a) + dy * Math.cos(a);
+    if (Math.abs(lx) <= b.w / 2 && Math.abs(ly) <= b.h / 2) return true;
+  }
+  return false;
+}
+
+/** A cell center, with the decimals that half a cell needs (0.25 m cells: 2). */
+function fmt(v: number, step: number): string {
+  const half = String(step / 2);
+  const decimals = Math.min(3, half.includes('.') ? half.length - half.indexOf('.') - 1 : 0);
+  return (Math.round(v * 1000) / 1000 + 0).toFixed(decimals);
+}
+
+/**
+ * An ASCII side view of where things went (M7, for Claude): terrain as `#` (boxes where they started), each track
+ * as its lowercase letter with its last point uppercase, blasts as `*`. y is up (the top row is highest). One row is
+ * twice as tall as a column is wide, so shapes keep their proportions in a terminal; both scales are round numbers.
+ */
+export function plotPaths(input: PlotInput): string[] {
+  const width = input.width ?? 72;
+  const maxRows = input.maxRows ?? 24;
+  const pts = [...input.tracks.flatMap((t) => t.points), ...input.blasts];
+  if (pts.length === 0) return [];
+  let x0 = Math.min(...pts.map((p) => p.x)) - 1;
+  let x1 = Math.max(...pts.map((p) => p.x)) + 1;
+  const y0 = Math.min(0, ...pts.map((p) => p.y)) - 1;
+  let y1 = Math.max(...pts.map((p) => p.y)) + 1;
+  if (x1 - x0 < 6) {
+    const mid = (x0 + x1) / 2;
+    x0 = mid - 3;
+    x1 = mid + 3;
+  }
+
+  let sx = nice((x1 - x0) / width);
+  const rowsFor = (s: number): number => Math.ceil(y1 / (2 * s) - Math.floor(y0 / (2 * s)));
+  while (rowsFor(sx) > maxRows) sx = nice(sx * 1.01);
+  const sy = 2 * sx;
+  const bottom = Math.floor(y0 / sy) * sy;
+  if (rowsFor(sx) < MIN_ROWS) y1 = bottom + MIN_ROWS * sy;
+  const rows = Math.ceil((y1 - bottom) / sy - 1e-9);
+  const left = Math.floor(x0 / sx) * sx;
+  const cols = Math.ceil((x1 - left) / sx - 1e-9);
+
+  const grid: string[][] = [];
+  for (let r = 0; r < rows; r++) {
+    const row: string[] = [];
+    const yTop = bottom + (rows - r) * sy;
+    for (let c = 0; c < cols; c++) {
+      let inside = 0;
+      for (const fx of [1 / 6, 1 / 2, 5 / 6]) for (const fy of [1 / 6, 1 / 2, 5 / 6]) if (inTerrain(input.world, left + (c + fx) * sx, yTop - fy * sy)) inside++;
+      row.push(inside >= 3 ? '#' : ' ');
+    }
+    grid.push(row);
+  }
+  const put = (p: { x: number; y: number }, ch: string): void => {
+    const c = Math.min(cols - 1, Math.max(0, Math.floor((p.x - left) / sx)));
+    const r = Math.min(rows - 1, Math.max(0, rows - 1 - Math.floor((p.y - bottom) / sy)));
+    const row = grid[r];
+    if (row) row[c] = ch;
+  };
+  for (const t of input.tracks) for (const p of t.points) put(p, t.mark.toLowerCase());
+  for (const b of input.blasts) put(b, '*');
+  for (const t of input.tracks) {
+    const last = t.points.at(-1);
+    if (last) put(last, t.mark.toUpperCase());
+  }
+
+  const labels = grid.map((_, r) => fmt(bottom + (rows - r - 0.5) * sy, sy));
+  const gutter = Math.max(...labels.map((l) => l.length));
+  const out = [`side view: 1 column = ${sx} m, 1 row = ${sy} m (lowercase: the path, uppercase: where it ended, *: explosion, #: ground and boxes as they started)`];
+  grid.forEach((row, r) => out.push(`${(labels[r] ?? '').padStart(gutter)} |${row.join('')}`));
+  const xs = [0, Math.floor(cols / 2), cols - 1].map((c) => fmt(left + (c + 0.5) * sx, sx));
+  const ruler = Array.from({ length: cols }, () => ' ');
+  const place = (text: string, at: number): void => {
+    for (let i = 0; i < text.length; i++) if (at + i >= 0 && at + i < cols) ruler[at + i] = text[i] ?? ' ';
+  };
+  place(xs[0] ?? '', 0);
+  place(xs[1] ?? '', Math.floor(cols / 2) - Math.floor((xs[1] ?? '').length / 2));
+  place(xs[2] ?? '', cols - (xs[2] ?? '').length);
+  out.push(`${'x'.padStart(gutter)}  ${ruler.join('').trimEnd()}`);
+  return out;
+}
