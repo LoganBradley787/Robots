@@ -12,6 +12,7 @@ export interface WorldActions {
   worldToggleDebug(): void;
   worldToggleGrid(): void;
   worldReset(): void;
+  clearDebris(): void;
   saveReplay(): void;
   toggleUnlimitedEnergy(): void;
   toBuilder(): void;
@@ -59,6 +60,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
       </button>
       <button onClick={actions.saveReplay} disabled={v.robots === 0} title="Save this run to replays/ so the headless runner can rerun it exactly">
         Save replay
+      </button>
+      <button onClick={actions.clearDebris} disabled={v.robots === 0} title="Remove every robot nobody can control: debris, robots that lost their core, bombs">
+        Clear debris
       </button>
       <button class="danger" onClick={actions.worldReset} disabled={v.robots === 0}>
         Clear robots

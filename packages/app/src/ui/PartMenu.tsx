@@ -78,7 +78,7 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
       </div>
       {one && (
         <p class="muted small">
-          {one.id}, rotation {one.rot}°
+          {one.id}, rotation {one.rot}°{registry.has(one.part) ? `, health ${registry.get(one.part).health}` : ''}
         </p>
       )}
       {autoParts.length > 0 && (

@@ -143,9 +143,11 @@ export class Builder {
       return true;
     }
     if (mod) return false;
-    const digit = /^Digit([1-9])$/.exec(e.code);
+    const digit = /^Digit([0-9])$/.exec(e.code);
     if (digit) {
-      this.dispatch({ type: 'pick', index: Number(digit[1]) - 1 });
+      // 1 to 9 pick the first nine parts, 0 the tenth (the rotator).
+      const n = Number(digit[1]);
+      this.dispatch({ type: 'pick', index: n === 0 ? 9 : n - 1 });
       return true;
     }
     switch (e.code) {

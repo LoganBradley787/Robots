@@ -136,6 +136,7 @@ async function boot(): Promise<void> {
       });
     },
     toggleUnlimitedEnergy: () => worldScreen.toggleUnlimitedEnergy(),
+    clearDebris: () => worldScreen.clearDebris(),
     saveReplay: () => {
       const { replay, robot } = worldScreen.replay();
       const file = replayFileName(new Date(), robot);

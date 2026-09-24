@@ -2,6 +2,7 @@ import { AnimatedSprite, Container, Sprite, type Texture } from 'pixi.js';
 import type { BodyId, PhysicsWorld, Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { layoutRobot } from './robotLayout';
+import { damageTint } from './damageTint';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from './units';
 
 /** Looks up an fx animation's frames by name. */
@@ -21,10 +22,17 @@ interface Effect {
 /** One Container per rigid body, one Sprite per part at its body-local offset. Only containers move per frame. */
 export class RobotView {
   readonly root = new Container();
+  /** The robot's `version` this view was built for: a rebuild (damage, a split) needs a new view. */
+  readonly version: number;
+  private readonly robot: Robot;
   private readonly bodies: { bodyId: BodyId; view: Container }[] = [];
   private readonly effects: Effect[] = [];
+  /** Part sprites with the health they were last tinted for. */
+  private readonly parts: { partId: string; sprite: Sprite; health: number }[] = [];
 
   constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations) {
+    this.robot = robot;
+    this.version = robot.version;
     for (const body of layoutRobot(robot)) {
       const view = new Container();
       const flames = new Container();
@@ -48,6 +56,7 @@ export class RobotView {
         sprite.position.set(p.x, p.y);
         sprite.rotation = toScreenAngle(s.rotation);
         view.addChild(sprite);
+        if (s.kind === 'part') this.parts.push({ partId: s.partId, sprite, health: Number.NaN });
         if (s.overlay && animations && s.channel) {
           const flame = new AnimatedSprite(animations(s.overlay.name));
           flame.anchor.set(0.5, 0);
@@ -77,6 +86,12 @@ export class RobotView {
       const p = toScreen(s);
       b.view.position.set(p.x, p.y);
       b.view.rotation = toScreenAngle(s.angle);
+    }
+    for (const p of this.parts) {
+      const part = this.robot.parts.get(p.partId);
+      if (!part || part.health === p.health) continue;
+      p.health = part.health;
+      p.sprite.tint = damageTint(part.health / part.def.health);
     }
     for (const e of this.effects) {
       const t = Math.max(0, Math.min(1, (value?.(e.partId, e.channel) ?? 0) / e.max));

@@ -4,6 +4,7 @@ import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
 import { interpolateState } from '../render/interpolate';
 import { RobotView } from '../render/RobotView';
+import { Effects } from '../render/Effects';
 import { buildTerrainView } from '../render/TerrainView';
 import { buildGridView } from '../render/GridView';
 import { TERRAIN } from '../render/assetKeys';
@@ -67,7 +68,9 @@ export class WorldScreen {
   world: World;
   readonly time = new TimeControls();
   cam: CameraState;
-  private views: RobotView[] = [];
+  /** One view per robot, by robot id. Rebuilt when the robot is (damage, a split), dropped when it is gone. */
+  private views = new Map<number, RobotView>();
+  private readonly effects = new Effects();
   private readonly stepper: FixedStepper;
   private readonly grid: Graphics;
   private debugVisible = false;
@@ -102,6 +105,7 @@ export class WorldScreen {
     this.stepper = new FixedStepper(1000 * world.dt);
     this.lastHash = world.hash();
     this.grid = buildGridView({ minX: -60, maxX: 60, minY: -2, maxY: 30 });
+    renderer.world.addChildAt(this.effects.root, renderer.world.getChildIndex(renderer.bodies) + 1);
     renderer.backdrop.addChild(
       this.grid,
       buildTerrainView(file, {
@@ -123,8 +127,9 @@ export class WorldScreen {
     const next = await World.create({ seed: 1, ...(this.scriptHost ? { scripts: this.scriptHost } : {}) }, this.file);
     this.world.dispose();
     this.world = next;
-    for (const v of this.views) v.root.destroy({ children: true });
-    this.views = [];
+    for (const v of this.views.values()) v.root.destroy({ children: true });
+    this.views.clear();
+    this.effects.clear();
     this.keys.clear();
     this.focusId = undefined;
     this.eventCursor = 0;
@@ -136,11 +141,36 @@ export class WorldScreen {
 
   spawn(raw: unknown, at: { x: number; y: number }): Robot {
     const robot = this.world.spawnBlueprint(raw, at);
-    const view = new RobotView(robot, (f) => this.textures.part(f), (name) => this.textures.fx.animations[name] ?? []);
-    this.renderer.bodies.addChild(view.root);
-    this.views.push(view);
+    this.syncViews();
     this.focus(robot.id);
     return robot;
+  }
+
+  /** Clears debris (M6): every robot nobody can control goes on the next tick. */
+  clearDebris(): void {
+    this.world.clearDebris();
+  }
+
+  /** Views follow the robots: new pieces get one, rebuilt robots get a fresh one, removed robots lose theirs. */
+  private syncViews(): void {
+    const live = new Set(this.world.robots.map((r) => r.id));
+    for (const [id, v] of this.views) {
+      if (live.has(id)) continue;
+      v.root.destroy({ children: true });
+      this.views.delete(id);
+    }
+    for (const robot of this.world.robots) {
+      const old = this.views.get(robot.id);
+      if (old && old.version === robot.version) continue;
+      const view = new RobotView(robot, (f) => this.textures.part(f), (name) => this.textures.fx.animations[name] ?? []);
+      if (old) {
+        this.renderer.bodies.addChildAt(view.root, this.renderer.bodies.getChildIndex(old.root));
+        old.root.destroy({ children: true });
+      } else {
+        this.renderer.bodies.addChild(view.root);
+      }
+      this.views.set(robot.id, view);
+    }
   }
 
   /**
@@ -298,11 +328,19 @@ export class WorldScreen {
       if (this.world.tick % 60 === 0) this.lastHash = this.world.hash();
     }
 
+    if (ticks > 0) this.syncViews();
+    // A robot whose core was destroyed cannot be driven any more: let go of it (the world would drop the keys anyway).
+    if (this.keys.robot !== undefined && !this.world.canControl(this.keys.robot)) this.keys.setControlled(undefined);
     const alpha = time.paused ? 1 : this.stepper.alpha;
-    for (const [i, v] of this.views.entries()) {
-      const id = this.world.robots[i]?.id ?? -1;
-      v.sync(this.world.physics, alpha, (partId, channel) => this.world.channelValue(id, partId, channel));
+    for (const [id, v] of this.views) {
+      // A part that needs energy only looks busy (flame, spinning blades) while its robot has some to give.
+      const powered = this.world.unlimitedEnergy || (this.world.energy(id)?.stored ?? 0) > 0;
+      const robot = this.world.robots.find((r) => r.id === id);
+      v.sync(this.world.physics, alpha, (partId, channel) =>
+        !powered && (robot?.parts.get(partId)?.def.powerDraw ?? 0) > 0 ? 0 : this.world.channelValue(id, partId, channel),
+      );
     }
+    this.effects.update(time.paused ? 0 : (ticker.deltaMS / 1000) * time.timeScale);
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
@@ -314,7 +352,9 @@ export class WorldScreen {
     const robotLine =
       focus && s
         ? `${focus.id === controlled?.id ? 'controlling' : 'watching'} ${focus.name} (${this.world.robots.indexOf(focus) + 1}/${this.world.robots.length})   ${s.speed.toFixed(1)} m/s   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
-        : 'no robots yet: build one and press Deploy';
+        : this.world.robots.length > 0
+          ? 'following no robot: click one, or press , for the next'
+          : 'no robots yet: build one and press Deploy';
     const p = this.placing;
     const placingLines = p
       ? [`PLACING ${p.ghost.name}: click to drop   Esc cancels   ${p.ok ? 'fits here' : `blocked: ${p.reason ?? 'move the cursor into the world'}`}`]
@@ -333,6 +373,10 @@ export class WorldScreen {
       const who = this.world.robots.find((r) => r.id === ev?.robot);
       if (ev?.kind === 'energyEmpty' && who) this.onNotice?.(`${who.name} ran out of energy`);
       if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
+      if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
+      if (ev?.kind === 'partDestroyed' && ev.partType !== 'warhead') this.effects.breakPuff(ev.x, ev.y);
+      if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
+      if (ev?.kind === 'coreWoke' && who) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);
     }
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
     if (controlled && controller) {

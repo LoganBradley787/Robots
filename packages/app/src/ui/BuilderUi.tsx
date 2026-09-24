@@ -64,10 +64,10 @@ export function Palette({ store, defs, actions }: { store: Store<AppState>; defs
   return (
     <div class="palette panel">
       {defs.map((d, i) => (
-        <button key={d.id} class={held?.part === d.id ? 'part active' : 'part'} onClick={() => actions.hold(d.id)} title={`${d.name} (${i + 1})`}>
+        <button key={d.id} class={held?.part === d.id ? 'part active' : 'part'} onClick={() => actions.hold(d.id)} title={i < 10 ? `${d.name} (${(i + 1) % 10})` : d.name}>
           {icons[d.id] ? <img src={icons[d.id]} alt="" /> : <span class="icon-missing" />}
           <span class="part-name">{d.name}</span>
-          <span class="part-key">{i + 1}</span>
+          {i < 10 && <span class="part-key">{(i + 1) % 10}</span>}
         </button>
       ))}
       <button class={eraser ? 'part eraser active' : 'part eraser'} onClick={actions.eraser} title="Eraser (E): click or drag to erase">
@@ -132,7 +132,7 @@ export function StatsBadge({ store }: { store: Store<AppState> }) {
 export function BuilderHelp() {
   return (
     <div class="help">
-      1-9 pick part · click or drag to paint · E eraser · right-click a part for its menu · R rotate · Esc drop · M mirror ([ ] move axis) ·
+      1-9, 0 pick part · click or drag to paint · E eraser · right-click a part for its menu · R rotate · Esc drop · M mirror ([ ] move axis) ·
       Space+drag or middle-drag pan · wheel zoom · Cmd+Z undo · Tab world
     </div>
   );

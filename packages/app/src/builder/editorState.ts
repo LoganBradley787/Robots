@@ -119,7 +119,7 @@ function applyAt(editor: EditorState, bp: Blueprint, kind: 'paint' | 'erase', c:
   return both ? placePart(once, registry, held.part, mx, c.y, mirrorRotation(held.rot)) : once;
 }
 
-/** Pure builder input handling. `partIds` is the palette order (number keys 1 to 8). */
+/** Pure builder input handling. `partIds` is the palette order (number keys 1 to 9, then 0). */
 export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, registry: PartRegistry, partIds: readonly string[]): ReduceResult {
   switch (e.type) {
     case 'pick': {
