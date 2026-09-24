@@ -22,6 +22,8 @@ import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
+import type { Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
+import { scopedView } from '../control/target';
 
 export interface SpawnRecord {
   tick: number;
@@ -189,11 +191,7 @@ export class World {
     if (controller) {
       this.controllers.set(robot.id, controller);
       this.channels.set(robot.id, controller.values());
-      if (robot.blueprint.scripts.length > 0) {
-        // Each script gets its own random stream from the world seed, the robot, and its place in the list.
-        const seed = (i: number): number => (Math.imul(this.seed ^ 0x9e3779b9, 31) + Math.imul(robot.id, 65537) + i * 7919) >>> 0;
-        this.runners.set(robot.id, new ScriptRunner(robot.blueprint.scripts, this.scriptHost, seed));
-      }
+      this.startScripts(robot, robot.blueprint.scripts);
     }
     this.spawnLog.push({ tick: this.tickCount, name: robot.name, at: { x: at.x, y: at.y }, blueprint: raw });
     return robot;
@@ -389,6 +387,8 @@ export class World {
         if (woke) {
           this.controllers.set(piece.id, woke);
           this.channels.set(piece.id, woke.values());
+          // A core with controls of its own (a placed missile's) starts its scripts; they first run next tick.
+          this.startScripts(piece, coreControls(piece)?.scripts ?? []);
           this.events.push({ tick: this.tickCount, robot: piece.id, kind: 'coreWoke', from: robot.id });
         } else {
           this.channels.set(piece.id, latchedFor(latched, piece));
@@ -530,6 +530,13 @@ export class World {
     if (this.scriptLogs.length > LOG_KEEP) this.scriptLogs.splice(0, this.scriptLogs.length - LOG_KEEP);
   }
 
+  /** Starts a robot's scripts. Each gets its own random stream from the world seed, the robot, and its place in the list. */
+  private startScripts(robot: Robot, scripts: readonly ScriptSpec[]): void {
+    if (scripts.length === 0) return;
+    const seed = (i: number): number => (Math.imul(this.seed ^ 0x9e3779b9, 31) + Math.imul(robot.id, 65537) + i * 7919) >>> 0;
+    this.runners.set(robot.id, new ScriptRunner(scripts, this.scriptHost, seed));
+  }
+
   /** What a robot's scripts see this tick (`04`, Script API): exact data about its core and its parts. */
   private scriptInput(robot: Robot, keys: ScriptInput['keys']): ScriptInput {
     const coreId = robot.primaryCoreId ?? robot.rootId;
@@ -541,6 +548,7 @@ export class World {
     const energy = this.energy(robot.id);
     const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const chans = this.channels.get(robot.id);
+    const scope = coreControls(robot)?.scope;
     const parts: ScriptInput['parts'] = [];
     for (const id of chunk?.partIds ?? []) {
       const p = robot.parts.get(id);
@@ -551,7 +559,7 @@ export class World {
         const v = this.partOutput(robot.id, id, o.name);
         if (v !== undefined) out[o.name] = v;
       }
-      parts.push({ id, type: p.def.id, tags: p.tags, pos: { x: pose.x, y: pose.y }, angle: pose.angle, in: Object.fromEntries(chans?.get(id) ?? []), out });
+      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, in: Object.fromEntries(chans?.get(id) ?? []), out });
     }
     return {
       frame: this.tickCount,
@@ -779,22 +787,39 @@ function latchedFor(values: ReadonlyMap<string, ReadonlyMap<string, number>>, ro
 }
 
 /**
+ * The controls a woken core runs (M7): its entry in the blueprint's `cores`, if it has one. The robot's own primary
+ * core (not woken) runs the top-level controls instead.
+ */
+function coreControls(robot: Robot): CoreControls | undefined {
+  if (!robot.woke || robot.primaryCoreId === undefined) return undefined;
+  return robot.blueprint.cores?.find((c) => c.core === robot.primaryCoreId);
+}
+
+/**
  * The controlled chunk is the one holding the primary core; tags resolve inside it only (`04`). A core that woke in a
- * piece that broke off gets its parts' auto controls: bindings and scripts belong to the primary core until
- * sub-assemblies (M7) give sub-assembly cores their own.
+ * piece that broke off runs its own controls from `cores` (a placed missile's, seen through its scope), plus auto
+ * controls for the piece's parts; without an entry, auto controls only.
  */
 function controllerFor(robot: Robot, registry: PartRegistry): Controller | undefined {
   const coreId = robot.primaryCoreId;
   if (coreId === undefined) return undefined;
   const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
   if (!chunk) return undefined;
+  const own = coreControls(robot);
   const parts: ControlledPart[] = [];
   for (const id of chunk.partIds) {
     const p = robot.parts.get(id);
-    if (p) parts.push({ id, part: p.def.id, tags: p.tags, inputs: p.def.inputs });
+    if (!p) continue;
+    const view = scopedView({ id, part: p.def.id, tags: p.tags }, own?.scope);
+    parts.push({ id, part: view.part, tags: view.tags, inputs: p.def.inputs });
   }
-  const bindings = robot.woke ? autoBindings({ ...robot.blueprint, parts: robot.blueprint.parts.filter((p) => robot.parts.has(p.id)) }, registry) : allBindings(robot.blueprint, registry);
-  return new Controller(bindings, parts);
+  if (!robot.woke) return new Controller(allBindings(robot.blueprint, registry), parts);
+  const pieceBp: Blueprint = { ...robot.blueprint, parts: robot.blueprint.parts.filter((p) => robot.parts.has(p.id)) };
+  if (!own) return new Controller(autoBindings(pieceBp, registry), parts);
+  // The core's own switch decides, not the robot it came from.
+  const { autoControls: _parent, ...rest } = pieceBp;
+  const auto = own.autoControls === false ? [] : autoBindings(rest, registry);
+  return new Controller([...auto, ...own.bindings], parts);
 }
 
 /** Index of the chunk holding the part (every part is in exactly one). */

@@ -68,6 +68,6 @@ export interface Robot {
   version: number;
   /** For a piece that broke off another robot: that robot's id. */
   brokeFrom?: number;
-  /** A piece whose single dormant core woke up: controlled by its parts' auto controls only (`04`, M6). */
+  /** A piece whose single dormant core woke up: it runs that core's own controls from `cores` if it has any (M7), else its parts' auto controls (`04`). */
   woke?: true;
 }
