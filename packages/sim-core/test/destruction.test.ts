@@ -168,6 +168,42 @@ describe('destruction: splitting (M6)', () => {
   });
 });
 
+describe('damage on consecutive ticks (M6 review)', () => {
+  const speeds = (w: World): number[] => w.robots.flatMap((r) => r.groups.map((g) => w.physics.state(g.bodyId).vx));
+
+  it('a robot that loses a part and fires its decoupler on the next tick keeps its velocity', async () => {
+    const w = await World.create({ seed: 1, gravityY: 0 }, space);
+    const r = w.spawnBlueprint(
+      { format: 1, name: 'stack', grid: ['F  .  .', 'D  .  .', 'C  F  F'], bindings: [{ key: 'f', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 }] },
+      { x: 0, y: 20 },
+    );
+    w.physics.kick(r.groups[0]?.bodyId as number, 4, 0, 0);
+    w.step();
+    w.step();
+    destroy(r, 'frame@2,0');
+    w.step();
+    w.step([{ robot: r.id, pressed: ['f'], released: [] }]);
+    for (let i = 0; i < 3; i++) w.step();
+    expect(w.robots).toHaveLength(2);
+    for (const v of speeds(w)) expect(v).toBeCloseTo(4, 1);
+  });
+
+  it('a jointed piece hit again one tick after a split keeps its velocity', async () => {
+    const w = await World.create({ seed: 1, gravityY: 0 }, space);
+    const car = w.spawnBlueprint(LONGCAR, { x: 0, y: 20 });
+    for (const g of car.groups) w.physics.kick(g.bodyId, 4, 0, 0);
+    for (let i = 0; i < 3; i++) w.step();
+    destroy(car, 'frame@2,1');
+    w.step();
+    const far = w.robots.find((x) => x.id !== car.id) as Robot;
+    destroy(far, 'frame@5,1');
+    w.step();
+    for (let i = 0; i < 3; i++) w.step();
+    expect(w.robots.length).toBeGreaterThanOrEqual(3);
+    for (const v of speeds(w)) expect(Math.abs(v - 4)).toBeLessThan(0.08);
+  });
+});
+
 describe('decoupler (M6)', () => {
   const STACK = {
     format: 1,

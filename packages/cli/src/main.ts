@@ -48,6 +48,8 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, s
         if (a === '--drop') drops.push(next);
         else flags.set(a.slice(2), next);
         i++;
+      } else if (a === '--drop') {
+        throw new Error('--drop needs a value like bomb@2:3,6 (blueprint@seconds:x,y)');
       } else {
         flags.set(a.slice(2), 'true');
       }
@@ -60,7 +62,8 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, s
 
 /** `bomb@2:3,6`: blueprint bomb at 2 s, root at (3, 6). */
 function parseDrop(raw: string): Drop {
-  const m = /^([^@]+)@(\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(raw.trim());
+  const num = '-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)';
+  const m = new RegExp(`^([^@]+)@(${num}):(${num}),(${num})$`).exec(raw.trim());
   if (!m) throw new Error(`--drop must look like bomb@2:3,6 (blueprint@seconds:x,y), got ${raw}`);
   const [, name = '', t = '0', x = '0', y = '0'] = m;
   const loaded = readBlueprint(resolveBlueprint(name));
@@ -152,6 +155,10 @@ async function main(): Promise<number> {
     throw e;
   }
   const drops = dropArgs.map(parseDrop);
+  for (const d of drops) {
+    if (d.t < 0) throw new Error(`--drop ${d.name}: the time must not be negative`);
+    if (d.t >= seconds) console.error(`warning: --drop ${d.name} at ${d.t} s is after the run ends (${seconds} s), so it never lands`);
+  }
   const opts = { seconds, seed, ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}), ...(drops.length > 0 ? { drops } : {}) };
 
   try {

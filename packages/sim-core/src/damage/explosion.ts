@@ -42,7 +42,11 @@ export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec
   const push = cells.map(() => ({ jx: 0, jy: 0 }));
   // Only cells near enough to block a line inside the radius can be cover.
   const reach = spec.radius + 1;
-  const blockers = cells.flatMap((c, i) => (Math.sqrt((c.x - center.x) ** 2 + (c.y - center.y) ** 2) <= reach ? [i] : []));
+  const blockers = cells.flatMap((c, i) => {
+    const dx = c.x - center.x;
+    const dy = c.y - center.y;
+    return Math.sqrt(dx * dx + dy * dy) <= reach ? [i] : [];
+  });
   cells.forEach((c, i) => {
     const dx = c.x - center.x;
     const dy = c.y - center.y;

@@ -71,6 +71,16 @@ export class Effects {
     }
   }
 
+  /** A decoupler fired: a quick spark at its release face. */
+  spark(x: number, y: number): void {
+    const p = toScreen({ x, y });
+    const r = 0.4 * PIXELS_PER_METER;
+    this.add(p, 0.18, (g, t) => {
+      const k = t / 0.18;
+      g.circle(0, 0, r * (0.5 + k)).fill({ color: FLASH, alpha: 0.8 * (1 - k) });
+    });
+  }
+
   /** Advances every effect by `dt` seconds and drops finished ones. */
   update(dt: number): void {
     for (let i = this.live.length - 1; i >= 0; i--) {

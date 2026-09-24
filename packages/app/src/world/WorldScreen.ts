@@ -374,7 +374,9 @@ export class WorldScreen {
       if (ev?.kind === 'energyEmpty' && who) this.onNotice?.(`${who.name} ran out of energy`);
       if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
       if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
-      if (ev?.kind === 'partDestroyed' && ev.partType !== 'warhead') this.effects.breakPuff(ev.x, ev.y);
+      if (ev?.kind === 'decoupled') this.effects.spark(ev.x, ev.y);
+      // A part that explodes gets the blast instead of a puff.
+      if (ev?.kind === 'partDestroyed' && !this.world.registry.get(ev.partType).onDestroyed?.explode) this.effects.breakPuff(ev.x, ev.y);
       if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
       if (ev?.kind === 'coreWoke' && who) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);
     }
@@ -383,7 +385,8 @@ export class WorldScreen {
       // A key bound to a script is a toggle too, lit while any of its scripts runs.
       const scripts = this.world.scripts(controlled.id);
       const scriptKeys = new Map<string, string[]>();
-      for (const b of controlled.blueprint.bindings) if (b.mode === 'script' && b.script !== undefined) scriptKeys.set(b.key, [...(scriptKeys.get(b.key) ?? []), b.script]);
+      // A core that woke in a broken-off piece has only auto controls: its blueprint's script keys are not its own.
+      if (!controlled.woke) for (const b of controlled.blueprint.bindings) if (b.mode === 'script' && b.script !== undefined) scriptKeys.set(b.key, [...(scriptKeys.get(b.key) ?? []), b.script]);
       const toggles = new Set([...controller.toggleKeys, ...scriptKeys.keys()]);
       const scriptOn = (key: string): boolean => (scriptKeys.get(key) ?? []).some((id) => scripts.find((s) => s.id === id)?.enabled === true);
       // Auto control keys first (Q W E A S D), then custom keys in binding order.

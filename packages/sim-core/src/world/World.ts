@@ -19,7 +19,7 @@ import { spawnRobot } from '../assembly/spawn';
 import { partCells, rootPartId } from '../assembly/assemble';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, type BlastCell } from '../damage/explosion';
-import { faceDir, rotateCell } from '../parts/faces';
+import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
 
@@ -47,6 +47,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'explosion'; x: number; y: number; radius: number }
   /** A robot broke apart: it keeps one piece, the others are new robots. */
   | { tick: number; robot: number; kind: 'split'; pieces: number[] }
+  /** A decoupler fired; `x`, `y` is the middle of its release face. */
+  | { tick: number; robot: number; kind: 'decoupled'; part: string; x: number; y: number }
   /** A robot's active core was destroyed: nobody controls it any more and it keeps its last input. */
   | { tick: number; robot: number; kind: 'coreLost' }
   /** A piece broke off with exactly one core, which woke up and can be controlled. */
@@ -126,10 +128,22 @@ export class World {
   private readonly dirty = new Set<Robot>();
   /** Blasts waiting because the per-tick cap was reached. Simulation state, hashed. */
   private queuedBlasts: QueuedBlast[] = [];
-  /** Pushes (N s) to apply to parts at the end of the damage phase, once every rebuild is done. */
+  /**
+   * Pushes (N s) waiting for the next physics step, by part: they land on whatever body holds the part by then, so a
+   * robot rebuilt again before the step keeps them. Simulation state, hashed.
+   */
   private pendingPushes: { part: PartInstance; jx: number; jy: number }[] = [];
-  /** Velocities given to new bodies this tick, applied as kicks at the end of the damage phase. */
+  /**
+   * Velocities for new bodies, applied as kicks just before the next physics step. Until then Rapier reports them at
+   * rest, so a second rebuild reads the velocity from here (M6 review). Simulation state, hashed.
+   */
   private readonly pendingKicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
+  /**
+   * Kicks given on this tick's step. A kicked multibody link moves at part speed during that step and reports about
+   * 88% after it, yet it is at the full target (it moves at exactly that speed on the next step), so until it has been
+   * stepped twice the target is its velocity. Cleared when the next kicks go in. Derived from hashed state.
+   */
+  private lastKicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
   /**
    * Bodies whose velocity jumps for a reason other than a hit (a kick after a rebuild, a blast push), by the last tick
    * the impact check ignores them. Not hashed: it is derived from what happened on recent ticks.
@@ -233,11 +247,9 @@ export class World {
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
     this.runBehaviors(true);
-    if (this.dirty.size > 0) {
-      this.rebuildDirty();
-      this.applyPendingForces();
-    }
+    if (this.dirty.size > 0) this.rebuildDirty();
     this.runBehaviors(false);
+    this.applyPendingForces();
     this.physics.step();
     this.damagePhase();
     for (const c of this.controllers.values()) c.endTick();
@@ -256,6 +268,7 @@ export class World {
   private removeRobot(robot: Robot): void {
     for (const g of robot.groups) {
       this.pendingKicks.delete(g.bodyId);
+      this.lastKicks.delete(g.bodyId);
       this.physics.removeBody(g.bodyId);
     }
     robot.groups = [];
@@ -266,6 +279,9 @@ export class World {
     this.runners.get(robot.id)?.dispose();
     this.runners.delete(robot.id);
     this.dirty.delete(robot);
+    this.used.delete(robot.id);
+    this.logBudget.delete(robot.id);
+    for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'removed' });
   }
 
@@ -286,7 +302,6 @@ export class World {
       budget -= batch.length;
       for (const b of batch) this.applyBlast(b);
     }
-    this.applyPendingForces();
   }
 
   /**
@@ -344,7 +359,10 @@ export class World {
           tick: this.tickCount,
           motion: (body) => this.motion(body),
           kick: (body, vx, vy, w) => this.pendingKicks.set(body, { vx, vy, w }),
-          forget: (body) => this.pendingKicks.delete(body),
+          forget: (body) => {
+            this.pendingKicks.delete(body);
+            this.lastKicks.delete(body);
+          },
           newRobotId: () => this.nextRobotId++,
         },
         robot,
@@ -380,12 +398,19 @@ export class World {
     }
   }
 
-  /** A body's pose and motion, counting a kick given earlier this tick. */
+  /**
+   * A body's pose and motion. A kick not yet stepped, or stepped only once, is the body's real velocity (Rapier reports
+   * a kicked link late); after one step it has also fallen for a step.
+   */
   private motion(body: BodyId): BodyMotion {
     const s = this.physics.state(body);
     const mp = this.physics.massProperties(body);
+    const base = { x: s.x, y: s.y, angle: s.angle, comX: mp.comX, comY: mp.comY };
     const k = this.pendingKicks.get(body);
-    return { x: s.x, y: s.y, angle: s.angle, vx: k?.vx ?? s.vx, vy: k?.vy ?? s.vy, w: k?.w ?? s.w, comX: mp.comX, comY: mp.comY };
+    if (k) return { ...base, vx: k.vx, vy: k.vy, w: k.w };
+    const last = this.lastKicks.get(body);
+    if (last) return { ...base, vx: last.vx, vy: last.vy + this.gravityY * this.dt, w: last.w };
+    return { ...base, vx: s.vx, vy: s.vy, w: s.w };
   }
 
   /** One blast: damage and push every part cell of every robot near it (`damage/explosion`). Terrain is immune. */
@@ -395,8 +420,12 @@ export class World {
     const cells: BlastCell[] = [];
     for (const robot of this.robots) {
       for (const part of robot.parts.values()) {
+        // Destroyed by an earlier blast in this batch: gone, so it neither takes damage nor covers anything.
+        if (part.health <= 0) continue;
         const pose = partWorldPose(this, robot, part.id);
-        if ((pose.x - b.x) ** 2 + (pose.y - b.y) ** 2 > reach * reach) continue;
+        const dx = pose.x - b.x;
+        const dy = pose.y - b.y;
+        if (dx * dx + dy * dy > reach * reach) continue;
         targets.push(part);
         cells.push(pose);
       }
@@ -411,12 +440,19 @@ export class World {
     this.events.push({ tick: this.tickCount, robot: b.robot, kind: 'explosion', x: b.x, y: b.y, radius: b.spec.radius });
   }
 
-  /** Kicks for new bodies, then pushes at each surviving part's cell, all as forces for the next step. */
+  /**
+   * Just before the physics step: kicks for new bodies, then pushes at each surviving part's cell, as forces for this
+   * step. Every body of a kicked or pushed robot is unsettled for the next two steps: its velocity jumps for a reason
+   * other than a hit, and a link reports it late.
+   */
   private applyPendingForces(): void {
-    // A kicked link reports its velocity a step late, so its velocity jumps on each of the next two steps.
+    const settle = (body: BodyId): void => {
+      this.unsettled.set(body, Math.max(this.unsettled.get(body) ?? 0, this.tickCount + 2));
+    };
+    this.lastKicks = new Map(this.pendingKicks);
     for (const [body, k] of this.pendingKicks) {
       this.physics.kick(body, k.vx, k.vy, k.w);
-      this.unsettled.set(body, this.tickCount + 2);
+      settle(body);
     }
     this.pendingKicks.clear();
     if (this.pendingPushes.length === 0) return;
@@ -428,7 +464,7 @@ export class World {
       if (!robot || !group) continue;
       const pose = partWorldPose(this, robot, p.part.id);
       this.physics.addForceAt(group.bodyId, p.jx / this.dt, p.jy / this.dt, pose.x, pose.y);
-      this.unsettled.set(group.bodyId, Math.max(this.unsettled.get(group.bodyId) ?? 0, this.tickCount + 1));
+      for (const g of robot.groups) settle(g.bodyId);
     }
     this.pendingPushes = [];
   }
@@ -447,7 +483,14 @@ export class World {
         return { x: p.x + off.x, y: p.y + off.y };
       });
     const across = new Set(cellsOf(part).map((c) => `${c.x + d.x},${c.y + d.y}`));
-    const neighbor = [...robot.parts.values()].find((p) => p !== part && cellsOf(p).some((c) => across.has(`${c.x},${c.y}`)));
+    // Only a part that was attached through that face (it has the opposite face there) is pushed away.
+    const back = opposite(face);
+    const neighbor = [...robot.parts.values()].find(
+      (p) => p !== part && p.def.footprint.some((fc) => {
+        const off = rotateCell(fc, p.rot);
+        return across.has(`${p.x + off.x},${p.y + off.y}`) && fc.faces.some((f) => rotateFace(f, p.rot) === back);
+      }),
+    );
     const s = this.physics.state(robot.groups[part.group]?.bodyId ?? 0);
     const c = Math.cos(s.angle);
     const n = Math.sin(s.angle);
@@ -455,6 +498,8 @@ export class World {
     const ny = n * d.x + c * d.y;
     this.pendingPushes.push({ part, jx: -nx * impulse, jy: -ny * impulse });
     if (neighbor) this.pendingPushes.push({ part: neighbor, jx: nx * impulse, jy: ny * impulse });
+    const at = partWorldPose(this, robot, part.id);
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'decoupled', part: part.id, x: at.x + 0.5 * nx, y: at.y + 0.5 * ny });
   }
 
   /**
@@ -686,8 +731,24 @@ export class World {
     }
     h.addInt(this.queuedBlasts.length);
     for (const b of this.queuedBlasts) {
+      h.addInt(b.robot);
       h.addF64(b.x);
       h.addF64(b.y);
+      for (const v of [b.spec.radius, b.spec.damage, b.spec.pushRadius, b.spec.push, b.spec.lift]) h.addF64(v);
+    }
+    // Kicks and pushes waiting for the next step.
+    h.addInt(this.pendingKicks.size);
+    for (const [body, k] of this.pendingKicks) {
+      h.addInt(body);
+      h.addF64(k.vx);
+      h.addF64(k.vy);
+      h.addF64(k.w);
+    }
+    h.addInt(this.pendingPushes.length);
+    for (const p of this.pendingPushes) {
+      h.addString(p.part.id);
+      h.addF64(p.jx);
+      h.addF64(p.jy);
     }
     // Held keys and toggles shape the future, so they are state too.
     for (const [id, c] of this.controllers) {

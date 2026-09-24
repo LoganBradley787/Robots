@@ -153,3 +153,22 @@ describe('Controller script layer', () => {
     expect(c.keyState()).toEqual({ down: [], pressed: [], released: ['h'] });
   });
 });
+
+describe('Controller.restrict (M6)', () => {
+  it('drops keys whose parts all broke off', () => {
+    const c = new Controller(
+      [
+        { key: 'd', mode: 'hold', target: 'wheel', channel: 'speed', value: 1 },
+        { key: 'f', mode: 'toggle', target: 'thruster', channel: 'throttle', value: 1 },
+      ],
+      [
+        { id: 'w1', part: 'wheel', tags: [], inputs: [{ name: 'speed', min: -1, max: 1, default: 0 }] },
+        { id: 't1', part: 'thruster', tags: [], inputs: [{ name: 'throttle', min: 0, max: 1, default: 0 }] },
+      ],
+    );
+    expect(c.keys).toEqual(['d', 'f']);
+    c.restrict(new Set(['w1']));
+    expect(c.keys).toEqual(['d']);
+    expect([...c.values().keys()]).toEqual(['w1']);
+  });
+});

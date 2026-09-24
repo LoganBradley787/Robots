@@ -26,7 +26,8 @@ interface Channel {
  */
 export class Controller {
   /** Every key a binding responds to, in binding order without repeats. */
-  readonly keys: readonly string[];
+  /** Keys that still do something (a binding with parts left, or a script key). */
+  keys: readonly string[];
   private readonly writers: Writer[] = [];
   private readonly channels = new Map<string, Channel[]>();
   private readonly held = new Set<string>();
@@ -142,6 +143,8 @@ export class Controller {
     this.parts = this.parts.filter((p) => partIds.has(p.id));
     for (const id of [...this.channels.keys()]) if (!partIds.has(id)) this.channels.delete(id);
     for (const w of this.writers) w.partIds = w.partIds.filter((id) => partIds.has(id));
+    // A key whose parts all broke off leaves the keys bar.
+    this.keys = this.keys.filter((k) => this.scriptKeys.has(k) || this.writers.some((w) => w.key === k && w.partIds.length > 0));
   }
 
   /** Ends the tick: pulses and taps last exactly one tick. */

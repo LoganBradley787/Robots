@@ -22,7 +22,9 @@ export const rotator: Behavior = {
     const mp = ctx.physics.massProperties(ctx.group.bodyId);
     // The body's origin is the rotator's cell: the hinge.
     const hinge = ctx.physics.state(ctx.group.bodyId);
-    const inertia = mp.inertia + mp.mass * ((mp.comX - hinge.x) ** 2 + (mp.comY - hinge.y) ** 2);
+    const hx = mp.comX - hinge.x;
+    const hy = mp.comY - hinge.y;
+    const inertia = mp.inertia + mp.mass * (hx * hx + hy * hy);
     const f = ctx.config('frequency');
     const stiffness = inertia * f * f;
     const damping = 2 * inertia * f;

@@ -11,6 +11,7 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M6
   - Clear debris (toolbar), explosion and break effects, notices for lost and woken cores.
   - New blueprints: `bomb`, `longcar` (Logan's bomb test robot), `launcher` (turret with a missile under a decoupler rail: Z/X aim, F fires), `wall` (a target with a battery inside).
   - CLI: `pnpm sim run <bp> --drop bomb@2:-77,4.95` spawns another blueprint mid-run; the report lists what broke; `tune` prints kill distances and push. CI checks both destruction scenarios for determinism.
+  - Review fixes: kicks and pushes wait (hashed) until just before the next physics step, so a robot hit on two ticks in a row, or hit and then decoupled, keeps its velocity (it lost all of it, or 12% on jointed pieces); a decoupler pushes only the part it held; dead parts stop covering later blasts in the same tick; the keys bar drops keys whose parts broke off; a woken core does not show its parent's script keys; the app no longer names the warhead; CLI `--drop` refuses a missing value, accepts `.5`, warns when it lands after the run; decouplers spark.
   - Rapier findings worth knowing (`03`): multibody links ignore velocity writes (kicks instead), reset angles on joint creation (invisible helper root and pivots), and report no contact forces; face-to-face pieces snag (part boxes are now 0.49 m).
 - **Gate 5 walkthrough for Logan** (builder, pick from the Blueprint dropdown, Deploy, click to drop):
   1. Deploy `longcar`, hold D to drive, Tab to the builder, pick `bomb`, Deploy it a few meters above the car. It breaks in two; the half without the core keeps driving.
@@ -41,7 +42,8 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M6
 - M6: Clear debris also removes bombs waiting to fall, walls, and anything else nobody can control.
 - M6: a missile's heading drifts slightly if the turret is still swinging when it fires (the missile keeps the turret's spin).
 - M6: the damage tint only darkens a part; the plan's "cracked" look is not drawn.
-- M6: a rebuilt robot's velocity reads 0, then about 75%, for the two ticks after a split (Rapier reports kicked multibody links late). Scripts on a robot that just lost a part see that.
+- M6: a rebuilt robot's velocity reads 0, then about 88%, for the two ticks after a split (Rapier reports kicked multibody links late). The sim corrects for it; scripts on a robot that just lost a part still see it.
+- M6: the CLI report's piece count misses pieces of a piece whose parent robot was later removed.
 
 ## Decisions since the plans (newest first)
 - M6: see `docs/plans/M6-destruction.md`, As built: warhead damage 120 and push 40 up and out, velocity-change fuze, rotator 300 N m, decouplers act first, part boxes 0.49 m, helper bodies for Rapier multibody angles, the largest piece keeps the id when the core is gone.
