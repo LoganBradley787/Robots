@@ -294,6 +294,18 @@ function drawBattery(): Canvas {
   return cv;
 }
 
+/** A small battery: a green can on a frame-grey backing, with a smaller plus. */
+function drawCell(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  const green = hex('#3fae5a');
+  plate(cv, 0, 0, CELL, CELL, hex('#6b7079'), hex('#454950'), 3);
+  plate(cv, 16, 12, 48, 58, green, hex('#22703a'), 2);
+  cv.fill(rect(26, 6, 38, 12), hex('#c3c8cf'));
+  const plus = union(rect(30, 26, 34, 44), rect(23, 33, 41, 37));
+  cv.fill(plus, hex('#f4f7f5'));
+  return cv;
+}
+
 /** Wheel radius 0.45 cell. */
 const WHEEL_R = CELL * 0.45;
 
@@ -758,6 +770,7 @@ function main(): void {
     { name: 'part.core', canvas: drawCore() },
     { name: 'part.frame', canvas: drawFrame() },
     { name: 'part.battery', canvas: drawBattery() },
+    { name: 'part.cell', canvas: drawCell() },
     { name: 'part.wheel', canvas: drawWheel() },
     { name: 'part.wheel.mount', canvas: drawWheelMount() },
     { name: 'part.thruster', canvas: drawThruster() },

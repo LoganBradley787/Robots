@@ -29,7 +29,7 @@ describe('validateBlueprint', () => {
     expect(i).toEqual({
       severity: 'error',
       code: 'UNKNOWN_PART',
-      message: "zap@0,0 uses part 'zap', which does not exist (known: core, frame, battery, wheel, thruster, propeller, decoupler, warhead, gyro, rotator)",
+      message: "zap@0,0 uses part 'zap', which does not exist (known: core, frame, battery, wheel, thruster, propeller, decoupler, warhead, gyro, rotator, cell)",
       partId: 'zap@0,0',
       cell: { x: 0, y: 0 },
     });

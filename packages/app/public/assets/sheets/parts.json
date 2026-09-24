@@ -60,7 +60,7 @@
         "h": 64
       }
     },
-    "part.wheel": {
+    "part.cell": {
       "frame": {
         "x": 207,
         "y": 3,
@@ -80,9 +80,29 @@
         "h": 64
       }
     },
-    "part.wheel.mount": {
+    "part.wheel": {
       "frame": {
         "x": 3,
+        "y": 71,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.wheel.mount": {
+      "frame": {
+        "x": 71,
         "y": 71,
         "w": 64,
         "h": 64
@@ -102,7 +122,7 @@
     },
     "part.thruster": {
       "frame": {
-        "x": 71,
+        "x": 139,
         "y": 71,
         "w": 64,
         "h": 64
@@ -122,7 +142,7 @@
     },
     "part.propeller": {
       "frame": {
-        "x": 139,
+        "x": 207,
         "y": 71,
         "w": 64,
         "h": 64
@@ -142,26 +162,6 @@
     },
     "part.decoupler": {
       "frame": {
-        "x": 207,
-        "y": 71,
-        "w": 64,
-        "h": 64
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 64,
-        "h": 64
-      },
-      "sourceSize": {
-        "w": 64,
-        "h": 64
-      }
-    },
-    "part.warhead": {
-      "frame": {
         "x": 3,
         "y": 139,
         "w": 64,
@@ -180,7 +180,7 @@
         "h": 64
       }
     },
-    "part.gyro": {
+    "part.warhead": {
       "frame": {
         "x": 71,
         "y": 139,
@@ -200,7 +200,7 @@
         "h": 64
       }
     },
-    "part.rotator": {
+    "part.gyro": {
       "frame": {
         "x": 139,
         "y": 139,
@@ -220,10 +220,30 @@
         "h": 64
       }
     },
-    "part.rotator.mount": {
+    "part.rotator": {
       "frame": {
         "x": 207,
         "y": 139,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.rotator.mount": {
+      "frame": {
+        "x": 3,
+        "y": 207,
         "w": 64,
         "h": 64
       },
@@ -246,7 +266,7 @@
     "format": "RGBA8888",
     "size": {
       "w": 274,
-      "h": 206
+      "h": 274
     },
     "scale": "1"
   }

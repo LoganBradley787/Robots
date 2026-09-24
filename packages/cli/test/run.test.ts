@@ -119,3 +119,31 @@ describe('replay', () => {
     expect((await replayCommand({ ...saved, endHash: 'ffffffff' })).matches).toBe(false);
   });
 });
+
+describe('placeCommand (M7)', () => {
+  const missile = { format: 1, name: 'missile', grid: ['C  X'], scripts: [{ id: 'arm', source: 'function tick() {}' }] };
+
+  it('prints the target with a copy of the source placed on it', async () => {
+    const { placeCommand } = await import('../src/commands/place');
+    const out = placeCommand(carJson, missile, { at: { x: 2, y: 2 } });
+    expect(out.ok).toBe(true);
+    expect(out.files).toEqual([]);
+    const json = JSON.parse(out.text.slice(0, out.text.lastIndexOf('}') + 1));
+    expect(json.cores).toEqual({ 'core@2,2': { scope: 'missile1', scripts: [{ id: 'arm', source: 'function tick() {}' }] } });
+    expect(out.text).toContain('placed missile as missile1');
+  });
+
+  it('saves under a new name with its own script files', async () => {
+    const { placeCommand } = await import('../src/commands/place');
+    const out = placeCommand(carJson, missile, { at: { x: 2, y: 2 }, saveAs: 'missile-car' });
+    expect(out.files.map((f) => f.file)).toEqual(['missile-car.json', 'missile-car.missile1.arm.js']);
+    expect(JSON.parse(out.files[0]?.text ?? '').name).toBe('missile-car');
+  });
+
+  it('refuses an overlap', async () => {
+    const { placeCommand } = await import('../src/commands/place');
+    const out = placeCommand(carJson, missile, { at: { x: 0, y: 1 } });
+    expect(out.ok).toBe(false);
+    expect(out.text).toMatch(/^cannot place: missile would overlap/);
+  });
+});

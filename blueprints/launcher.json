@@ -2,17 +2,96 @@
   "format": 1,
   "name": "launcher",
   "grid": [
-    ".  .  F  Dv Dv Dv",
-    ".  .  F  M  B  X",
-    ".  .  R  .  .  .",
-    "F  F  C  B  F  F",
-    "W  .  .  .  .  W"
+    ".  .  .  B  F  Dv Dv Dv Dv .",
+    ".  .  .  .  F  a  b  c  d  e",
+    ".  .  .  .  F  .  .  .  .  .",
+    ".  .  .  .  R  .  .  .  .  .",
+    ".  .  .  .  F  .  .  .  .  .",
+    ".  .  .  .  F  .  .  .  .  .",
+    "F  F  F  F  C  B  F  F  .  .",
+    "W  .  .  .  .  .  .  W  .  ."
   ],
   "legend": {
-    "M": { "part": "thruster", "rot": 270, "tags": ["missile"], "auto": false }
+    "a": {
+      "part": "thruster",
+      "rot": 270,
+      "tags": [
+        "missile1"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ],
+      "auto": false
+    },
+    "c": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ]
+    },
+    "d": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ]
+    },
+    "e": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ]
+    }
   },
+  "primaryCore": "core@4,1",
   "bindings": [
-    { "key": "f", "mode": "pulse", "target": "decoupler", "channel": "fire", "value": 1 },
-    { "key": "f", "mode": "toggle", "target": "missile", "channel": "throttle", "value": 1 }
-  ]
+    {
+      "key": "f",
+      "mode": "pulse",
+      "target": "decoupler",
+      "channel": "fire",
+      "value": 1
+    }
+  ],
+  "cores": {
+    "core@8,6": {
+      "scope": "missile1",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "source": {
+            "file": "launcher.missile1.guide.js"
+          }
+        }
+      ]
+    }
+  }
 }

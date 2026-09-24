@@ -121,8 +121,8 @@ describe('placeBlueprint', () => {
     ]);
     const thruster = r.blueprint.parts.find((p) => p.id === 'thruster@3,6');
     expect(scopedView(thruster as never, 'launcher1.missile1')).toEqual({ part: 'thruster', tags: ['thruster@3,6', 'motor'] });
-    // Outside its scope a part answers only to its id: the truck's frames are not `frame` to the missile.
-    expect(scopedView(r.blueprint.parts[1] as never, 'launcher1.missile1')).toEqual({ part: '', tags: ['frame@1,0'] });
+    // Outside its scope a part keeps its id and type, and its tags are hidden.
+    expect(scopedView({ ...(r.blueprint.parts[1] as object), tags: ['frame@1,0', 'body'] } as never, 'launcher1.missile1')).toEqual({ part: 'frame', tags: ['frame@1,0'] });
   });
 
   it('needs scripts loaded', () => {
@@ -151,10 +151,10 @@ describe('controls per core in files', () => {
   });
 
   it('validates each core’s bindings in its scope', () => {
-    const wrong = { ...placed.blueprint, cores: [{ ...(placed.blueprint.cores?.[0] as never as object), bindings: [{ key: 'h', mode: 'hold', target: 'wheel', channel: 'lift', value: 1 }] }] } as Blueprint;
+    const wrong = { ...placed.blueprint, cores: [{ ...(placed.blueprint.cores?.[0] as never as object), bindings: [{ key: 'h', mode: 'hold', target: 'roof', channel: 'lift', value: 1 }] }] } as Blueprint;
     const v = validateBlueprint(toFileJson(wrong, reg, { inlineScripts: true }), reg);
     expect(v.issues.map((i) => i.code)).toContain('BAD_TARGET');
-    expect(v.issues.find((i) => i.code === 'BAD_TARGET')?.message).toMatch(/^core core@1,4 \(missile1\): binding key 'h' targets 'wheel'/);
+    expect(v.issues.find((i) => i.code === 'BAD_TARGET')?.message).toMatch(/^core core@1,4 \(missile1\): binding key 'h' targets 'roof'/);
   });
 
   it('refuses controls for a part that is not a core, or for the primary core', () => {

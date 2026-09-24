@@ -10,6 +10,7 @@ import decoupler from './defs/decoupler.json';
 import warhead from './defs/warhead.json';
 import gyro from './defs/gyro.json';
 import rotator from './defs/rotator.json';
+import cell from './defs/cell.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -52,6 +53,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['warhead.json', warhead],
   ['gyro.json', gyro],
   ['rotator.json', rotator],
+  ['cell.json', cell],
 ];
 
 let shipped: PartRegistry | null = null;

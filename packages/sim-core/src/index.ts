@@ -21,7 +21,7 @@ export type { RobotInput, ControlledPart, ControlState } from './control/types';
 export { World } from './world/World';
 export type { WorldOptions, SpawnRecord, WorldEvent, ScriptLog } from './world/World';
 export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec, SpriteSpec, PartDef, AutoControlSpec } from './parts/types';
-export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians } from './parts/faces';
+export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians, isRotation } from './parts/faces';
 export { parsePartDef, PartDefError } from './parts/parsePartDef';
 export { PartRegistry, defaultRegistry } from './parts/registry';
 export type { Issue, LegendEntry, PlacedPart, Binding, BindingMode, ScriptSpec, Blueprint, CoreControls } from './blueprint/types';

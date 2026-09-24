@@ -4,14 +4,15 @@ export function matchesTarget(p: { part: string; tags: readonly string[] }, targ
 }
 
 /**
- * How a part looks to controls scoped to `scope` (M7, a placed blueprint's core). A member of the scope (it has the tag
- * `missile1`) answers to its id, its part type, and its `missile1.<tag>` tags without the prefix. Any other part answers
- * only to its id, so auto controls still reach it but the scope's tags and part types do not. Without a scope, the
- * part as it is.
+ * How a part looks to controls scoped to `scope` (M7, a placed blueprint's core). Every part answers to its id and its
+ * part type, so a part placed by hand into a placed missile is still that missile's `warhead`. A member of the scope
+ * (it has the tag `missile1`) also answers to its `missile1.<tag>` tags without the prefix; other parts' tags are
+ * hidden, so the robot's own tags never reach the missile's controls. Without a scope, the part as it is. These
+ * controls only run once the core's piece breaks off, so a part type then means that piece's parts.
  */
 export function scopedView(p: { id: string; part: string; tags: readonly string[] }, scope: string | undefined): { part: string; tags: readonly string[] } {
   if (scope === undefined) return { part: p.part, tags: p.tags };
-  if (!p.tags.includes(scope)) return { part: '', tags: [p.id] };
+  if (!p.tags.includes(scope)) return { part: p.part, tags: [p.id] };
   const prefix = `${scope}.`;
   const tags = [p.id];
   for (const t of p.tags) if (t.startsWith(prefix) && !tags.includes(t.slice(prefix.length))) tags.push(t.slice(prefix.length));

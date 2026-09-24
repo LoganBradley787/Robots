@@ -23,4 +23,4 @@ jobs:
       - run: pnpm sim determinism hopper --seconds 8 --keys "d:0-3, w:1-1.3, a:4-6"
       - run: pnpm sim determinism drone --seconds 10 --keys "a:2-3, w:5-6, h:8"
       - run: pnpm sim determinism longcar --x -100 --y 1.5 --seconds 6 --keys "d:0-6" --drop bomb@2:-77,4.95
-      - run: pnpm sim determinism launcher --x -100 --y 1.5 --seconds 5 --keys "z:1-1.23, f:2" --drop wall@0:-80,5.5
+      - run: pnpm sim determinism launcher --x -100 --y 1.5 --seconds 5 --keys "f:2" --drop wall@0:-80,5.5

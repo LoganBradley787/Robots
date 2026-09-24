@@ -91,6 +91,21 @@ describe('a woken core runs its own controls (M7)', () => {
     w.dispose();
   });
 
+  it('reaches a part placed by hand into the missile by its type', async () => {
+    const parent = bp({ format: 1, name: 'rail', grid: ['C  D>'], bindings: [{ key: 'f', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 }] });
+    const placed = placeBlueprint(parent, missile, { x: 2, y: 0 }, reg);
+    if (!placed.ok) throw new Error(placed.error);
+    // Replace the missile's gyro with a fresh one: it has none of the missile's tags.
+    const parts = placed.blueprint.parts.map((p) => (p.id === 'gyro@3,0' ? { ...p, tags: ['gyro@3,0'] } : p));
+    const w = await World.create({ seed: 1, gravityY: 0, scripts: host }, space);
+    const r = w.spawnBlueprint(toFileJson({ ...placed.blueprint, parts }, reg, { inlineScripts: true }), { x: 0, y: 3 });
+    w.step([{ robot: r.id, pressed: ['f'], released: [] }]);
+    w.step();
+    const piece = w.robots.find((x) => x.id !== r.id) as Robot;
+    expect(w.channelValue(piece.id, 'gyro@3,0', 'spin')).toBe(-0.5);
+    w.dispose();
+  });
+
   it('a woken core with auto controls off in its own controls has only its bindings', async () => {
     const quiet = { ...missile, autoControls: false as const };
     const parent = bp({ format: 1, name: 'rail', grid: ['C  D>'], bindings: [{ key: 'f', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 }] });

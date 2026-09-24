@@ -150,6 +150,11 @@ export class Builder {
       this.dispatch({ type: 'pick', index: n === 0 ? 9 : n - 1 });
       return true;
     }
+    if (e.code === 'Minus') {
+      // The eleventh part (the cell).
+      this.dispatch({ type: 'pick', index: 10 });
+      return true;
+    }
     switch (e.code) {
       case 'Space':
         this.spaceDown = true;

@@ -62,6 +62,8 @@ interface JointEntry {
   factor: number;
   damping: number;
   target: number;
+  /** Position motors: how fast the target angle is moving (rad/s), so a moving aim is tracked without lag. */
+  rate: number;
   maxTorque: number;
 }
 
@@ -267,7 +269,7 @@ export class PhysicsWorld {
     joint.setContactsEnabled(false);
     this.jointChildren.add(child);
     const id = this.nextJointId++;
-    this.joints.set(id, { parent, child, kind: 'velocity', factor: motor?.factor ?? 0, damping: 0, target: motor?.targetVelocity ?? 0, maxTorque: motor?.maxTorque ?? 0 });
+    this.joints.set(id, { parent, child, kind: 'velocity', factor: motor?.factor ?? 0, damping: 0, target: motor?.targetVelocity ?? 0, rate: 0, maxTorque: motor?.maxTorque ?? 0 });
     return id;
   }
 
@@ -291,12 +293,14 @@ export class PhysicsWorld {
 
   /**
    * Sets a position motor: holds the child at `targetAngle` (radians, relative to the parent, counterclockwise
-   * positive) with torque `stiffness * error - damping * relative spin`, capped at `maxTorque`.
+   * positive) with torque `stiffness * error - damping * (relative spin - rate)`, capped at `maxTorque`. `rate` is
+   * how fast the target is moving (rad/s), 0 to hold still.
    */
-  setPositionMotor(jointId: JointId, targetAngle: number, stiffness: number, damping: number, maxTorque: number): void {
+  setPositionMotor(jointId: JointId, targetAngle: number, stiffness: number, damping: number, maxTorque: number, rate = 0): void {
     const entry = this.joint(jointId);
     entry.kind = 'position';
     entry.target = targetAngle;
+    entry.rate = rate;
     entry.factor = stiffness;
     entry.damping = damping;
     entry.maxTorque = maxTorque;
@@ -406,7 +410,7 @@ export class PhysicsWorld {
       const p = this.body(j.parent);
       const c = this.body(j.child);
       const rel = c.angvel() - p.angvel();
-      const want = j.kind === 'velocity' ? j.factor * (j.target - rel) : j.factor * wrapAngle(j.target - wrapAngle(c.rotation() - p.rotation())) - j.damping * rel;
+      const want = j.kind === 'velocity' ? j.factor * (j.target - rel) : j.factor * wrapAngle(j.target - wrapAngle(c.rotation() - p.rotation())) - j.damping * (rel - j.rate);
       const tau = Math.max(-j.maxTorque, Math.min(j.maxTorque, want));
       if (tau === 0) continue;
       c.addTorque(tau, true);

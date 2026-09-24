@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
+import variant from '@jitl/quickjs-wasmfile-release-sync';
+import { createQuickJsHost } from '../src/script/quickjs';
+import type { ScriptHost } from '../src/script/types';
 import { readFileSync } from 'node:fs';
 import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
@@ -6,9 +9,16 @@ import { World } from '../src/world/World';
 import type { Robot } from '../src/world/Robot';
 import { partWorldPose } from '../src/metrics/robotMetrics';
 import { buildReplay, runReplay } from '../src/replay/replayFile';
+import { resolveScripts } from '../src/blueprint/scripts';
 
 const flat = parseWorldFile(flatJson);
-const blueprint = (name: string): unknown => JSON.parse(readFileSync(new URL(`../../../blueprints/${name}.json`, import.meta.url), 'utf8'));
+let host: ScriptHost;
+beforeAll(async () => {
+  host = await createQuickJsHost(variant);
+});
+const bpFile = (file: string): string => readFileSync(new URL(`../../../blueprints/${file}`, import.meta.url), 'utf8');
+/** A shipped blueprint with its script files loaded. */
+const blueprint = (name: string): unknown => resolveScripts(JSON.parse(bpFile(`${name}.json`)), bpFile).raw;
 
 function fastest(w: World): number {
   let v = 0;
@@ -16,7 +26,7 @@ function fastest(w: World): number {
   return v;
 }
 
-describe('M6 done when', () => {
+describe('M6 and M7 done when', () => {
   it("Logan's bomb test: a bomb dropped on the driving longcar breaks it in two; the core-less half drives on", async () => {
     const w = await World.create({ seed: 1 }, flat);
     const car = w.spawnBlueprint(blueprint('longcar'), { x: -100, y: 1.5 });
@@ -51,37 +61,57 @@ describe('M6 done when', () => {
     w.dispose();
   });
 
-  it('a dumb missile: aimed with Z, fired with F, decoupled, flies straight, and blows a hole in the wall', async () => {
-    const w = await World.create({ seed: 1 }, flat);
+  it('a guided missile (M7): fired flat with F, it wakes, flies its line, and blows a hole in the wall', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
     const launcher = w.spawnBlueprint(blueprint('launcher'), { x: -100, y: 1.5 });
     const wall = w.spawnBlueprint(blueprint('wall'), { x: -80, y: 5.5 });
     for (let i = 0; i < 60; i++) w.step();
-    // Aim up about 0.47 rad (14 ticks at 2 rad/s): the missile's thrust then just beats gravity over 20 m.
-    w.step([{ robot: launcher.id, pressed: ['z'], released: [] }]);
-    for (let i = 1; i < 14; i++) w.step();
-    w.step([{ robot: launcher.id, pressed: [], released: ['z'] }]);
-    for (let i = 0; i < 40; i++) w.step();
-    const rotator = launcher.parts.get('rotator@2,2');
-    const aim = w.physics.state(launcher.groups[rotator?.group ?? 0]?.bodyId as number).angle;
-    expect(aim).toBeGreaterThan(0.4);
     w.step([{ robot: launcher.id, pressed: ['f'], released: [] }]);
     const missile = w.robots.find((r) => r.brokeFrom === launcher.id) as Robot;
-    expect([...missile.parts.keys()]).toEqual(['thruster@3,3', 'battery@4,3', 'warhead@5,3']);
-    expect(w.channelValue(missile.id, 'thruster@3,3', 'throttle')).toBe(1);
-    let maxTurn = 0;
+    expect([...missile.parts.keys()]).toEqual(['thruster@5,6', 'gyro@6,6', 'cell@7,6', 'core@8,6', 'warhead@9,6']);
+    expect(missile.woke).toBe(true);
+    expect(w.scripts(missile.id)).toEqual([{ id: 'guide', enabled: true }]);
+    w.step();
+    expect(w.channelValue(missile.id, 'thruster@5,6', 'throttle')).toBe(1);
+    let lowest = Infinity;
     let fastestSeen = 0;
     for (let i = 0; i < 180; i++) {
       w.step();
       fastestSeen = Math.max(fastestSeen, fastest(w));
       if (w.events.some((e) => e.kind === 'explosion')) continue;
-      maxTurn = Math.max(maxTurn, Math.abs(w.physics.state(missile.groups[0]?.bodyId as number).angle - aim));
+      lowest = Math.min(lowest, w.physics.state(missile.groups[0]?.bodyId as number).y);
     }
-    // Straight: its heading stays within 5 degrees of the aim until it hits.
-    expect(maxTurn).toBeLessThan((5 * Math.PI) / 180);
+    // It sags off the rail, then holds its line well clear of the ground.
+    expect(lowest).toBeGreaterThan(2.5);
     const blast = w.events.find((e) => e.kind === 'explosion');
     expect(blast?.robot).toBe(missile.id);
     expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === wall.id).length).toBeGreaterThanOrEqual(2);
     expect(fastestSeen).toBeLessThan(40);
     w.dispose();
   });
+
+  it('a guided missile flies the angle the turret aimed, even fired while the turret still turns', async () => {
+    for (const [hold, fireAt] of [
+      [60, 90],
+      [60, 50],
+    ] as const) {
+      const w = await World.create({ seed: 1, scripts: host }, flat);
+      const launcher = w.spawnBlueprint(blueprint('launcher'), { x: -100, y: 1.5 });
+      for (let i = 0; i < 60; i++) w.step();
+      w.step([{ robot: launcher.id, pressed: ['z'], released: [] }]);
+      let aim = 0;
+      for (let i = 1; i <= Math.max(hold, fireAt); i++) {
+        // The missile's line is where the turret points when it lets go.
+        if (i === fireAt) aim = (w.partOutput(launcher.id, 'rotator@4,4', 'angle') ?? 0) * (Math.PI / 2);
+        const input = { robot: launcher.id, pressed: i === fireAt ? ['f'] : [], released: i === hold ? ['z'] : [] };
+        w.step(input.pressed.length + input.released.length > 0 ? [input] : []);
+      }
+      const missile = w.robots.find((r) => r.brokeFrom === launcher.id) as Robot;
+      for (let i = 0; i < 180; i++) w.step();
+      const s = w.physics.state(missile.groups[0]?.bodyId as number);
+      expect(Math.abs(Math.atan2(s.vy, s.vx) - aim)).toBeLessThan(0.1);
+      w.dispose();
+    }
+  });
+
 });

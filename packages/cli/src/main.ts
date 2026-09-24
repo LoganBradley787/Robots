@@ -1,11 +1,15 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
-import { DEFAULT_WORLD, readBlueprint, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
+import { BLUEPRINT_DIR, DEFAULT_WORLD, readBlueprint, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim, type Drop } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
 import { showBlueprint } from './commands/show';
 import { tune } from './commands/tune';
 import { formatReplay, replayCommand } from './commands/replay';
+import { placeCommand } from './commands/place';
+import { existsSync, renameSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { isRotation, type Rotation } from '@robots/sim-core';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
 
@@ -19,6 +23,11 @@ commands
   replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
                      ends in the same state (exit 1 on mismatch)
   tune               measure the driving targets (docs/plans/M3-control.md) on test robots
+  place <target> <source> --at x,y [--rot 90] [--mirror] [--save <name>] [--force]
+                     place a copy of <source> on <target> with its root part at cell (x, y) of <target>'s
+                     grid (x right, y up, the bottom row is y 0), as the builder's Blueprints palette does.
+                     Prints the result; --save writes blueprints/<name>.json and its scripts (--force to
+                     replace an existing file)
 
 flags
   --world <path>     world json (default: worlds/flat.json)
@@ -34,7 +43,7 @@ flags
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
-const BOOLEAN_FLAGS = new Set(['json', 'unlimited']);
+const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'mirror', 'force']);
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string>; drops: string[] } {
   const flags = new Map<string, string>();
@@ -116,6 +125,7 @@ async function main(): Promise<number> {
     console.log(await tune());
     return 0;
   }
+  if (command === 'place') return place(positional, flags);
   if (!['run', 'show', 'validate', 'determinism'].includes(command)) {
     console.log(USAGE);
     return 2;
@@ -179,6 +189,49 @@ async function main(): Promise<number> {
     }
     throw e;
   }
+}
+
+function place(positional: string[], flags: Map<string, string>): number {
+  const [, targetArg, sourceArg] = positional;
+  const atRaw = flags.get('at');
+  const at = atRaw === undefined ? null : /^(-?\d+),(-?\d+)$/.exec(atRaw.trim());
+  if (targetArg === undefined || sourceArg === undefined || !at) {
+    console.error('place needs a target, a source, and a cell: pnpm sim place car missile --at 2,3');
+    return 2;
+  }
+  const rot = flags.has('rot') ? numberFlag(flags, 'rot', 0) : undefined;
+  if (rot !== undefined && !isRotation(rot)) {
+    console.error(`--rot must be 0, 90, 180, or 270, got ${rot}`);
+    return 2;
+  }
+  const saveAs = flags.get('save');
+  if (saveAs !== undefined && !/^[a-z0-9][a-z0-9-]*$/.test(saveAs)) {
+    console.error(`--save takes a blueprint name of lowercase letters, digits, and dashes, like missile-car; got ${saveAs}`);
+    return 2;
+  }
+  const target = readBlueprint(resolveBlueprint(targetArg));
+  const source = readBlueprint(resolveBlueprint(sourceArg));
+  for (const f of [...target.missing, ...source.missing]) console.error(`warning: script file ${f} not found`);
+  const out = placeCommand(target.raw, source.raw, {
+    at: { x: Number(at[1]), y: Number(at[2]) },
+    ...(rot !== undefined ? { rot: rot as Rotation } : {}),
+    ...(flags.has('mirror') ? { mirror: true } : {}),
+    ...(saveAs !== undefined ? { saveAs } : {}),
+  });
+  if (out.files.length > 0) {
+    const json = resolve(BLUEPRINT_DIR, `${saveAs}.json`);
+    if (existsSync(json) && !flags.has('force')) {
+      console.error(`blueprints/${saveAs}.json exists; add --force to replace it`);
+      return 1;
+    }
+    for (const f of out.files) {
+      const p = resolve(BLUEPRINT_DIR, f.file);
+      writeFileSync(`${p}.tmp`, f.text);
+      renameSync(`${p}.tmp`, p);
+    }
+  }
+  console.log(out.text);
+  return out.ok ? 0 : 1;
 }
 
 main().then(
