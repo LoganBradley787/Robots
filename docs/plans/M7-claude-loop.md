@@ -102,3 +102,25 @@ Revised with Logan before "go" (2026-09-24): placing a blueprint **copies** it. 
 ## Gate 6 (Logan)
 - Open a fresh Claude Code session in the repo and ask for a robot in plain words ("build me a drone with missiles", or anything). It should come back with a blueprint that validates, does what was asked in `pnpm sim`, and works when you open and deploy it, with no manual editing.
 - In the builder: place `missile` on something of your own, rotate and mirror it, change its script through the Controls picker, fire it. Editing `missile.json` afterwards leaves your robot alone.
+
+## As built (2026-09-24)
+
+### What shipped
+- **T1, T2:** `cores` in blueprint files, `placeBlueprint` with scopes (decision 3 as built: a scoped core sees its members' tags without the prefix and every part by id and type, so a hand-replaced part is found), `BAD_CORE_CONTROLS`, per-core script files; a woken core runs its own bindings, auto controls, and scripts (first run the tick after release).
+- **T3:** `missile` is `M g E C X` (thruster, gyro, cell, core, warhead at the tip, so the blast kills its own core). `missile.guide.js` steers the thrust vector to hold the release line and cancel gravity; fuse 10 s (the plan said 4; Logan found 4 too short); parts found by type. `launcher` rebuilt with the missile hanging under a `Dv` rail, a tall turret, a long base, one row taller (all from Logan's play tests). `missile-drone`: 11 wide, two missiles on `left` and `right` rails, `F` fires the right one then the left (`missile-drone.fire.js`), the hover leans by left and right propeller throttle and learns its trim, its own gyro is tagged `stab`, two batteries (about a minute of flight).
+- **New part `cell`** (0.5 kg, 250 J, legend `E`, key `-`): the missile needed thrust-to-weight above 2. **Rotator** 600 N m, turns only as fast as it can stop, aim lead 0.15 rad, motor fed the aim rate (the launcher's heavy turret swung far past its aim and tipped the car).
+- **T4, CLI:** `run` reports events in order (keys, drops, decouplers, splits, wakes, scripts turning on and off, parts lost, blasts, logs folded, crashes), every piece's final state by letter, and a side view of every piece's path and final shape; `parts`; `show` prints every core's controls and keeps the file's own grid letters; `mirror`; `place` (stdout is the json, notes on stderr, `--save` takes a name or a path); `--help` everywhere; no "does nothing" warning for keys a script reads.
+- **T5, builder:** Blueprints section in the palette (hold a copy, `R` turns, `F` flips, mirror mode places a twin, one undo step, the ghost turns red on an overlap); Controls for picker in the Controls and Scripts panels; the script editor edits the picked core's script.
+- **T6:** `docs/claude-robot-playbook.md`, pointed to from `CLAUDE.md` and `START-HERE.md` (robot requests skip the milestone docs).
+
+### Changes from the plan (Claude's call unless noted)
+- Builder flips a held blueprint with `F` (the plan had mirror mode do it); mirror mode places a mirrored twin, as it does for parts.
+- Keys bar shows the keys running scripts read, after a divider, dashed (Logan found the missile drone's W A S D and F missing from it).
+- Scripts see each part's `mass` in `parts` (dry run 2 wanted it to compute balance).
+- `missile-drone`'s hover is a new script, not the `drone` hover: gyros alone could not lean an 11-wide 42 kg drone.
+- The side view scales x and y separately (a 600 m flight still shows height) and draws the ground solid.
+
+### Dry runs (decision 13)
+- **Run 1** (fresh Opus subagent, only `CLAUDE.md` and the playbook): both robots worked. Car first try; a missile drone with one missile each way hit two walls after 4 iterations. It stumbled on: conflicting start instructions, capturing `place` output, `show` re-lettering the grid, the tilted second shot (its missile slid 300 m along the ground unexploded), hover gains, the stock hover grabbing missile gyros by type, keys in the app, shared energy totals, the ramp's size. All fixed in the tools or the playbook.
+- **Run 2** (fresh subagent, updated playbook): both robots worked. Its drone used the playbook's gain formulas and computed its balance from `parts`, holding 0.5 degrees through both shots. It stumbled on: the 3 m gap between the box and the ramp (its 7-wide car got stuck), integral windup, part masses (added), `parts` coordinates, `place --mirror --at`, an unexplained explosion (a tail grazing a box), dropped walls missing from the side view (fixed), `show` hiding `auto: false` (fixed). The playbook now covers each.
+

@@ -78,7 +78,7 @@ function tick() {
 }
 ```
 - `self`: `{ pos: {x, y}, vel: {x, y}, angle, angVel, mass, energy: { stored, capacity } }` of the script's core and its piece. Angles in radians, counterclockwise positive, 0 as built.
-- `parts`: `[{ id, type, tags, pos, angle, in, out }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `in` the input channels, `out` the outputs like a decoupler's `armed`.
+- `parts`: `[{ id, type, tags, pos, angle, mass, in, out }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `mass` in kg, `in` the input channels, `out` the outputs like a decoupler's `armed`.
 - `set(target, channel, value)`, `get(target, channel)`: target is a tag, a part type, or an id.
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
 - `state` (kept between ticks), `dt`, `time`, `frame`, `param()`, `log(...)` (up to 20 lines per second per robot; the run report shows them), `random()`, `clamp`, `lerp`, `sign`, `Math`.
@@ -102,6 +102,7 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - If the target has a core, the copy gets a scope `missile1` (then `missile2`): its parts get the tag `missile1`, its own tags become `missile1.<tag>`, and its bindings and scripts move to its core's entry in `cores`. They stay asleep while attached and start when its piece breaks off (a decoupler fires, or a blast cuts it free). Inside the missile's own controls, `thruster` means that missile's thruster only.
 - The robot's own controls reach the copy's parts by part type or id (`decoupler`, `thruster@3,0`) or by the scope tag (`missile1`). Tag the robot's own parts (`left`, `right`) so its controls never grab a missile's parts by type.
 - Parts must not overlap. Leave an empty row or column of dots where the copy goes if it would land below row 0 or left of column 0; otherwise the file falls back to the long `parts` form (`place` says so).
+- Logan does the same in the builder: the palette's Blueprints section holds a copy (R turns, F flips), and the Controls and Scripts panels have a Controls for picker for each placed core.
 - `--save <name>` writes the blueprint and a copy of every script under the new name (`launcher.missile1.guide.js`). `--force` replaces an existing file.
 
 ## Examples to start from
@@ -123,7 +124,7 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - **Tuning a hover** (both loops are a spring and a damper, so pick them from the robot's numbers instead of guessing):
   - Height: throttle `base + kp * err - kd * vel.y`. The force per unit of throttle is F = total lift (N); with mass m, `kp = m * w^2 / F` and `kd = 2 * m * w / F` settle in about 4 / w seconds (w of 1.5 to 2 feels right).
   - Lean: left and right throttle differ by `k * off - c * angVel`. Torque per unit of difference is T = sum over props of (lift x |distance from the core column|); with I about m * width^2 / 12, `k = I * w^2 / T` and `c = 2 * I * w / T`.
-  - Weight off center (a missile gone from one side): compute it instead of learning it. The pilot's `parts` list is what is still attached, with world positions; the torque of their weight about the core is known, so feed the differential that cancels it straight away (a table of part masses from `pnpm sim parts` in the script).
+  - Weight off center (a missile gone from one side): compute it instead of learning it. The pilot's `parts` list is what is still attached, with world positions; the torque of their weight about the core is known, so feed the differential that cancels it straight away (each entry in `parts` has its `mass`).
   - Then a slow integral (a trim that creeps toward what holds level) for what is left: gain about 0.05 per radian second. Higher (0.4) winds up during a held lean and the drone swings and will not settle.
   - `param()` the gains so Logan can tune them in the builder.
 - **The second shot goes where the drone points.** Losing one missile shifts the weight and tilts the drone until its trim catches up (a few seconds). A missile released while the drone is tilted flies along that tilt, into the ground if the tilt is down. Wait for level, or fire both together, or balance the load (one missile each side facing opposite ways fires in any order).

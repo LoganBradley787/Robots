@@ -75,6 +75,7 @@ Binding every wheel by hand (Logan's `le-car`) is tedious, so robots control the
 - Switching back to a robot that is still holding a key shows that key lit in the keys bar. Tap the key to let go of it (the press is ignored because it is already held, the release goes through).
 - A new custom control starts on the first key that neither a custom nor an auto control uses, so it never doubles up on the wheels. Gate 2's "new controls default to D, then A" still holds when auto controls are off.
 - Auto controls come first in each robot's binding list, so the keys bar shows W A S D before custom keys.
+- M7: after the bound keys, a divider and the keys the robot's running scripts read (`keys.down('w')` found in their code), outlined dashed. A hover drone shows H, then W A S D. Clicking one presses it like the keyboard. A released missile's keys bar shows its own core's keys.
 - The effect a part shows (flame length, propeller spin speed) follows its first input channel, so new parts get it from data.
 - Right-click opens the part menu with any tool held; left-click with the eraser erases, one undo step per drag, mirrored in mirror mode.
 - Robots are placed and clicked with direct collider tests (Rapier's query index lags behind new colliders).

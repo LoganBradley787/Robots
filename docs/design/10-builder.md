@@ -23,6 +23,11 @@ Logan: building is more than dragging pieces. Later it means scripts and sensor 
 - With nothing held, click selects a part; drag selects a box of parts. The part menu (right-click, `11`) edits the selection's tags, auto controls, and rotation.
 - Undo and redo (`Cmd/Ctrl+Z`, `Shift+Cmd/Ctrl+Z`). One drag is one undo step.
 
+## Placing a saved blueprint (M7)
+- The palette's **Blueprints** section lists every saved blueprint except the open one. Click one to hold a copy (with its scripts); the ghost shows every part it adds, red where a click would be refused (an overlap). `R` and `Shift+R` turn it, `F` flips it left to right, a click places it as one undo step, and it stays held for the next one; `Esc` or picking a part lets go. In mirror mode a click also places its mirror image across the axis.
+- Placed, it is ordinary parts of this robot (Logan: copies, never links). Editing `missile.json` later changes nothing already placed. Its parts carry the tag `missile1` (then `missile2`), and its core keeps its own controls (`02`, Placing).
+- **Controls for:** when the robot has more than one core, the Controls and Scripts panels get a picker: main core, then each other core by its scope (`missile1 (core@8,6)`). Picking a core shows and edits its own bindings, auto controls switch, and scripts ("on at release" instead of "on at deploy"); binding targets are that copy's own tags. Adding controls to a core that had none gives it a `cores` entry. The script editor edits the picked core's script, so two missiles' `guide` scripts are separate, each saved to its own file (`launcher.missile1.guide.js`).
+
 ## Helpers
 - Mirror mode (`M`): everything placed or erased is mirrored across a vertical axis, with thrusters, wheels, and decouplers flipped to match. The axis defaults to the core's column and can be shifted by half cells.
 - Live stats: part count, total mass, and the center of mass drawn as a marker on the grid, updating as you build.
