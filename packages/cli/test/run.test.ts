@@ -113,6 +113,15 @@ describe('run report: events, pieces, and the path plot (M7)', () => {
     expect(text).toContain('side view: 1 column =');
   });
 
+  it('reports a key turning a script off and on', async () => {
+    const drone = readBlueprint(resolveBlueprint('drone')).raw;
+    const r = await runSim(flat, drone, { seconds: 1.5, seed: 1, keys: [{ key: 'h', down: 0.5, up: 0.5 }, { key: 'h', down: 1, up: 1 }] });
+    expect(r.events.filter((e) => e.kind.startsWith('script')).map((e) => [e.t, e.text])).toEqual([
+      [0.5, 'script hover turned off'],
+      [1, 'script hover turned on'],
+    ]);
+  });
+
   it('does not warn about keys a script reads', async () => {
     expect(keysScriptsRead(["if (keys.down('w')) x(); keys.pressed(\"h\")"])).toEqual({ keys: new Set(['w', 'h']), any: false });
     expect(keysScriptsRead(['keys.down(k)']).any).toBe(true);
@@ -214,6 +223,12 @@ describe('placeCommand (M7)', () => {
     const out = placeCommand(carJson, missile, { at: { x: 2, y: 2 }, saveAs: 'missile-car' });
     expect(out.files.map((f) => f.file)).toEqual(['missile-car.json', 'missile-car.missile1.arm.js']);
     expect(JSON.parse(out.files[0]?.text ?? '').name).toBe('missile-car');
+  });
+
+  it('notes when the copy lands below row 0, which the grid form cannot hold', async () => {
+    const { placeCommand } = await import('../src/commands/place');
+    const out = placeCommand(carJson, { format: 1, name: 'm', grid: ['C', 'X'] }, { at: { x: 1, y: -1 } });
+    expect(out.text).toContain('note: parts landed left of column 0 or below row 0');
   });
 
   it('refuses an overlap', async () => {

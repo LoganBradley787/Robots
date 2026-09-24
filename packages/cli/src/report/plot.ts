@@ -30,7 +30,8 @@ function nice(v: number): number {
 }
 
 function inTerrain(world: WorldFile, x: number, y: number): boolean {
-  if (Math.abs(x) <= world.ground.width / 2 && y <= 0 && y >= -world.ground.thickness) return true;
+  // The ground is drawn solid all the way down, so it shows at any scale.
+  if (Math.abs(x) <= world.ground.width / 2 && y <= 0) return true;
   for (const b of world.boxes) {
     const a = (-b.angleDeg * Math.PI) / 180;
     const dx = x - b.x;
@@ -51,8 +52,8 @@ function fmt(v: number, step: number): string {
 
 /**
  * An ASCII side view of where things went (M7, for Claude): terrain as `#` (boxes where they started), each track
- * as its lowercase letter with its last point uppercase, blasts as `*`. y is up (the top row is highest). One row is
- * twice as tall as a column is wide, so shapes keep their proportions in a terminal; both scales are round numbers.
+ * as its lowercase letter with its last point uppercase, blasts as `*`. y is up (the top row is highest). x and y
+ * have their own round scales, printed in the header, so a long flight still shows its height.
  */
 export function plotPaths(input: PlotInput): string[] {
   const width = input.width ?? 72;
@@ -69,12 +70,12 @@ export function plotPaths(input: PlotInput): string[] {
     x1 = mid + 3;
   }
 
-  let sx = nice((x1 - x0) / width);
-  const rowsFor = (s: number): number => Math.ceil(y1 / (2 * s) - Math.floor(y0 / (2 * s)));
-  while (rowsFor(sx) > maxRows) sx = nice(sx * 1.01);
-  const sy = 2 * sx;
+  const sx = nice((x1 - x0) / width);
+  // Rows fit the height on their own scale (a long flat flight still shows its altitude), but are never more than
+  // ten times as fine as columns are wide.
+  const sy = nice(Math.max((y1 - y0) / (maxRows - 1), sx / 10));
   const bottom = Math.floor(y0 / sy) * sy;
-  if (rowsFor(sx) < MIN_ROWS) y1 = bottom + MIN_ROWS * sy;
+  if (Math.ceil((y1 - bottom) / sy - 1e-9) < MIN_ROWS) y1 = bottom + MIN_ROWS * sy;
   const rows = Math.ceil((y1 - bottom) / sy - 1e-9);
   const left = Math.floor(x0 / sx) * sx;
   const cols = Math.ceil((x1 - left) / sx - 1e-9);

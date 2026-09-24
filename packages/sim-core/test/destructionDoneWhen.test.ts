@@ -114,4 +114,43 @@ describe('M6 and M7 done when', () => {
     }
   });
 
+
+  it('the missile drone (M7): hovers, climbs with W, fires the right missile then the left with F, and stays up and level', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const drone = w.spawnBlueprint(blueprint('missile-drone'), { x: -100, y: 3 });
+    const edges: Record<number, { pressed: string[]; released: string[] }> = {
+      30: { pressed: ['w'], released: [] },
+      210: { pressed: [], released: ['w'] },
+      360: { pressed: ['f'], released: [] },
+      361: { pressed: [], released: ['f'] },
+      540: { pressed: ['f'], released: [] },
+      541: { pressed: [], released: ['f'] },
+    };
+    const released: { robot: Robot; x: number; tick: number }[] = [];
+    let maxTilt = 0;
+    for (let i = 0; i < 900; i++) {
+      const e = edges[i];
+      w.step(e ? [{ robot: drone.id, ...e }] : []);
+      for (const r of w.robots) {
+        if (r.brokeFrom === drone.id && !released.some((m) => m.robot === r)) released.push({ robot: r, x: partWorldPose(w, r, r.primaryCoreId as string).x, tick: i });
+      }
+      if (i > 240) maxTilt = Math.max(maxTilt, Math.abs(w.physics.state(drone.groups[0]?.bodyId as number).angle));
+    }
+    // The right missile goes first, so the left one never flies under a missile still hanging there.
+    expect(released.map((m) => [m.robot.primaryCoreId, m.robot.woke, m.tick])).toEqual([
+      ['core@9,0', true, 360],
+      ['core@3,0', true, 540],
+    ]);
+    for (const m of released) {
+      expect(w.scripts(m.robot.id)).toEqual([{ id: 'guide', enabled: true }]);
+      // Flying its line, far away, with nothing hit (its fuse is 10 s).
+      expect(partWorldPose(w, m.robot, m.robot.primaryCoreId as string).x - m.x).toBeGreaterThan(100);
+    }
+    expect(w.events.filter((e) => e.kind === 'explosion' || e.kind === 'partDestroyed')).toEqual([]);
+    const core = partWorldPose(w, drone, 'core@5,2');
+    expect(core.y).toBeGreaterThan(9);
+    expect(Math.abs(core.x + 100)).toBeLessThan(5);
+    expect(maxTilt).toBeLessThan(0.2);
+    w.dispose();
+  });
 });

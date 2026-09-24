@@ -57,6 +57,8 @@ export class Tracer {
   private readonly events: TraceEvent[] = [];
   private readonly blasts: { x: number; y: number }[] = [];
   private readonly lastLog = new Map<string, TraceEvent>();
+  /** Each robot's scripts that were on after the last step, to report a key turning one on or off. */
+  private readonly scriptsOn = new Map<number, Set<string>>();
   private seenEvents = 0;
   private stepStart = 0;
   private readonly world: World;
@@ -67,6 +69,7 @@ export class Tracer {
     this.world = world;
     this.trackEvery = trackEvery;
     this.add(main);
+    this.scriptsOn.set(main.id, new Set(world.scripts(main.id).filter((sc) => sc.enabled).map((sc) => sc.id)));
     for (const k of keys) {
       const tap = Math.round(k.up / world.dt) <= Math.round(k.down / world.dt);
       this.events.push({ t: k.down, robot: 'A', kind: 'key', text: tap ? `key ${k.key} tapped` : `key ${k.key} held until t=${f2(k.up)}` });
@@ -169,6 +172,19 @@ export class Tracer {
       const ev: TraceEvent = { t: l.tick * w.dt, robot: mark, kind: 'log', text };
       this.lastLog.set(key, ev);
       this.events.push(ev);
+    }
+
+    for (const r of w.robots) {
+      const on = new Set(w.scripts(r.id).filter((sc) => sc.enabled && sc.crashed === undefined).map((sc) => sc.id));
+      const before = this.scriptsOn.get(r.id);
+      this.scriptsOn.set(r.id, on);
+      if (!before) continue;
+      const mark = this.letter(r.id);
+      for (const sc of w.scripts(r.id)) {
+        if (sc.crashed !== undefined) continue;
+        if (on.has(sc.id) && !before.has(sc.id)) this.events.push({ t: tickTime, robot: mark, kind: 'scriptOn', text: `script ${sc.id} turned on` });
+        if (!on.has(sc.id) && before.has(sc.id)) this.events.push({ t: tickTime, robot: mark, kind: 'scriptOff', text: `script ${sc.id} turned off` });
+      }
     }
 
     const alive = new Set(w.robots.map((r) => r.id));

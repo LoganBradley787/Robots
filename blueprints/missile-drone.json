@@ -1,0 +1,204 @@
+{
+  "format": 1,
+  "name": "missile-drone",
+  "grid": [
+    "a a a a a G b b b b b",
+    "F F F F B C B F F F F",
+    ". c c c . . . d d d .",
+    "e f g h i . j k l m n"
+  ],
+  "legend": {
+    "a": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "c": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "left"
+      ]
+    },
+    "d": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "right"
+      ]
+    },
+    "e": {
+      "part": "thruster",
+      "rot": 270,
+      "tags": [
+        "missile1"
+      ],
+      "auto": false
+    },
+    "f": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ],
+      "auto": false
+    },
+    "g": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ]
+    },
+    "h": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ]
+    },
+    "i": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ]
+    },
+    "j": {
+      "part": "thruster",
+      "rot": 270,
+      "tags": [
+        "missile2"
+      ],
+      "auto": false
+    },
+    "k": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile2"
+      ],
+      "auto": false
+    },
+    "l": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "missile2"
+      ]
+    },
+    "m": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile2"
+      ]
+    },
+    "n": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile2"
+      ]
+    }
+  },
+  "primaryCore": "core@5,2",
+  "bindings": [
+    {
+      "key": "h",
+      "mode": "script",
+      "script": "hover"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "hover",
+      "source": {
+        "file": "missile-drone.hover.js"
+      }
+    },
+    {
+      "id": "fire",
+      "source": {
+        "file": "missile-drone.fire.js"
+      }
+    }
+  ],
+  "cores": {
+    "core@3,0": {
+      "scope": "missile1",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "source": {
+            "file": "missile-drone.missile1.guide.js"
+          }
+        }
+      ]
+    },
+    "core@9,0": {
+      "scope": "missile2",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "source": {
+            "file": "missile-drone.missile2.guide.js"
+          }
+        }
+      ]
+    }
+  }
+}

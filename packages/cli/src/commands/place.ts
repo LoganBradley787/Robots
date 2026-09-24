@@ -1,4 +1,4 @@
-import { assignScriptFiles, defaultRegistry, expandBlueprint, formatIssues, placeBlueprint, scriptFiles, toFileJson, validateBlueprint, type Rotation } from '@robots/sim-core';
+import { assignScriptFiles, defaultRegistry, expandBlueprint, formatIssues, placeBlueprint, scriptFiles, toFileJson, toGrid, validateBlueprint, type Rotation } from '@robots/sim-core';
 
 export interface PlaceArgs {
   at: { x: number; y: number };
@@ -31,6 +31,9 @@ export function placeCommand(targetRaw: unknown, sourceRaw: unknown, args: Place
   let bp = r.blueprint;
   const notes = r.warnings.map((w) => `warning: ${w}`);
   if (r.scope !== undefined) notes.push(`placed ${source.blueprint.name} as ${r.scope}: its parts are tagged ${r.scope}, its own tags became ${r.scope}.<tag>`);
+  if (bp.parts.some((p) => p.x < 0 || p.y < 0) && !toGrid(bp, registry)) {
+    notes.push('note: parts landed left of column 0 or below row 0, so the file uses the long parts form; to keep a grid, give the target an empty column or row of dots there first and place into it');
+  }
   const v = validateBlueprint(toFileJson(bp, registry, { inlineScripts: true }), registry);
   if (v.issues.length > 0) notes.push(formatIssues(v.issues));
   if (args.saveAs === undefined) {
