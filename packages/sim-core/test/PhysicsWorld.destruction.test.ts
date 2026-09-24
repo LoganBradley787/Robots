@@ -81,30 +81,6 @@ describe('PhysicsWorld for destruction (M6)', () => {
     pw.free();
   });
 
-  it('reports an impact above the threshold and ignores a gentle landing', () => {
-    const drop = (height: number): number[] => {
-      const pw = new PhysicsWorld(-9.81, DT);
-      pw.createFixedBox(0, -1, 100, 2);
-      const box = pw.createBody({ x: 0, y: 0.5 + height, kind: 'dynamic' });
-      pw.addCollider(box, { shape: 'box', hx: 0.5, hy: 0.5 }, { offsetX: 0, offsetY: 0, mass: 1, impactForce: 300 }, 'x');
-      const forces: number[] = [];
-      for (let i = 0; i < 120; i++) {
-        pw.step();
-        for (const e of pw.takeImpacts()) {
-          expect(e).toMatchObject({ body: box, owner: 'x' });
-          forces.push(e.force);
-        }
-      }
-      pw.free();
-      return forces;
-    };
-    const hard = drop(3);
-    expect(hard.length).toBeGreaterThan(0);
-    // A 1 kg box at 7.7 m/s stopped in about one step: roughly m * v / dt.
-    expect(Math.max(...hard)).toBeGreaterThan(350);
-    expect(drop(0.5)).toEqual([]);
-  });
-
   it('a position motor holds a 3-cell arm level against gravity', () => {
     const pw = new PhysicsWorld(-9.81, DT);
     const base = pw.createBody({ x: 0, y: 10, kind: 'fixed' });

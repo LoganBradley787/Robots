@@ -84,5 +84,23 @@ export async function tune(): Promise<string> {
       `energy   ${name}: ${st.energy} stored   ${driveDraw > 0 ? `driving ${Math.round(st.energy / driveDraw)} s` : ''}${thrustDraw > 0 ? `   full thrust ${Math.round(st.energy / thrustDraw)} s` : ''}`,
     );
   }
+  lines.push(...blastLines());
   return lines.join('\n');
+}
+
+/** The warhead's blast (M6): how far out each part breaks with nothing in the way, and the push per cell. */
+export function blastLines(): string[] {
+  const reg = defaultRegistry();
+  const e = reg.get('warhead').onDestroyed?.explode;
+  if (!e) return [];
+  const kill = reg
+    .list()
+    .map((d) => `${d.id} ${f(Math.max(0, e.radius * (1 - d.health / e.damage)))}`)
+    .join('   ');
+  const push = [1, 2, 3, 4].map((d) => `${d} m ${f(e.push * Math.max(0, 1 - d / e.pushRadius))}`).join('   ');
+  return [
+    `blast    damage ${e.damage} falling to 0 at ${e.radius} m, halved per part in the way`,
+    `  breaks within (m, no cover): ${kill}`,
+    `  push per cell (N s, up and out from ${e.lift} m below): ${push}`,
+  ];
 }

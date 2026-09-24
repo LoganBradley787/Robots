@@ -28,6 +28,12 @@ export interface BehaviorContext {
 export interface Behavior {
   /** behaviorConfig keys this behavior reads. A test checks every def that uses the behavior has them. */
   readonly config: readonly string[];
+  /**
+   * Changes the robot's structure (a decoupler): runs before every other behavior, and the robot is rebuilt right
+   * after, before anything pushes. A missile lit on the tick its decoupler fires then pushes the missile, not the
+   * turret it was sitting on.
+   */
+  readonly early?: boolean;
   /** Whether the def must have a joint (wheels) or `acts` (thrust). */
   readonly needsJoint?: boolean;
   readonly needsActs?: boolean;

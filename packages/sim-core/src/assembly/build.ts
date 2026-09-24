@@ -10,6 +10,13 @@ import type { AssemblyPlan, GroupPlan } from './assemble';
  */
 export const PART_FRICTION = 0.3;
 
+/**
+ * Half the side of a part cell's box collider: a hair under the 0.5 m cell. Neighbors on different bodies (after a
+ * split, or a turret next to its base) then start 2 cm apart instead of face to face, where Rapier's contacts snag:
+ * a missile released from its rail stuck to the rail and the rotator it sat by (M6).
+ */
+export const CELL_HALF = 0.49;
+
 /** World pose of a group's origin cell center and its body angle. */
 export interface GroupPose {
   x: number;
@@ -49,15 +56,12 @@ export function buildBodies(
         const off = rotateCell(fc, p.rot);
         const offsetX = p.x + off.x - origin.x;
         const offsetY = p.y + off.y - origin.y;
-        // A hit that stops even this cell alone by `impact.speed` in one step is worth reporting; the world then
-        // judges it against the whole body's mass.
-        const impactForce = def.impact ? (def.impact.speed * cellMass) / physics.dt : undefined;
-        const place = { offsetX, offsetY, mass: cellMass, ...(impactForce !== undefined ? { impactForce } : {}) };
+        const place = { offsetX, offsetY, mass: cellMass };
         // Cells are squares, so boxes need no rotation; keeping angle 0 avoids trig in collider poses.
         if (def.collider?.shape === 'ball') {
           physics.addCollider(bodyId, { shape: 'ball', radius: def.collider.radius ?? 0.5 }, { ...place, friction: def.collider.friction }, id);
         } else {
-          physics.addCollider(bodyId, { shape: 'box', hx: 0.5, hy: 0.5 }, { ...place, friction: def.collider?.friction ?? PART_FRICTION }, id);
+          physics.addCollider(bodyId, { shape: 'box', hx: CELL_HALF, hy: CELL_HALF }, { ...place, friction: def.collider?.friction ?? PART_FRICTION }, id);
         }
       }
       p.group = g.index;

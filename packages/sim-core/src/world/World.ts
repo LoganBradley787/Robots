@@ -130,6 +130,12 @@ export class World {
   private pendingPushes: { part: PartInstance; jx: number; jy: number }[] = [];
   /** Velocities given to new bodies this tick, applied as kicks at the end of the damage phase. */
   private readonly pendingKicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
+  /**
+   * Bodies whose velocity jumps for a reason other than a hit (a kick after a rebuild, a blast push), by the last tick
+   * the impact check ignores them. Not hashed: it is derived from what happened on recent ticks.
+   */
+  private readonly unsettled = new Map<BodyId, number>();
+  private readonly gravityY: number;
 
   private constructor(opts: WorldOptions, file: WorldFile, registry: PartRegistry) {
     this.registry = registry;
@@ -137,7 +143,8 @@ export class World {
     this.seed = opts.seed;
     this.scriptHost = opts.scripts;
     this.rng = new Prng(opts.seed);
-    this.physics = new PhysicsWorld(opts.gravityY ?? -9.81, this.dt);
+    this.gravityY = opts.gravityY ?? -9.81;
+    this.physics = new PhysicsWorld(this.gravityY, this.dt);
     this.file = file;
     buildWorld(this.physics, file);
   }
@@ -224,7 +231,13 @@ export class World {
     for (const input of accepted) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
     this.runScripts();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
-    this.runBehaviors();
+    // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
+    this.runBehaviors(true);
+    if (this.dirty.size > 0) {
+      this.rebuildDirty();
+      this.applyPendingForces();
+    }
+    this.runBehaviors(false);
     this.physics.step();
     this.damagePhase();
     for (const c of this.controllers.values()) c.endTick();
@@ -263,13 +276,7 @@ export class World {
    * that give new bodies their velocity act on the next step.
    */
   private damagePhase(): void {
-    for (const hit of this.physics.takeImpacts()) {
-      const robot = this.robotOfBody(hit.body);
-      const part = robot?.parts.get(hit.owner);
-      if (!part?.def.impact) continue;
-      // How much the hit changed the whole body's speed in one step.
-      if ((hit.force * this.dt) / this.physics.massProperties(hit.body).mass > part.def.impact.speed) part.health = 0;
-    }
+    this.checkImpacts();
     let budget = MAX_BLASTS_PER_TICK;
     for (;;) {
       this.destroyDeadParts();
@@ -282,8 +289,25 @@ export class World {
     this.applyPendingForces();
   }
 
-  private robotOfBody(body: BodyId): Robot | undefined {
-    return this.robots.find((r) => r.groups.some((g) => g.bodyId === body));
+  /**
+   * Parts with `impact` (a warhead's fuze) break when a hit changes their body's velocity by more than `impact.speed`
+   * in one step, gravity aside. Measured from the velocity, not Rapier's contact forces, which are not reported for
+   * contacts on multibody links (a bomb bouncing off a car's roof went unnoticed). Thrust changes a body's speed by a
+   * fraction of a meter per second per step, so only hits count.
+   */
+  private checkImpacts(): void {
+    for (const [body, until] of this.unsettled) if (until < this.tickCount) this.unsettled.delete(body);
+    for (const robot of this.robots) {
+      for (const part of robot.parts.values()) {
+        const group = robot.groups[part.group];
+        if (!part.def.impact || !group || this.unsettled.has(group.bodyId)) continue;
+        const s = this.physics.state(group.bodyId);
+        const p = this.physics.prevState(group.bodyId);
+        const dvx = s.vx - p.vx;
+        const dvy = s.vy - p.vy - this.gravityY * this.dt;
+        if (Math.sqrt(dvx * dvx + dvy * dvy) > part.def.impact.speed) part.health = 0;
+      }
+    }
   }
 
   /** Removes every part at 0 health (robots in order, parts in blueprint order) and queues its blast if it has one. */
@@ -389,7 +413,11 @@ export class World {
 
   /** Kicks for new bodies, then pushes at each surviving part's cell, all as forces for the next step. */
   private applyPendingForces(): void {
-    for (const [body, k] of this.pendingKicks) this.physics.kick(body, k.vx, k.vy, k.w);
+    // A kicked link reports its velocity a step late, so its velocity jumps on each of the next two steps.
+    for (const [body, k] of this.pendingKicks) {
+      this.physics.kick(body, k.vx, k.vy, k.w);
+      this.unsettled.set(body, this.tickCount + 2);
+    }
     this.pendingKicks.clear();
     if (this.pendingPushes.length === 0) return;
     const owner = new Map<PartInstance, Robot>();
@@ -400,6 +428,7 @@ export class World {
       if (!robot || !group) continue;
       const pose = partWorldPose(this, robot, p.part.id);
       this.physics.addForceAt(group.bodyId, p.jx / this.dt, p.jy / this.dt, pose.x, pose.y);
+      this.unsettled.set(group.bodyId, Math.max(this.unsettled.get(group.bodyId) ?? 0, this.tickCount + 1));
     }
     this.pendingPushes = [];
   }
@@ -512,16 +541,17 @@ export class World {
 
   /**
    * Every part with a known behavior plans its action, each chunk's pool grants what it can (`05`: proportional
-   * brownout), then every action runs with its grant. Robots in spawn order, parts in blueprint order.
+   * brownout), then every action runs with its grant. Robots in spawn order, parts in blueprint order. `early` runs
+   * only the behaviors that change structure (decouplers), the rest only the others.
    */
-  private runBehaviors(): void {
+  private runBehaviors(early: boolean): void {
     for (const robot of this.robots) {
       const planned: { action: PlannedAction; chunk: number; request: number }[] = [];
       const chans = this.channels.get(robot.id);
       for (const part of robot.parts.values()) {
         const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
         const group = robot.groups[part.group];
-        if (!behavior || !group) continue;
+        if (!behavior || !group || (behavior.early === true) !== early) continue;
         const own = chans?.get(part.id);
         const ctx: BehaviorContext = {
           physics: this.physics,

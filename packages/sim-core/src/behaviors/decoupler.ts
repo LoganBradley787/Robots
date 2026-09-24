@@ -15,6 +15,7 @@ function releaseFace(part: PartInstance): Face | undefined {
  */
 export const decoupler: Behavior = {
   config: ['separation'],
+  early: true,
   needsActs: true,
   plan(ctx) {
     const face = releaseFace(ctx.part);

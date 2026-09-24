@@ -70,7 +70,8 @@ describe('spawnBlueprint', () => {
 
   it('the showcase validates and rests upright', async () => {
     const w = await World.create({ seed: 1 }, flat);
-    const sc = w.spawnBlueprint(showcaseJson, { x: 0, y: 4 });
+    // Low: its warhead's impact fuze would go off after a 2.5 m drop (M6).
+    const sc = w.spawnBlueprint(showcaseJson, { x: 0, y: 1.6 });
     for (let i = 0; i < 300; i++) w.step();
     expect(atRest(w, sc)).toBe(true);
     expect(Math.abs(w.physics.state(sc.groups[0]?.bodyId ?? 0).angle)).toBeLessThan(0.05);

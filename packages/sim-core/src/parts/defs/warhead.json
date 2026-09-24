@@ -9,7 +9,7 @@
   "outputs": [],
   "powerDraw": 0,
   "behavior": "warhead",
-  "onDestroyed": { "explode": { "radius": 3, "damage": 100, "pushRadius": 5, "push": 40, "lift": 1.5 } },
+  "onDestroyed": { "explode": { "radius": 3, "damage": 120, "pushRadius": 5, "push": 40, "lift": 1.5 } },
   "impact": { "speed": 5 },
   "sprite": { "frame": "part.warhead" }
 }

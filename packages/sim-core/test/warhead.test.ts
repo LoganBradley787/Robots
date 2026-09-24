@@ -55,7 +55,7 @@ describe('warheads (M6)', () => {
     w.dispose();
   });
 
-  it('a bomb hole: frames within 1.2 m break, frames beyond survive damaged, the rest splits off', async () => {
+  it('a bomb hole: frames within 1.5 m break, frames beyond survive damaged, the rest splits off', async () => {
     const w = await World.create({ seed: 1 }, flat);
     const row = w.spawnBlueprint(
       { format: 1, name: 'row', grid: ['C  F  F  F  X  F  F  F'], bindings: [{ key: 'x', mode: 'pulse', target: 'warhead', channel: 'detonate', value: 1 }] },
@@ -69,7 +69,7 @@ describe('warheads (M6)', () => {
     ]);
     // 2 m out behind the frame at 1 m: a third of the damage, halved by cover.
     const kept = w.robots[0]?.parts.get('frame@2,0');
-    expect(kept?.health).toBeCloseTo(60 - (100 / 3) * 0.5, 9);
+    expect(kept?.health).toBeCloseTo(60 - (120 / 3) * 0.5, 9);
     // Thrown up and away: the right piece flies right and up.
     for (let i = 0; i < 3; i++) w.step();
     const right = w.robots[1];

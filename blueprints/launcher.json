@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "launcher",
+  "grid": [
+    ".  .  F  Dv Dv Dv",
+    ".  .  F  M  B  X",
+    ".  .  R  .  .  .",
+    "F  F  C  B  F  F",
+    "W  .  .  .  .  W"
+  ],
+  "legend": {
+    "M": { "part": "thruster", "rot": 270, "tags": ["missile"], "auto": false }
+  },
+  "bindings": [
+    { "key": "f", "mode": "pulse", "target": "decoupler", "channel": "fire", "value": 1 },
+    { "key": "f", "mode": "toggle", "target": "missile", "channel": "throttle", "value": 1 }
+  ]
+}

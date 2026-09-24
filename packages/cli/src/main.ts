@@ -1,6 +1,6 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
 import { DEFAULT_WORLD, readBlueprint, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
-import { formatReport, InvalidBlueprint, runSim } from './commands/run';
+import { formatReport, InvalidBlueprint, runSim, type Drop } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
 import { showBlueprint } from './commands/show';
@@ -28,20 +28,25 @@ flags
   --keys <timeline>  keys to press, in seconds from the start: "d:0-3, a:3.5-4, w:5" (w:5 is a tap),
                      or a .json file like [{ "key": "d", "down": 0, "up": 3 }]
   --unlimited        unlimited energy from the start
+  --drop <bp>@<t>:<x>,<y>
+                     also spawn blueprint <bp> at t seconds with its root at (x, y), e.g. a bomb on the robot:
+                     --drop bomb@2:3,6 (repeat for more)
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
 const BOOLEAN_FLAGS = new Set(['json', 'unlimited']);
 
-function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string> } {
+function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string>; drops: string[] } {
   const flags = new Map<string, string>();
   const positional: string[] = [];
+  const drops: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? '';
     if (a.startsWith('--')) {
       const next = argv[i + 1];
       if (!BOOLEAN_FLAGS.has(a.slice(2)) && next !== undefined && !next.startsWith('--')) {
-        flags.set(a.slice(2), next);
+        if (a === '--drop') drops.push(next);
+        else flags.set(a.slice(2), next);
         i++;
       } else {
         flags.set(a.slice(2), 'true');
@@ -50,7 +55,17 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, s
       positional.push(a);
     }
   }
-  return { positional, flags };
+  return { positional, flags, drops };
+}
+
+/** `bomb@2:3,6`: blueprint bomb at 2 s, root at (3, 6). */
+function parseDrop(raw: string): Drop {
+  const m = /^([^@]+)@(\d+(?:\.\d+)?):(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(raw.trim());
+  if (!m) throw new Error(`--drop must look like bomb@2:3,6 (blueprint@seconds:x,y), got ${raw}`);
+  const [, name = '', t = '0', x = '0', y = '0'] = m;
+  const loaded = readBlueprint(resolveBlueprint(name));
+  for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to ${name}`);
+  return { name, blueprint: loaded.raw, t: Number(t), at: { x: Number(x), y: Number(y) } };
 }
 
 function numberFlag(flags: Map<string, string>, key: string, fallback: number): number {
@@ -79,7 +94,7 @@ function loadWorld(flags: Map<string, string>): WorldFile {
 }
 
 async function main(): Promise<number> {
-  const { positional, flags } = parseArgs(process.argv.slice(2));
+  const { positional, flags, drops: dropArgs } = parseArgs(process.argv.slice(2));
   const [command = '', bpArg] = positional;
   if (command === '' || command === 'help') {
     console.log(USAGE);
@@ -136,7 +151,8 @@ async function main(): Promise<number> {
     }
     throw e;
   }
-  const opts = { seconds, seed, ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}) };
+  const drops = dropArgs.map(parseDrop);
+  const opts = { seconds, seed, ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}), ...(drops.length > 0 ? { drops } : {}) };
 
   try {
     if (command === 'run') {

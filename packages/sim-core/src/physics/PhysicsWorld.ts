@@ -31,20 +31,6 @@ export interface ColliderPlacement {
   angle?: number;
   mass: number;
   friction?: number;
-  /**
-   * Reports contacts on this collider whose total force exceeds this many newtons (`takeImpacts`). The owner decides
-   * what a hit means; this only keeps quiet contacts out of the event stream.
-   */
-  impactForce?: number;
-}
-
-/** A contact on a collider with `impactForce`, above its threshold, from the last step. */
-export interface ImpactEvent {
-  body: BodyId;
-  /** The collider's owner (a part id). */
-  owner: string;
-  /** Total contact force on the collider pair, newtons. */
-  force: number;
 }
 
 /** A terrain collider (one without an owner), for line-of-sight tests. Boxes only. */
@@ -138,12 +124,8 @@ export class PhysicsWorld {
   private readonly byHandle = new Map<number, BodyId>();
   /** Rapier colliders carry no user data, so owners (part ids) live here, keyed by the opaque handle. */
   private readonly owners = new Map<number, string>();
-  /** Impact thresholds by collider handle. */
-  private readonly impactForces = new Map<number, number>();
   /** Invisible bodies that exist for another body (its multibody root, its joint pivot), removed with it. */
   private readonly helpers = new Map<BodyId, BodyId[]>();
-  private readonly eventQueue = new RAPIER.EventQueue(true);
-  private impacts: ImpactEvent[] = [];
   private nextId: BodyId = 1;
   private nextJointId: JointId = 1;
 
@@ -175,15 +157,11 @@ export class PhysicsWorld {
     const base = shape.shape === 'box' ? RAPIER.ColliderDesc.cuboid(shape.hx, shape.hy) : RAPIER.ColliderDesc.ball(shape.radius);
     let desc = base.setTranslation(place.offsetX, place.offsetY).setRotation(place.angle ?? 0).setMass(place.mass);
     if (place.friction !== undefined) desc = desc.setFriction(place.friction);
-    if (place.impactForce !== undefined) {
-      desc = desc.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS).setContactForceEventThreshold(place.impactForce);
-    }
     const collider = this.world.createCollider(desc, this.body(bodyId));
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
       this.cells.set(bodyId, (this.cells.get(bodyId) ?? 0) + 1);
     }
-    if (place.impactForce !== undefined) this.impactForces.set(collider.handle, place.impactForce);
   }
 
   /** Removes a body with its colliders, its joints, and its helper bodies. */
@@ -194,7 +172,6 @@ export class PhysicsWorld {
     for (let i = 0; i < body.numColliders(); i++) {
       const handle = body.collider(i).handle;
       this.owners.delete(handle);
-      this.impactForces.delete(handle);
     }
     for (const [jointId, j] of this.joints) if (j.parent === id || j.child === id) this.joints.delete(jointId);
     this.byHandle.delete(body.handle);
@@ -240,13 +217,6 @@ export class PhysicsWorld {
     this.forced.add(id);
   }
 
-  /** Impacts from the last step, in the order Rapier reported them. */
-  takeImpacts(): ImpactEvent[] {
-    const out = this.impacts;
-    this.impacts = [];
-    return out;
-  }
-
   /** Terrain colliders (no owner) that are boxes, in creation order. */
   terrainBoxes(): TerrainBox[] {
     const out: TerrainBox[] = [];
@@ -287,6 +257,11 @@ export class PhysicsWorld {
       weld.setContactsEnabled(false);
       from = this.body(pivot);
       fromAnchor = { x: 0, y: 0 };
+      // Rapier only skips contacts between bodies joined directly. The parent and child now meet through the pivot,
+      // so a spring with no stiffness joins them only to switch their contacts off (else a rotator's box would rest
+      // on the part it turns on and jam).
+      const quiet = this.world.createImpulseJoint(RAPIER.JointData.spring(0, 0, 0, anchorParent, anchorChild), this.body(parent), this.body(child), true);
+      quiet.setContactsEnabled(false);
     }
     const joint = this.world.createMultibodyJoint(RAPIER.JointData.revolute(fromAnchor, anchorChild), from, this.body(child), true);
     joint.setContactsEnabled(false);
@@ -451,17 +426,7 @@ export class PhysicsWorld {
       if (!this.jointChildren.has(id)) b.addTorque(-AIR_SPIN_DRAG * cells * Math.abs(w) * w, false);
       this.forced.add(id);
     }
-    this.world.step(this.eventQueue);
-    this.eventQueue.drainContactForceEvents((e) => {
-      for (const c of [e.collider1(), e.collider2()]) {
-        const threshold = this.impactForces.get(c);
-        const owner = this.owners.get(c);
-        const parent = this.world.getCollider(c)?.parent();
-        const body = parent ? this.byHandle.get(parent.handle) : undefined;
-        if (threshold === undefined || owner === undefined || body === undefined || e.totalForceMagnitude() <= threshold) continue;
-        this.impacts.push({ body, owner, force: e.totalForceMagnitude() });
-      }
-    });
+    this.world.step();
     for (const id of this.forced) {
       const b = this.body(id);
       b.resetForces(false);
@@ -514,7 +479,6 @@ export class PhysicsWorld {
   }
 
   free(): void {
-    this.eventQueue.free();
     this.world.free();
   }
 }

@@ -11,6 +11,6 @@
   "behavior": "rotator",
   "behaviorConfig": { "range": 1.5708, "turnSpeed": 2, "frequency": 12 },
   "autoControl": { "channel": "turn", "kind": "axis", "keys": ["z", "x"], "labels": ["turn left", "turn right"] },
-  "joint": { "kind": "revolute", "mountFace": "S", "motor": "position", "maxTorque": 150 },
+  "joint": { "kind": "revolute", "mountFace": "S", "motor": "position", "maxTorque": 300 },
   "sprite": { "frame": "part.rotator", "mountFrame": "part.rotator.mount" }
 }

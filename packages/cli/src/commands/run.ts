@@ -11,6 +11,16 @@ export interface RunOptions {
   keys?: readonly KeyPress[];
   /** Unlimited energy from tick 0. */
   unlimited?: boolean;
+  /** Other blueprints spawned mid-run (a bomb dropped on the robot). */
+  drops?: readonly Drop[];
+}
+
+/** A blueprint spawned at `t` seconds with its root part at `at`. */
+export interface Drop {
+  name: string;
+  blueprint: unknown;
+  t: number;
+  at: { x: number; y: number };
 }
 
 export interface RunReport {
@@ -29,6 +39,8 @@ export interface RunReport {
   warnings: string[];
   /** Scripts that stopped, with when and why. */
   scriptCrashes: { script: string; t: number; kind: string; message: string }[];
+  /** What broke (M6): parts destroyed anywhere, blasts, and how many pieces the robot is in now (0: all gone). */
+  destruction: { destroyed: string[]; explosions: number; pieces: number };
 }
 
 export class InvalidBlueprint extends Error {
@@ -46,7 +58,12 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
   try {
     const v = validateBlueprint(blueprint, world.registry);
     if (!v.ok) throw new InvalidBlueprint(v.issues);
+    for (const d of opts.drops ?? []) {
+      const dv = validateBlueprint(d.blueprint, world.registry);
+      if (!dv.ok) throw new InvalidBlueprint(dv.issues);
+    }
     const robot = world.spawnBlueprint(blueprint, opts.at ?? file.spawn);
+    const drops = [...(opts.drops ?? [])].sort((a, b) => a.t - b.t);
     if (opts.unlimited) world.setUnlimitedEnergy(true);
     if (opts.keys && opts.keys.length > 0 && !world.canControl(robot.id)) throw new Error(`${robot.name} has no core, so keys cannot control it`);
     const inputs = timelineInputs(opts.keys ?? [], robot.id, world.dt);
@@ -58,12 +75,19 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     const every = Math.max(1, Math.round((opts.sampleEverySeconds ?? 1) / world.dt));
     const samples: RobotSample[] = [];
     const drive = new DriveTracker();
-    drive.add(sampleRobot(world, robot));
+    let last = sampleRobot(world, robot);
+    drive.add(last);
     for (let i = 0; i < ticks; i++) {
+      while (drops.length > 0 && Math.round((drops[0]?.t ?? 0) / world.dt) <= world.tick) {
+        const d = drops.shift() as Drop;
+        world.spawnBlueprint(d.blueprint, d.at);
+      }
       world.step(inputs.get(world.tick) ?? []);
-      const s = sampleRobot(world, robot);
-      drive.add(s);
-      if (world.tick % every === 0) samples.push(s);
+      // A robot blown to nothing has no pose: its report ends where it was last seen.
+      if (!world.robots.includes(robot)) continue;
+      last = sampleRobot(world, robot);
+      drive.add(last);
+      if (world.tick % every === 0) samples.push(last);
     }
     return {
       world: file.name,
@@ -73,11 +97,12 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       ticks,
       issues: v.issues,
       samples,
-      final: sampleRobot(world, robot),
+      final: last,
       drive: drive.result(),
       energy: energyOf(world, robot.id),
       warnings,
       scriptCrashes: world.events.flatMap((e) => (e.kind === 'scriptCrashed' ? [{ script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message }] : [])),
+      destruction: destructionOf(world, robot.id),
       finalHash: world.hash(),
     };
   } finally {
@@ -100,6 +125,12 @@ export function formatReport(r: RunReport): string {
   const fin = r.final;
   lines.push(formatDrive(r.drive));
   lines.push(formatEnergy(r.energy));
+  const d = r.destruction;
+  if (d.destroyed.length > 0 || d.explosions > 0) {
+    const shown = d.destroyed.slice(0, 12).join(', ') + (d.destroyed.length > 12 ? `, and ${d.destroyed.length - 12} more` : '');
+    const pieces = d.pieces === 0 ? 'the robot is gone' : `the robot is in ${d.pieces} piece${d.pieces === 1 ? '' : 's'}`;
+    lines.push(`destruction: ${d.destroyed.length} part${d.destroyed.length === 1 ? '' : 's'} destroyed (${shown})   ${d.explosions} explosion${d.explosions === 1 ? '' : 's'}   ${pieces}`);
+  }
   lines.push(
     `final: ticks=${r.ticks} hash=${r.finalHash} resting=${fin.resting ? 'yes' : 'no'} core=(${f(fin.coreX)}, ${f(fin.coreY)}) tilt=${f(fin.tiltDeg, 2)} mass=${f(fin.massKg)} com=(${f(fin.comX)}, ${f(fin.comY)})`,
   );
@@ -108,6 +139,18 @@ export function formatReport(r: RunReport): string {
 
 export function formatDrive(d: DriveMetrics): string {
   return `drive: distance ${f(d.distance, 2)} m   max altitude ${f(d.maxAltitude, 2)} m   max tilt ${f(d.maxTiltDeg, 1)} deg   top speed ${f(d.topSpeed, 2)} m/s`;
+}
+
+/** Parts destroyed and blasts over the whole world; pieces are the robot and every piece that broke off it. */
+export function destructionOf(world: SimWorld, robotId: number): RunReport['destruction'] {
+  const family = new Set([robotId]);
+  // Pieces come after the robot they broke from, so one pass in order finds pieces of pieces.
+  for (const r of world.robots) if (r.brokeFrom !== undefined && family.has(r.brokeFrom)) family.add(r.id);
+  return {
+    destroyed: world.events.flatMap((e) => (e.kind === 'partDestroyed' ? [e.part] : [])),
+    explosions: world.events.filter((e) => e.kind === 'explosion').length,
+    pieces: world.robots.filter((r) => family.has(r.id)).length,
+  };
 }
 
 export function energyOf(world: SimWorld, robotId: number): RunReport['energy'] {
