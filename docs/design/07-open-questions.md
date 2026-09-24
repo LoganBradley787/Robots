@@ -18,6 +18,7 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 - Decision: the only v1 damage source is the warhead explosion. Batteries do not explode. No impact damage.
 - Logan's reasoning: moving robots matters more than damage right now, but destruction has to be testable, so a warhead is worth having.
 - Acceptance test for M6, in Logan's words: build a long robot with two wheels and the core on one end, drive it forward, spawn a bomb above it, let it drop and explode, and make sure the robot properly breaks in half.
+- M6 (Logan, 2026-09-23): real health per part and damage that falls off with distance (frames are armor, batteries fragile); bombs and missiles only, a cannon after Gate 5; punchy blasts. Built: see `03`, Destruction as built. The warhead's impact fuze is the one impact rule (a hit that changes its body's speed by more than 5 m/s); ordinary parts take no impact damage.
 
 ### Q16. Repo
 - Decision: private GitHub repository `Robots` under `LoganBradley787`, pushed by Claude. Logan manages `gh auth switch` between accounts as needed; there is no default state to restore.
@@ -33,6 +34,7 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 
 ### Q5. Rotator: M6
 - Same revolute joint as the wheel in position mode, one part def, input channel `angle` in [-1, 1] mapped to a configured range. Cheap once wheels exist, and it makes aimed missiles possible in the destruction milestone.
+- Built in M6 (Logan agreed): a rate input instead, `turn` in [-1, 1] swings the aim at 2 rad/s within +-90 degrees and holds it (Z and X, like the gyro's own keys), with an `angle` output for scripts. Mounts below at rotation 0 so a roof turret is the default, and carries what it touches on its other faces.
 
 ### Q6. World: flat ground, boxes, a ramp
 - JSON world file with a flat static ground and a short list of static boxes and a ramp. Targets are core-less blueprints (a wall of frame blocks) so destruction works on them for free. Hills and a terrain editor stay deferred behind the same file.
@@ -63,6 +65,7 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 - Preact with the Vite preset for panels, plain textarea for scripts in M5, CodeMirror 6 after Gate 4 if the textarea is the complaint.
 
 ### Q18. Decoupler: directional
+- Built in M6 as below, plus: it acts before other parts on the tick it fires, so the pieces exist before anything pushes (a missile lit that tick pushes itself, not its launcher).
 - A release face set by rotation. Firing severs only that face and applies a small separation impulse. The decoupler stays as an inert part on the parent side.
 
 ### Q19. Binding conflicts: sum and clamp

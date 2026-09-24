@@ -219,3 +219,17 @@ T1 then T2 then T3. T4 needs T3. T5 needs T1 and T2. T6 needs T4 and T5. T7 need
 - **Kick accuracy with contacts:** a kicked piece already touching the ground or another piece shares that step with contact solving. Tests use tolerances, and the done-when judges plausibility, not exactness.
 - **Contact force thresholds depend on mass and solver settings.** Tune with the headless runner and record the numbers in `03`.
 - **A rebuild changes body ids:** anything in the app keyed by body id (interpolation, click to possess) must follow `Robot.version`.
+
+## As built (2026-09-23)
+What changed from the decisions above while building, and why. Details in `03`, Destruction as built.
+- **Warhead damage 120** (not 100): at 100 a missile hitting a wall broke only the one frame it touched, because a blast at the surface sits 0.7 m from the first frame and 1.2 m from its neighbors. At 120 a frame breaks within 1.5 m: two or three frames per hit, the "hole about 3 m across".
+- **Push 40, up and out** (not 6, radial): 6 barely rolled a nearby car, and a sideways push only rolls a car on its wheels. Pushes now aim away from a point 1.5 m below the blast (`lift`). A bomb landing beside a car flips it; 2 m away it tilts about 15 degrees; 3 m away it barely moves.
+- **The warhead fuze reads velocity change**, not Rapier contact forces: Rapier reports none for contacts on multibody links, so a bomb bounced off a car's roof. `impact: { speed: 5 }` is now "a hit that changes its body's speed by more than 5 m/s in one step".
+- **Rotator torque 300 N m** (not 40): a 3-cell arm needs up to 60 N m just to hold level and must brake against gravity too; the launcher's arm with its missile needs about 160.
+- **Decouplers act first** (`early` behaviors): the robot splits before other parts push that tick, so a missile lit on the tick it is released does not spin the turret.
+- **Part boxes are 0.49 m** (half side): after a split, face-to-face pieces snagged in Rapier's contacts (the missile stuck to its rail on some ticks).
+- **Pivots and a contact-off spring**: Rapier resets multibody roots and joints to angle 0, so rebuilt robots keep their angles through invisible helper bodies (spike results in `03`).
+- **The launcher hangs its missile under a rail of three decouplers**: one decoupler behind the missile's center spun it on release, and a missile sitting on top of the rail was caught by the rail springing back. Released downward, gravity carries it clear.
+- **`longcar` has a battery in its far half**: a latched wheel needs energy to keep driving, as the design says ("while it has energy").
+- **Which piece keeps the id without an active core: the largest** (not the one with the earliest part): the jet body that lost its pilot stays the jet, and the smaller pieces that break off it are the ones that can wake.
+- **Pending pushes and kicks are Rapier forces** added at the end of the damage phase; the hash reads them back from the bodies instead of keeping a separate list.

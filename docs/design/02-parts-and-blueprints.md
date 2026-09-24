@@ -40,16 +40,20 @@ Behavior modules are tiny and generic: `init(instance)`, `tick(instance, ctx)`, 
 ## Starting parts
 Numbers are first guesses to be tuned in one place (Q7). Faces listed are attachable faces at rotation 0.
 
-| Part | Mass | Faces | Inputs | Outputs | Notes |
-|---|---|---|---|---|---|
-| core | 2 | N E S W | | position, velocity, acceleration, angle, angular velocity, energy stored and capacity | Required for control. Scripts and bindings attach here. Built-ins decided (Q2) so nobody places accelerometers or battery monitors. |
-| frame | 1 | N E S W | | | Structural. |
-| battery | 3 | N E S W | | charge fraction | Energy container, capacity 600 units. |
-| wheel | 1.5 | N (mount only) | speed [-1, 1] | angular velocity | Rotation 0 mounts to the cell above. Own body, revolute motor joint. |
-| thruster | 1 | N E W | throttle [0, 1] | | Rotation 0: nozzle S, pushes +y. Force at part position. Flame overlay when throttle > 0. |
-| propeller | 1 | S E W | throttle [0, 1] | | Rotation 0: lift +y. Spin sprite animation speed tied to throttle. |
-| decoupler | 1 | N E S W | fire (pulse) | armed | Rotation 0: release face N. On fire, N becomes non-attachable and a small separation impulse is applied. |
-| warhead | 1 | N E S W | detonate (pulse) | | Decided (Q11). Explodes on detonate, on destruction, or on hard impact. A one-part core-less blueprint of it is the test bomb. |
+| Part | Mass | Health | Faces | Inputs | Outputs | Notes |
+|---|---|---|---|---|---|---|
+| core | 2 | 50 | N E S W | | position, velocity, acceleration, angle, angular velocity, energy stored and capacity | Required for control. Scripts and bindings attach here. Built-ins decided (Q2) so nobody places accelerometers or battery monitors. Holds 600 energy. |
+| frame | 1 | 60 | N E S W | | | Structural, and the armor: toughest per kilogram. |
+| battery | 3 | 30 | N E S W | | charge fraction | Energy container, 1500 units (M4). A target: shoot it and the robot runs dry. |
+| wheel | 1.5 | 25 | N (mount only) | speed [-1, 1] | angular velocity | Rotation 0 mounts to the cell above. Own body, revolute motor joint. |
+| thruster | 1 | 25 | N E W | throttle [0, 1] | | Rotation 0: nozzle S, pushes +y. Force at part position. Flame overlay when throttle > 0 and the robot has energy. |
+| propeller | 1 | 15 | S E W | throttle [0, 1] | | Rotation 0: lift +y. Spin sprite animation speed tied to throttle. The most fragile part. |
+| decoupler | 1 | 30 | N E S W | fire (pulse) | armed | Rotation 0: release face N (its `acts`). On fire, N stops attaching once and both sides get 2 N s apart. Acts before other parts that tick (M6). |
+| warhead | 1 | 20 | N E S W | detonate (pulse) | | Explodes on detonate, when destroyed (chains), or when a hit changes its body's speed by more than 5 m/s in one step. A one-part core-less blueprint of it is the bomb. |
+| gyro | 1 | 30 | N E S W | spin [-1, 1], damp [0, 1] | | Reaction wheel (Gate 3): E and Q turn the robot, otherwise it damps spin. |
+| rotator | 1.5 | 40 | N E S W | turn [-1, 1] | angle [-1, 1] | M6 (Q5). Rotation 0 mounts on the part below (S) and carries parts on N, E, W in its own body. Z and X swing its aim at 2 rad/s within +-90 degrees; it holds the aim otherwise. Position motor, 300 N m. |
+
+Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
 Wheel and propeller shorthand tokens in the default legend cover the common rotations (see below), so authors rarely write rotation numbers.
 
@@ -94,7 +98,7 @@ Sensor parts are ordinary parts with output channels, mass, and power draw. Noth
 - `primaryCore` (optional part id) defaults to the first core in reading order. `corePriority` (optional list) orders takeover (Q1).
 
 ## Default legend
-Shipped with the parts (`packages/sim-core/src/blueprint/legend.ts`). Blueprints can override or extend it. Arrow tokens point the way the part acts: thrust direction, lift direction, release direction, or the side the wheel sits on relative to what it mounts to. So on the left end of a robot a thruster that attaches is `T>` (nozzle outward, pushes right), and a wheel hanging off the right side is `W>`.
+Shipped with the parts (`packages/sim-core/src/blueprint/legend.ts`). Blueprints can override or extend it. Arrow tokens point the way the part acts: thrust direction, lift direction, release direction, the side the wheel sits on relative to what it mounts to, or the side a rotator carries its turret on. So on the left end of a robot a thruster that attaches is `T>` (nozzle outward, pushes right), and a wheel hanging off the right side is `W>`.
 
 ```
 C   core            F   frame           B   battery         X   warhead
@@ -102,6 +106,8 @@ W   wheel, mount up (hangs below)        W^  mount down (sits above)   W<  mount
 T^  thruster pushing up (nozzle down)    Tv  pushing down    T<  pushing left    T>  pushing right
 P   propeller lifting up                 Pv  lifting down
 D   decoupler releasing up               Dv  releasing down  D<  releasing left  D>  releasing right
+G   gyro
+R   rotator carrying up (mounts below)   Rv  carrying down   R<  carrying left   R>  carrying right
 ```
 
 A sub-assembly is placed with a legend token: `"m": { "blueprint": "missile", "rot": 0, "mirror": false, "tags": ["missiles"] }`. The sub-blueprint's primary core lands on the token cell. Its parts merge into the parent with an id prefix (`m1/thruster@0,1`). Its bindings and scripts attach to its own core. Overlaps are validation errors.
@@ -113,6 +119,7 @@ Runs on load, on every editor change, and in the headless runner. Returns a list
 - `NO_CORE`: "blueprint has no core; it will spawn as debris" (warning).
 - `UNATTACHED`: "wheel@0,0 has no attached face (its mount face N touches nothing)".
 - `DISCONNECTED`: "5 parts are not connected to the primary core: frame@4,0, ...".
+- `LOCKED_JOINT` (M6): a rotator that cannot turn, because what it carries also touches its base another way, or a second joint carries the same parts (multibodies are trees).
 - `OVERLAP`: "propeller@1,2 overlaps frame@1,2".
 - `BAD_TARGET`: "binding key 'a' targets tag 'wheels' but no part has that tag".
 - `BAD_CHANNEL`: "binding key 'f' writes channel 'speed' on tag 'props' but propeller has no input 'speed'".

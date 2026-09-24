@@ -46,6 +46,7 @@ Scripts can read key state and blend manual input themselves (hover reads A and 
 - A spawned robot's active core is its primary core: the top-level blueprint's core. Every other core in the same chunk (sub-assembly cores, missile brains) is dormant.
 - No takeover. If the active core is destroyed, the chunk goes headless and latches, even if dormant cores remain in it. Logan's rule: shoot the pilot and the jet does not start flying by its missiles.
 - A dormant core wakes only when it becomes the sole core in its chunk, which happens when its sub-assembly splits off through a decoupler or damage. On waking, the chunk's latched values are cleared, the core's bindings and scripts start, and `setup()` runs.
+- As built (M6): a piece that breaks off is its own robot. If it has exactly one core, that core wakes with its parts' auto controls only, because a blueprint's bindings and scripts belong to its primary core until M7's sub-assembly references give sub-assembly cores their own. The robot that keeps the old id never wakes a dormant core, even when its pilot dies (Q1). A latched piece keeps its parts' last channel values, minus that tick's pulses, so a one-tick press is not repeated forever.
 - A chunk that splits off with two or more dormant cores and no active core is headless. Authors who want independent missiles give each its own decoupler.
 - The player possesses one active core at a time and can cycle through live, possessable ones. The keyboard input source is attached to the possessed core's controller.
 
