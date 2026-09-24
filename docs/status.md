@@ -1,20 +1,16 @@
 # Status
 
-Updated: 2026-09-23, by a coding session (Opus 5.5), end of M6
+Updated: 2026-09-24, by a coding session (Opus 5.5), during M7
 
-- Current milestone: **M6 complete (tag `m6`), Gate 5 (destruction) passed 2026-09-23.** Punch list `docs/critique/gate-5.md`: nothing to fix; Logan kept turrets passing through their own robot. Plan `docs/plans/M6-destruction.md` (with an As built section); design `03`, "Destruction as built", is the reference.
-- Done: M0 to M5 (Gates 1 to 4 passed), M6:
-  - Health per part (frame 60 down to propeller 15; table in `02`), damage stays. Damaged parts look darker.
-  - Warheads explode on a key (`detonate`), when destroyed (chains), or on a hit that changes their body's speed by more than 5 m/s. Blast: 120 damage falling to 0 at 3 m, halved per part or terrain box in the way; push 40 N s per cell up and out to 5 m.
-  - Robots break into pieces that keep their motion; each piece is its own robot. A piece keeps its last input (a cut-off half drives on while its battery lasts); losing the core stops control; a piece with one core wakes with auto controls.
-  - Decouplers separate (once, 2 N s each side, before other parts act that tick). Rotator (key 0, `R`): Z and X aim a turret, holds its aim, 300 N m.
-  - Clear debris (toolbar), explosion and break effects, notices for lost and woken cores.
-  - New blueprints: `bomb`, `longcar` (Logan's bomb test robot), `launcher` (turret with a missile under a decoupler rail: Z/X aim, F fires), `wall` (a target with a battery inside).
-  - CLI: `pnpm sim run <bp> --drop bomb@2:-77,4.95` spawns another blueprint mid-run; the report lists what broke; `tune` prints kill distances and push. CI checks both destruction scenarios for determinism.
-  - Review fixes: kicks and pushes wait (hashed) until just before the next physics step, so a robot hit on two ticks in a row, or hit and then decoupled, keeps its velocity (it lost all of it, or 12% on jointed pieces); a decoupler pushes only the part it held; dead parts stop covering later blasts in the same tick; the keys bar drops keys whose parts broke off; a woken core does not show its parent's script keys; the app no longer names the warhead; CLI `--drop` refuses a missing value, accepts `.5`, warns when it lands after the run; decouplers spark.
-  - Rapier findings worth knowing (`03`): multibody links ignore velocity writes (kicks instead), reset angles on joint creation (invisible helper root and pivots), and report no contact forces; face-to-face pieces snag (part boxes are now 0.49 m).
-- **Gate 5 passed.** Logan: "this is GOLD. the missiles work so well!!!!" He shot down drones with the launcher and bombed one. His armored car is `blueprints/armored-car.json` (`car` stays the original: tests and CI use it).
-- Next (after a context compaction, start here): **plan M7 (the Claude workflow, `06`).** Read `06` M7 and `07`, ask Logan a few taste questions (AskUserQuestion, at most four, recommendation first), write `docs/plans/M7-claude-loop.md`, get a go, build it, stop at Gate 6. Candidates to raise: sub-assembly references (which also give a woken missile core its own bindings and scripts), homing missiles (a finder sensor part plus `world.robots()`, Logan's Gate 5 wish), and the playbook for Claude-built robots.
+- Current milestone: **M7 (Claude workflow) in progress.** Plan `docs/plans/M7-claude-loop.md` (approved; revised with Logan before "go": placing a blueprint copies it, no live links between files).
+- Done in M7 so far:
+  - T1: controls per core. A blueprint file can hold `cores: { "<core id>": { scope, bindings, scripts, autoControls } }`. `placeBlueprint` (sim-core) copies one blueprint onto another: parts get the scope tag (`missile1`) and `missile1.<tag>`; the copy's controls go under its core with that scope; ids in bindings are renamed. Scoped controls see members' tags without the prefix, and every part by id and type (so a hand-replaced warhead still works).
+  - T2: a woken core runs its own controls (bindings, scripts with `setup()` the tick after waking, its own auto controls switch).
+  - T3 part 1 (Logan tested and happy): `missile` (`M g E C X`: thruster, gyro, cell, core, warhead at the tip) with `missile.guide.js` (steers the thrust vector to hold the line it was released on, 10 s fuse, parts found by type). `launcher` rebuilt with a placed missile: tall turret, missile hanging under a `Dv` rail, long base (Logan: tipped over otherwise), one row taller (Logan: flat shots scraped the ground). New `cell` part (0.5 kg, 250 J, health 10, legend `E`, builder key `-`). Rotator 600 N m; it turns only as fast as it can stop the turret, and the aim never runs more than 0.15 rad ahead of a heavy turret (it used to swing far past). `pnpm sim place <target> <source> --at x,y [--rot] [--mirror] [--save name]`.
+- Next: T3 part 2, the `missile-drone` example (hover drone with two missiles, F fires the next one), then T4 (CLI for Claude: `parts`, richer `show`, `mirror`, path plot and events in `run`), T5 (builder Blueprints palette and per-core Controls picker), T6 (playbook and dry run), T7 (docs, review, tag, Gate 6).
+- Lessons from the launcher (for the playbook): a missile resting on top of a tilted rail tips off its end, so hang it under a `Dv` rail; keep a turret's weight near the hinge or on a strong rotator; a heavy turret on a short car tips the car; a flat shot needs about 3 m of drop room; a missile needs thrust well above its weight (the 3 kg battery made T/W 1.5, the cell makes it 2.2).
+- Logan's notes for a later sensors milestone: `docs/ideas.md` (sensors, targeting, teams, possession by team).
+
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
 - Before planning a milestone, ask a few taste questions (AskUserQuestion, recommendation first); decide technical things yourself and record them as "Claude's call" in the plan so Logan can overturn them at the gate.
