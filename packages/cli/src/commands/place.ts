@@ -1,4 +1,4 @@
-import { assignScriptFiles, defaultRegistry, expandBlueprint, formatIssues, placeBlueprint, scriptFiles, toFileJson, toGrid, validateBlueprint, type Rotation } from '@robots/sim-core';
+import { dropForeignScriptFiles, assignScriptFiles, defaultRegistry, expandBlueprint, formatIssues, placeBlueprint, scriptFiles, toFileJson, toGrid, validateBlueprint, type Rotation } from '@robots/sim-core';
 
 export interface PlaceArgs {
   at: { x: number; y: number };
@@ -39,7 +39,7 @@ export function placeCommand(targetRaw: unknown, sourceRaw: unknown, args: Place
   const v = validateBlueprint(toFileJson(bp, registry, { inlineScripts: true }), registry);
   if (v.issues.length > 0) notes.push(formatIssues(v.issues));
   if (args.saveAs === undefined) {
-    return { ok: v.ok, text: JSON.stringify(toFileJson(bp, registry, { inlineScripts: true }), null, 2), notes, files: [] };
+    return { ok: v.ok, text: JSON.stringify(toFileJson(dropForeignScriptFiles(bp), registry, { inlineScripts: true }), null, 2), notes, files: [] };
   }
   const file = `${args.saveAs}.json`;
   // Like Save As: every script gets a file named after the new blueprint, so the originals are never touched.

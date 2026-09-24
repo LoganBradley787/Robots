@@ -1,3 +1,4 @@
+import { isCore, rootPartId } from '../assembly/assemble';
 import type { PartRegistry } from '../parts/registry';
 import { partId } from './expand';
 import { toGrid } from './toGrid';
@@ -29,6 +30,12 @@ export function toFileJson(bp: Blueprint, registry: PartRegistry, opts: { inline
     });
   }
   if (bp.primaryCore !== undefined) out.primaryCore = bp.primaryCore;
+  // With two cores and none named, the pilot is the first core in part order, and the file writes parts in grid
+  // reading order: name it, so the file (and a deploy, and the validator) keeps the same pilot (M7 review).
+  else if (bp.parts.filter((p) => registry.has(p.part) && isCore(p, registry)).length > 1) {
+    const root = rootPartId(bp, registry);
+    if (root !== undefined) out.primaryCore = root;
+  }
   if (bp.corePriority !== undefined) out.corePriority = bp.corePriority;
   if (bp.autoControls === false) out.autoControls = false;
   if (bp.bindings.length > 0) out.bindings = bp.bindings;

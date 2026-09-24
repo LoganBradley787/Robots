@@ -92,7 +92,9 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
       out.bindings = [...target.bindings, ...source.bindings.map(rename)];
       out.scripts = [...target.scripts, ...source.scripts.map(copyScript)];
       if (source.autoControls === false && target.parts.length === 0) out.autoControls = false;
-      if (source.primaryCore !== undefined) out.primaryCore = newId.get(source.primaryCore) as string;
+      // The source's pilot stays the pilot: the anchor is it (its primary core, else its first core), and turning the
+      // copy changes which core comes first in reading order.
+      if (source.parts.filter((p) => isCore(p, registry)).length > 1) out.primaryCore = newId.get(anchor.id) as string;
     }
     const cores = (source.cores ?? []).map((c) => ({ ...c, core: newId.get(c.core) ?? c.core, bindings: c.bindings.map(rename), scripts: c.scripts.map(copyScript) }));
     if (cores.length > 0) out.cores = [...(target.cores ?? []), ...cores];

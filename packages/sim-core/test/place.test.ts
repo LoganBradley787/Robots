@@ -3,7 +3,7 @@ import { expandBlueprint } from '../src/blueprint/expand';
 import { placeBlueprint } from '../src/blueprint/place';
 import { resolveScripts, assignScriptFiles, scriptFiles } from '../src/blueprint/scripts';
 import { toFileJson } from '../src/blueprint/serialize';
-import { removeParts } from '../src/blueprint/edit';
+import { placePart, removeParts } from '../src/blueprint/edit';
 import type { Blueprint } from '../src/blueprint/types';
 import { validateBlueprint } from '../src/blueprint/validate';
 import { scopedView } from '../src/control/target';
@@ -174,5 +174,33 @@ describe('controls per core in files', () => {
 
   it('erasing a core drops its controls', () => {
     expect(removeParts(placed.blueprint, ['core@1,4']).cores).toBeUndefined();
+  });
+
+  it('erasing or painting over the pilot or a placed core leaves nothing pointing at it (review)', () => {
+    expect(placed.blueprint.primaryCore).toBe('core@1,1');
+    const noPilot = removeParts(placed.blueprint, ['core@1,1']);
+    expect(noPilot.primaryCore).toBeUndefined();
+    const painted = placePart(placed.blueprint, reg, 'frame', 1, 4, 0);
+    expect(painted.cores).toBeUndefined();
+    expect(validateBlueprint(toFileJson(painted, reg, { inlineScripts: true }), reg).issues.filter((i) => i.severity === 'error')).toEqual([]);
+    const ordered = { ...placed.blueprint, corePriority: ['core@1,4', 'core@1,1'] };
+    expect(removeParts(ordered, ['core@1,4']).corePriority).toEqual(['core@1,1']);
+  });
+
+  it('saving names the pilot when there are two cores, so reading order never changes it (review)', () => {
+    // Built bottom first: the pilot is the first core in part order, but the file lists the top row first.
+    const drawn: Blueprint = { ...bp({ format: 1, name: 'd', grid: ['C', 'F', 'F', 'C'] }) };
+    const bottomFirst = { ...drawn, parts: [...drawn.parts].reverse() };
+    const file = toFileJson(bottomFirst, reg);
+    expect(file.primaryCore).toBe('core@0,0');
+    expect(toFileJson(car, reg).primaryCore).toBeUndefined();
+  });
+
+  it('a two-core source turned onto an empty robot keeps its pilot (review)', () => {
+    const src = bp({ format: 1, name: 's', grid: ['C', 'F', 'C'], cores: { 'core@0,0': { bindings: [{ key: 'k', mode: 'hold', target: 'core', channel: 'x', value: 1 }] } } });
+    const r = placeBlueprint(bp({ format: 1, name: 'blank', parts: [] }), src, { x: 0, y: 5 }, reg, { rot: 180 });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.blueprint.primaryCore).toBe('core@0,5');
+    expect(validateBlueprint(toFileJson(r.blueprint, reg, { inlineScripts: true }), reg).issues.filter((i) => i.code === 'BAD_CORE_CONTROLS')).toEqual([]);
   });
 });

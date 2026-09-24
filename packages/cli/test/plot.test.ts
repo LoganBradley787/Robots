@@ -40,4 +40,21 @@ describe('plotPaths', () => {
     expect(lines.join('\n')).toContain('B');
     expect(lines.join('\n')).not.toContain('A');
   });
+
+  it('survives points flung to infinity and very long runs, and bounds include every part drawn (review)', () => {
+    const bad = plotPaths({ world, tracks: [{ mark: 'A', points: [{ x: 0, y: 1 }, { x: Number.NaN, y: 2 }, { x: Infinity, y: 3 }] }], blasts: [], width: 20 });
+    expect(bad.length).toBeGreaterThan(5);
+    const many = Array.from({ length: 250_000 }, (_, i) => ({ x: i * 0.001, y: 1 }));
+    expect(() => plotPaths({ world, tracks: [{ mark: 'A', points: many }], blasts: [] })).not.toThrow();
+    // A robot whose parts reach far left of its core's path: the parts set the bounds, not the edge column.
+    const wide = plotPaths({ world, tracks: [{ mark: 'A', points: [{ x: 10, y: 2 }], shape: [{ x: 0, y: 2 }, { x: 10, y: 2 }] }], blasts: [], width: 30 });
+    const row = wide.find((l) => l.includes('A')) ?? '';
+    expect(row.slice(row.indexOf('|') + 1).match(/A/g)).toHaveLength(2);
+    expect(row.slice(row.indexOf('|') + 1).startsWith('A')).toBe(false);
+  });
+
+  it('marks past Z draw as +', () => {
+    expect(plotPaths({ world, tracks: [{ mark: 'AB', points: [{ x: 0, y: 2 }] }], blasts: [] }).join('\n')).toContain('+');
+  });
 });
+

@@ -217,6 +217,9 @@ describe('placeCommand (M7)', () => {
     const json = JSON.parse(out.text);
     expect(json.cores).toEqual({ 'core@2,2': { scope: 'missile1', scripts: [{ id: 'arm', source: 'function tick() {}' }] } });
     expect(out.notes.join('\n')).toContain('placed missile as missile1');
+    // No script keeps another blueprint's file name, so saving this json somewhere never writes over that file.
+    const onLauncher = placeCommand(readBlueprint(resolveBlueprint('launcher')).raw, missile, { at: { x: 0, y: 9 } });
+    expect(onLauncher.text).not.toContain('"file"');
   });
 
   it('saves under a new name with its own script files', async () => {

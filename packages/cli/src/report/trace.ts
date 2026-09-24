@@ -47,7 +47,12 @@ export interface TraceEvent {
   until?: number;
 }
 
-const MARKS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/** A, B, ..., Z, then AA, AB, ... so every piece keeps its own name however many a blast makes. */
+function markFor(n: number): string {
+  return n < 26 ? (LETTERS[n] ?? '?') : `${LETTERS[Math.floor(n / 26) - 1] ?? '?'}${LETTERS[n % 26] ?? '?'}`;
+}
 const f2 = (v: number): string => v.toFixed(2);
 
 /**
@@ -163,7 +168,7 @@ export class Tracer {
     }
     for (const l of logs) {
       const mark = this.letter(l.robot);
-      const key = `${mark} ${l.script}`;
+      const key = `${l.robot} ${l.script}`;
       const text = `${l.script}: ${l.text}`;
       const prev = this.lastLog.get(key);
       if (prev && prev.text === text) {
@@ -226,7 +231,7 @@ export class Tracer {
   private add(r: Robot): PieceReport {
     const known = this.pieces.get(r.id);
     if (known) return known;
-    const mark = MARKS[this.pieces.size] ?? '+';
+    const mark = markFor(this.pieces.size);
     const pose = poseOf(this.world, r) ?? { x: r.spawnX, y: r.spawnY };
     const p: PieceReport = {
       mark,
@@ -246,12 +251,34 @@ export class Tracer {
     return p;
   }
 
+  /**
+   * A piece the run never saw alive: it broke off and was destroyed in the same step. It still gets a letter and an
+   * entry, placed where its parent was, and is marked gone after this step.
+   */
+  private addGone(id: number, from?: number): PieceReport {
+    const parent = from === undefined ? undefined : this.pieces.get(from);
+    const at = parent?.final ?? { x: 0, y: 0 };
+    const p: PieceReport = {
+      mark: markFor(this.pieces.size),
+      id,
+      name: parent?.name ?? `robot ${id}`,
+      core: 'no core',
+      appearedAt: this.stepStart * this.world.dt,
+      final: { x: at.x, y: at.y, tiltDeg: 0, speed: 0, resting: false, parts: 0 },
+      track: [],
+      finalParts: [],
+      ...(parent ? { from: parent.mark } : {}),
+    };
+    this.pieces.set(id, p);
+    return p;
+  }
+
   /** The robot's letter, giving one to a new piece (of `from`) first. */
   private letter(id: number, from?: number): string {
     const known = this.pieces.get(id);
     if (known) return known.mark;
     const r = this.world.robots.find((x) => x.id === id);
-    if (!r) return `#${id}`;
+    if (!r) return this.addGone(id, from).mark;
     const p = this.add(r);
     if (p.from === undefined && from !== undefined) {
       const parent = this.pieces.get(from);

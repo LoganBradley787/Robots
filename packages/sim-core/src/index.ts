@@ -46,7 +46,7 @@ export { mirrorRotation, mirrorX, mirrorBlueprint } from './blueprint/mirror';
 export { staticStats } from './blueprint/stats';
 export type { StaticStats } from './blueprint/stats';
 export { toFileJson } from './blueprint/serialize';
-export { resolveScripts, allScripts, scriptFiles, scriptFileName, assignScriptFiles } from './blueprint/scripts';
+export { resolveScripts, allScripts, scriptFiles, scriptFileName, assignScriptFiles, dropForeignScriptFiles } from './blueprint/scripts';
 export { SCRIPT_FILE } from './blueprint/validate';
 export { createQuickJsHost } from './script/quickjs';
 export { DEFAULT_LIMITS } from './script/types';

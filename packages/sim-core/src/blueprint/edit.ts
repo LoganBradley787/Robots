@@ -35,9 +35,9 @@ export function placePart(bp: Blueprint, registry: PartRegistry, part: string, x
   const hit = bp.parts.filter(covered);
   const same = hit[0];
   if (hit.length === 1 && same && same.part === part && same.x === x && same.y === y && same.rot === rot) return bp;
-  const kept = bp.parts.filter((p) => !covered(p));
-  const id = uniqueId(partId(part, x, y), new Set(kept.map((p) => p.id)));
-  return { ...bp, parts: [...kept, { id, part, x, y, rot, tags: [id] }] };
+  const cleared = removeParts(bp, hit.map((p) => p.id));
+  const id = uniqueId(partId(part, x, y), new Set(cleared.parts.map((p) => p.id)));
+  return { ...cleared, parts: [...cleared.parts, { id, part, x, y, rot, tags: [id] }] };
 }
 
 export function erasePartAt(bp: Blueprint, registry: PartRegistry, x: number, y: number): Blueprint {
@@ -48,11 +48,18 @@ export function erasePartAt(bp: Blueprint, registry: PartRegistry, x: number, y:
 export function removeParts(bp: Blueprint, ids: readonly string[]): Blueprint {
   if (!bp.parts.some((p) => ids.includes(p.id))) return bp;
   const out: Blueprint = { ...bp, parts: bp.parts.filter((p) => !ids.includes(p.id)) };
-  // A core's controls go with it (M7).
+  // Everything that named a removed part by id goes with it (M7): a core's controls, and the pilot and takeover
+  // order, which would otherwise point at nothing and never validate again.
   if (bp.cores?.some((c) => ids.includes(c.core))) {
     const cores = bp.cores.filter((c) => !ids.includes(c.core));
     if (cores.length > 0) out.cores = cores;
     else delete out.cores;
+  }
+  if (bp.primaryCore !== undefined && ids.includes(bp.primaryCore)) delete out.primaryCore;
+  if (bp.corePriority?.some((id) => ids.includes(id))) {
+    const order = bp.corePriority.filter((id) => !ids.includes(id));
+    if (order.length > 0) out.corePriority = order;
+    else delete out.corePriority;
   }
   return out;
 }

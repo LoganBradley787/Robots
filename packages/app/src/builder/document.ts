@@ -1,4 +1,4 @@
-import { allScripts, assignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, SCRIPT_FILE, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
+import { allScripts, assignScriptFiles, dropForeignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, SCRIPT_FILE, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
 import { fileForName, type BlueprintListing } from '../storage/blueprintApi';
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel';
@@ -115,14 +115,14 @@ export class DocumentController {
   async save(): Promise<boolean> {
     const file = this.state.file;
     if (file === undefined) return this.saveAs();
-    // Scripts without a file yet get one named after the blueprint.
-    const draft = assignScriptFiles(this.deps.getDraft(), file, true);
+    // Scripts without a file yet, or with another blueprint's file, get one named after this blueprint.
+    const draft = assignScriptFiles(dropForeignScriptFiles(this.deps.getDraft(), file), file, true);
     const json = toFileJson(draft, this.deps.registry);
     if (!this.writable(json)) return false;
     await this.write(file, draft, json);
     // File names go onto the current draft, so edits made while saving are kept (as Save As does).
     const current = this.deps.getDraft();
-    const named = assignScriptFiles(current, file, true);
+    const named = assignScriptFiles(dropForeignScriptFiles(current, file), file, true);
     const before = allScripts(current);
     if (allScripts(named).some((s, i) => s.file !== before[i]?.file)) this.deps.setDraft(named, { keepHistory: true });
     this.savedJson = this.serialize(draft);

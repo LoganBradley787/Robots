@@ -1,15 +1,17 @@
 # Status
 
-Updated: 2026-09-24, by a coding session (Opus 5.5), during M7
+Updated: 2026-09-24, by a coding session (Opus 5.5), end of M7
 
-- Current milestone: **M7 (Claude workflow) in progress.** Plan `docs/plans/M7-claude-loop.md` (approved; revised with Logan before "go": placing a blueprint copies it, no live links between files).
-- Done in M7 so far:
-  - T1: controls per core. A blueprint file can hold `cores: { "<core id>": { scope, bindings, scripts, autoControls } }`. `placeBlueprint` (sim-core) copies one blueprint onto another: parts get the scope tag (`missile1`) and `missile1.<tag>`; the copy's controls go under its core with that scope; ids in bindings are renamed. Scoped controls see members' tags without the prefix, and every part by id and type (so a hand-replaced warhead still works).
-  - T2: a woken core runs its own controls (bindings, scripts with `setup()` the tick after waking, its own auto controls switch).
-  - T3 part 1 (Logan tested and happy): `missile` (`M g E C X`: thruster, gyro, cell, core, warhead at the tip) with `missile.guide.js` (steers the thrust vector to hold the line it was released on, 10 s fuse, parts found by type). `launcher` rebuilt with a placed missile: tall turret, missile hanging under a `Dv` rail, long base (Logan: tipped over otherwise), one row taller (Logan: flat shots scraped the ground). New `cell` part (0.5 kg, 250 J, health 10, legend `E`, builder key `-`). Rotator 600 N m; it turns only as fast as it can stop the turret, and the aim never runs more than 0.15 rad ahead of a heavy turret (it used to swing far past). `pnpm sim place <target> <source> --at x,y [--rot] [--mirror] [--save name]`.
-- T4 in progress (paused for the night, tree green). Done: `pnpm sim run` now prints an events list (keys, drops, decouplers, splits, wakes, parts lost, blasts, script logs with repeats folded, crashes), every piece's final state by letter, and an ASCII side view of every piece's path (`packages/cli/src/report/trace.ts`, `plot.ts`); `--json` carries `events`, `pieces`, `plot`. No more "key does nothing" warning for keys a script reads. `partRows`/`formatParts` in `packages/cli/src/commands/parts.ts` (tested). `mirrorBlueprint` now renames id references (bindings, primaryCore, corePriority, cores).
-- Next (start here): finish T4: wire `pnpm sim parts` (and `--json`) into `cli/src/main.ts`; `show` prints each core's controls (bindings, scripts, auto controls) with a test; `pnpm sim mirror <bp> [--axis half-cells] [--save name] [--force]` (default axis keeps the bounding box in place; warn that scripts are copied unchanged); USAGE help text. Then T3 part 2 (`missile-drone`) with the new run report, then T5, T6, T7.
-- Lessons from the launcher (for the playbook): a missile resting on top of a tilted rail tips off its end, so hang it under a `Dv` rail; keep a turret's weight near the hinge or on a strong rotator; a heavy turret on a short car tips the car; a flat shot needs about 3 m of drop room; a missile needs thrust well above its weight (the 3 kg battery made T/W 1.5, the cell makes it 2.2).
+- Current milestone: **M7 (Claude workflow) done, tagged `m7`. Stopped at Gate 6** for Logan to play. What to try and what to judge: `docs/critique/gate-6.md`. Plan and As built (both dry runs, the review): `docs/plans/M7-claude-loop.md`.
+- What M7 shipped:
+  - Placing a blueprint on another copies it (Logan: never links). The copy's core keeps its own controls in `cores` with a scope (`missile1`); they start when its piece breaks off. `placeBlueprint` in sim-core, `pnpm sim place`, and the builder's Blueprints palette (R turns, F flips, mirror mode places a twin) all use it. The Controls and Scripts panels have a Controls for picker.
+  - Examples: `missile` (`M g E C X`, guide script holds its release line, 10 s fuse), `launcher` (rebuilt, Logan-tested), `missile-drone` (hover leans by propeller throttle, F fires right then left).
+  - New `cell` part; rotator 600 N m that turns only as fast as it can stop.
+  - CLI for Claude: `run` prints events in order, every piece's final state by letter, and a side view of paths and shapes; `parts`; `show` with every core's controls; `mirror`; `place`.
+  - `docs/claude-robot-playbook.md`: how a fresh session builds a robot from a sentence. Two dry runs by fresh Opus subagents both produced working robots; what they tripped on is fixed.
+  - Keys bar shows keys the running scripts read (dashed, after a divider). Scripts see each part's `mass`.
+- Next: Gate 6. Logan plays and files a punch list in `docs/critique/gate-6.md`. After it is empty, a planning session writes M8 (candidates in `docs/ideas.md`: sensors and homing, Q22 in `07`; teams).
+- Lessons from M7 builds are in the playbook (Traps); keep adding there.
 - Logan's notes for a later sensors milestone: `docs/ideas.md` (sensors, targeting, teams, possession by team).
 
 ## How Logan works (read before asking anything)
@@ -25,6 +27,9 @@ Updated: 2026-09-24, by a coding session (Opus 5.5), during M7
 - Undo and redo across drags; mirror mode placed flipped thrusters; box select and tagging; the ghost refuses the ground, the underground, and existing robots.
 
 ## Known issues
+- M7: the missile drone tilts up to about 8 degrees after its first shot while its hover learns the new balance (settles in about 3 s). The second dry run's drone computed its balance from `parts` and held 0.5 degrees; the stock drone could do the same.
+- M7: missiles fly nose-up about 27 degrees to hold their weight, so their tail hangs about 1.4 m below the core and can clip a box on a low flat shot; a flat shot sinks about 3 m before leveling; a straight-up shot sags about 15 degrees past vertical.
+- M7: a placed missile's core and cell share the robot's energy pool while attached, and the hover drains them.
 - A save round trip rewrites parts in grid reading order; with two or more cores and no `primaryCore`, the root core could change after reopening. Deploy is unaffected (it goes through the same file form).
 - Mirror mode's axis defaults to the core's column. On an asymmetric robot (the car: core in cell 2 of 6) mirroring overwrites parts on the far side. Alternative for Logan to judge: default to the center of the robot's bounding box.
 - The app is desktop-sized; panels overlap the canvas below about 1100 px wide.

@@ -234,7 +234,11 @@ export class Builder {
     const e = this.editor;
     const cores = controlCores(bp, this.registry);
     // A core that was erased (or undone away) falls back to the main core.
-    if (this.controlsFor !== undefined && !cores.some((c) => c.core === this.controlsFor)) this.controlsFor = undefined;
+    // The open script editor goes too: it names a script by id, and the main core may have one of the same name.
+    if (this.controlsFor !== undefined && !cores.some((c) => c.core === this.controlsFor)) {
+      this.controlsFor = undefined;
+      this.store.set({ scriptEditor: undefined });
+    }
     this.store.set({
       builder: {
         draft: bp,

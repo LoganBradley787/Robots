@@ -1,4 +1,4 @@
-import { allScripts, assignScriptFiles, defaultRegistry, expandBlueprint, formatIssues, mirrorBlueprint, scriptFiles, toFileJson, validateBlueprint } from '@robots/sim-core';
+import { dropForeignScriptFiles, allScripts, assignScriptFiles, defaultRegistry, expandBlueprint, formatIssues, mirrorBlueprint, scriptFiles, toFileJson, validateBlueprint } from '@robots/sim-core';
 
 export interface MirrorArgs {
   /** The mirror axis in half cells (x maps to axis - x). Default: the middle of the robot, so it stays in place. */
@@ -29,7 +29,7 @@ export function mirrorCommand(raw: unknown, args: MirrorArgs): MirrorOutput {
   if (allScripts(bp).length > 0) notes.push('note: scripts are copied unchanged; one that steers left or right (signs of x, spin, or angle) may need flipping');
   const v = validateBlueprint(toFileJson(bp, registry, { inlineScripts: true }), registry);
   if (v.issues.length > 0) notes.push(formatIssues(v.issues));
-  if (args.saveAs === undefined) return { ok: v.ok, text: JSON.stringify(toFileJson(bp, registry, { inlineScripts: true }), null, 2), notes, files: [] };
+  if (args.saveAs === undefined) return { ok: v.ok, text: JSON.stringify(toFileJson(dropForeignScriptFiles(bp), registry, { inlineScripts: true }), null, 2), notes, files: [] };
   const file = `${args.saveAs}.json`;
   bp = assignScriptFiles({ ...bp, name: args.saveAs }, file, false);
   const files = [{ file, text: `${JSON.stringify(toFileJson(bp, registry), null, 2)}\n` }, ...scriptFiles(bp)];

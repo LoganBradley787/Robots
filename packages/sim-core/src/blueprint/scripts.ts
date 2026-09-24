@@ -71,6 +71,23 @@ function coreWord(c: CoreControls): string {
  * each other. A script whose code was never loaded keeps its file, since there is nothing to copy. Other cores'
  * scripts are named with their core: `launcher.missile1.guide.js`.
  */
+/**
+ * Forgets the file of every script whose file is not named after `blueprintFile` (or of every script, without one),
+ * so the next save gives it a file of this blueprint's own (M7 review: a blueprint made from another's JSON would
+ * otherwise save over the other's script, a live link Logan ruled out).
+ */
+export function dropForeignScriptFiles(bp: Blueprint, blueprintFile?: string): Blueprint {
+  const stem = blueprintFile === undefined ? undefined : `${blueprintFile.replace(/\.json$/, '')}.`;
+  const fix = (s: ScriptSpec): ScriptSpec => {
+    if (s.file === undefined || typeof s.source !== 'string' || (stem !== undefined && s.file.startsWith(stem))) return s;
+    const { file: _file, ...rest } = s;
+    return rest;
+  };
+  const out: Blueprint = { ...bp, scripts: bp.scripts.map(fix) };
+  if (bp.cores) out.cores = bp.cores.map((c) => ({ ...c, scripts: c.scripts.map(fix) }));
+  return out;
+}
+
 export function assignScriptFiles(bp: Blueprint, blueprintFile: string, onlyMissing: boolean): Blueprint {
   const keep = (s: ScriptSpec): boolean => s.file !== undefined && (onlyMissing || typeof s.source !== 'string');
   const used = new Set(allScripts(bp).filter(keep).map((s) => s.file as string));

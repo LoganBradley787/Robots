@@ -23,6 +23,7 @@ const NICE = [1, 2, 2.5, 5];
 
 /** The smallest of 0.1, 0.2, 0.25, 0.5, 1, 2, ... that is at least `v`. */
 function nice(v: number): number {
+  if (!(v > 0 && Number.isFinite(v))) return 1;
   for (let exp = Math.floor(Math.log10(v)) - 1; ; exp++) {
     for (const n of NICE) {
       const s = n * 10 ** exp;
@@ -60,12 +61,31 @@ function fmt(v: number, step: number): string {
 export function plotPaths(input: PlotInput): string[] {
   const width = input.width ?? 72;
   const maxRows = input.maxRows ?? 24;
-  const pts = [...input.tracks.flatMap((t) => t.points), ...input.blasts];
-  if (pts.length === 0) return [];
-  let x0 = Math.min(...pts.map((p) => p.x)) - 1;
-  let x1 = Math.max(...pts.map((p) => p.x)) + 1;
-  const y0 = Math.min(0, ...pts.map((p) => p.y)) - 1;
-  let y1 = Math.max(...pts.map((p) => p.y)) + 1;
+  // Everything drawn sets the bounds (a robot's parts reach past its core's path); a point flung to infinity by the
+  // physics is left out rather than breaking the plot.
+  const finite = (p: { x: number; y: number }): boolean => Number.isFinite(p.x) && Number.isFinite(p.y);
+  const tracks = input.tracks.map((t) => ({ ...t, points: t.points.filter(finite), shape: (t.shape ?? []).filter(finite) }));
+  const blasts = input.blasts.filter(finite);
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let yMin = 0;
+  let yMax = -Infinity;
+  const grow = (p: { x: number; y: number }): void => {
+    x0 = Math.min(x0, p.x);
+    x1 = Math.max(x1, p.x);
+    yMin = Math.min(yMin, p.y);
+    yMax = Math.max(yMax, p.y);
+  };
+  for (const t of tracks) {
+    for (const p of t.points) grow(p);
+    for (const p of t.shape) grow(p);
+  }
+  for (const b of blasts) grow(b);
+  if (!Number.isFinite(x0)) return [];
+  x0 -= 1;
+  x1 += 1;
+  const y0 = yMin - 1;
+  let y1 = yMax + 1;
   if (x1 - x0 < 6) {
     const mid = (x0 + x1) / 2;
     x0 = mid - 3;
@@ -99,12 +119,14 @@ export function plotPaths(input: PlotInput): string[] {
     const row = grid[r];
     if (row) row[c] = ch;
   };
-  for (const t of input.tracks) for (const p of t.points) put(p, t.mark.toLowerCase());
-  for (const b of input.blasts) put(b, '*');
-  for (const t of input.tracks) for (const p of t.shape ?? []) put(p, t.mark.toUpperCase());
-  for (const t of input.tracks) {
+  // One character per piece: marks past Z (AA, AB, ...) draw as +.
+  const ch = (mark: string): string => (mark.length === 1 ? mark : '+');
+  for (const t of tracks) for (const p of t.points) put(p, ch(t.mark).toLowerCase());
+  for (const b of blasts) put(b, '*');
+  for (const t of tracks) for (const p of t.shape) put(p, ch(t.mark).toUpperCase());
+  for (const t of tracks) {
     const last = t.points.at(-1);
-    if (last) put(last, t.mark.toUpperCase());
+    if (last) put(last, ch(t.mark).toUpperCase());
   }
 
   const labels = grid.map((_, r) => fmt(bottom + (rows - r - 0.5) * sy, sy));

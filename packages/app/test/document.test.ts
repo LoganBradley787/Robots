@@ -201,6 +201,19 @@ describe('DocumentController', () => {
     expect(t.doc.isDirty()).toBe(false);
   });
 
+  it("a script that points at another blueprint's file gets its own on Save, so the other is never overwritten (M7 review)", async () => {
+    const t = setup({
+      'launcher.missile1.guide.js': 'function tick() {}',
+      'launcher2.json': { format: 1, name: 'launcher2', grid: ['C'], scripts: [{ id: 'guide', source: 'function tick() {}', file: 'launcher.missile1.guide.js' }] },
+    });
+    await t.doc.open('launcher2.json');
+    t.edit((b) => ({ ...b, scripts: b.scripts.map((s) => ({ ...s, source: 'function tick() { /* edited */ }' })) }));
+    await t.doc.save();
+    expect(t.files['launcher.missile1.guide.js']).toBe('function tick() {}');
+    expect(t.files['launcher2.guide.js']).toBe('function tick() { /* edited */ }');
+    expect(t.draft().scripts[0]?.file).toBe('launcher2.guide.js');
+  });
+
   it('a new script gets a file named after the blueprint on Save; Save As copies scripts and leaves the originals', async () => {
     const t = setup({ 'drone.json': { format: 1, name: 'drone', grid: ['C'] } }, { names: ['drone two'] });
     await t.doc.open('drone.json');
