@@ -2,7 +2,7 @@
 
 Updated: 2026-09-23, by a coding session (Opus 5.5), end of M6
 
-- Current milestone: **M6 complete (tag `m6`), waiting at Gate 5 (destruction: explosions, splitting, debris, missiles).** Plan `docs/plans/M6-destruction.md` (with an As built section); design `03`, "Destruction as built", is the reference.
+- Current milestone: **M6 complete (tag `m6`), Gate 5 (destruction) passed 2026-09-23.** Punch list `docs/critique/gate-5.md`: nothing to fix; Logan kept turrets passing through their own robot. Plan `docs/plans/M6-destruction.md` (with an As built section); design `03`, "Destruction as built", is the reference.
 - Done: M0 to M5 (Gates 1 to 4 passed), M6:
   - Health per part (frame 60 down to propeller 15; table in `02`), damage stays. Damaged parts look darker.
   - Warheads explode on a key (`detonate`), when destroyed (chains), or on a hit that changes their body's speed by more than 5 m/s. Blast: 120 damage falling to 0 at 3 m, halved per part or terrain box in the way; push 40 N s per cell up and out to 5 m.
@@ -13,12 +13,8 @@ Updated: 2026-09-23, by a coding session (Opus 5.5), end of M6
   - CLI: `pnpm sim run <bp> --drop bomb@2:-77,4.95` spawns another blueprint mid-run; the report lists what broke; `tune` prints kill distances and push. CI checks both destruction scenarios for determinism.
   - Review fixes: kicks and pushes wait (hashed) until just before the next physics step, so a robot hit on two ticks in a row, or hit and then decoupled, keeps its velocity (it lost all of it, or 12% on jointed pieces); a decoupler pushes only the part it held; dead parts stop covering later blasts in the same tick; the keys bar drops keys whose parts broke off; a woken core does not show its parent's script keys; the app no longer names the warhead; CLI `--drop` refuses a missing value, accepts `.5`, warns when it lands after the run; decouplers spark.
   - Rapier findings worth knowing (`03`): multibody links ignore velocity writes (kicks instead), reset angles on joint creation (invisible helper root and pivots), and report no contact forces; face-to-face pieces snag (part boxes are now 0.49 m).
-- **Gate 5 walkthrough for Logan** (builder, pick from the Blueprint dropdown, Deploy, click to drop):
-  1. Deploy `longcar`, hold D to drive, Tab to the builder, pick `bomb`, Deploy it a few meters above the car. It breaks in two; the half without the core keeps driving.
-  2. Deploy `wall`, then `launcher` about 20 m to its left. Hold Z a moment to aim up (about 25 degrees), press F. The missile drops off its rail, flies, and blows a hole in the wall.
-  3. Try Clear debris, a bomb next to (not on) a car, two warheads side by side, and your own designs: armor a battery with frames and bomb it.
-  4. Write what felt wrong in `docs/critique/gate-5.md` (or tell Claude and it will).
-- Next: Logan plays Gate 5 and files a punch list. After that, M7 (the Claude workflow: sub-assembly references, which also give woken missile cores their own bindings and scripts).
+- **Gate 5 passed.** Logan: "this is GOLD. the missiles work so well!!!!" He shot down drones with the launcher and bombed one. His armored car is `blueprints/armored-car.json` (`car` stays the original: tests and CI use it).
+- Next (after a context compaction, start here): **plan M7 (the Claude workflow, `06`).** Read `06` M7 and `07`, ask Logan a few taste questions (AskUserQuestion, at most four, recommendation first), write `docs/plans/M7-claude-loop.md`, get a go, build it, stop at Gate 6. Candidates to raise: sub-assembly references (which also give a woken missile core its own bindings and scripts), homing missiles (a finder sensor part plus `world.robots()`, Logan's Gate 5 wish), and the playbook for Claude-built robots.
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
 - Before planning a milestone, ask a few taste questions (AskUserQuestion, recommendation first); decide technical things yourself and record them as "Claude's call" in the plan so Logan can overturn them at the gate.

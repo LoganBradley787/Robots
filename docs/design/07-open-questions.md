@@ -34,6 +34,7 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 
 ### Q5. Rotator: M6
 - Same revolute joint as the wheel in position mode, one part def, input channel `angle` in [-1, 1] mapped to a configured range. Cheap once wheels exist, and it makes aimed missiles possible in the destruction milestone.
+- Gate 5 (Logan): a turret passing through its own robot's base is intended; no clearance needed (`03`).
 - Built in M6 (Logan agreed): a rate input instead, `turn` in [-1, 1] swings the aim at 2 rad/s within +-90 degrees and holds it (Z and X, like the gyro's own keys), with an `angle` output for scripts. Mounts below at rotation 0 so a roof turret is the default, and carries what it touches on its other faces.
 
 ### Q6. World: flat ground, boxes, a ramp

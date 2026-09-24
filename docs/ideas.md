@@ -18,3 +18,6 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - Enemy drones that stay up: upgraded batteries, solar panels, or recharging, so a preset enemy does not fall out of the air after 2 minutes.
 - Scripts that track the player: `world.robots()` in the script API, then weapons (cannons, dive bombing).
 - Stacked propellers give lift through each other (Gate 4, Logan: fine for now). Later: a part directly above a propeller could block its lift.
+
+## From Gate 5 (2026-09-23)
+- Homing missiles (Logan: "These missiles are hard to aim"): a finder or scanner sensor part (`02`, deferred sensor parts) plus `world.robots()` for scripts, then a missile with its own core and a guidance script (needs M7 sub-assemblies so the missile core carries its script).
