@@ -1,6 +1,6 @@
 # 02 Parts and blueprints
 
-Status: draft, 2026-09-22. Updated 2026-09-23 for M1 as built (defs in `packages/sim-core/src/parts/defs/`, `role`, `mountFrame`, legend arrows, validator codes). Items tagged (Q#) depend on an open question in `07-open-questions.md`.
+Status: draft, 2026-09-22. Updated 2026-09-23 for M1 as built (defs in `packages/sim-core/src/parts/defs/`, `role`, `mountFrame`, legend arrows, validator codes), and 2026-09-24 for M7 (the `cell` part, rotator changes, placing blueprints as copies, `cores`, CLI helpers). Items tagged (Q#) depend on an open question in `07-open-questions.md`.
 
 ## Coordinates
 - Physics frame: meters, x right, y up. One grid cell = one tile = 1 m (Q7).
@@ -51,7 +51,8 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | decoupler | 1 | 30 | N E S W | fire (pulse) | armed | Rotation 0: release face N (its `acts`). On fire, N stops attaching once and both sides get 2 N s apart. Acts before other parts that tick (M6). |
 | warhead | 1 | 20 | N E S W | detonate (pulse) | | Explodes on detonate, when destroyed (chains), or when a hit changes its body's speed by more than 5 m/s in one step. A one-part core-less blueprint of it is the bomb. |
 | gyro | 1 | 30 | N E S W | spin [-1, 1], damp [0, 1] | | Reaction wheel (Gate 3): E and Q turn the robot, otherwise it damps spin. |
-| rotator | 1.5 | 40 | N E S W | turn [-1, 1] | angle [-1, 1] | M6 (Q5). Rotation 0 mounts on the part below (S) and carries parts on N, E, W in its own body. Z and X swing its aim at 2 rad/s within +-90 degrees; it holds the aim otherwise. Position motor, 300 N m. |
+| rotator | 1.5 | 40 | N E S W | turn [-1, 1] | angle [-1, 1] | M6 (Q5). Rotation 0 mounts on the part below (S) and carries parts on N, E, W in its own body. Z and X swing its aim at up to 2 rad/s within +-90 degrees; it holds the aim otherwise. Position motor, 600 N m (M7, was 300). M7: it swings only as fast as it can stop what it carries (`sqrt(0.2 * maxTorque / inertia)`), and its aim never runs more than 0.15 rad ahead of the turret, so a heavy turret no longer swings far past where it was aimed. |
+| cell | 0.5 | 10 | N E S W | | charge fraction | M7. A small battery, 250 units, legend `E`, builder key `-`. Made for missiles: the launcher's missile flew at thrust-to-weight 1.5 on a battery and 2.2 on a cell. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -96,6 +97,7 @@ Sensor parts are ordinary parts with output channels, mass, and power draw. Noth
 - Every part gets an implicit tag equal to its id, so binding and script targets are always a tag string.
 - `source` is an inline string in memory and browser storage. On disk it may be `{ "file": "hover.js" }` relative to the blueprint file; loaders inline it. This keeps scripts as real `.js` files that Claude and editors handle well.
 - `primaryCore` (optional part id) defaults to the first core in reading order. `corePriority` (optional list) orders takeover (Q1).
+- `cores` (M7, optional): controls of cores other than the primary core, keyed by core part id: `"cores": { "core@8,6": { "scope": "missile1", "bindings": [...], "scripts": [...], "autoControls": false } }`. They start when that core's piece breaks off and wakes (`04`). Top-level `bindings`, `scripts`, and `autoControls` stay the primary core's. Script files for a core are named `<blueprint>.<scope or core id>.<script id>.js`.
 
 ## Default legend
 Shipped with the parts (`packages/sim-core/src/blueprint/legend.ts`). Blueprints can override or extend it. Arrow tokens point the way the part acts: thrust direction, lift direction, release direction, the side the wheel sits on relative to what it mounts to, or the side a rotator carries its turret on. So on the left end of a robot a thruster that attaches is `T>` (nozzle outward, pushes right), and a wheel hanging off the right side is `W>`.
@@ -110,7 +112,14 @@ G   gyro
 R   rotator carrying up (mounts below)   Rv  carrying down   R<  carrying left   R>  carrying right
 ```
 
-A sub-assembly is placed with a legend token: `"m": { "blueprint": "missile", "rot": 0, "mirror": false, "tags": ["missiles"] }`. The sub-blueprint's primary core lands on the token cell. Its parts merge into the parent with an id prefix (`m1/thruster@0,1`). Its bindings and scripts attach to its own core. Overlaps are validation errors.
+### Placing a blueprint on another (M7, as built)
+The first design had a legend token naming another blueprint file, so editing `missile` would change every launcher. Logan rejected live links: a placed blueprint is a **copy** that becomes ordinary parts of the robot. `placeBlueprint(target, source, at, registry, { rot, mirror })` in `sim-core/blueprint/place.ts` (used by `pnpm sim place` and the builder):
+- The source's root part (primary core, else first core, else first part) lands on `at`. `mirror` flips it across that part's column first, then `rot` turns it around that cell. Overlaps with the target's parts are refused.
+- Copied parts get ordinary position ids; bindings that named a part by id are renamed to its new id. Scripts must be loaded; they lose their `file` so the target saves them under its own names.
+- When the target has a core, the copy gets a scope, `<name><n>` (`missile1`, the first free number). Every copied part is tagged `missile1`, its own tags become `missile1.<tag>`, and the source's controls move to its core's entry in `cores` with that scope. The target's `primaryCore` is written if it had none (saving writes parts in grid reading order, which would otherwise make a core placed higher up the pilot). A placed robot's own `cores` come along with nested scopes (`launcher1.missile1`).
+- Scoped controls (`control/target.ts`, `scopedView`): every part answers to its id and its part type; members of the scope also answer to their `scope.<tag>` tags without the prefix; other parts' tags are hidden. So a missile's `set('thruster', ...)` reaches its own thruster only, and a warhead replaced by hand in the builder (no scope tags) is still found by type. The robot's own controls see the prefixed tags, so they reach a copy by `missile1`, `missile1.<tag>`, part type, or id.
+- When the target has no core, everything is copied as it is, no scope. A core-less source's controls are dropped with a warning.
+- The legend token that names a blueprint is still refused (`UNSUPPORTED`), with a message that points at placing.
 
 Multi-cell footprints (Q4): the token marks the origin cell and each other covered cell is written as `=`. The validator checks coverage.
 
@@ -125,9 +134,11 @@ Runs on load, on every editor change, and in the headless runner. Returns a list
 - `BAD_CHANNEL`: "binding key 'f' writes channel 'speed' on tag 'props' but propeller has no input 'speed'".
 - `UNKNOWN_TOKEN`: "grid token 'Q' at row 1 column 3 is not in the legend".
 - `SCRIPT_SYNTAX`: "script 'hover' line 12: unexpected token" (M5, needs QuickJS).
+- `BAD_CORE_CONTROLS` (M7): a `cores` key that is not a core in the blueprint, or the primary core (whose controls are the top-level fields). Binding checks (`BAD_TARGET`, `BAD_CHANNEL`, `BAD_KEY`, `BAD_SCRIPT_REF`) run for each core in its own scope, with messages prefixed `core <id> (<scope>): `.
 - Also shipped in M1: `BAD_FORMAT`, `BAD_ROTATION`, `UNKNOWN_PART`, `EMPTY`, `DUPLICATE_ID`, `BAD_CONTINUATION`, `BAD_PRIMARY_CORE`, `BAD_CORE_PRIORITY`, `CHANNEL_SKIPPED` (warning: some tagged parts lack the channel), `BAD_SCRIPT_REF`, `BAD_BINDING`, `BAD_SCRIPT`, and `UNSUPPORTED` (sub-assembly legend entries until M6). The root part (primary core) is never reported `UNATTACHED`; the parts that fail to reach it are.
 
 ## Helpers for authors
 - `mirror(blueprint, axis)`: reflects the grid and rotations, fixes wheel and thruster tokens.
 - `toGrid(blueprint)`: renders a `parts` blueprint back into `grid` plus `legend` text for display or copy.
 - Both are pure functions in `blueprint/` with tests, so Claude can call them from the CLI.
+- As built (M7): `mirrorBlueprint(bp, axisHalfCells)` also renames everything that names a part by id (binding targets, `primaryCore`, `corePriority`, `cores`); scripts are copied unchanged. The CLI (`docs/claude-robot-playbook.md` has the full list): `pnpm sim parts` (every part def as a table), `show` (grid via `toGrid`, mass, bodies, every core's controls), `mirror <bp> [--axis] [--save]`, `place <target> <source> --at x,y [--rot] [--mirror] [--save]`, and `run`, whose report lists events in order, every piece's final state, and an ASCII side view of every piece's path.

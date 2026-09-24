@@ -1,6 +1,6 @@
 # 07 Open questions and decisions
 
-Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly and delegated the rest ("you're the expert"). Delegated decisions are marked "Claude's call" with the reason, and Logan can overturn any of them at a critique gate. New questions go to `docs/questions-pending.md`.
+Status: all decided, 2026-09-23, except Q22 (sensors, open since M7). Logan answered Q1, Q2, Q11, Q16, Q17 directly and delegated the rest ("you're the expert"). Delegated decisions are marked "Claude's call" with the reason, and Logan can overturn any of them at a critique gate. New questions go to `docs/questions-pending.md`.
 
 ## Answered by Logan
 
@@ -58,6 +58,7 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 
 ### Q13. Blueprint text format: JSON with an ASCII grid
 - `grid` rows plus `legend` inside the JSON, scripts as separate `.js` files on disk, inlined in memory. One parser, still readable by Claude and humans. A fully custom text format was rejected as a second surface to keep in sync.
+- M7 (Logan): blueprints are placed on each other as copies, never linked by file ("things could get MAD FUNKY" when a linked missile changes under a robot you never touched). Controls belong to cores (`cores` in the file, `02`).
 
 ### Q14. Milestone order and gates
 - Look, builder, robot feel, power and scripts, destruction, Claude loop, with a critique gate at each boundary. Reason for putting visuals first: the backend is protected by tests and the headless runner, which do not need Logan's eyes; visuals and UX can only be judged by Logan, so the gates sit where Logan's attention adds the most information. Logan called the order an example and delegated it.
@@ -77,3 +78,10 @@ Status: all decided, 2026-09-23. Logan answered Q1, Q2, Q11, Q16, Q17 directly a
 
 ### Q21. Terrain: immune
 - Terrain takes no damage in v1. Destructible terrain later means terrain made of cells, a separate feature.
+
+## Open
+
+### Q22. Sensors and targeting (M7, open)
+- Homing missiles are deferred until sensors are planned. What a sensor senses (cores, but also batteries and other parts), and who is who.
+- Logan's thinking, not decided: a default sensor finds "heat signatures". It sees cores plus who controls each one (the player, a friendly AI, an enemy AI, nobody), and the script decides what to chase. For testing, a missile would lock onto any core that is not its own robot and not controlled by the player.
+- Teams: single player with two sides. The player switches only into their own cores (a released missile included), never into enemy robots; AI robots do not switch cores. Details in `docs/ideas.md`.
