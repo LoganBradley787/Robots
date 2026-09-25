@@ -25,7 +25,7 @@ export function buildReplay(world: World): ReplayFile {
     format: 1,
     world: world.file,
     seed: world.seed,
-    spawns: world.spawnLog.map((s) => ({ tick: s.tick, name: s.name, at: { ...s.at }, blueprint: s.blueprint })),
+    spawns: world.spawnLog.map((s) => ({ tick: s.tick, name: s.name, at: { ...s.at }, blueprint: s.blueprint, ...(s.team ? { team: s.team } : {}) })),
     inputs: world.inputLog.toJSON(),
     endTick: world.tick,
     endHash: world.hash(),
@@ -63,7 +63,8 @@ export function parseReplay(raw: unknown): ReplayFile {
     const o = obj(s, `spawns[${i}]`);
     const at = obj(o.at, `spawns[${i}].at`);
     if (typeof at.x !== 'number' || typeof at.y !== 'number') throw new ReplayError(`spawns[${i}].at needs numbers x and y`);
-    return { tick: int(o.tick, `spawns[${i}].tick`), name: String(o.name ?? ''), at: { x: at.x, y: at.y }, blueprint: o.blueprint };
+    const team = o.team === undefined ? 0 : int(o.team, `spawns[${i}].team`);
+    return { tick: int(o.tick, `spawns[${i}].tick`), name: String(o.name ?? ''), at: { x: at.x, y: at.y }, blueprint: o.blueprint, ...(team !== 0 ? { team } : {}) };
   });
   const inputs: LoggedTick[] = r.inputs.map((t, i) => {
     const o = obj(t, `inputs[${i}]`);
@@ -109,7 +110,7 @@ export async function runReplay(
   while (world.tick < replay.endTick) {
     while (next < spawns.length && (spawns[next]?.tick ?? Infinity) <= world.tick) {
       const s = spawns[next++];
-      if (s) world.spawnBlueprint(s.blueprint, s.at);
+      if (s) world.spawnBlueprint(s.blueprint, s.at, { team: s.team ?? 0 });
     }
     const change = log.worldAt(world.tick);
     if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
@@ -120,7 +121,7 @@ export async function runReplay(
   // Spawns made after the last tick (dropped while paused at the end) still belong to the end state.
   while (next < spawns.length) {
     const s = spawns[next++];
-    if (s) world.spawnBlueprint(s.blueprint, s.at);
+    if (s) world.spawnBlueprint(s.blueprint, s.at, { team: s.team ?? 0 });
   }
   const hash = world.hash();
   return { world, hash, matches: hash === replay.endHash };

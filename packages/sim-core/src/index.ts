@@ -19,7 +19,7 @@ export type { Container } from './resources/pools';
 export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
 export type { RobotInput, ControlledPart, ControlState } from './control/types';
 export { World, activeControls } from './world/World';
-export type { WorldOptions, SpawnRecord, WorldEvent, ScriptLog } from './world/World';
+export type { WorldOptions, SpawnOptions, SpawnRecord, WorldEvent, ScriptLog } from './world/World';
 export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec, SpriteSpec, PartDef, AutoControlSpec } from './parts/types';
 export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians, isRotation } from './parts/faces';
 export { parsePartDef, PartDefError } from './parts/parsePartDef';
@@ -43,6 +43,8 @@ export { parseKeyTimeline, timelineInputs, TimelineError } from './control/timel
 export type { KeyPress } from './control/timeline';
 export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setBindings, setPartsAuto, setAutoControls } from './blueprint/edit';
 export { mirrorRotation, mirrorX, mirrorBlueprint } from './blueprint/mirror';
+export { orientBlueprint, orientRaw } from './blueprint/orient';
+export type { Orientation } from './blueprint/orient';
 export { staticStats } from './blueprint/stats';
 export type { StaticStats } from './blueprint/stats';
 export { toFileJson } from './blueprint/serialize';

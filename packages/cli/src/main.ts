@@ -11,7 +11,8 @@ import { mirrorCommand } from './commands/mirror';
 import { formatParts, partRows } from './commands/parts';
 import { existsSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
-import { defaultRegistry, isRotation, type Rotation } from '@robots/sim-core';
+import { defaultRegistry, isRotation, orientRaw, type Rotation } from '@robots/sim-core';
+import { parseSpawnSuffixes, parseTeam } from './spawnSpec';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
 
@@ -47,13 +48,17 @@ flags
   --keys <timeline>  keys to press, in seconds from the start: "d:0-3, a:3.5-4, w:5" (w:5 is a tap),
                      or a .json file like [{ "key": "d", "down": 0, "up": 3 }]
   --unlimited        unlimited energy from the start
-  --drop <bp>@<t>:<x>,<y>
+  --team <team>      the robot's team: yours (0, the default), enemy (1), or a number
+  --flip             deploy the robot flipped left to right (around its core)
+  --rot <deg>        deploy it turned 90, 180, or 270 degrees counterclockwise (after --flip)
+  --drop <bp>@<t>:<x>,<y>[:enemy][:flip][:rot90]
                      also spawn blueprint <bp> at t seconds with its root at (x, y), e.g. a bomb on the robot:
-                     --drop bomb@2:3,6 (repeat for more)
+                     --drop bomb@2:3,6 (repeat for more). Suffixes set its team (enemy, yours, team2) and
+                     facing: --drop enemy-drone@0:80,20:enemy:flip
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
-const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'mirror', 'force', 'help']);
+const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'mirror', 'force', 'help', 'flip']);
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string>; drops: string[] } {
   const flags = new Map<string, string>();
@@ -79,15 +84,16 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, s
   return { positional, flags, drops };
 }
 
-/** `bomb@2:3,6`: blueprint bomb at 2 s, root at (3, 6). */
+/** `bomb@2:3,6`: blueprint bomb at 2 s, root at (3, 6); `enemy-drone@0:80,20:enemy:flip` also sets its team and facing (M8). */
 function parseDrop(raw: string): Drop {
   const num = '-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)';
-  const m = new RegExp(`^([^@]+)@(${num}):(${num}),(${num})$`).exec(raw.trim());
-  if (!m) throw new Error(`--drop must look like bomb@2:3,6 (blueprint@seconds:x,y), got ${raw}`);
-  const [, name = '', t = '0', x = '0', y = '0'] = m;
+  const m = new RegExp(`^([^@]+)@(${num}):(${num}),(${num})((?::[A-Za-z0-9]+)*)$`).exec(raw.trim());
+  if (!m) throw new Error(`--drop must look like bomb@2:3,6 (blueprint@seconds:x,y), with optional :enemy, :flip, :rot90 after it; got ${raw}`);
+  const [, name = '', t = '0', x = '0', y = '0', rest = ''] = m;
+  const spec = parseSpawnSuffixes(rest.split(':').filter((s) => s !== ''), `--drop ${name}`);
   const loaded = readBlueprint(resolveBlueprint(name));
   for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to ${name}`);
-  return { name, blueprint: loaded.raw, t: Number(t), at: { x: Number(x), y: Number(y) } };
+  return { name, blueprint: orientRaw(loaded.raw, spec, defaultRegistry()), t: Number(t), at: { x: Number(x), y: Number(y) }, ...(spec.team !== 0 ? { team: spec.team } : {}) };
 }
 
 function numberFlag(flags: Map<string, string>, key: string, fallback: number): number {
@@ -153,7 +159,15 @@ async function main(): Promise<number> {
   }
   const loaded = readBlueprint(resolveBlueprint(bpArg));
   for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to the blueprint`);
-  const blueprint = loaded.raw;
+  const rot = flags.has('rot') ? numberFlag(flags, 'rot', 0) : 0;
+  if (!isRotation(rot)) {
+    console.error(`--rot must be 0, 90, 180, or 270, got ${rot}`);
+    return 2;
+  }
+  // show and validate read the file as written; run and determinism deploy it flipped or turned (M8).
+  const deploy = command === 'run' || command === 'determinism';
+  const blueprint = deploy ? orientRaw(loaded.raw, { flip: flags.has('flip'), rot }, defaultRegistry()) : loaded.raw;
+  const team = flags.has('team') ? parseTeam(flags.get('team') ?? '') : 0;
 
   if (command === 'show') {
     const s = showBlueprint(blueprint);
@@ -185,7 +199,7 @@ async function main(): Promise<number> {
     if (d.t < 0) throw new Error(`--drop ${d.name}: the time must not be negative`);
     if (d.t >= seconds) console.error(`warning: --drop ${d.name} at ${d.t} s is after the run ends (${seconds} s), so it never lands`);
   }
-  const opts = { seconds, seed, ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}), ...(drops.length > 0 ? { drops } : {}) };
+  const opts = { seconds, seed, ...(team !== 0 ? { team } : {}), ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}), ...(drops.length > 0 ? { drops } : {}) };
 
   try {
     if (command === 'run') {

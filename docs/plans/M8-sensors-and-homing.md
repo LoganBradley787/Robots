@@ -17,6 +17,7 @@
 - **Targeting:** the launcher's radar picks the nearest enemy and hands that point off. Clicking a spot is later, and Logan flagged fairness: a click is something an AI robot cannot do.
 - **Enemy drone:** carries 4 missiles, no reload. The fabricator bay stays next on the list.
 - **Display:** what sensors see is drawn in the debug overlay, off by default.
+- **Plan approved** (Logan, 2026-09-25, "do it"): teams must be real team numbers, not a friendly flag, so more teams can come later (decision 1 already is); the world will grow and get real terrain, so nothing may assume 1000 m or flat ground; wants both a direct homing missile and a Javelin.
 - **Order** (Logan, earlier): sensors, teams, and handoff first; then homing and Javelin missiles; then the enemy drone. Fix the fast hover's overshoot early. Script speed is its own later milestone.
 
 ## What exists already
@@ -66,6 +67,7 @@
      - when the target hides (behind a wall or out of the cone), keeps flying to the last point it knew and lands near it;
      - param `top` (default off): top attack, climbing to a height above the point and diving onto it, since every part in a blast's way halves its damage and robots armored at the front are soft from above;
      - `fuse` as before; ignores contacts lighter than a param `minMass` so it does not chase missiles (param, so an anti-missile missile is one change).
+   - Shipped twice (Logan wants both): `missile-seeker` (direct) and `javelin` (the same guide with `top` on).
    - `missile` and `missile-v2` stay as they are, so every placed copy does too.
 8. **Your drone and the enemy drone.**
    - `hunter-drone`: the `missile-drone-10prop` hover with a radar and 4 `missile-seeker`s. F fires the next missile at the nearest enemy the radar sees (the fire script sends the point to that missile's scope, then fires its decoupler); with no enemy seen it fires straight like before.

@@ -31,6 +31,13 @@ export interface SpawnRecord {
   at: { x: number; y: number };
   /** The raw blueprint as passed in. */
   blueprint: unknown;
+  /** The robot's team (M8). Absent in replays made before teams, which means 0. */
+  team?: number;
+}
+
+export interface SpawnOptions {
+  /** 0 (the player's side, the default) or another team number. */
+  team?: number;
 }
 
 /** Something that happened in the sim, for the UI and reports. Not part of the state hash. */
@@ -183,9 +190,11 @@ export class World {
    * Validates and spawns a blueprint with its primary core (or first part) at `at`.
    * Throws BlueprintError, before creating any body, when the blueprint has errors.
    */
-  spawnBlueprint(raw: unknown, at: { x: number; y: number }): Robot {
+  spawnBlueprint(raw: unknown, at: { x: number; y: number }, opts: SpawnOptions = {}): Robot {
+    const team = opts.team ?? 0;
+    if (!Number.isInteger(team) || team < 0) throw new Error(`team must be a whole number, 0 or more, got ${String(team)}`);
     const { blueprint, plan } = loadBlueprint(raw, this.registry);
-    const robot = spawnRobot(this.physics, this.registry, blueprint, plan, { id: this.nextRobotId++, tick: this.tickCount, at });
+    const robot = spawnRobot(this.physics, this.registry, blueprint, plan, { id: this.nextRobotId++, tick: this.tickCount, at, team });
     this.robots.push(robot);
     const controller = controllerFor(robot, this.registry);
     if (controller) {
@@ -193,7 +202,7 @@ export class World {
       this.channels.set(robot.id, controller.values());
       this.startScripts(robot, robot.blueprint.scripts);
     }
-    this.spawnLog.push({ tick: this.tickCount, name: robot.name, at: { x: at.x, y: at.y }, blueprint: raw });
+    this.spawnLog.push({ tick: this.tickCount, name: robot.name, at: { x: at.x, y: at.y }, blueprint: raw, ...(team !== 0 ? { team } : {}) });
     return robot;
   }
 
@@ -721,6 +730,11 @@ export class World {
     h.addInt(this.nextRobotId);
     for (const robot of this.robots) {
       h.addInt(robot.id);
+      // Team 0 adds nothing, so hashes from before teams (M8) still hold; any other team is marked, then its number.
+      if (robot.team !== 0) {
+        h.addString('team');
+        h.addInt(robot.team);
+      }
       h.addInt(robot.parts.size);
       for (const part of robot.parts.values()) {
         h.addString(part.id);

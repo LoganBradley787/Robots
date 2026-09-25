@@ -12,6 +12,7 @@ export interface SpawnArgs {
   tick: number;
   /** World position for the root part's cell center (the primary core, or the first part). */
   at: { x: number; y: number };
+  team: number;
 }
 
 /**
@@ -51,7 +52,7 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
     return chunk;
   });
 
-  const robot: Robot = { id: args.id, name: bp.name, blueprint: bp, spawnTick: args.tick, spawnX: args.at.x, spawnY: args.at.y, parts, groups, chunks, rootId, version: 0 };
+  const robot: Robot = { id: args.id, name: bp.name, blueprint: bp, spawnTick: args.tick, spawnX: args.at.x, spawnY: args.at.y, team: args.team, parts, groups, chunks, rootId, version: 0 };
   const primary = bp.parts.find((p) => p.id === rootId);
   if (primary && isCore(primary, registry)) robot.primaryCoreId = rootId;
   return robot;

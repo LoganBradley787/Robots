@@ -15,6 +15,8 @@ export interface RunOptions {
   unlimited?: boolean;
   /** Other blueprints spawned mid-run (a bomb dropped on the robot). */
   drops?: readonly Drop[];
+  /** The robot's team (M8); 0 when absent. */
+  team?: number;
 }
 
 /** A blueprint spawned at `t` seconds with its root part at `at`. */
@@ -23,6 +25,8 @@ export interface Drop {
   blueprint: unknown;
   t: number;
   at: { x: number; y: number };
+  /** Team (M8); 0 when absent. */
+  team?: number;
 }
 
 export interface RunReport {
@@ -72,7 +76,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       const dv = validateBlueprint(d.blueprint, world.registry);
       if (!dv.ok) throw new InvalidBlueprint(dv.issues);
     }
-    const robot = world.spawnBlueprint(blueprint, opts.at ?? file.spawn);
+    const robot = world.spawnBlueprint(blueprint, opts.at ?? file.spawn, { team: opts.team ?? 0 });
     const drops = [...(opts.drops ?? [])].sort((a, b) => a.t - b.t);
     if (opts.unlimited) world.setUnlimitedEnergy(true);
     if (opts.keys && opts.keys.length > 0 && !world.canControl(robot.id)) throw new Error(`${robot.name} has no core, so keys cannot control it`);
@@ -95,7 +99,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     for (let i = 0; i < ticks; i++) {
       while (drops.length > 0 && Math.round((drops[0]?.t ?? 0) / world.dt) <= world.tick) {
         const d = drops.shift() as Drop;
-        tracer.dropped(world.spawnBlueprint(d.blueprint, d.at), d.name);
+        tracer.dropped(world.spawnBlueprint(d.blueprint, d.at, { team: d.team ?? 0 }), d.name);
       }
       tracer.beforeStep();
       world.step(inputs.get(world.tick) ?? []);

@@ -57,6 +57,8 @@ export interface Robot {
   spawnTick: number;
   spawnX: number;
   spawnY: number;
+  /** Which side the robot fights for (M8). 0 is the player's, 1 the enemy; a number so more sides need no new format. Pieces keep their parent's. */
+  team: number;
   parts: Map<string, PartInstance>;
   groups: BodyGroup[];
   chunks: Chunk[];

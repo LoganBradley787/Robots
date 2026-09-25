@@ -114,6 +114,7 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
       spawnTick: host.tick,
       spawnX: at.x,
       spawnY: at.y,
+      team: robot.team,
       parts,
       groups,
       chunks: [chunk],
