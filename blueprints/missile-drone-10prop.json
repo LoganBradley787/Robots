@@ -2,10 +2,10 @@
   "format": 1,
   "name": "missile-drone-10prop",
   "grid": [
-    "a a a a a o b b b b b",
+    "a a a a a b c c c c c",
     "F F F F B C B F F F F",
-    ". c c c . . . d d d .",
-    "e f g h i . j k l m n"
+    ". d d d . . . e e e .",
+    "f g h i j . k l m n o"
   ],
   "legend": {
     "a": {
@@ -17,6 +17,13 @@
       "auto": false
     },
     "b": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "c": {
       "part": "propeller",
       "rot": 0,
       "tags": [
@@ -24,58 +31,58 @@
       ],
       "auto": false
     },
-    "c": {
+    "d": {
       "part": "decoupler",
       "rot": 180,
       "tags": [
         "left"
       ]
     },
-    "d": {
+    "e": {
       "part": "decoupler",
       "rot": 180,
       "tags": [
         "right"
       ]
     },
-    "e": {
+    "f": {
       "part": "thruster",
       "rot": 270,
-      "tags": [
-        "missile1"
-      ],
-      "auto": false
-    },
-    "f": {
-      "part": "gyro",
-      "rot": 0,
       "tags": [
         "missile1"
       ],
       "auto": false
     },
     "g": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile1"
+      ],
+      "auto": false
+    },
+    "h": {
       "part": "cell",
       "rot": 0,
       "tags": [
         "missile1"
       ]
     },
-    "h": {
+    "i": {
       "part": "core",
       "rot": 0,
       "tags": [
         "missile1"
       ]
     },
-    "i": {
+    "j": {
       "part": "warhead",
       "rot": 0,
       "tags": [
         "missile1"
       ]
     },
-    "j": {
+    "k": {
       "part": "thruster",
       "rot": 270,
       "tags": [
@@ -83,7 +90,7 @@
       ],
       "auto": false
     },
-    "k": {
+    "l": {
       "part": "gyro",
       "rot": 0,
       "tags": [
@@ -91,31 +98,25 @@
       ],
       "auto": false
     },
-    "l": {
+    "m": {
       "part": "cell",
       "rot": 0,
       "tags": [
         "missile2"
       ]
     },
-    "m": {
+    "n": {
       "part": "core",
       "rot": 0,
       "tags": [
         "missile2"
       ]
     },
-    "n": {
+    "o": {
       "part": "warhead",
       "rot": 0,
       "tags": [
         "missile2"
-      ]
-    },
-    "o": {
-      "part": "gyro",
-      "tags": [
-        "stab"
       ]
     }
   },

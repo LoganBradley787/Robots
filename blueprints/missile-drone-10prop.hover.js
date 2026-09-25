@@ -9,7 +9,7 @@
 const climb = param('climb', 3, { min: 0.5, max: 10 }); // m/s the target height moves while W or S is held
 const lift = param('lift', 120, { min: 10, max: 1000 }); // N, one propeller's full push (the propeller part)
 const gyroTorque = param('gyroTorque', 40, { min: 0, max: 1000 }); // N m, the gyro's full torque (the gyro part)
-const lean = param('lean', 0.7, { min: 0, max: 1.2 }); // radians of lean with A or D (about 40 degrees)
+const lean = (param('lean', 50, { min: 0, max: 70 }) * Math.PI) / 180; // degrees of lean with A or D
 const brake = param('brake', 0.04, { min: 0, max: 0.3 }); // radians of lean against each m/s of sideways speed, with A and D let go
 const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of the full turning torque it plans its braking on (the rest is room for error)
 
