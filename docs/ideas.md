@@ -33,6 +33,12 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - Logan: "I should be able to build an enemy missile drone that can track me, shoot homing missiles, and then also see incoming missiles and dodge them." The homing missile matters most: "if we can make a homing missile, we're getting closer to what's cool."
 - So: sensors (Q22 in `07`, the notes above), `world.robots()` or a sensor part for scripts, teams (who is an enemy), a homing guide script, then an AI drone that tracks, fires, and dodges. Performance first (below), because homing missiles mean many scripts running at once.
 
+### Cores talking to each other (Logan, 2026-09-25)
+- Logan: should a robot be able to spot an enemy, pick a spot, launch a missile, and tell it "go here", or should the missile figure it out after launch?
+- Three styles, all worth having: fire and forget (the missile's own sensor part), told at launch (the launcher's sensor, a cheap dumb missile), steered in flight (the launcher keeps correcting it; breaks if the launcher dies or loses sight).
+- Claude's recommendation: (1) with sensors, a handoff at launch: while attached, the pilot's script leaves a message for a placed core (`send('missile1', { x, y })`), and that core's script reads it from an `inbox` in `setup()` when it wakes. No new part. (2) Later, a radio part for messages in flight between separate cores of one team, with range (and maybe delay and energy cost) as data: something to armor or to shoot out, and how drones would share targets.
+- Deterministic: messages sent in a tick arrive the next tick, in a fixed order. Cores are addressed by the names they already have (scopes like `missile1`, the main core). Only a team's own cores receive its messages.
+
 ### Script performance (measured 2026-09-25, headless, Node, 60 ticks per second, 16.7 ms budget)
 - 1 `missile-drone-10prop` hovering: 0.5 ms per tick. 10: 4.6 ms. 25: 11.8 ms. 50: 23 ms (too slow). One 200-propeller giant: 2.2 ms. 500 loose missiles with no scripts: 3.1 ms.
 - Physics is cheap: about 0.03 ms per drone. Scripts are the cost: about 0.2 ms per script per tick even for an empty `tick()`. The shipped drone runs two (hover, fire).
