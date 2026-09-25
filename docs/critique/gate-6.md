@@ -27,3 +27,9 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 ### 2. A 10-propeller missile drone for agility (Logan, done)
 - `missile-drone-10prop`: the missile drone with all 10 propellers (lift about 2.9 times its weight). Leans up to 0.7 rad (40 degrees, param `lean`) instead of 0.3, and its hover divides the throttle by the cosine of its tilt so a steep lean keeps its height. Braking with A and D let go is gentler (param `brake`, 0.04), so the higher speed (about 20 m/s) stops without swinging back. Its scripts are its own copies.
 
+### 3. Slow weight-shift correction and slow rotation (Logan, fixed)
+- Logan: after a missile leaves, the drone took 10+ s to level out; and the 10-prop drone "should be THROWING ITSELF at correction": full torque (one side's propellers at full, the other off, plus the gyro), then braking at the last moment.
+- Why it was slow: the lean trim crept at 0.05 per second against a lean gain of 0.5, a time constant of 0.5 / 0.05 = 10 s.
+- Both missile drones now work out the off-center weight from the parts list (every part's `mass` and position) and cancel it at once: the 6-prop drone tilts about 5 degrees after a shot and levels within about 2 s; the 10-prop drone stays within 0.2 degrees, and its second missile flies flat.
+- `missile-drone-10prop` leans time-optimally: each tick it works out its moment of inertia from its parts and its full turning torque each way, drives its spin toward the fastest spin it can still stop from (v squared = 2 a d, planned on 70 percent of the torque, param `margin`), and hands the torque to the gyro first and the propellers for the rest. 0 to 38 degrees in about 0.7 s, a full swing from -40 to +38 in about 1.1 s, about 2 degrees of overshoot, and it keeps its height. Planning on more of the torque gained 0.05 s and overshot up to 9 degrees.
+
