@@ -72,6 +72,9 @@ export type WorldEvent =
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
 
+/** Messages a robot's scripts may send per tick, all together (M8 review). */
+export const SENDS_PER_TICK = 32;
+
 interface QueuedBlast {
   robot: number;
   x: number;
@@ -163,6 +166,10 @@ export class World {
    */
   private readonly unsettled = new Map<BodyId, number>();
   private readonly gravityY: number;
+  /** Sends per robot on the current tick (derived from this tick only, so not hashed). */
+  private sendsThisTick: { tick: number; counts: Map<number, number> } = { tick: -1, counts: new Map() };
+  /** When each sender and receiver pair last got a `sent` event. Reporting only. */
+  private readonly lastSentEvent = new Map<string, number>();
   /** Fixed terrain boxes, read once: they never change after the world is built. */
   private terrain: TerrainBox[] | undefined;
   /** Robots each robot's sensors saw when its scripts last ran, for `scan()` (M8). Derived, not hashed. */
@@ -632,8 +639,20 @@ export class World {
     });
     const part = target === undefined ? undefined : robot.parts.get(target);
     if (!part) return false;
+    // At most SENDS_PER_TICK per robot per tick, whatever its scripts do (each script has its own cap of 16 too).
+    const count = this.sendsThisTick.tick === this.tickCount ? (this.sendsThisTick.counts.get(robot.id) ?? 0) : 0;
+    if (this.sendsThisTick.tick !== this.tickCount) this.sendsThisTick = { tick: this.tickCount, counts: new Map() };
+    if (count >= SENDS_PER_TICK) return false;
+    this.sendsThisTick.counts.set(robot.id, count + 1);
     part.inbox = [...(part.inbox ?? []), { from: own, tick: this.tickCount, data: json }].slice(-16);
-    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'sent', to: part.id, data: json });
+    // Reported at most once a second per sender and receiver: a launcher streaming updates every tick would otherwise
+    // fill the event list (events are kept for the whole run).
+    const key = `${robot.id}>${part.id}`;
+    const last = this.lastSentEvent.get(key);
+    if (last === undefined || this.tickCount - last >= Math.round(1 / this.dt)) {
+      this.lastSentEvent.set(key, this.tickCount);
+      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'sent', to: part.id, data: json });
+    }
     return true;
   }
 
@@ -657,7 +676,8 @@ export class World {
     for (const id of chunk?.partIds ?? []) {
       const p = robot.parts.get(id);
       const spec = p?.def.sensor;
-      if (!p || !spec || p.sensing === false) continue;
+      // A sensor works only once it has been powered (the behavior sets `sensing` each tick); before its first tick it sees nothing.
+      if (!p || !spec || p.sensing !== true) continue;
       const pose = partWorldPose(this, robot, id);
       const d = faceDir(rotateFace(p.def.acts ?? 'N', p.rot));
       out.push({ id, x: pose.x, y: pose.y, facing: pose.angle + Math.atan2(d.y, d.x), cone: spec.cone, range: spec.range });

@@ -84,11 +84,12 @@ function tick() {
 - `set(target, channel, value)`, `get(target, channel)`: target is a tag, a part type, or an id.
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
 - `state` (kept between ticks), `dt`, `time`, `frame`, `param()`, `log(...)` (up to 20 lines per second per robot; the run report shows them), `random()`, `clamp`, `lerp`, `sign`, `Math`.
-- `contacts` (M8): every robot this robot's sensor parts see this tick, nearest first: `{ id, side, core, pos, vel, center, mass, parts, distance, by }`. `side` is `enemy` (another team), `friend`, or `none` (debris, or a robot whose core is gone); `core` is whether it has a live core; `pos` and `vel` are its core's (its center of mass's without one); `by` lists the sensor parts that see it. Empty with no seeker or radar.
-- `scan(id)`: a seen robot's parts `[{ id, type, pos, angle, health, maxHealth }]`, or null if it is not seen this tick. At most 4 calls per tick.
-- `send(to, data)`: a message for a core still attached to this robot, named by its scope (`missile1`), a tag, or its part id. `data` is anything JSON, up to 1 KB; up to 16 sends per tick. It arrives next tick.
+- `contacts` (M8): every robot this robot's sensor parts see this tick, nearest first: `{ id, side, core, pos, vel, center, mass, parts, distance, by }`. `side` is `enemy` (another team), `friend`, or `none` (debris, or a robot whose core is gone); `core` is whether it has a live core; `pos` is its core's (its center of mass's without one) and `vel` the velocity of the body its core is on; `by` lists the sensor parts that see it. Empty with no seeker or radar.
+- `scan(id)`: a seen robot's parts `[{ id, type, pos, angle, health, maxHealth }]`, or null if it is not seen this tick. At most 4 calls per script per tick.
+- `send(to, data)`: a message for a core still attached to this robot, named by its scope (`missile1`), a tag, or its part id. `data` is anything JSON, up to 1 KB; up to 16 calls per script per tick and 32 per robot. It arrives next tick.
 - `inbox`: messages that arrived, `[{ from, tick, data }]`, shown once. A placed core that is still attached keeps its messages until it wakes, so its `setup()` reads what the launcher sent just before letting go.
 - `mark(x, y, label)`: a point drawn in the app's debug overlay and the run report's side view (up to 4 per tick). For showing where a script is aiming.
+- `contacts`, `inbox`, `parts`, `self`, `state`, `keys` are set by the host every tick: do not name your own variables that. `set()` with NaN or Infinity is ignored with one log line; `mark()` skips such points.
 - Signs that trip people: a gyro's `spin` is clockwise positive (the opposite of `self.angle`); a rotator's `angle` output is -1 to 1 of its range.
 - Name parts by tag or type in scripts, never by id: ids change when a blueprint is placed or mirrored.
 

@@ -169,7 +169,9 @@ export class WorldScreen {
   spawn(raw: unknown, at: { x: number; y: number }, team = 0): Robot {
     const robot = this.world.spawnBlueprint(raw, at, { team });
     this.syncViews();
-    this.focus(robot.id);
+    // Deploying an enemy while you drive one of yours keeps you on yours (M8 review): switching would let go of it with
+    // its keys still held.
+    if (this.possessable(robot.id) || this.keys.robot === undefined) this.focus(robot.id);
     return robot;
   }
 

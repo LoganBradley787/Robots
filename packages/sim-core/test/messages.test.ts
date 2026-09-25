@@ -85,8 +85,9 @@ describe('messages between cores (M8)', () => {
     const pad = w.spawnBlueprint(launcher(pilot, DART), { x: 0, y: 100 });
     w.step();
     expect(logs(w, pad.id)).toEqual(['false']);
-    // 16 sends a tick at most (the big one did not count), and 16 kept: 0 to 15.
-    expect(pad.parts.get('core@3,0')?.inbox?.map((m) => m.data)).toEqual(Array.from({ length: 16 }, (_, i) => String(i)));
+    // 16 send calls a tick at most, the refused big one included (counted before its data is turned into text, so a
+    // toJSON cannot send more): 0 to 14 arrive.
+    expect(pad.parts.get('core@3,0')?.inbox?.map((m) => m.data)).toEqual(Array.from({ length: 15 }, (_, i) => String(i)));
     const again = await World.create({ seed: 1, scripts: host }, space);
     const quiet = again.spawnBlueprint(launcher('function tick() {}', DART), { x: 0, y: 100 });
     again.step();
@@ -97,6 +98,32 @@ describe('messages between cores (M8)', () => {
     expect(r.matches).toBe(true);
     r.world.dispose();
     again.dispose();
+    w.dispose();
+  });
+
+  it('a toJSON cannot get past the send cap, and a robot sends at most 32 a tick in all (M8 review)', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, space);
+    const pilot = `
+      function tick() {
+        if (frame !== 0) return;
+        var n = 0;
+        var sneaky = { toJSON: function () { if (n++ < 200) send('dart1', 'inner'); return 'outer'; } };
+        send('dart1', sneaky);
+      }`;
+    const pad = w.spawnBlueprint(launcher(pilot, DART), { x: 0, y: 100 });
+    w.step();
+    expect(pad.parts.get('core@3,0')?.inbox?.length ?? 0).toBeLessThanOrEqual(16);
+    w.dispose();
+  });
+
+  it('mark() and set() with NaN are skipped, not a crash (M8 review)', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, space);
+    const pad = w.spawnBlueprint(launcher("function tick() { mark(NaN, 1); mark(1 / 0, 2); mark(3, 4); set('thruster', 'throttle', 0 / 0); }", DART), { x: 0, y: 100 });
+    w.step();
+    w.step();
+    expect(w.events.some((e) => e.kind === 'scriptCrashed')).toBe(false);
+    expect(w.marks(pad.id)).toEqual([{ x: 3, y: 4 }]);
+    expect(logs(w, pad.id)[0]).toContain('not a number');
     w.dispose();
   });
 });

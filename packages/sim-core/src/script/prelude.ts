@@ -19,6 +19,8 @@ export const PRELUDE = String.raw`
   var input = null;
   var scans = 0;
   var sends = 0;
+  var finite = isFinite;
+  var nanWarned = false;
   var marks = [];
   var scanWarned = false;
   var s = seed.slice();
@@ -43,14 +45,18 @@ export const PRELUDE = String.raw`
   globalThis.inbox = [];
   globalThis.send = function (to, data) {
     if (sends >= 16 || !hostSend) return false;
+    // Counted before the data is turned into text: a toJSON on it could call send() again.
+    sends++;
     var text;
     try { text = stringify(data === undefined ? null : data); } catch (e) { return false; }
     if (typeof text !== 'string' || text.length > 1024) return false;
-    sends++;
     return hostSend(String(to), text) === 'true';
   };
   globalThis.mark = function (x, y, label) {
-    if (marks.length < 4) marks[marks.length] = [Number(x), Number(y), label === undefined ? '' : String(label)];
+    x = Number(x);
+    y = Number(y);
+    // A point that is not a number is skipped: it would not survive the trip to the host as JSON.
+    if (marks.length < 4 && finite(x) && finite(y)) marks[marks.length] = [x, y, label === undefined ? '' : String(label)];
   };
   globalThis.scan = function (id) {
     if (scans >= 4) {
@@ -70,7 +76,14 @@ export const PRELUDE = String.raw`
     return hasOwn.call(given, name) ? given[name] : spec.default;
   };
   globalThis.set = function (target, channel, value) {
-    if (writes.length < 1000) writes[writes.length] = [String(target), String(channel), Number(value)];
+    value = Number(value);
+    if (!finite(value)) {
+      // NaN or Infinity (a division by zero) is dropped, with one line in the log, instead of stopping the script.
+      if (!nanWarned && logs.length < 5) logs[logs.length] = 'set(' + String(target) + ', ' + String(channel) + '): the value is not a number; ignored';
+      nanWarned = true;
+      return;
+    }
+    if (writes.length < 1000) writes[writes.length] = [String(target), String(channel), value];
   };
   function matches(p, target) {
     return p.type === target || p.tags.indexOf(target) >= 0;
@@ -114,6 +127,7 @@ export const PRELUDE = String.raw`
     globalThis.inbox = input.inbox || [];
     scans = 0;
     sends = 0;
+    nanWarned = false;
     marks = [];
     writes = [];
     logs = [];
