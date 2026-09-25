@@ -1,0 +1,159 @@
+{
+  "format": 1,
+  "name": "turret-drone-v2",
+  "grid": [
+    "a a a b c c c",
+    "F B F C F B F",
+    ". . . F . . .",
+    ". . F d . . .",
+    ". . e f . . .",
+    ". . . g . . .",
+    ". . . h . . .",
+    ". . . i . . .",
+    ". . . j . . ."
+  ],
+  "legend": {
+    "a": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "rotator",
+      "rot": 180,
+      "tags": [
+        "aim"
+      ],
+      "auto": false
+    },
+    "e": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "rail"
+      ]
+    },
+    "f": {
+      "part": "thruster",
+      "rot": 180,
+      "tags": [
+        "missile1"
+      ],
+      "auto": false
+    },
+    "g": {
+      "part": "gyro",
+      "rot": 270,
+      "tags": [
+        "missile1"
+      ],
+      "auto": false
+    },
+    "h": {
+      "part": "cell",
+      "rot": 270,
+      "tags": [
+        "missile1"
+      ]
+    },
+    "i": {
+      "part": "core",
+      "rot": 270,
+      "tags": [
+        "missile1"
+      ]
+    },
+    "j": {
+      "part": "warhead",
+      "rot": 270,
+      "tags": [
+        "missile1"
+      ]
+    }
+  },
+  "primaryCore": "core@3,7",
+  "bindings": [
+    {
+      "key": "h",
+      "mode": "script",
+      "script": "hover"
+    },
+    {
+      "key": "f",
+      "mode": "pulse",
+      "target": "rail",
+      "channel": "fire",
+      "value": 1
+    }
+  ],
+  "scripts": [
+    {
+      "id": "hover",
+      "source": {
+        "file": "turret-drone-v2.hover.js"
+      },
+      "params": {
+        "lean": 50,
+        "margin": 0.5
+      }
+    },
+    {
+      "id": "turret",
+      "source": {
+        "file": "turret-drone-v2.turret.js"
+      }
+    }
+  ],
+  "cores": {
+    "core@3,1": {
+      "scope": "missile1",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "source": {
+            "file": "turret-drone-v2.missile1.guide.js"
+          }
+        }
+      ]
+    }
+  }
+}
