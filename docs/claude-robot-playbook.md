@@ -110,6 +110,7 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - `drone` + `drone.hover.js`: five-wide hover drone; the hover script owns the propellers (`auto: false`), W and S set the height, A and D lean with a gyro.
 - `missile` + `missile.guide.js`: `M g E C X` (thruster at the tail, gyro, cell, core, warhead at the nose). The guide steers the thrust so it holds the line it was released on and cancels gravity; it detonates after `fuse` seconds (10). It flies nose-up about 20 degrees, so its tail hangs about 1 m below its core. Its `thrust` param must match the thruster's force (160).
 - `launcher`: a car with a rotator turret and a `missile` hanging under a `Dv` rail. Z and X aim, F fires (a pulse on every `decoupler`).
+- `missile-drone-10prop`: the same with 10 propellers, leaning to 40 degrees (its hover divides the throttle by the cosine of the tilt to hold height while leaning).
 - `missile-drone`: 11 wide, 6 propellers, two missiles under `left` and `right` rails. Its hover leans by propeller throttle and learns its trim when a missile is gone; `missile-drone.fire.js` fires the right missile first on F, then the left.
 - `longcar`, `bomb`, `wall`: targets and drop tests (`--drop wall@0:-80,5.5` puts a wall 20 m in front of a robot at x -100).
 

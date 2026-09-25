@@ -23,3 +23,7 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - Logan: the missile drone needed ten propellers "just to keep this relatively light thing afloat"; it should need about 6. And missiles are slow.
 - Decided: propeller 60 to 120 N, thruster 120 to 160 N, propeller energy stays 10 J/s (Logan: drones barely last as it is).
 - Done: `missile-drone` rebuilt with 6 propellers (about 2 minutes of flight on two batteries); the missile guide's `thrust` param is 160 in every copy; hover scripts (`drone`, `weird-thing`, `missile-drone`) start from a throttle worked out from their mass and propeller count (new `lift` param, 120), so they no longer overshoot on a stronger propeller. Missiles now reach about 105 m/s (80 before).
+
+### 2. A 10-propeller missile drone for agility (Logan, done)
+- `missile-drone-10prop`: the missile drone with all 10 propellers (lift about 2.9 times its weight). Leans up to 0.7 rad (40 degrees, param `lean`) instead of 0.3, and its hover divides the throttle by the cosine of its tilt so a steep lean keeps its height. Braking with A and D let go is gentler (param `brake`, 0.04), so the higher speed (about 20 m/s) stops without swinging back. Its scripts are its own copies.
+
