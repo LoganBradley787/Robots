@@ -1,5 +1,5 @@
 import type { Graphics, Ticker } from 'pixi.js';
-import { World, activeControls, keysScriptsRead, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
+import { World, activeControls, keysScriptsRead, orientRaw, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
 import { drawSensors, type SensorOverlay } from '../render/SensorDraw';
@@ -18,7 +18,8 @@ import { FixedStepper } from '../app/FixedStepper';
 import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
 import { KeyboardSource } from '../control/KeyboardSource';
-import { isClick, nextRobot } from '../control/possession';
+import { canPossess, isClick, nextRobot } from '../control/possession';
+import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the toolbar below)';
@@ -40,6 +41,8 @@ export interface WorldView {
   grid: boolean;
   follow: boolean;
   robots: number;
+  /** Which side the next deploy joins (M8). */
+  deployTeam: number;
   /** The robot under your control, its keys, and its energy (whole units), or undefined. */
   controlled?: {
     name: string;
@@ -93,7 +96,10 @@ export class WorldScreen {
   /** Keys each script source reads, cached by source (it only changes when the robot is redeployed). */
   private readonly readCache = new Map<string, Set<string>>();
   /** A blueprint waiting to be dropped, following the cursor. */
-  private placing?: { ghost: SpawnGhost; at?: { x: number; y: number }; ok: boolean; reason?: string };
+  private placing?: { ghost: SpawnGhost; source: unknown; registry: PartRegistry; at?: { x: number; y: number }; ok: boolean; reason?: string };
+  /** Team, flip, and turn for the next deploy (M8). They stick, saved in the browser. */
+  private deploy: DeploySettings;
+  private readonly settingsStore: SettingsStore | undefined;
 
   private readonly renderer: Renderer;
   private readonly textures: GameTextures;
@@ -120,6 +126,8 @@ export class WorldScreen {
     this.file = file;
     this.hud = hud;
     this.world = world;
+    this.settingsStore = browserStorage();
+    this.deploy = loadDeploySettings(this.settingsStore);
     this.cam = createCamera(file.spawn.x, file.spawn.y - 3);
     this.stepper = new FixedStepper(1000 * world.dt);
     this.lastHash = world.hash();
@@ -158,8 +166,8 @@ export class WorldScreen {
     this.stepper.reset();
   }
 
-  spawn(raw: unknown, at: { x: number; y: number }): Robot {
-    const robot = this.world.spawnBlueprint(raw, at);
+  spawn(raw: unknown, at: { x: number; y: number }, team = 0): Robot {
+    const robot = this.world.spawnBlueprint(raw, at, { team });
     this.syncViews();
     this.focus(robot.id);
     return robot;
@@ -199,7 +207,13 @@ export class WorldScreen {
   focus(robotId: number): void {
     this.focusId = robotId;
     this.cam = setFollow(this.cam, true);
-    this.keys.setControlled(this.world.canControl(robotId) ? robotId : undefined);
+    this.keys.setControlled(this.possessable(robotId) ? robotId : undefined);
+  }
+
+  /** Only your own robots with a live core (M8): an enemy can be watched, never driven. */
+  private possessable(robotId: number): boolean {
+    const robot = this.world.robots.find((r) => r.id === robotId);
+    return robot !== undefined && canPossess({ team: robot.team, controllable: this.world.canControl(robotId) });
   }
 
   /** Back to where robots drop in, following nothing: for when you are lost (Gate 3). */
@@ -235,11 +249,48 @@ export class WorldScreen {
   /** Shows a ghost of the blueprint on the cursor until a click drops it or Esc cancels. */
   startPlacing(raw: unknown, registry: PartRegistry): void {
     this.cancelPlacing();
-    const ghost = new SpawnGhost(raw, registry, (f) => this.textures.part(f));
+    this.placing = { ghost: this.makeGhost(raw, registry), source: raw, registry, ok: false };
+    this.cam = setFollow(this.cam, false);
+  }
+
+  /** The ghost of `raw` as the deploy settings orient it; hidden until the cursor is over the world. */
+  private makeGhost(raw: unknown, registry: PartRegistry): SpawnGhost {
+    const ghost = new SpawnGhost(orientRaw(raw, { flip: this.deploy.flip, rot: this.deploy.rot }, registry), registry, (f) => this.textures.part(f));
     ghost.root.visible = false;
     this.renderer.bodies.addChild(ghost.root);
-    this.placing = { ghost, ok: false };
-    this.cam = setFollow(this.cam, false);
+    return ghost;
+  }
+
+  /** Flips the held robot left to right (F while placing). Sticks for later deploys. */
+  flipPlacing(): void {
+    this.setDeploy(flipped(this.deploy));
+  }
+
+  /** Turns the held robot a quarter turn counterclockwise (R while placing). Sticks for later deploys. */
+  turnPlacing(): void {
+    this.setDeploy(turned(this.deploy));
+  }
+
+  /** Switches the side the next deploy joins. Sticks. */
+  toggleDeployTeam(): void {
+    this.setDeploy(nextTeam(this.deploy));
+  }
+
+  private setDeploy(next: DeploySettings): void {
+    this.deploy = next;
+    saveDeploySettings(this.settingsStore, next);
+    const p = this.placing;
+    if (!p) return;
+    const shown = p.ghost.root.visible;
+    p.ghost.destroy();
+    const ghost = this.makeGhost(p.source, p.registry);
+    this.placing = { ...p, ghost };
+    if (shown && p.at) {
+      const check = this.world.canPlace(ghost.raw, p.at);
+      this.placing = { ...this.placing, ok: check.ok, ...(check.reason !== undefined ? { reason: check.reason } : {}) };
+      ghost.root.visible = true;
+      ghost.place(p.at, check.ok);
+    }
   }
 
   cancelPlacing(): void {
@@ -275,7 +326,7 @@ export class WorldScreen {
           return;
         }
         const next = nextRobot(
-          this.world.robots.map((r) => ({ id: r.id, controllable: this.world.canControl(r.id) })),
+          this.world.robots.map((r) => ({ id: r.id, controllable: this.possessable(r.id) })),
           this.focusId,
         );
         if (next !== undefined) this.focus(next);
@@ -306,7 +357,7 @@ export class WorldScreen {
       const p = this.placing;
       if (p?.ok && p.at) {
         this.cancelPlacing();
-        this.spawn(p.ghost.raw, p.at);
+        this.spawn(p.ghost.raw, p.at, this.deploy.team);
       }
       return;
     }
@@ -385,13 +436,15 @@ export class WorldScreen {
     const controlled = this.keys.robot === undefined ? undefined : this.world.robots.find((r) => r.id === this.keys.robot);
     const robotLine =
       focus && s
-        ? `${focus.id === controlled?.id ? 'controlling' : 'watching'} ${focus.name} (${this.world.robots.indexOf(focus) + 1}/${this.world.robots.length})   ${s.speed.toFixed(1)} m/s   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
+        ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name} (${this.world.robots.indexOf(focus) + 1}/${this.world.robots.length})   ${s.speed.toFixed(1)} m/s   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
         : this.world.robots.length > 0
           ? 'following no robot: click one, or press , for the next'
           : 'no robots yet: build one and press Deploy';
     const p = this.placing;
     const placingLines = p
-      ? [`PLACING ${p.ghost.name}: click to drop   Esc cancels   ${p.ok ? 'fits here' : `blocked: ${p.reason ?? 'move the cursor into the world'}`}`]
+      ? [
+          `PLACING ${p.ghost.name} as ${teamName(this.deploy.team)}${this.deploy.flip ? ', flipped' : ''}${this.deploy.rot !== 0 ? `, turned ${this.deploy.rot}` : ''}: click to drop   F flips   R turns   Esc cancels   ${p.ok ? 'fits here' : `blocked: ${p.reason ?? 'move the cursor into the world'}`}`,
+        ]
       : [];
     const view: WorldView = {
       paused: time.paused,
@@ -400,6 +453,7 @@ export class WorldScreen {
       grid: this.grid.visible,
       follow: this.cam.follow,
       robots: this.world.robots.length,
+      deployTeam: this.deploy.team,
       unlimitedEnergy: this.world.unlimitedEnergy,
     };
     for (; this.eventCursor < this.world.events.length; this.eventCursor++) {
@@ -412,7 +466,8 @@ export class WorldScreen {
       // A part that explodes gets the blast instead of a puff.
       if (ev?.kind === 'partDestroyed' && !this.world.registry.get(ev.partType).onDestroyed?.explode) this.effects.breakPuff(ev.x, ev.y);
       if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
-      if (ev?.kind === 'coreWoke' && who) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);
+      // Only your own: an enemy's missiles wake too, and you cannot take them over.
+      if (ev?.kind === 'coreWoke' && who && who.team === 0) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);
     }
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
     if (controlled && controller) {
@@ -462,5 +517,14 @@ export class WorldScreen {
       `hash ${this.lastHash}`,
       HELP,
     ]);
+  }
+}
+
+/** The browser's local storage, or undefined where it is blocked (a private window, a test without a DOM). */
+function browserStorage(): SettingsStore | undefined {
+  try {
+    return typeof localStorage === 'undefined' ? undefined : localStorage;
+  } catch {
+    return undefined;
   }
 }

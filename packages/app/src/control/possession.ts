@@ -15,6 +15,11 @@ export function nextRobot(robots: readonly Candidate[], current: number | undefi
   return pool[(i + 1) % pool.length]?.id;
 }
 
+/** Whether you can take over a robot (M8, Logan): only your own side's (team 0), and only with a live core. */
+export function canPossess(robot: { team: number; controllable: boolean }): boolean {
+  return robot.team === 0 && robot.controllable;
+}
+
 /** A pointer press and release this close together (pixels) is a click, not a drag-to-pan. */
 export const CLICK_SLOP_PX = 4;
 

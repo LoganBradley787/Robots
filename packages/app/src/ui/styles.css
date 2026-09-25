@@ -115,6 +115,7 @@
 .world-toolbar .sep { width: 1px; align-self: stretch; background: var(--panel-border); margin: 0 2px; }
 .world-toolbar .speed { min-width: 34px; text-align: center; font: 12px ui-monospace, Menlo, monospace; }
 #ui .world-toolbar button.on { border-color: var(--accent); color: var(--accent); }
+#ui .world-toolbar button.on.enemy { border-color: #e5645a; color: #e5645a; }
 kbd { font: 10px ui-monospace, Menlo, monospace; padding: 0 4px; border: 1px solid #3a4f7d; border-radius: 3px; color: var(--muted); margin-left: 3px; }
 .refused { color: var(--warning); margin: 4px 0 8px; }
 

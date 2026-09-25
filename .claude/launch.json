@@ -1,6 +1,27 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "app", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev"], "port": 5180 }
+    {
+      "name": "app",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev"
+      ],
+      "port": 5180
+    },
+    {
+      "name": "app-verify",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@robots/app",
+        "exec",
+        "vite",
+        "--port",
+        "5181",
+        "--strictPort"
+      ],
+      "port": 5181
+    }
   ]
 }

@@ -149,6 +149,7 @@ async function boot(): Promise<void> {
       });
     },
     toggleUnlimitedEnergy: () => worldScreen.toggleUnlimitedEnergy(),
+    toggleDeployTeam: () => worldScreen.toggleDeployTeam(),
     clearDebris: () => worldScreen.clearDebris(),
     saveReplay: () => {
       const { replay, robot } = worldScreen.replay();
@@ -344,6 +345,14 @@ async function boot(): Promise<void> {
     }
     if (modes.mode === 'world' && e.code === 'Escape' && worldScreen.isPlacing) {
       worldScreen.cancelPlacing();
+      return;
+    }
+    // While a robot is held for deploying, F flips it and R turns it (M8), like the builder's stamp; they do not reach
+    // the robot you are driving.
+    if (modes.mode === 'world' && worldScreen.isPlacing && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && (codeOf(e) === 'KeyF' || codeOf(e) === 'KeyR')) {
+      e.preventDefault();
+      if (codeOf(e) === 'KeyF') worldScreen.flipPlacing();
+      else worldScreen.turnPlacing();
       return;
     }
     if (modes.mode === 'world') {

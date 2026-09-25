@@ -1,6 +1,7 @@
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
+import { teamName } from '../world/deploySettings';
 
 export interface WorldActions {
   worldTogglePause(): void;
@@ -15,6 +16,7 @@ export interface WorldActions {
   clearDebris(): void;
   saveReplay(): void;
   toggleUnlimitedEnergy(): void;
+  toggleDeployTeam(): void;
   toBuilder(): void;
 }
 
@@ -55,6 +57,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
         Grid <kbd>`</kbd>
       </button>
       <span class="sep" />
+      <button class={v.deployTeam !== 0 ? 'on enemy' : ''} onClick={actions.toggleDeployTeam} title="Which side the next robot you deploy joins. You only control your own; enemies run their scripts. While placing, F flips and R turns.">
+        Deploy as: {teamName(v.deployTeam)}
+      </button>
       <button class={v.unlimitedEnergy ? 'on' : ''} onClick={actions.toggleUnlimitedEnergy} title="Sandbox: every part gets all the energy it asks for, and nothing drains">
         Unlimited energy
       </button>
