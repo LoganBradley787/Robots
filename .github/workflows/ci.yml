@@ -26,3 +26,5 @@ jobs:
       - run: pnpm sim determinism launcher --x -100 --y 1.5 --seconds 5 --keys "f:2" --drop wall@0:-80,5.5
       - run: pnpm sim determinism missile-drone --x -100 --y 3 --seconds 12 --keys "w:0.5-3.5, f:6, f:9"
       - run: pnpm sim determinism missile-drone-10prop --x -100 --y 3 --seconds 14 --keys "w:0.5-3.5, d:4-6, a:7-8, f:10, f:12"
+      - run: pnpm sim determinism launcher-seeker --x -100 --y 1.45 --seconds 6 --keys "f:1" --drop missile-drone-10prop@0:-20,20:enemy
+      - run: pnpm sim determinism launcher-arc --x -100 --y 1.45 --seconds 8 --keys "f:1" --drop car@0:-20,1:enemy

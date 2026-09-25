@@ -31,9 +31,9 @@ function partsLost(w: World, target: Robot): number {
 }
 
 /** The launcher on open ground at x = -100 with an enemy target, F pressed at 1 s; runs `seconds` in all. */
-async function shoot(target: string, at: { x: number; y: number }, seconds: number, during?: (w: World, t: Robot, tick: number) => RobotInput[]): Promise<{ w: World; target: Robot; missile?: Robot }> {
+async function shoot(target: string, at: { x: number; y: number }, seconds: number, during?: (w: World, t: Robot, tick: number) => RobotInput[], opts: { launcher?: string } = {}): Promise<{ w: World; target: Robot; missile?: Robot }> {
   const w = await World.create({ seed: 1, scripts: host }, flat);
-  const launcher = w.spawnBlueprint(blueprint('launcher-seeker'), { x: -100, y: 1.45 });
+  const launcher = w.spawnBlueprint(blueprint(opts.launcher ?? 'launcher-seeker'), { x: -100, y: 1.45 });
   const t = w.spawnBlueprint(blueprint(target), at, { team: 1 });
   for (let tick = 0; tick < seconds * 60; tick++) {
     const inputs = during?.(w, t, tick) ?? [];
@@ -68,6 +68,33 @@ describe('M8 seeker missiles, done when', () => {
       return [];
     });
     expect(fastest).toBeGreaterThan(8);
+    expect(partsLost(w, target)).toBeGreaterThan(0);
+    w.dispose();
+  });
+
+  it('the arc missile climbs above the car and comes down on it from above', async () => {
+    let highest = -Infinity;
+    let last: { vx: number; vy: number } | undefined;
+    let missile: Robot | undefined;
+    const { w, target } = await shoot(
+      'car',
+      { x: -20, y: 1 },
+      9,
+      (w) => {
+        missile ??= w.robots.find((r) => r.woke === true);
+        if (missile && w.robots.includes(missile) && missile.primaryCoreId !== undefined) {
+          const s = w.physics.state(missile.groups[0]?.bodyId as number);
+          highest = Math.max(highest, s.y);
+          last = { vx: s.vx, vy: s.vy };
+        }
+        return [];
+      },
+      { launcher: 'launcher-arc' },
+    );
+    expect(highest).toBeGreaterThan(25);
+    // Coming down steeply at the end: falling faster than it moves sideways.
+    expect(last).toBeDefined();
+    expect(-(last?.vy ?? 0)).toBeGreaterThan(Math.abs(last?.vx ?? 0));
     expect(partsLost(w, target)).toBeGreaterThan(0);
     w.dispose();
   });

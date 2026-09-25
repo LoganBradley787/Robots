@@ -3,7 +3,8 @@
 // - setup() reads the launcher's point from inbox. With none, it flies straight and follows the first robot it tracks.
 // - While the seeker tracks the robot, it aims ahead of it by the robot's speed. If it loses track, it flies to the
 //   last point it had and goes off there.
-// - arc 1: climbs `height` meters above the point first, then comes down onto it.
+// - arc 1: climbs toward `height` meters above the point, then turns down onto it early enough to make the turn,
+//   holding `arcSpeed` so it can turn tighter.
 // - Steering as missile-v2: the push cancels gravity and sideways speed, the rest goes along the line; the gyro turns
 //   the nose as fast as it can and still stop.
 // Parts are found by type, so it works however the missile was placed on its launcher.
@@ -18,7 +19,8 @@ const clear = param('clear', 0.15, { min: 0, max: 2 }); // seconds flying straig
 const lead = param('lead', 1, { min: 0, max: 2 }); // 1 aims ahead of a tracked robot by its speed, 0 at where it is
 const arc = param('arc', 0, { min: 0, max: 1 }); // 1: climb above the point, then come down onto it
 const height = param('height', 40, { min: 5, max: 300 }); // m above the point it climbs to when arcing
-const drop = param('drop', 1, { min: 0.2, max: 5 }); // when arcing, it turns down within this many heights of the point, sideways
+const arcSpeed = param('arcSpeed', 30, { min: 5, max: 200 }); // m/s it holds while arcing, so it can turn tighter
+const drop = param('drop', 1, { min: 0.2, max: 5 }); // when arcing, it turns down this many turning distances before the point
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (other missiles) are ignored
 const acquire = param('acquire', 60, { min: 1, max: 1000 }); // m: a robot this close to the point is the one it follows
 const proximity = param('proximity', 2, { min: 0, max: 10 }); // m: goes off this close to a tracked robot
@@ -85,7 +87,6 @@ function pick() {
 }
 
 function tick() {
-  set('thruster', 'throttle', 1);
   if (time - state.start > fuse) set('warhead', 'detonate', 1);
 
   const seen = pick();
@@ -114,7 +115,10 @@ function tick() {
     let gx = p.x + lead * state.vel.x * tgo;
     let gy = p.y + lead * state.vel.y * tgo;
     if (state.phase === 'climb') {
-      if (Math.abs(gx - self.pos.x) < drop * height && self.pos.y > gy + 0.5 * height) state.phase = 'down';
+      // Turning its nose down takes time, and it keeps flying meanwhile: start down that far ahead of the point.
+      const speed = Math.hypot(self.vel.x, self.vel.y);
+      const turnTime = 2 * Math.sqrt(1.2 / ((margin * gyroTorque) / turnInertia()));
+      if (Math.abs(gx - self.pos.x) < drop * speed * turnTime) state.phase = 'down';
       else gy += height;
     }
     mark(gx, gy, state.phase);
@@ -126,7 +130,14 @@ function tick() {
   const ny = Math.cos(aim);
   const across = nx * self.vel.x + ny * self.vel.y;
   const side = clamp(self.mass * (9.81 * ny - hold * across), -sideMax * thrust, sideMax * thrust);
-  const along = Math.sqrt(thrust * thrust - side * side);
+  let along = Math.sqrt(thrust * thrust - side * side);
+  // Arcing, it holds `arcSpeed` along its line (easing off the push along it) and keeps full push for turning: slower
+  // means a tighter turn.
+  if (state.phase !== 'direct') {
+    const speed = Math.hypot(self.vel.x, self.vel.y);
+    along = clamp(self.mass * (2 * (arcSpeed - speed) + 9.81 * Math.sin(aim)), 0, along);
+  }
+  set('thruster', 'throttle', Math.min(1, Math.hypot(side, along) / thrust));
   // Right after release, only hold the aim: swinging the nose would swing the tail into the launcher.
   const want = time - state.start < clear ? state.aim : aim + Math.atan2(side, along);
 

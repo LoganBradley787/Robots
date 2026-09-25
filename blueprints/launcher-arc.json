@@ -1,0 +1,110 @@
+{
+  "format": 1,
+  "name": "launcher-arc",
+  "grid": [
+    ".  .  .  B  F  Dv Dv Dv Dv .  .",
+    ".  .  .  .  F  a  b  c  d  e  f",
+    ".  .  .  .  F  .  .  .  .  .  .",
+    ".  .  .  .  R  .  .  .  .  .  .",
+    ".  .  .  .  F  .  .  .  .  .  .",
+    "O  .  .  .  F  .  .  .  .  .  .",
+    "F  F  F  F  C  B  F  F  .  .  .",
+    "W  .  .  .  .  .  .  W  .  .  ."
+  ],
+  "legend": {
+    "a": {
+      "part": "thruster",
+      "rot": 270,
+      "tags": [
+        "missile-arc1"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile-arc1"
+      ],
+      "auto": false
+    },
+    "c": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "missile-arc1"
+      ]
+    },
+    "d": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-arc1"
+      ]
+    },
+    "e": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile-arc1"
+      ]
+    },
+    "f": {
+      "part": "seeker",
+      "rot": 270,
+      "tags": [
+        "missile-arc1"
+      ]
+    }
+  },
+  "primaryCore": "core@4,1",
+  "bindings": [],
+  "cores": {
+    "core@8,6": {
+      "scope": "missile-arc1",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "source": {
+            "file": "launcher-arc.missile-arc1.guide.js"
+          },
+          "params": {
+            "arc": 1
+          }
+        }
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "fire",
+      "source": {
+        "file": "launcher-arc.fire.js"
+      },
+      "params": {
+        "loft": 45
+      }
+    }
+  ]
+}
