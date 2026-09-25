@@ -7,6 +7,7 @@ Status: decided with Logan, 2026-09-23 (before the M3 plan). Adds to `04`; where
 - `,` re-follows if the camera was panned away. Otherwise it moves control and camera together to the next robot you can control.
 - Clicking a robot in the world takes control of it. A click is a press and release that moves less than a few pixels, so it never fights drag-to-pan.
 - Only robots with a core can be controlled. Core-less robots (a dropped bomb, later) are skipped.
+- (M8, Logan) Only your own team's robots. Enemies are tinted red, skipped by `,`, and a click on one follows it with the camera without taking control.
 - You control one robot at a time. Its keys are the robot's own bindings; letters and digits belong to the robot, world keys are punctuation (`04`).
 
 ## Robots you stop controlling hold their last input (Logan)
@@ -52,6 +53,7 @@ Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), 
 
 ## Replays
 - Every run in the world can be saved as a replay file: the world, every spawn, and every key press and release, by tick. `pnpm sim replay <file>` reruns it headless and checks it ends in the same state. This is how Logan can hand Claude a bug ("it flips when I do this").
+- (M8) Each spawn carries its team; a replay saved before M8 plays as all team 0.
 
 ## Auto controls (Logan, 2026-09-23)
 Binding every wheel by hand (Logan's `le-car`) is tedious, so robots control themselves by default:

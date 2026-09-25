@@ -23,7 +23,8 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
   - `--x <n> --y <n>`: where the core lands (default: the world spawn at (0, 6)). Spawn in open ground, like `--x -100 --y 3`; the flat world's boxes are near x 0 to 18.
   - `--seconds <n>` (default 5), `--seed <n>`.
   - `--keys "d:0-3, w:5, f:6.5"`: keys on the spawned robot, in seconds. `k:a-b` holds from a to b; `k:t` taps once. Keys only reach the spawned robot (A), never a missile after it is released.
-  - `--drop <bp>@<t>:<x>,<y>`: spawn another blueprint mid-run (a target `wall`, a `bomb`). Repeatable.
+  - `--drop <bp>@<t>:<x>,<y>[:enemy][:flip][:rot90]`: spawn another blueprint mid-run (a target `wall`, a `bomb`). Repeatable. `:enemy` puts it on the other team (so sensors call it an enemy), `:flip` deploys it facing the other way, `:rot90` (or 180, 270) turns it.
+  - `--team enemy`, `--flip`, `--rot <deg>`: the same for robot A.
   - `--unlimited`: energy never runs out. `--json`: the whole report as JSON.
   - `--world <path>`: another world file (`worlds/flat.json` is the default).
 - `pnpm sim determinism <bp> [run flags]`: runs twice, compares hashes.
@@ -36,8 +37,9 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - **Once per second:** robot A's core position, tilt in degrees (counterclockwise positive), speed, resting.
 - **drive / energy / destruction:** distance, max altitude (the core's highest y; the ground is y 0, so a high spawn counts), max tilt, top speed; energy used and left; parts destroyed and blasts. While attached, a placed missile's core and cell share the robot's energy pool (the pilot drains them too), so a drone with two missiles shows a bigger capacity until they leave; each piece's own energy is in the pieces list.
 - **events:** everything in time order with the robot's letter. A is the spawned robot; B, C, ... are pieces that broke off (missiles) and drops, in the order they appeared. Keys, drops, decouplers firing, splits, a core waking with its keys and scripts, scripts turning on or off, parts lost, explosions, `log()` lines (a repeated line is folded: "and 40 more times until t=3.20"), script crashes, energy running out.
-- **pieces:** each letter's final state, or "gone at t=..., last seen at (x, y)". Pieces with no core are counted at the end.
-- **side view:** lowercase letters are each piece's core path (every 0.1 s), uppercase its parts where it ended (so a dropped wall shows its shape), `*` an explosion, `#` the ground and boxes where they started. The header gives the scale of a column and a row; they differ, so slopes look steeper or flatter than they are.
+- **Sensors and messages** (M8) are events too: "A sees B (enemy)", "C lost sight of B" (first sight and loss per pair), "A sent core@8,6 (missile1): {...}", and on waking how many messages wait in the core's inbox. `time per tick` shows how long the run took per tick (scripts are most of it; the browser has 16.7 ms).
+- **pieces:** each letter's final state (with `[enemy]` for the other team, and the last point its scripts marked), or "gone at t=..., last seen at (x, y)". Pieces with no core are counted at the end.
+- **side view:** lowercase letters are each piece's core path (every 0.1 s), uppercase its parts where it ended (so a dropped wall shows its shape), `*` an explosion, `@` a point a script marked, `#` the ground and boxes where they started. The header gives the scale of a column and a row; they differ, so slopes look steeper or flatter than they are.
 - A piece that keeps flying after its core died is debris (a blown missile's thruster and gyro); its path can arc up after the blast.
 
 ## Blueprint format
@@ -55,7 +57,7 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 }
 ```
 - **Grid:** one cell is 1 m. The first row is the top; the bottom row is y 0, the left column x 0. Tokens are separated by spaces, `.` is empty. Parts get ids `<part>@<x>,<y>` (`wheel@0,0`), and every part answers to its id and its part type (`thruster`) as well as its tags.
-- **Default legend** (arrows point the way the part acts): `C` core, `F` frame, `B` battery, `E` cell, `X` warhead, `G` gyro; `W` wheel hanging below what it mounts to (`W^` above, `W<` on the left side, `W>` on the right); `T^ Tv T< T>` thrusters pushing up, down, left, right; `P` propeller lifting up (`Pv` down); `D Dv D< D>` decouplers releasing up, down, left, right; `R Rv R< R>` rotators carrying their turret up, down, left, right. A thruster pushing right sits on the left end of a robot (`T>`).
+- **Default legend** (arrows point the way the part acts): `C` core, `F` frame, `B` battery, `E` cell, `X` warhead, `G` gyro; `W` wheel hanging below what it mounts to (`W^` above, `W<` on the left side, `W>` on the right); `T^ Tv T< T>` thrusters pushing up, down, left, right; `P` propeller lifting up (`Pv` down); `D Dv D< D>` decouplers releasing up, down, left, right; `R Rv R< R>` rotators carrying their turret up, down, left, right; `S^ Sv S< S>` seekers looking up, down, left, right; `O` radar. A thruster pushing right sits on the left end of a robot (`T>`).
 - **Legend entries** `{ "part", "rot", "tags", "auto" }` define your own tokens (lowercase letters are free). `rot` is 0, 90, 180, 270 counterclockwise. `"auto": false` takes a part off auto controls (do this for every part a script drives, or the auto keys fight the script).
 - **Attachment:** parts join through faces that touch (`pnpm sim parts` lists them). A wheel attaches only by its mount face; a propeller has no N face (nothing on top of it); a thruster has no S face (its nozzle). Everything must connect to the core.
 - **Tags** group parts for bindings and scripts: `"tags": ["lprop"]`.
@@ -82,17 +84,22 @@ function tick() {
 - `set(target, channel, value)`, `get(target, channel)`: target is a tag, a part type, or an id.
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
 - `state` (kept between ticks), `dt`, `time`, `frame`, `param()`, `log(...)` (up to 20 lines per second per robot; the run report shows them), `random()`, `clamp`, `lerp`, `sign`, `Math`.
-- No `world`, no other robots, no sensors yet: a missile cannot home. It can only fly a line.
+- `contacts` (M8): every robot this robot's sensor parts see this tick, nearest first: `{ id, side, core, pos, vel, center, mass, parts, distance, by }`. `side` is `enemy` (another team), `friend`, or `none` (debris, or a robot whose core is gone); `core` is whether it has a live core; `pos` and `vel` are its core's (its center of mass's without one); `by` lists the sensor parts that see it. Empty with no seeker or radar.
+- `scan(id)`: a seen robot's parts `[{ id, type, pos, angle, health, maxHealth }]`, or null if it is not seen this tick. At most 4 calls per tick.
+- `send(to, data)`: a message for a core still attached to this robot, named by its scope (`missile1`), a tag, or its part id. `data` is anything JSON, up to 1 KB; up to 16 sends per tick. It arrives next tick.
+- `inbox`: messages that arrived, `[{ from, tick, data }]`, shown once. A placed core that is still attached keeps its messages until it wakes, so its `setup()` reads what the launcher sent just before letting go.
+- `mark(x, y, label)`: a point drawn in the app's debug overlay and the run report's side view (up to 4 per tick). For showing where a script is aiming.
 - Signs that trip people: a gyro's `spin` is clockwise positive (the opposite of `self.angle`); a rotator's `angle` output is -1 to 1 of its range.
 - Name parts by tag or type in scripts, never by id: ids change when a blueprint is placed or mirrored.
 
 ## Numbers that matter
 Run `pnpm sim parts` for the full table. g is 9.81.
-- **Mass (kg):** core 2, frame 1, battery 3, cell 0.5, wheel 1.5, thruster 1, propeller 1, decoupler 1, warhead 1, gyro 1, rotator 1.5.
+- **Mass (kg):** core 2, frame 1, battery 3, cell 0.5, wheel 1.5, thruster 1, propeller 1, decoupler 1, warhead 1, gyro 1, rotator 1.5, seeker 0.3, radar 1.
 - **Push:** thruster 160 N (20 J/s), propeller 120 N (10 J/s), both along their arrow (Gate 6: Logan raised both). Lift must beat weight: a flier needs thrust-to-weight well above 1 (1.5 to 2 hovers with room to climb; the missile flies at about 3). Propellers only push along their arrow; a drone moves sideways by leaning.
 - **Turning:** a gyro gives 40 N m. That is plenty for a small robot and far too little for a wide heavy one: a 38 kg, 11-wide drone needs its left and right propellers throttled differently to lean (see `missile-drone.hover.js`). Rotators hold 600 N m and turn at most 2 rad/s, within plus or minus 90 degrees.
 - **Wheels:** 20 N m each, radius 0.45 m, grip friction 1.5. The stock car (12 kg, two wheels) does about 15 m/s and climbs the flat world's ramp.
-- **Energy:** core 600 J, battery 1500 J, cell 250 J. Draw at full input per second: thruster 20, propeller 10, wheel 5, gyro 5, rotator 3. The 6-propeller missile drone uses about 30 J/s hovering, about two minutes on two batteries. Out of energy, nothing moves.
+- **Sensors:** a seeker sees a 90 degree cone out to 300 m (1 J/s), a radar all around out to 500 m (3 J/s). Terrain blocks sight; robots do not. Their `on` input (default 1) switches them off to save energy.
+- **Energy:** core 600 J, battery 1500 J, cell 250 J. Draw at full input per second: thruster 20, propeller 10, wheel 5, gyro 5, rotator 3, radar 3, seeker 1. The 6-propeller missile drone uses about 30 J/s hovering, about two minutes on two batteries. Out of energy, nothing moves.
 - **Damage:** a warhead does 120 at its center falling to 0 at 3 m, halved by every part in the way, and pushes things away up to 5 m. Health: frame 60, core 50, battery and decoupler and gyro 30, thruster and wheel 25, warhead 20, propeller 15, cell 10. A core right next to a warhead dies.
 - **Fuze:** a warhead goes off when a hit changes its speed by more than 5 m/s in one step: a fall of about 1.3 m, a landing, a missile clipping a box. A robot with a warhead must not be deployed high in the air or land hard.
 
@@ -116,15 +123,31 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 - Recipe, a missile pointing down: keep the missile in the hinge column (below the rotator, through a short leg), gripped from the side by a decoupler beside its thruster. The thruster's nozzle faces up and cannot attach, so nothing can hold it from above. Off the hinge column, a full swing puts the missile on the arm or the body and the decoupler pushes it into them.
 - The run report shows each rotator's aim in degrees every second (`aim rotator@3,5 -90.0`, counterclockwise positive from how it was built) and the robot's tilt on every decoupler event.
 
+## Sensors, teams, and homing (M8)
+- **Teams:** every robot has a team (0 is Logan's, 1 the enemy; more later). Pieces keep their robot's team. Scripts only see `side`, so one blueprint works on either team.
+- **Handing a missile its target:** the launcher's script picks a contact and calls `send(<missile's scope or core id>, { x, y, vx, vy, id })`, then fires the decoupler on the same tick. The missile's guide reads it from `inbox` in `setup()`. See `launcher-seeker.fire.js` (it finds its missile by looking for the core that is not its own) and `missile-seeker.guide.js`.
+- **The seeker guide** (`missile-seeker.guide.js`, shared by every homing missile): flies to the point it was sent, and once its seeker tracks an enemy near that point (within `acquire`), follows it and aims ahead by its speed. If it loses track it flies to the last point it had. `arc 1` climbs to `height` above the point first and turns down early enough for its speed (`drop` turning distances ahead), holding `arcSpeed` so the turn is tight. `minMass` skips light robots (other missiles).
+- **Launch with some loft.** A missile leaves a rail slow and sags before its nose comes up; a level launch from a car's turret scrapes along the ground. The launcher scripts tilt the turret up by `loft` (12 degrees) above the line to the target before firing.
+- **Several missiles on a drone:** hang them nose up on top, each gripped from the side by a decoupler (`hunter-drone`, `enemy-drone`). A missile launched up cannot hit the ground while it turns and tips over onto its target from above. Hanging them nose down and dropping them does not work below about 25 m: the gyro needs about a second to turn the nose level and the missile is falling fast by then.
+- **Propellers under the body:** a propeller has no N face, so a row of them can hang below the body between frames (they attach sideways to the frames and each other). `hunter-drone` gets its 14 propellers that way.
+- **An AI robot is only scripts:** `enemy-drone.pilot.js` flies the hover with a wanted sideways speed and height instead of keys, picks a spot beside the nearest enemy, launches on a timer, and dodges. Everything it knows comes from `contacts`.
+- **Dodging:** predict each incoming missile's closest pass from its relative position and velocity (`contacts` gives both), and move whichever way leaves the widest gap. Scripts cannot see the ground: the enemy drone only dodges down with room above what it tracks, after it flew its own missiles into the ground.
+- **Flipped robots:** tags do not flip, so a hover that uses `lprop` and `rprop` should decide left and right by position (the hunter and enemy hovers do). Scripts that work in world coordinates from `contacts` and `parts` work flipped.
+
 ## Examples to start from
 - `car`: two wheels on a frame, auto controls only. D and A drive.
 - `drone` + `drone.hover.js`: five-wide hover drone; the hover script owns the propellers (`auto: false`), W and S set the height, A and D lean with a gyro.
 - `missile` + `missile.guide.js`: `M g E C X` (thruster at the tail, gyro, cell, core, warhead at the nose). The guide steers the thrust so it holds the line it was released on and cancels gravity; it detonates after `fuse` seconds (10). It flies nose-up about 20 degrees, so its tail hangs about 1 m below its core. Its `thrust` param must match the thruster's force (160). It holds its heading and cancels sideways drift, but does not steer back onto the line it was released on: a shot at a downward angle sags below its line at first and recovers slowly.
 - `missile-v2` + `missile-v2.guide.js`: the same missile, but it steers back onto the line it was released on: it cuts back toward the line as fast as it can still stop on it (v^2 = 2 a d, at most `cut` degrees across its path, easing in over the last meter, param `ease`), and turns its nose time-optimally with its gyro (full torque, braking just in time, inertia from its parts). Flat shots from a turret sag about 6 m in the first 1.5 s (no speed yet, the nose still turning), then settle within 1 m by about 3.8 s with 1 to 2 m of overshoot; v1 never returns to its line. A firmer drift damper (`hold` 3 or more) makes it swing wide. Place it like `missile`. `launcher-v2` and `turret-drone-v2` are the launcher and the turret drone with v2's guide on their missile.
 - `launcher`: a car with a rotator turret and a `missile` hanging under a `Dv` rail. Z and X aim, F fires (a pulse on every `decoupler`).
-- `turret-drone`: a drone with one missile on a turret hanging below it, nose down, aiming anywhere from left through down to right (Z left, X right, C back to straight down, F fires). Built by a fresh session from this playbook (Gate 6). Its hover is `missile-drone-10prop`'s at a gentler lean (50 degrees) because of the known issue below.
+- `turret-drone`: a drone with one missile on a turret hanging below it, nose down, aiming anywhere from left through down to right (Z left, X right, C back to straight down, F fires). Built by a fresh session from this playbook (Gate 6). Its hover is `missile-drone-10prop`'s.
 - `missile-drone-10prop`: the same with 10 propellers, leaning to 50 degrees (param `lean`, in degrees). Its hover is the best example of fast, stable control: it works out its moment of inertia and full turning torque from `parts`, spins toward the lean at full torque and brakes at the last moment (v squared = 2 a d), cancels an off-center weight at once, and divides the throttle by the cosine of the tilt to hold height while leaning.
 - `missile-drone`: 11 wide, 6 propellers, two missiles under `left` and `right` rails. Its hover leans by propeller throttle and learns its trim when a missile is gone; `missile-drone.fire.js` fires the right missile first on F, then the left.
+- `missile-seeker` + `launcher-seeker`: the homing missile (`M g E C X S>`) and a launcher with a radar that aims its turret at the nearest enemy (plus loft), sends the point, and fires on F. Hits a parked car 80 m away, a hovering drone, and one flying sideways at 10 m/s.
+- `missile-arc` + `launcher-arc`: the same guide with `arc` on: it climbs about 35 m and comes down almost straight onto its target.
+- `missile-up`: `S X C g M` standing nose up, arc on, for drones.
+- `hunter-drone`: 14 propellers, a radar under the core, four `missile-up`s on top. Hover as `missile-drone-10prop` (W S A D), F launches the next missile at the nearest enemy (left outer, right outer, left inner, right inner).
+- `enemy-drone`: the same airframe flown by `enemy-drone.pilot.js`, no keys. Deploy it as an enemy (`:enemy`): it holds a spot 50 m beside and 12 m above you, launches every 3 s once it has tracked you for 1.5 s, and dodges.
 - `longcar`, `bomb`, `wall`: targets and drop tests (`--drop wall@0:-80,5.5` puts a wall 20 m in front of a robot at x -100).
 
 ## Traps (learned the hard way)
@@ -144,13 +167,13 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 - **The second shot goes where the drone points.** Losing one missile shifts the weight and tilts the drone until its trim catches up (a few seconds). A missile released while the drone is tilted flies along that tilt, into the ground if the tilt is down. Wait for level, or fire both together, or balance the load (one missile each side facing opposite ways fires in any order).
 - **A graze does not fuze a warhead.** The fuze needs a 5 m/s change in one step; a missile that glances off the ground slides on, armed. Check the pieces list: a piece at y about 0.5 is on the ground.
 - **Name your own parts by tag in the robot's scripts.** `set('gyro', ...)` from the pilot also turns any attached missile's gyro (types reach every part). Tag the robot's own gyro (`stab`) and use the tag.
-- **Keys in the app:** keys go to the robot Logan controls. After a missile is released the player stays on the launcher; `,` cycles to other robots they can control, and clicking a robot takes it, so a missile's own keys (`x` detonate) work only after switching to it. Headless, `--keys` reach robot A only.
+- **Keys in the app:** keys go to the robot Logan controls. After a missile is released the player stays on the launcher; `,` cycles to other robots of theirs they can control, and clicking one of theirs takes it (enemies can only be watched), so a missile's own keys (`x` detonate) work only after switching to it. Headless, `--keys` reach robot A only.
 - **Fire order:** when two missiles hang side by side pointing the same way, fire the front one first, or the back one flies through it.
 - **Spawn in the open.** `worlds/flat.json`: a 2 by 2 m box from x 7 to 9, the ramp (a 6 by 1 m box tilted 18 degrees, x 12 to 18, top about 1.9 m), a 1 by 1 m box from x -8.5 to -7.5, and ground from x -500 to 500. Open ground: x below -10 or between 20 and 490. In the app Logan deploys wherever they click, so a robot for the ramp can start anywhere left of it; headless, the gap between the 2 m box and the ramp is only 3 m (x 9 to 12), so a car tested there must be at most about 5 wide with its rear edge past x 9, or spawn at x 20 and drive left.
 - **Energy.** Check `energy:` in the report; fliers run dry in tens of seconds on one battery.
 
 - **Deploying in the app:** the robot lands where Logan clicks, and no part may be below the ground. A tall robot can stand on a missile's nose (a warhead only goes off on a hit of more than 5 m/s).
-- **Known issue, the fast hover with a load that moves:** `missile-drone-10prop.hover.js` (and `turret-drone`'s copy) overshoots when it leans toward a heavy side that has swung off center (74 degrees at a 60 degree lean) and falls short leaning away. Use a gentler `lean` and `brake` until it is fixed.
+- **Replays in tests need the script host:** `runReplay(replay, undefined, host)`. Without it every scripted robot sits still in the replay and the hashes never match.
 
 ## Done checks for common requests
 - **Drives:** `run --keys "d:0.5-4.5"` gives drive distance well over 20 m, max tilt under 30, and it ends upright (`tilt` near 0).

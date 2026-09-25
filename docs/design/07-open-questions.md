@@ -1,6 +1,6 @@
 # 07 Open questions and decisions
 
-Status: all decided, 2026-09-23, except Q22 (sensors, open since M7). Logan answered Q1, Q2, Q11, Q16, Q17 directly and delegated the rest ("you're the expert"). Delegated decisions are marked "Claude's call" with the reason, and Logan can overturn any of them at a critique gate. New questions go to `docs/questions-pending.md`.
+Status: all decided (Q22 sensors decided 2026-09-25 for M8). Logan answered Q1, Q2, Q11, Q16, Q17 directly and delegated the rest ("you're the expert"). Delegated decisions are marked "Claude's call" with the reason, and Logan can overturn any of them at a critique gate. New questions go to `docs/questions-pending.md`.
 
 ## Answered by Logan
 
@@ -11,7 +11,7 @@ Status: all decided, 2026-09-23, except Q22 (sensors, open since M7). Logan answ
 
 ### Q2. Sensors: core built-ins plus sensor parts
 - Decision: every core provides position, velocity, acceleration, angle, spin (angular velocity), and energy (stored and capacity). Nobody should have to place an accelerometer or a battery monitor.
-- Exotic sensing is a physical part with mass and power draw. Logan's concrete ideas, recorded in `02` as deferred parts: a scanner that reports what is in front of it, and a finder with a 30 or 60 degree cone that reports the nearest enemy core's distance and bearing, possibly in several power levels.
+- Exotic sensing is a physical part with mass and power draw. Logan's concrete ideas: a scanner that reports what is in front of it, and a finder with a cone that reports the nearest enemy core. M8 built the finder idea as the `seeker` and `radar` parts (`02`, Q22); the scanner is still an idea.
 - Motivating use: a power-saving script that shuts engines at 5 percent energy and runs an auto-landing sequence.
 
 ### Q11 and Q17. Damage: warheads only
@@ -81,7 +81,8 @@ Status: all decided, 2026-09-23, except Q22 (sensors, open since M7). Logan answ
 
 ## Open
 
-### Q22. Sensors and targeting (M7, open)
+### Q22. Sensors and targeting (decided 2026-09-25, M8)
 - Homing missiles are deferred until sensors are planned. What a sensor senses (cores, but also batteries and other parts), and who is who.
 - Logan's thinking, not decided: a default sensor finds "heat signatures". It sees cores plus who controls each one (the player, a friendly AI, an enemy AI, nobody), and the script decides what to chase. For testing, a missile would lock onto any core that is not its own robot and not controlled by the player.
 - Teams: single player with two sides. The player switches only into their own cores (a released missile included), never into enemy robots; AI robots do not switch cores. Details in `docs/ideas.md`.
+- Decision (Logan, 2026-09-25): sensing is parts, and strong ones ("sensors are able to do a lot, so you can do a lot with your scripts"): a seeker (cone) and a radar (all around, further). Scripts get a contact per seen robot every tick and `scan(id)` for its parts on demand. Terrain blocks sight, robots do not. Teams are numbers picked at deploy (sticky), so more can come later. A launcher hands its missile a point at launch (`send`, `inbox`); the missile's own seeker takes over, and it flies to the last known point if it loses track. The launcher picks the nearest enemy; clicking a target is later (Logan: a click is something an AI robot cannot do). Built in M8: `02` Sensor parts, `04` As built (M8).

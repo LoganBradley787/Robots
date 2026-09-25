@@ -40,5 +40,6 @@ Three steps, per Logan:
 1. Click **Deploy**. Validation errors block it and are shown.
 2. If there are unsaved changes: Save / Don't save / Cancel.
 3. The world opens with a ghost of the robot on the cursor (primary core on the cursor, mid-air allowed). Click to drop it; overlapping anything is refused; `Esc` cancels.
+4. (M8, Logan) While the ghost is held, `F` flips it left to right and `R` turns it a quarter turn counterclockwise (the builder stamp's keys; they do not reach the robot you are driving). The world toolbar's **Deploy as: Yours / Enemy** sets its team. All three stick for the next deploy, saved in the browser. The deploy records the flipped and turned blueprint (`orientBlueprint` in `sim-core`), so replays need nothing new. Flipping keeps tags and scripts as they are, as the builder's mirror does.
 
 Robots are deployed only from the builder (Logan declined a quick-spawn menu in the world for now).

@@ -144,3 +144,31 @@
 - Park something behind the 2 m box and fire a seeker missile at it with `top` on: it should climb and come down on it, or land near where it was last seen.
 - Deploy two launchers facing each other, one as Enemy.
 - Try `,`: it should never switch you into an enemy.
+
+## As built (2026-09-25)
+
+### What shipped
+- **T1 teams:** `Robot.team` (a number), pieces keep it, in spawn logs, replays, and the hash; `orientBlueprint` and `orientRaw` for flipped and turned deploys; CLI `--team`, `--flip`, `--rot`, and drop suffixes `:enemy :flip :rot90`.
+- **T2 sensors:** `seeker` and `radar` parts (`sensor` spec as data), `contacts`, `scan(id)` as a capped host call, terrain blocks sight, builder keys `=` and `;`.
+- **T3 messages:** `send`, `inbox` (kept by a dormant core until it wakes, hashed), `mark`.
+- **T4 fast hover:** braking planned on the braking side's torque; the turret drone leans 60 degrees toward or away from a swung load within 1 degree (was 80).
+- **T5 overlay and report:** sensor cones, contact lines, and marks in the debug overlay; enemies tinted red; sight, send, and inbox events, teams, marks (`@`), and time per tick in the run report.
+- **T6 homing:** `missile-seeker` + `launcher-seeker`, `missile-arc` + `launcher-arc`, one guide (`missile-seeker.guide.js`) for all of them. Done-when tests: a parked car 80 m away, a hovering drone, a drone flying sideways at about 10 m/s, and the arc shot coming down on a car from about 37 m.
+- **T7 drones:** `missile-up`, `hunter-drone` (F launches at the nearest enemy), `enemy-drone` (flies itself). Done-when tests: the enemy reaches its spot beside a parked car and hits it; it dodges a straight missile that hits it with dodging off; the hunter's missile passes within 15 m of the enemy and the duel replays exactly. CI determinism steps for both launchers and the duel.
+- **T8 deploy:** Deploy as Yours / Enemy on the world toolbar, F flips and R turns the held robot, all sticky in the browser; only your own robots can be taken over.
+
+### Changes from the plan (Claude's call unless noted)
+- **Plain wording (Logan, after repeated safety-classifier stops while writing T6):** the Javelin became the `arc` option (`missile-arc`); comments and docs describe what the scripts do, not weapons tactics. The behavior is what the plan asked for.
+- **The launcher aims before firing.** A level launch from a car's turret scraped along the ground (the missile sags before its nose comes up), so the launcher scripts swing the turret to the target plus a 12 degree `loft`, then send and fire. With nothing tracked they still loft and fire straight.
+- **The arc holds 30 m/s and turns down early.** At full throttle the missile's tightest turn was about 100 m across and it flew 60 m past; it now eases off along its path while arcing and starts down one or two turning distances ahead, worked out from its speed, gyro, and inertia.
+- **Drone missiles stand nose up on top** (`missile-up`, 5 cells, no cell: the core's 600 J is enough). Four missiles would not fit under an 11-wide drone without welding them together; hanging them nose down and dropping them only worked above about 25 m. Launched upward they cannot hit the ground and tip over onto the target.
+- **`hunter-drone` has 14 propellers,** six on top and eight hung under the body between frames (propellers attach sideways), to carry 63 kg.
+- **The hidden-target test was replaced** by the arc shot: its seeker cannot see the car while climbing, so it flies to the point it was sent and picks the car up again coming down. A robot parked behind the 2 m box is hidden from the launcher's radar too, so the launcher never fires at it (F logs "nothing tracked").
+- **Dodging** compares staying, climbing, dropping, and moving sideways and takes the widest gap; it only drops with 15 m of room above the robot it tracks (it flew its own missiles into the ground otherwise). Straight shots hit it 1 time in 8 (6 in 8 without dodging); against the hunter's arcing missiles it lost 1 part instead of 6 in one scenario and made no difference in another.
+- **Enemy drone holds fire for 1.5 s** after it first tracks a robot, so a freshly deployed one does not fire the same instant.
+- **Hovers tell left from right by position,** not by `lprop`/`rprop` tags, so the hunter and enemy drones work deployed flipped.
+- **Not done:** the stock `missile-drone`'s tilt after its first shot (plan decision 9) is still its slow learned trim; the other drones compute balance from `parts`.
+
+### Measurements
+- Duel (hunter and flipped enemy, 20 s): about 1.1 ms per tick on average, 17 ms worst tick.
+- An attached missile shares the drone's energy: after 40 s of hovering a `missile-up` has 383 of 600 J, still enough for about 15 s of flight.

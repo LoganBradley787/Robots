@@ -58,11 +58,12 @@ Health and blasts are tuned together (M6, `03`): a warhead does 120 at its cente
 
 Wheel and propeller shorthand tokens in the default legend cover the common rotations (see below), so authors rarely write rotation numbers.
 
-### Deferred sensor parts (Logan's spec, not in v1)
-Sensor parts are ordinary parts with output channels, mass, and power draw. Nothing in the engine changes when they arrive.
-- `scanner`: reports what is directly in front of it: `hit` (0 or 1), `distance`, and a `kind` code (terrain, part, core).
-- `finder`: a cone of 30 or 60 degrees (a def parameter) that locks the nearest enemy core in range and reports `found`, `distance`, and `bearing` relative to the part's facing. Several defs at different power levels (range against power draw) are just more data.
-- Heat seeker: the finder variant that ranks targets by thruster heat instead of distance, once thrusters emit heat.
+### Sensor parts (M8, as built)
+A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) is a sensor, facing its `acts` face. The engine reads the field; no part type is special-cased. A `sensor` behavior draws power while the `on` input is above 0.5; switched off or unpowered, it sees nothing.
+- `seeker` (legend `S^ Sv S< S>`, builder key `=`): 0.3 kg, health 20, 90 degree cone, 300 m, 1 J/s. Missiles carry one at the nose.
+- `radar` (legend `O`, builder key `;`): 1 kg, health 40, all around, 500 m, 3 J/s.
+- A robot is seen when its reference point (its live core, else its center of mass) is inside a working sensor's cone and range and a ray to it crosses no terrain or static block. Other robots never block. Scripts get what their robot's sensors see as `contacts` (see `04`).
+- Still ideas, not built: a `scanner` that reports what is directly in front of it (for landing and terrain following: scripts cannot see the ground today), and a heat seeker that ranks targets by thruster heat.
 
 ## Blueprint JSON (canonical)
 

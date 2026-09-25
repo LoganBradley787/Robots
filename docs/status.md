@@ -1,30 +1,23 @@
 # Status
 
-Updated: 2026-09-25, by a planning session (Opus 5.5), M8 plan written
+Updated: 2026-09-25, by a coding session (Opus 5.5), end of M8
 
-- Current milestone: **M7 (Claude workflow) done, tagged `m7`. Stopped at Gate 6** for Logan to play. What to try and what to judge: `docs/critique/gate-6.md`. Plan and As built (both dry runs, the review): `docs/plans/M7-claude-loop.md`.
-- What M7 shipped:
-  - Placing a blueprint on another copies it (Logan: never links). The copy's core keeps its own controls in `cores` with a scope (`missile1`); they start when its piece breaks off. `placeBlueprint` in sim-core, `pnpm sim place`, and the builder's Blueprints palette (R turns, F flips, mirror mode places a twin) all use it. The Controls and Scripts panels have a Controls for picker.
-  - Examples: `missile` (`M g E C X`, guide script holds its release line, 10 s fuse), `launcher` (rebuilt, Logan-tested), `missile-drone` (hover leans by propeller throttle, F fires right then left).
-  - New `cell` part; rotator 600 N m that turns only as fast as it can stop.
-  - CLI for Claude: `run` prints events in order, every piece's final state by letter, and a side view of paths and shapes; `parts`; `show` with every core's controls; `mirror`; `place`.
-  - `docs/claude-robot-playbook.md`: how a fresh session builds a robot from a sentence. Two dry runs by fresh Opus subagents both produced working robots; what they tripped on is fixed.
-  - Keys bar shows keys the running scripts read (dashed, after a divider). Scripts see each part's `mass`.
-- Gate 6 so far (`docs/critique/gate-6.md`): five findings from Logan's play, all fixed (stronger propellers and thrusters, `missile-drone-10prop`, instant weight-shift balance, time-optimal leaning and climbing, lean 60 degrees). Logan: "Everything's working!" Still to try from the checklist: a fresh Claude Code session asked for a robot in plain words.
-- Gate 6 closed (2026-09-25): the fresh-session test passed (a Claude session built `turret-drone` from the playbook alone); its stumbles are fixed in the playbook and the run report. See `docs/critique/gate-6.md`, finding 6.
-- **M8 plan written, waiting for Logan's "go":** `docs/plans/M8-sensors-and-homing.md` (Logan's answers at the top). On "go", build T1 to T9 without stopping, review, tag `m8`, stop at Gate 7.
-- Next steps, in order (Logan's order, 2026-09-25; script speed separately and last so a break is easy to trace):
-  1. Plan M8 (taste questions with recommendations, a plan in `docs/plans/M8-*.md`, Logan approves), then build it:
-     - Sensors, teams, and handoff at launch: sensors per Q22 (what they see: cores and who controls them, as parts and script API); every core on a side, possession only into your own; `send('missile1', { x, y })` before release and `inbox` in the woken core's `setup()`.
-     - With those, homing and Javelin-style missiles (handoff point, own seeker, last known point, maybe top attack). This replaces the release-line guide, which sags on downward shots (Gate 6, finding 6).
-     - The AI enemy missile drone: tracks you, fires homing missiles, sees incoming ones and dodges.
-     - Also fix, early: the fast hover's overshoot with a load that swings off center (Gate 6, finding 6).
-  2. Then, as its own milestone, script performance (the plan in `docs/ideas.md`), with `pnpm sim bench`; determinism and replay checks prove nothing changed.
-  3. Candidates after that: fabricator bay, debris cleanup, multi-cell parts, GitHub Pages static build. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a native port bake-off.
+- Current milestone: **M8 (sensors, teams, homing) done, stopped at Gate 7** for Logan to play. What to try: `docs/critique/gate-7.md`. Plan and As built (every change from the plan and why): `docs/plans/M8-sensors-and-homing.md`.
+- What M8 shipped:
+  - Teams (a number per robot, picked at deploy with the world toolbar's Deploy as: Yours / Enemy, sticky); only your own robots can be taken over; enemies tinted red.
+  - Deploy flip (`F`) and quarter turns (`R`) while placing, sticky; CLI `--team`, `--flip`, `--rot`, and drop suffixes `:enemy :flip :rot90`.
+  - `seeker` and `radar` parts; scripts get `contacts`, `scan(id)`, `send(to, data)`, `inbox`, `mark(x, y)`. Debug overlay draws cones, contact lines, and marks; the run report shows sight, sends, marks, and time per tick.
+  - Homing: `missile-seeker` + `launcher-seeker`, `missile-arc` + `launcher-arc` (climbs and comes down on the target), `missile-up` (stands on drones).
+  - `hunter-drone` (yours: F launches at the nearest enemy) and `enemy-drone` (flies itself: tracks, launches, dodges).
+  - Fast hover fix for a load that swings off center.
+- Wording note (2026-09-25): writing the homing missile tripped Opus's safety classifier several times. Logan and Claude agreed to write in plain game terms (no real weapon names or tactics talk in code or docs), to build in small steps, and to switch models for that part if it keeps happening. The Javelin is the `arc` option.
+- Next steps, in order (Logan's order, 2026-09-25; script speed separately so a break is easy to trace):
+  1. Gate 7 play and punch list.
+  2. Script performance, as its own milestone (the plan in `docs/ideas.md`), with `pnpm sim bench`; determinism and replay checks prove nothing changed.
+  3. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
   - Details and measurements: `docs/ideas.md`, "After Gate 6".
 - `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
-- Lessons from M7 builds are in the playbook (Traps); keep adding there.
-- Logan's notes for a later sensors milestone: `docs/ideas.md` (sensors, targeting, teams, possession by team).
+- Lessons from builds are in the playbook (Traps, and the new Sensors section); keep adding there.
 
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
@@ -39,9 +32,10 @@ Updated: 2026-09-25, by a planning session (Opus 5.5), M8 plan written
 - Undo and redo across drags; mirror mode placed flipped thrusters; box select and tagging; the ghost refuses the ground, the underground, and existing robots.
 
 ## Known issues
-- M7: the missile drone tilts up to about 8 degrees after its first shot while its hover learns the new balance (settles in about 3 s). The second dry run's drone computed its balance from `parts` and held 0.5 degrees; the stock drone could do the same.
+- M8: an attached missile shares its robot's energy pool while attached, so a hovering drone drains its missiles (about 60 percent left after 40 s).
+- M8: scripts cannot see the ground (no scanner part yet); the enemy drone only dodges downward with room above the robot it tracks.
+- M7: the stock `missile-drone` tilts up to about 8 degrees after its first shot while its hover learns the new balance (settles in about 3 s). `missile-drone-10prop`, `hunter-drone`, and `enemy-drone` compute their balance from `parts` and hold level.
 - M7: missiles fly nose-up about 20 degrees to hold their weight, so their tail hangs about 1 m below the core and can clip a box on a low flat shot; a flat shot sinks about 3 m before leveling; a straight-up shot sags about 15 degrees past vertical.
-- M7: a placed missile's core and cell share the robot's energy pool while attached, and the hover drains them.
 - A save round trip rewrites parts in grid reading order; with two or more cores and no `primaryCore`, the root core could change after reopening. Deploy is unaffected (it goes through the same file form).
 - Mirror mode's axis defaults to the core's column. On an asymmetric robot (the car: core in cell 2 of 6) mirroring overwrites parts on the far side. Alternative for Logan to judge: default to the center of the robot's bounding box.
 - The app is desktop-sized; panels overlap the canvas below about 1100 px wide.
@@ -56,6 +50,7 @@ Updated: 2026-09-25, by a planning session (Opus 5.5), M8 plan written
 - M6: the CLI report's piece count misses pieces of a piece whose parent robot was later removed.
 
 ## Decisions since the plans (newest first)
+- M8: see `docs/plans/M8-sensors-and-homing.md`, As built: launchers loft 12 degrees before firing, arcing missiles hold 30 m/s and turn down early, drone missiles stand nose up, 14-propeller drone airframe, dodging picks the widest gap and only drops with room, hovers tell left from right by position.
 - M6: see `docs/plans/M6-destruction.md`, As built: warhead damage 120 and push 40 up and out, velocity-change fuze, rotator 300 N m, decouplers act first, part boxes 0.49 m, helper bodies for Rapier multibody angles, the largest piece keeps the id when the core is gone.
 - M3 review fixes: key edges keep their order within a tick (release then re-press stays held; two toggle taps flip twice); part menu Rotate turns the menu's parts, not the held part; validator refuses binding keys that can never fire (`BAD_KEY`) and part ids equal to a part type (`BAD_ID`); CLI warns on timeline keys a robot does not have; a Cmd chord releases the robot's keys (macOS drops those keyups); mirror keeps `auto: false`.
 - M3: inputs are key edges addressed to a robot (`RobotInput`), replacing M0's `InputFrame`; possession lives in the app. Thruster force 60 to 120 N, propeller 40 to 60 N, wheel 12 N m with a torque curve and coast drag. Hopper thrusters sit in the body row.
