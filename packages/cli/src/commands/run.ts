@@ -1,7 +1,7 @@
 import { scriptHost } from '../scriptHost';
 import { plotPaths } from '../report/plot';
 import { Tracer, type PieceReport, type TraceEvent } from '../report/trace';
-import { DriveTracker, keysScriptsRead, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type RobotSample, type WorldFile } from '@robots/sim-core';
+import { DriveTracker, keysScriptsRead, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type Robot, type RobotSample, type WorldFile } from '@robots/sim-core';
 
 export interface RunOptions {
   seconds: number;
@@ -33,6 +33,8 @@ export interface RunReport {
   ticks: number;
   issues: Issue[];
   samples: RobotSample[];
+  /** M7 (Gate 6): each aiming joint's angle in degrees at every sample, same order as `samples`; absent without any. */
+  aims?: Record<string, number>[];
   final: RobotSample;
   drive: DriveMetrics;
   energy: { used: number; remaining: number; capacity: number; ranDryAt?: number };
@@ -85,6 +87,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     const ticks = Math.round(opts.seconds / world.dt);
     const every = Math.max(1, Math.round((opts.sampleEverySeconds ?? 1) / world.dt));
     const samples: RobotSample[] = [];
+    const aims: Record<string, number>[] = [];
     const drive = new DriveTracker();
     const tracer = new Tracer(world, robot, opts.keys ?? [], Math.max(1, Math.round(0.1 / world.dt)));
     let last = sampleRobot(world, robot);
@@ -101,7 +104,10 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       if (!world.robots.includes(robot)) continue;
       last = sampleRobot(world, robot);
       drive.add(last);
-      if (world.tick % every === 0) samples.push(last);
+      if (world.tick % every === 0) {
+        samples.push(last);
+        aims.push(aimsOf(world, robot));
+      }
     }
     return {
       world: file.name,
@@ -117,12 +123,28 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       warnings,
       scriptCrashes: world.events.flatMap((e) => (e.kind === 'scriptCrashed' ? [{ script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message }] : [])),
       destruction: destructionOf(world, robot.id),
+      ...(aims.some((a) => Object.keys(a).length > 0) ? { aims } : {}),
       finalHash: world.hash(),
       ...traced(tracer, file),
     };
   } finally {
     world.dispose();
   }
+}
+
+/**
+ * Where each position-motor joint (a rotator) points, in degrees from how it was built (counterclockwise positive), from
+ * its `angle` output (-1 to 1 of its range): the turret's aim, which the core's path does not show.
+ */
+function aimsOf(world: SimWorld, robot: Robot): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [id, p] of robot.parts) {
+    const range = p.def.behaviorConfig?.range;
+    if (p.def.joint?.motor !== 'position' || range === undefined) continue;
+    const v = world.partOutput(robot.id, id, 'angle');
+    if (v !== undefined) out[id] = (v * range * 180) / Math.PI;
+  }
+  return out;
 }
 
 function traced(tracer: Tracer, file: WorldFile): Pick<RunReport, 'events' | 'pieces' | 'plot'> {
@@ -148,7 +170,10 @@ export function formatReport(r: RunReport): string {
   for (const w of r.warnings) lines.push(`warning: ${w}`);
   for (const c of r.scriptCrashes) lines.push(`script ${c.script} stopped at t=${f(c.t, 2)}s (${c.kind}): ${c.message}`);
   lines.push('robot A, once per second:');
-  for (const s of r.samples) lines.push(formatSample(s));
+  r.samples.forEach((s, i) => {
+    const a = Object.entries(r.aims?.[i] ?? {});
+    lines.push(formatSample(s) + (a.length > 0 ? `  aim ${a.map(([id, deg]) => `${id} ${f(deg, 1)}`).join(', ')}` : ''));
+  });
   const fin = r.final;
   lines.push(formatDrive(r.drive));
   lines.push(formatEnergy(r.energy));

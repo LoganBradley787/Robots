@@ -33,6 +33,9 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - Logan: "I should be able to build an enemy missile drone that can track me, shoot homing missiles, and then also see incoming missiles and dodge them." The homing missile matters most: "if we can make a homing missile, we're getting closer to what's cool."
 - So: sensors (Q22 in `07`, the notes above), `world.robots()` or a sensor part for scripts, teams (who is an enemy), a homing guide script, then an AI drone that tracks, fires, and dodges. Performance first (below), because homing missiles mean many scripts running at once.
 
+### Logan after flying turret drones (2026-09-25)
+- In 2D, rotating things is limited, so the meta is probably flying and firing missiles in one direction: the player starts on the left, enemies come from the right. To fire both ways, launch straight up or down and let homing or Javelin guidance turn the missile at once, or drop a missile held vertically so it speeds off, works out where to go, and dives on the target. Another reason homing comes first.
+
 ### Cores talking to each other (Logan, 2026-09-25)
 - Logan: should a robot be able to spot an enemy, pick a spot, launch a missile, and tell it "go here", or should the missile figure it out after launch?
 - Three styles, all worth having: fire and forget (the missile's own sensor part), told at launch (the launcher's sensor, a cheap dumb missile), steered in flight (the launcher keeps correcting it; breaks if the launcher dies or loses sight).

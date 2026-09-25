@@ -134,9 +134,13 @@ export class Tracer {
         case 'split':
           push(e.robot, 'split', `split: ${e.pieces.map((id) => this.letter(id)).join(', ')} broke off`);
           break;
-        case 'decoupled':
-          push(e.robot, 'decoupled', `${e.part} fired`);
+        case 'decoupled': {
+          // The robot's tilt when it lets go: a missile leaves along the robot's aim, tilt included.
+          const r = w.robots.find((x) => x.id === e.robot);
+          const pose = r ? poseAngle(w, r) : undefined;
+          push(e.robot, 'decoupled', `${e.part} fired${pose !== undefined ? ` (robot tilted ${pose.toFixed(1)} deg)` : ''}`);
           break;
+        }
         case 'coreWoke': {
           const keys = w.controller(e.robot)?.keys ?? [];
           const scripts = w.scripts(e.robot).map((s) => s.id + (s.enabled ? '' : ' (off)'));
@@ -291,6 +295,17 @@ export class Tracer {
 function addPoint(p: PieceReport, pt: { t: number; x: number; y: number }): void {
   const last = p.track.at(-1);
   if (!last || last.t !== pt.t) p.track.push(pt);
+}
+
+/** The robot's core (else root) angle in degrees, counterclockwise positive, in (-180, 180]. */
+function poseAngle(world: World, r: Robot): number | undefined {
+  const id = r.primaryCoreId ?? (r.parts.has(r.rootId) ? r.rootId : undefined);
+  if (id === undefined) return undefined;
+  let d = (partWorldPose(world, r, id).angle * 180) / Math.PI;
+  d %= 360;
+  if (d <= -180) d += 360;
+  if (d > 180) d -= 360;
+  return d + 0;
 }
 
 function poseOf(world: World, r: Robot): { x: number; y: number } | undefined {

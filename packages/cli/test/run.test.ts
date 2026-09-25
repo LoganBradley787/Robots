@@ -113,6 +113,15 @@ describe('run report: events, pieces, and the path plot (M7)', () => {
     expect(text).toContain('side view: 1 column =');
   });
 
+  it("shows a turret's aim each second and the robot's tilt when a decoupler fires (Gate 6)", async () => {
+    const turret = readBlueprint(resolveBlueprint('turret-drone')).raw;
+    const r = await runSim(flat, turret, { seconds: 3, seed: 1, at: { x: -100, y: 12 }, keys: [{ key: 'z', down: 0.5, up: 2 }, { key: 'f', down: 2.5, up: 2.5 }] });
+    expect(r.aims?.at(-1)?.['rotator@3,5']).toBeCloseTo(-90, 2);
+    expect(r.events.find((e) => e.kind === 'decoupled')?.text).toMatch(/^decoupler@2,4 fired \(robot tilted -?\d+\.\d deg\)$/);
+    expect(formatReport(r)).toContain('aim rotator@3,5 -90.0');
+    expect((await runSim(flat, carJson, { seconds: 1, seed: 1 })).aims).toBeUndefined();
+  });
+
   it('reports a key turning a script off and on', async () => {
     const drone = readBlueprint(resolveBlueprint('drone')).raw;
     const r = await runSim(flat, drone, { seconds: 1.5, seed: 1, keys: [{ key: 'h', down: 0.5, up: 0.5 }, { key: 'h', down: 1, up: 1 }] });

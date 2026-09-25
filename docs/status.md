@@ -11,14 +11,17 @@ Updated: 2026-09-24, by a coding session (Opus 5.5), end of M7
   - `docs/claude-robot-playbook.md`: how a fresh session builds a robot from a sentence. Two dry runs by fresh Opus subagents both produced working robots; what they tripped on is fixed.
   - Keys bar shows keys the running scripts read (dashed, after a divider). Scripts see each part's `mass`.
 - Gate 6 so far (`docs/critique/gate-6.md`): five findings from Logan's play, all fixed (stronger propellers and thrusters, `missile-drone-10prop`, instant weight-shift balance, time-optimal leaning and climbing, lean 60 degrees). Logan: "Everything's working!" Still to try from the checklist: a fresh Claude Code session asked for a robot in plain words.
-- Next steps, in order (agreed with Logan, 2026-09-25):
-  1. Logan: the fresh-session test in another chat (close Gate 6). His test: a drone with a missile on a turret that aims and fires left, right, and down (any angle below the horizon). Hard on purpose: a hanging rotator (`Rv`, +-90 degrees), gripping the missile from the side with decouplers (its tail is a nozzle and cannot attach), balance as the turret swings and after the shot. Fix whatever it stumbles on (playbook or tools) and log it in `docs/critique/gate-6.md`.
-  2. Plan M8, sensors and homing: taste questions (AskUserQuestion, recommendation first), a plan in `docs/plans/M8-*.md`, Logan approves.
-  3. Build M8 in this order: (1) script performance (static part data only when parts change, per-tick numbers as binary, once per robot) and `pnpm sim bench`; (2) teams (every core has a side; possession only into your own cores); (3) sensors (Q22: what they see, as parts and script API); (4) handoff at launch (`send('missile1', { x, y })`, `inbox` in the woken core's `setup()`); (5) homing and Javelin-style missiles (handoff point, own seeker, last known point, maybe top attack); (6) an AI enemy missile drone that tracks, fires homing missiles, and dodges incoming ones; (7) playbook, docs, Opus review, Gate 7.
-  4. M9 candidates: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts (Logan's T-propeller), GitHub Pages static build.
-  5. Later: radio part (messages in flight), impact damage, air drag, wheel suspension, propeller spin-up time, a native port bake-off.
-  - All of it is written up in `docs/ideas.md`, "After Gate 6".
-- Open question for Logan: his uncommitted `blueprints/battery-drone*` uses the old hover script (starts at throttle 0.6, jumps on deploy with the stronger propellers); offer to move it to the new hover.
+- Gate 6 closed (2026-09-25): the fresh-session test passed (a Claude session built `turret-drone` from the playbook alone); its stumbles are fixed in the playbook and the run report. See `docs/critique/gate-6.md`, finding 6.
+- Next steps, in order (Logan's order, 2026-09-25; script speed separately and last so a break is easy to trace):
+  1. Plan M8 (taste questions with recommendations, a plan in `docs/plans/M8-*.md`, Logan approves), then build it:
+     - Sensors, teams, and handoff at launch: sensors per Q22 (what they see: cores and who controls them, as parts and script API); every core on a side, possession only into your own; `send('missile1', { x, y })` before release and `inbox` in the woken core's `setup()`.
+     - With those, homing and Javelin-style missiles (handoff point, own seeker, last known point, maybe top attack). This replaces the release-line guide, which sags on downward shots (Gate 6, finding 6).
+     - The AI enemy missile drone: tracks you, fires homing missiles, sees incoming ones and dodges.
+     - Also fix, early: the fast hover's overshoot with a load that swings off center (Gate 6, finding 6).
+  2. Then, as its own milestone, script performance (the plan in `docs/ideas.md`), with `pnpm sim bench`; determinism and replay checks prove nothing changed.
+  3. Candidates after that: fabricator bay, debris cleanup, multi-cell parts, GitHub Pages static build. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a native port bake-off.
+  - Details and measurements: `docs/ideas.md`, "After Gate 6".
+- `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
 - Lessons from M7 builds are in the playbook (Traps); keep adding there.
 - Logan's notes for a later sensors milestone: `docs/ideas.md` (sensors, targeting, teams, possession by team).
 

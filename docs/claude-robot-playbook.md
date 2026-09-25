@@ -105,11 +105,23 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - Logan does the same in the builder: the palette's Blueprints section holds a copy (R turns, F flips), and the Controls and Scripts panels have a Controls for picker for each placed core.
 - `--save <name>` writes the blueprint and a copy of every script under the new name (`launcher.missile1.guide.js`). `--force` replaces an existing file.
 
+## Turrets (rotators)
+Learned building `turret-drone` (Gate 6); most of a turret's design time goes to this geometry.
+- `R` carries its turret up and mounts on the part below; `Rv` hangs from the part above and carries its turret down; `R<` and `R>` sideways. Everything touching its other faces turns with it as one separate body.
+- The hinge is the rotator's cell center.
+- The turret and the body it is mounted on do not collide: a swinging arm passes through its own robot and never jams. Other robots, broken-off pieces (a released missile included), and the ground do collide.
+- It swings plus or minus 90 degrees from how it was built. Its `turn` input is a rate (-1 to 1, at most 2 rad/s, slower for heavy turrets: about sqrt(0.2 x 600 / inertia) rad/s); with no input it holds its aim. Its `angle` output reads -1 to 1 of its range.
+- Auto keys: Z turns it counterclockwise, X clockwise. For a turret pointing up, Z swings the barrel left; for one hanging down (`Rv`), Z swings it right. To have Z mean left on a downward turret, take the rotator off auto controls and drive `turn` from a small script (`turret-drone.turret.js`).
+- A decoupler on the turret turns with it, and so does its release direction. A missile leaves along the turret's aim plus the robot's tilt: level off before firing for a clean shot.
+- Recipe, a missile pointing down: keep the missile in the hinge column (below the rotator, through a short leg), gripped from the side by a decoupler beside its thruster. The thruster's nozzle faces up and cannot attach, so nothing can hold it from above. Off the hinge column, a full swing puts the missile on the arm or the body and the decoupler pushes it into them.
+- The run report shows each rotator's aim in degrees every second (`aim rotator@3,5 -90.0`, counterclockwise positive from how it was built) and the robot's tilt on every decoupler event.
+
 ## Examples to start from
 - `car`: two wheels on a frame, auto controls only. D and A drive.
 - `drone` + `drone.hover.js`: five-wide hover drone; the hover script owns the propellers (`auto: false`), W and S set the height, A and D lean with a gyro.
-- `missile` + `missile.guide.js`: `M g E C X` (thruster at the tail, gyro, cell, core, warhead at the nose). The guide steers the thrust so it holds the line it was released on and cancels gravity; it detonates after `fuse` seconds (10). It flies nose-up about 20 degrees, so its tail hangs about 1 m below its core. Its `thrust` param must match the thruster's force (160).
+- `missile` + `missile.guide.js`: `M g E C X` (thruster at the tail, gyro, cell, core, warhead at the nose). The guide steers the thrust so it holds the line it was released on and cancels gravity; it detonates after `fuse` seconds (10). It flies nose-up about 20 degrees, so its tail hangs about 1 m below its core. Its `thrust` param must match the thruster's force (160). It holds its heading and cancels sideways drift, but does not steer back onto the line it was released on: a shot at a downward angle sags below its line at first and recovers slowly.
 - `launcher`: a car with a rotator turret and a `missile` hanging under a `Dv` rail. Z and X aim, F fires (a pulse on every `decoupler`).
+- `turret-drone`: a drone with one missile on a turret hanging below it, nose down, aiming anywhere from left through down to right (Z left, X right, C back to straight down, F fires). Built by a fresh session from this playbook (Gate 6). Its hover is `missile-drone-10prop`'s at a gentler lean (50 degrees) because of the known issue below.
 - `missile-drone-10prop`: the same with 10 propellers, leaning to 50 degrees (param `lean`, in degrees). Its hover is the best example of fast, stable control: it works out its moment of inertia and full turning torque from `parts`, spins toward the lean at full torque and brakes at the last moment (v squared = 2 a d), cancels an off-center weight at once, and divides the throttle by the cosine of the tilt to hold height while leaning.
 - `missile-drone`: 11 wide, 6 propellers, two missiles under `left` and `right` rails. Its hover leans by propeller throttle and learns its trim when a missile is gone; `missile-drone.fire.js` fires the right missile first on F, then the left.
 - `longcar`, `bomb`, `wall`: targets and drop tests (`--drop wall@0:-80,5.5` puts a wall 20 m in front of a robot at x -100).
@@ -136,12 +148,15 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - **Spawn in the open.** `worlds/flat.json`: a 2 by 2 m box from x 7 to 9, the ramp (a 6 by 1 m box tilted 18 degrees, x 12 to 18, top about 1.9 m), a 1 by 1 m box from x -8.5 to -7.5, and ground from x -500 to 500. Open ground: x below -10 or between 20 and 490. In the app Logan deploys wherever they click, so a robot for the ramp can start anywhere left of it; headless, the gap between the 2 m box and the ramp is only 3 m (x 9 to 12), so a car tested there must be at most about 5 wide with its rear edge past x 9, or spawn at x 20 and drive left.
 - **Energy.** Check `energy:` in the report; fliers run dry in tens of seconds on one battery.
 
+- **Deploying in the app:** the robot lands where Logan clicks, and no part may be below the ground. A tall robot can stand on a missile's nose (a warhead only goes off on a hit of more than 5 m/s).
+- **Known issue, the fast hover with a load that moves:** `missile-drone-10prop.hover.js` (and `turret-drone`'s copy) overshoots when it leans toward a heavy side that has swung off center (74 degrees at a 60 degree lean) and falls short leaning away. Use a gentler `lean` and `brake` until it is fixed.
+
 ## Done checks for common requests
 - **Drives:** `run --keys "d:0.5-4.5"` gives drive distance well over 20 m, max tilt under 30, and it ends upright (`tilt` near 0).
 - **Climbs the ramp:** the flat world's ramp is a 6 by 1 m box tilted 18 degrees, centered at (15, 0.45): it rises from x 12 to about 1.9 m at x 18 and drops off sharply there. Spawn at `--x 10 --y 1.5`, hold D; max altitude goes above 2.5 and it ends past x 25 upright.
 - **Hovers:** the core holds a height within about 0.5 m for 5 s after the climb, tilt within a few degrees, energy left at the end.
 - **Fires:** the events show the decoupler firing, a piece breaking off and waking with its script, and its path in the side view going where it should.
-- **Hits a target:** `--drop wall@...` and the events show the wall losing parts, with the explosion belonging to the missile's letter.
+- **Hits a target:** `--drop wall@...` and the events show the explosion belonging to the missile's letter, and the wall losing parts or knocked over (its tilt in the pieces list).
 - Always: `pnpm sim determinism` with the same flags passes.
 
 ## Handing it to Logan
