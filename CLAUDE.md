@@ -15,6 +15,7 @@ Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`, exc
 - Bullet points over padded prose.
 - NEVER use em dashes anywhere: not in docs, code comments, commit messages, or replies. Use commas, colons, or periods.
 - Give recommendations with each question so Logan can answer "agree with all except #N."
+- Commit often, push rarely: push only at a milestone's gate or when Logan asks (every push spends GitHub Actions minutes on the free plan).
 
 ## Project rules
 
