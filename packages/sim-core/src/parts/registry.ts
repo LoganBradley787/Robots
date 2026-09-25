@@ -13,6 +13,8 @@ import rotator from './defs/rotator.json';
 import cell from './defs/cell.json';
 import seeker from './defs/seeker.json';
 import radar from './defs/radar.json';
+import booster from './defs/booster.json';
+import heavywarhead from './defs/heavywarhead.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -58,6 +60,8 @@ const SHIPPED: Array<[string, unknown]> = [
   ['cell.json', cell],
   ['seeker.json', seeker],
   ['radar.json', radar],
+  ['booster.json', booster],
+  ['heavywarhead.json', heavywarhead],
 ];
 
 let shipped: PartRegistry | null = null;

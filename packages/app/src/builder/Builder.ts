@@ -160,8 +160,9 @@ export class Builder {
       this.dispatch({ type: 'pick', index: n === 0 ? 9 : n - 1 });
       return true;
     }
-    // After 0: minus picks the eleventh part (the cell), equals the twelfth (the seeker), semicolon the thirteenth (the radar).
-    const extra = ['Minus', 'Equal', 'Semicolon'].indexOf(e.code);
+    // After 0: minus picks the eleventh part (the cell), equals the twelfth (the seeker), semicolon the thirteenth (the
+    // radar), quote the fourteenth (the booster), slash the fifteenth (the heavy warhead).
+    const extra = ['Minus', 'Equal', 'Semicolon', 'Quote', 'Slash'].indexOf(e.code);
     if (extra >= 0) {
       this.dispatch({ type: 'pick', index: 10 + extra });
       return true;

@@ -62,7 +62,7 @@ export function TopBar({ store, actions }: { store: Store<AppState>; actions: Bu
 }
 
 /** The builder key for each palette slot, in order (`Builder.ts` handles them). */
-const PALETTE_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';'];
+const PALETTE_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/'];
 
 export function Palette({ store, defs, actions }: { store: Store<AppState>; defs: PartDef[]; actions: BuilderActions }) {
   const held = useStore(store, (s) => s.builder.held);

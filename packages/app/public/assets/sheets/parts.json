@@ -82,8 +82,8 @@
     },
     "part.wheel": {
       "frame": {
-        "x": 3,
-        "y": 71,
+        "x": 275,
+        "y": 3,
         "w": 64,
         "h": 64
       },
@@ -102,7 +102,7 @@
     },
     "part.wheel.mount": {
       "frame": {
-        "x": 71,
+        "x": 3,
         "y": 71,
         "w": 64,
         "h": 64
@@ -122,7 +122,7 @@
     },
     "part.thruster": {
       "frame": {
-        "x": 139,
+        "x": 71,
         "y": 71,
         "w": 64,
         "h": 64
@@ -142,7 +142,7 @@
     },
     "part.propeller": {
       "frame": {
-        "x": 207,
+        "x": 139,
         "y": 71,
         "w": 64,
         "h": 64
@@ -162,8 +162,8 @@
     },
     "part.decoupler": {
       "frame": {
-        "x": 3,
-        "y": 139,
+        "x": 207,
+        "y": 71,
         "w": 64,
         "h": 64
       },
@@ -182,8 +182,8 @@
     },
     "part.warhead": {
       "frame": {
-        "x": 71,
-        "y": 139,
+        "x": 275,
+        "y": 71,
         "w": 64,
         "h": 64
       },
@@ -202,7 +202,7 @@
     },
     "part.gyro": {
       "frame": {
-        "x": 139,
+        "x": 3,
         "y": 139,
         "w": 64,
         "h": 64
@@ -222,7 +222,7 @@
     },
     "part.rotator": {
       "frame": {
-        "x": 207,
+        "x": 71,
         "y": 139,
         "w": 64,
         "h": 64
@@ -242,8 +242,8 @@
     },
     "part.rotator.mount": {
       "frame": {
-        "x": 3,
-        "y": 207,
+        "x": 139,
+        "y": 139,
         "w": 64,
         "h": 64
       },
@@ -262,7 +262,47 @@
     },
     "part.seeker": {
       "frame": {
-        "x": 71,
+        "x": 207,
+        "y": 139,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.booster": {
+      "frame": {
+        "x": 275,
+        "y": 139,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.heavywarhead": {
+      "frame": {
+        "x": 3,
         "y": 207,
         "w": 64,
         "h": 64
@@ -282,7 +322,7 @@
     },
     "part.radar": {
       "frame": {
-        "x": 139,
+        "x": 71,
         "y": 207,
         "w": 64,
         "h": 64
@@ -305,7 +345,7 @@
     "image": "parts.png",
     "format": "RGBA8888",
     "size": {
-      "w": 274,
+      "w": 342,
       "h": 274
     },
     "scale": "1"

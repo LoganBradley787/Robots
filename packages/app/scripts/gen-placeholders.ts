@@ -353,9 +353,8 @@ function drawWheelMount(): Canvas {
   return cv;
 }
 
-function drawThruster(): Canvas {
+function drawThruster(body = hex('#959ba4'), heat = hex('#5f646d')): Canvas {
   const cv = new Canvas(CELL, CELL);
-  const body = hex('#959ba4');
   // Mounting flanges reaching the E and W faces.
   for (const [x0, x1] of [[0, 14], [50, 64]] as const) {
     cv.fill(rect(x0, 10, x1, 26), OUTLINE);
@@ -366,7 +365,7 @@ function drawThruster(): Canvas {
   plate(cv, 12, 0, 52, 44, body, OUTLINE, 2);
   cv.fill(rect(14, 12, 50, 13), BLACK, 0.25);
   // Heat band above the nozzle.
-  cv.fill(rect(14, 33, 50, 42), hex('#5f646d'));
+  cv.fill(rect(14, 33, 50, 42), heat);
   for (let x = 18; x < 48; x += 6) cv.fill(rect(x, 35, x + 2.5, 40), DARK_METAL);
   // Throat and flared nozzle bell, pointing south.
   cv.fill(rect(23, 44, 41, 48), DARK_METAL);
@@ -453,14 +452,13 @@ function drawDecoupler(): Canvas {
   return cv;
 }
 
-function drawWarhead(): Canvas {
+function drawWarhead(red = hex('#8e2323'), edge = hex('#561414'), band = hex('#c0463c')): Canvas {
   const cv = new Canvas(CELL, CELL);
-  const red = hex('#8e2323');
-  plate(cv, 0, 0, CELL, CELL, red, hex('#561414'), 3);
+  plate(cv, 0, 0, CELL, CELL, red, edge, 3);
   // Nose band on the top edge.
-  cv.fill(rect(3, 3, 61, 14), hex('#c0463c'));
+  cv.fill(rect(3, 3, 61, 14), band);
   cv.fill(rect(3, 3, 61, 5), WHITE, 0.25);
-  cv.fill(rect(3, 14, 61, 16), hex('#561414'));
+  cv.fill(rect(3, 14, 61, 16), edge);
   // Hazard circle: black ring, yellow disc, trefoil.
   const cx = 32;
   const cy = 38;
@@ -823,6 +821,9 @@ function main(): void {
     { name: 'part.rotator', canvas: drawRotator() },
     { name: 'part.rotator.mount', canvas: drawRotatorMount() },
     { name: 'part.seeker', canvas: drawSeeker() },
+    // Booster (Gate 7): the thruster in orange, with a hot band; heavy warhead: the warhead in near black with an orange band.
+    { name: 'part.booster', canvas: drawThruster(hex('#d0762c'), hex('#8a3b12')) },
+    { name: 'part.heavywarhead', canvas: drawWarhead(hex('#2a2c31'), hex('#121316'), hex('#e0712c')) },
     { name: 'part.radar', canvas: drawRadar() },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
