@@ -31,6 +31,7 @@ export const DEFAULT_LEGEND: Readonly<Record<string, LegendEntry>> = {
   'K<': { part: 'booster', rot: 90 },
   'K>': { part: 'booster', rot: 270 },
   H: { part: 'heavywarhead' },
+  Y: { part: 'heavygyro' },
   'S^': { part: 'seeker', rot: 0 },
   Sv: { part: 'seeker', rot: 180 },
   'S<': { part: 'seeker', rot: 90 },

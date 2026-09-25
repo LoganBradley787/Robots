@@ -13,7 +13,7 @@
   ],
   "legend": {
     "a": {
-      "part": "thruster",
+      "part": "booster",
       "rot": 270,
       "tags": [
         "missile-seeker1"
@@ -21,7 +21,7 @@
       "auto": false
     },
     "b": {
-      "part": "gyro",
+      "part": "heavygyro",
       "rot": 0,
       "tags": [
         "missile-seeker1"
@@ -43,7 +43,7 @@
       ]
     },
     "e": {
-      "part": "warhead",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
         "missile-seeker1"
@@ -66,14 +66,14 @@
         {
           "key": "f",
           "mode": "toggle",
-          "target": "thruster",
+          "target": "booster",
           "channel": "throttle",
           "value": 1
         },
         {
           "key": "x",
           "mode": "pulse",
-          "target": "warhead",
+          "target": "heavywarhead",
           "channel": "detonate",
           "value": 1
         },
@@ -88,6 +88,10 @@
           "id": "guide",
           "source": {
             "file": "launcher-seeker.missile-seeker1.guide.js"
+          },
+          "params": {
+            "thrust": 400,
+            "gyroTorque": 200
           }
         }
       ]

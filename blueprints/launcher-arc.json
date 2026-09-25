@@ -13,7 +13,7 @@
   ],
   "legend": {
     "a": {
-      "part": "thruster",
+      "part": "booster",
       "rot": 270,
       "tags": [
         "missile-arc1"
@@ -21,7 +21,7 @@
       "auto": false
     },
     "b": {
-      "part": "gyro",
+      "part": "heavygyro",
       "rot": 0,
       "tags": [
         "missile-arc1"
@@ -43,7 +43,7 @@
       ]
     },
     "e": {
-      "part": "warhead",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
         "missile-arc1"
@@ -66,14 +66,14 @@
         {
           "key": "f",
           "mode": "toggle",
-          "target": "thruster",
+          "target": "booster",
           "channel": "throttle",
           "value": 1
         },
         {
           "key": "x",
           "mode": "pulse",
-          "target": "warhead",
+          "target": "heavywarhead",
           "channel": "detonate",
           "value": 1
         },
@@ -90,7 +90,12 @@
             "file": "launcher-arc.missile-arc1.guide.js"
           },
           "params": {
-            "arc": 1
+            "arc": 1,
+            "thrust": 400,
+            "height": 60,
+            "arcSpeed": 50,
+            "clearDist": 6,
+            "gyroTorque": 200
           }
         }
       ]
@@ -103,7 +108,8 @@
         "file": "launcher-arc.fire.js"
       },
       "params": {
-        "loft": 45
+        "loft": 70,
+        "wait": 3
       }
     }
   ]

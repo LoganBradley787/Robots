@@ -2,16 +2,16 @@
   "format": 1,
   "name": "missile-seeker",
   "grid": [
-    "M  g  E  C  X  S>"
+    "M  g  E  C  H  S>"
   ],
   "legend": {
     "M": {
-      "part": "thruster",
+      "part": "booster",
       "rot": 270,
       "auto": false
     },
     "g": {
-      "part": "gyro",
+      "part": "heavygyro",
       "auto": false
     }
   },
@@ -19,14 +19,14 @@
     {
       "key": "f",
       "mode": "toggle",
-      "target": "thruster",
+      "target": "booster",
       "channel": "throttle",
       "value": 1
     },
     {
       "key": "x",
       "mode": "pulse",
-      "target": "warhead",
+      "target": "heavywarhead",
       "channel": "detonate",
       "value": 1
     },
@@ -41,6 +41,10 @@
       "id": "guide",
       "source": {
         "file": "missile-seeker.guide.js"
+      },
+      "params": {
+        "thrust": 400,
+        "gyroTorque": 200
       }
     }
   ]

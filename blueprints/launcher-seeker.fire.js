@@ -5,7 +5,7 @@
 //    decouplers let it go on the same tick; it reads the message when it wakes.
 // With nothing tracked, it tilts up by `loft` from where the turret points and fires straight. Z and X still aim by hand.
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (other missiles) are skipped
-const loft = param('loft', 12, { min: 0, max: 45 }) * (Math.PI / 180); // degrees above the line to the robot
+const loft = param('loft', 12, { min: 0, max: 85 }) * (Math.PI / 180); // degrees above the line to the robot
 const wait = param('wait', 1.5, { min: 0, max: 5 }); // s: fires anyway if the turret has not got there by then
 
 function wrap(a) {
@@ -26,7 +26,7 @@ function missile() {
   let motor;
   let best = Infinity;
   for (const p of parts) {
-    const d = p.type === 'thruster' ? Math.hypot(p.pos.x - core.pos.x, p.pos.y - core.pos.y) : Infinity;
+    const d = p.type === 'thruster' || p.type === 'booster' ? Math.hypot(p.pos.x - core.pos.x, p.pos.y - core.pos.y) : Infinity;
     if (d < best) {
       best = d;
       motor = p;

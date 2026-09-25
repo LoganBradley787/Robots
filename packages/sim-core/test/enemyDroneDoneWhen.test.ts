@@ -76,7 +76,8 @@ describe('M8 enemy drone, done when', () => {
   it("the hunter drone's missile goes after the enemy drone, and the duel replays exactly", async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -130, y: 15 });
-    const enemy = w.spawnBlueprint(blueprint('enemy-drone'), { x: -50, y: 27 }, { team: 1 });
+    // It holds fire here (minRange): its missiles meet the hunter's in the air often enough to spoil the measurement.
+    const enemy = w.spawnBlueprint(blueprint('enemy-drone', { minRange: 2000 }), { x: -50, y: 27 }, { team: 1 });
     let closest = Infinity;
     run(
       w,

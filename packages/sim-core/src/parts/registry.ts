@@ -15,6 +15,7 @@ import seeker from './defs/seeker.json';
 import radar from './defs/radar.json';
 import booster from './defs/booster.json';
 import heavywarhead from './defs/heavywarhead.json';
+import heavygyro from './defs/heavygyro.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -62,6 +63,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['radar.json', radar],
   ['booster.json', booster],
   ['heavywarhead.json', heavywarhead],
+  ['heavygyro.json', heavygyro],
 ];
 
 let shipped: PartRegistry | null = null;

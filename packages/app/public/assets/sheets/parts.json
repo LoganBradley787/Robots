@@ -320,9 +320,29 @@
         "h": 64
       }
     },
-    "part.radar": {
+    "part.heavygyro": {
       "frame": {
         "x": 71,
+        "y": 207,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.radar": {
+      "frame": {
+        "x": 139,
         "y": 207,
         "w": 64,
         "h": 64

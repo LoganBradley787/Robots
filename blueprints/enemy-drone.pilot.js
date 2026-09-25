@@ -19,10 +19,13 @@ const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of its turni
 const speed = param('speed', 12, { min: 1, max: 40 }); // m/s, fastest it flies sideways to get somewhere
 const standoff = param('standoff', 50, { min: 5, max: 300 }); // m to the side of the robot it tracks
 const above = param('above', 12, { min: 0, max: 100 }); // m above it
+const ceiling = param('ceiling', 30, { min: 0, max: 500 }); // m above where it was deployed it never climbs past (two of these tracking each other would otherwise climb forever)
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots are missiles (dodged, not chased)
 const minRange = param('minRange', 25, { min: 0, max: 500 }); // m: closer than this it holds fire
 const maxRange = param('maxRange', 250, { min: 10, max: 1000 }); // m: further than this it holds fire
+const level = (param('level', 15, { min: 1, max: 90 }) * Math.PI) / 180; // launches only within this many degrees of level
 const reload = param('reload', 3, { min: 0.5, max: 60 }); // s between launches
+const jitter = param('jitter', 1, { min: 0, max: 10 }); // up to this many seconds more, at random (seeded), so two drones do not fire in step
 const settle = param('settle', 1.5, { min: 0, max: 30 }); // s it holds fire after it first tracks a robot
 const dodge = param('dodge', 1, { min: 0, max: 1 }); // 0: never dodges
 const dodgeAhead = param('dodgeAhead', 2.5, { min: 0.2, max: 10 }); // s ahead it looks for a missile passing close
@@ -35,6 +38,7 @@ const ORDER = [1, 4, 2, 3]; // grip k holds missile-up k: left outer, right oute
 function setup() {
   state.home = { x: self.pos.x, y: self.pos.y };
   state.lastShot = -Infinity;
+  state.wait = jitter * random();
   state.dodgeUntil = -Infinity;
   state.dodgeMove = { vx: 0, vy: 0 };
 }
@@ -138,6 +142,7 @@ function fire(t) {
     send('missile-up' + k, { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id });
     set('grip' + k, 'fire', 1);
     state.lastShot = time;
+    state.wait = jitter * random();
     return;
   }
 }
@@ -186,9 +191,9 @@ function tick() {
   let goal = state.home;
   if (target) {
     const side = self.pos.x >= target.pos.x ? 1 : -1;
-    goal = { x: target.pos.x + side * standoff, y: target.pos.y + above };
+    goal = { x: target.pos.x + side * standoff, y: Math.min(target.pos.y + above, state.home.y + ceiling) };
     const range = Math.hypot(target.pos.x - self.pos.x, target.pos.y - self.pos.y);
-    const ready = time - state.lastShot >= reload && time - state.trackedSince >= settle;
+    const ready = time - state.lastShot >= reload + state.wait && time - state.trackedSince >= settle + state.wait && Math.abs(self.angle) < level;
     if (range >= minRange && range <= maxRange && ready) fire(target);
   }
   const vx = clamp(0.5 * (goal.x - self.pos.x), -speed, speed);

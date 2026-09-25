@@ -34,21 +34,21 @@
       ]
     },
     "d": {
-      "part": "warhead",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
         "missile-up1"
       ]
     },
     "e": {
-      "part": "warhead",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
         "missile-up2"
       ]
     },
     "f": {
-      "part": "warhead",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
         "missile-up3"
@@ -76,7 +76,7 @@
       ]
     },
     "j": {
-      "part": "gyro",
+      "part": "heavygyro",
       "rot": 0,
       "tags": [
         "missile-up1"
@@ -84,7 +84,7 @@
       "auto": false
     },
     "k": {
-      "part": "gyro",
+      "part": "heavygyro",
       "rot": 0,
       "tags": [
         "missile-up2"
@@ -92,7 +92,7 @@
       "auto": false
     },
     "l": {
-      "part": "gyro",
+      "part": "heavygyro",
       "rot": 0,
       "tags": [
         "missile-up3"
@@ -107,7 +107,7 @@
       ]
     },
     "n": {
-      "part": "thruster",
+      "part": "booster",
       "rot": 0,
       "tags": [
         "missile-up1"
@@ -115,7 +115,7 @@
       "auto": false
     },
     "o": {
-      "part": "thruster",
+      "part": "booster",
       "rot": 0,
       "tags": [
         "missile-up2"
@@ -137,7 +137,7 @@
       ]
     },
     "r": {
-      "part": "thruster",
+      "part": "booster",
       "rot": 0,
       "tags": [
         "missile-up3"
@@ -189,7 +189,7 @@
       ]
     },
     "y": {
-      "part": "warhead",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
         "missile-up4"
@@ -203,7 +203,7 @@
       ]
     },
     "p26": {
-      "part": "gyro",
+      "part": "heavygyro",
       "rot": 0,
       "tags": [
         "missile-up4"
@@ -211,7 +211,7 @@
       "auto": false
     },
     "p27": {
-      "part": "thruster",
+      "part": "booster",
       "rot": 0,
       "tags": [
         "missile-up4"
@@ -236,14 +236,14 @@
         {
           "key": "f",
           "mode": "toggle",
-          "target": "thruster",
+          "target": "booster",
           "channel": "throttle",
           "value": 1
         },
         {
           "key": "x",
           "mode": "pulse",
-          "target": "warhead",
+          "target": "heavywarhead",
           "channel": "detonate",
           "value": 1
         },
@@ -258,9 +258,12 @@
           "id": "guide",
           "params": {
             "arc": 1,
-            "height": 20,
+            "height": 60,
+            "arcSpeed": 50,
             "clear": 0.4,
-            "drop": 2
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
           },
           "source": {
             "file": "enemy-drone.missile-up1.guide.js"
@@ -274,14 +277,14 @@
         {
           "key": "f",
           "mode": "toggle",
-          "target": "thruster",
+          "target": "booster",
           "channel": "throttle",
           "value": 1
         },
         {
           "key": "x",
           "mode": "pulse",
-          "target": "warhead",
+          "target": "heavywarhead",
           "channel": "detonate",
           "value": 1
         },
@@ -296,9 +299,12 @@
           "id": "guide",
           "params": {
             "arc": 1,
-            "height": 20,
+            "height": 60,
+            "arcSpeed": 50,
             "clear": 0.4,
-            "drop": 2
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
           },
           "source": {
             "file": "enemy-drone.missile-up2.guide.js"
@@ -312,14 +318,14 @@
         {
           "key": "f",
           "mode": "toggle",
-          "target": "thruster",
+          "target": "booster",
           "channel": "throttle",
           "value": 1
         },
         {
           "key": "x",
           "mode": "pulse",
-          "target": "warhead",
+          "target": "heavywarhead",
           "channel": "detonate",
           "value": 1
         },
@@ -334,9 +340,12 @@
           "id": "guide",
           "params": {
             "arc": 1,
-            "height": 20,
+            "height": 60,
+            "arcSpeed": 50,
             "clear": 0.4,
-            "drop": 2
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
           },
           "source": {
             "file": "enemy-drone.missile-up3.guide.js"
@@ -350,14 +359,14 @@
         {
           "key": "f",
           "mode": "toggle",
-          "target": "thruster",
+          "target": "booster",
           "channel": "throttle",
           "value": 1
         },
         {
           "key": "x",
           "mode": "pulse",
-          "target": "warhead",
+          "target": "heavywarhead",
           "channel": "detonate",
           "value": 1
         },
@@ -372,9 +381,12 @@
           "id": "guide",
           "params": {
             "arc": 1,
-            "height": 20,
+            "height": 60,
+            "arcSpeed": 50,
             "clear": 0.4,
-            "drop": 2
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
           },
           "source": {
             "file": "enemy-drone.missile-up4.guide.js"

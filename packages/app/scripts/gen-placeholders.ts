@@ -524,10 +524,9 @@ function drawRadar(): Canvas {
 // ---------------------------------------------------------------- fx
 
 /** Flame anchored at the top edge (the nozzle exit), pointing down. */
-function drawGyro(): Canvas {
+function drawGyro(violet = hex('#5b3fa8'), edge = hex('#34226a')): Canvas {
   const cv = new Canvas(CELL, CELL);
-  const violet = hex('#5b3fa8');
-  plate(cv, 0, 0, CELL, CELL, violet, hex('#34226a'), 3);
+  plate(cv, 0, 0, CELL, CELL, violet, edge, 3);
   for (const [x, y] of [[9, 9], [55, 9], [9, 55], [55, 55]] as const) rivet(cv, x, y);
   // Rotor: a steel disc in a dark well, with spokes.
   const cx = 32;
@@ -824,6 +823,8 @@ function main(): void {
     // Booster (Gate 7): the thruster in orange, with a hot band; heavy warhead: the warhead in near black with an orange band.
     { name: 'part.booster', canvas: drawThruster(hex('#d0762c'), hex('#8a3b12')) },
     { name: 'part.heavywarhead', canvas: drawWarhead(hex('#2a2c31'), hex('#121316'), hex('#e0712c')) },
+    // Heavy gyro: the gyro in dark teal.
+    { name: 'part.heavygyro', canvas: drawGyro(hex('#1f7a78'), hex('#0f4543')) },
     { name: 'part.radar', canvas: drawRadar() },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
