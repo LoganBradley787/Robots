@@ -55,6 +55,12 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - Plan (Logan agreed, 2026-09-25): send each part's id, type, tags, and mass only when the robot's parts change (a decoupler, a part destroyed, a split: `Robot.version` already bumps then); each tick send only the numbers that move (positions, angles, channel values) as one binary block of numbers the sandbox reads without parsing; build that once per robot, not once per script. Scripts see the same `parts` as today, so none change, and the numbers are the same, so replays and determinism hold. Estimate: about 160 us to about 30 us per script, so the drone from about 0.47 to about 0.1 ms, and 100 or more scripted drones instead of about 25. Add a benchmark to the CLI (`pnpm sim bench`) so regressions show.
 - Recommended as the first task of the sensors milestone.
 
+### Missiles that turn like real ones (Logan, Gate 7)
+- Logan: a real missile goes straight and turns fast because fins push on the air; here there is no lift or drag and the thruster has no gimbal, so a missile turns only by swinging its nose with a gyro and pointing its push. Gate 7 added a heavy gyro (200 N m) for missiles. Later, worth trying: air drag and lift (a fin part), or a thruster that can swivel a little.
+
+### Denser batteries (Logan, Gate 7)
+- If missiles run short on energy: a battery denser than the battery (blue instead of green), then an even denser one (red, or another color). Not needed yet: a missile-up still flew 5 s and hit after its drone hovered 60 s.
+
 ### Missiles that do not run out (Logan: an enemy needs more than two)
 - Claude's pick: a fabricator bay part that holds a count of missiles, not physical ones. On fire it spawns a copy of a missile blueprint at its release face (the same copy-placing as the builder, so the missile's own core and guide script wake as usual), costing energy (say 300 J) and a reload time. Materials could replace energy later.
 - Others: a one-part rocket (tiny, but no longer a robot you can switch into); enemies regenerating over time (fine as an AI-only cheat); a world spawner or enemy factory that sends out drones on a timer (with teams and AI).

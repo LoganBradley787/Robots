@@ -53,6 +53,11 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | gyro | 1 | 30 | N E S W | spin [-1, 1], damp [0, 1] | | Reaction wheel (Gate 3): E and Q turn the robot, otherwise it damps spin. |
 | rotator | 1.5 | 40 | N E S W | turn [-1, 1] | angle [-1, 1] | M6 (Q5). Rotation 0 mounts on the part below (S) and carries parts on N, E, W in its own body. Z and X swing its aim at up to 2 rad/s within +-90 degrees; it holds the aim otherwise. Position motor, 600 N m (M7, was 300). M7: it swings only as fast as it can stop what it carries (`sqrt(0.2 * maxTorque / inertia)`), and its aim never runs more than 0.15 rad ahead of the turret, so a heavy turret no longer swings far past where it was aimed. |
 | cell | 0.5 | 10 | N E S W | | charge fraction | M7. A small battery, 250 units, legend `E`, builder key `-`. Made for missiles: the launcher's missile flew at thrust-to-weight 1.5 on a battery and 2.2 on a cell (3 since Gate 6's 160 N thruster). |
+| seeker | 0.3 | 20 | E S W | on [0, 1] | | M8. Sensor, 90 degree cone, 300 m, 1 energy per second (see Sensor parts). Legend `S^ Sv S< S>`, key `=`. |
+| radar | 1 | 40 | N E S W | on [0, 1] | | M8. Sensor, all around, 500 m, 3 energy per second. Legend `O`, key `;`. |
+| booster | 1.5 | 25 | N E W | throttle [0, 1] | | Gate 7 (Logan: missiles were big and slow). A thruster for missiles: 400 N, 60 energy per second (a core's 600 is 10 s at full). Legend `K^ Kv K< K>`, key `'`. |
+| heavywarhead | 1.5 | 20 | N E S W | detonate (pulse) | | Gate 7. 250 damage falling to 0 at 4 m, push 50 out to 6 m; same fuze as the warhead. Legend `H`, key `/`. Bombs keep the warhead. |
+| heavygyro | 1.5 | 30 | N E S W | spin [-1, 1], damp [0, 1] | | Gate 7. 200 N m (the gyro is 40), 15 energy per second. A 6 kg missile swings its nose round in about half a second instead of over two. Legend `Y`, no builder key. The gyro stays 40 so the tuned drone hovers are unchanged. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
