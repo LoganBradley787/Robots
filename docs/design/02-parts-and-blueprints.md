@@ -46,13 +46,13 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | frame | 1 | 60 | N E S W | | | Structural, and the armor: toughest per kilogram. |
 | battery | 3 | 30 | N E S W | | charge fraction | Energy container, 1500 units (M4). A target: shoot it and the robot runs dry. |
 | wheel | 1.5 | 25 | N (mount only) | speed [-1, 1] | angular velocity | Rotation 0 mounts to the cell above. Own body, revolute motor joint. |
-| thruster | 1 | 25 | N E W | throttle [0, 1] | | Rotation 0: nozzle S, pushes +y. Force at part position. Flame overlay when throttle > 0 and the robot has energy. |
-| propeller | 1 | 15 | S E W | throttle [0, 1] | | Rotation 0: lift +y. Spin sprite animation speed tied to throttle. The most fragile part. |
+| thruster | 1 | 25 | N E W | throttle [0, 1] | | Rotation 0: nozzle S, pushes +y. 160 N (Gate 6, was 120), 20 energy per second. Force at part position. Flame overlay when throttle > 0 and the robot has energy. |
+| propeller | 1 | 15 | S E W | throttle [0, 1] | | Rotation 0: lift +y. 120 N (Gate 6, was 60), 10 energy per second. Spin sprite animation speed tied to throttle. The most fragile part. |
 | decoupler | 1 | 30 | N E S W | fire (pulse) | armed | Rotation 0: release face N (its `acts`). On fire, N stops attaching once and both sides get 2 N s apart. Acts before other parts that tick (M6). |
 | warhead | 1 | 20 | N E S W | detonate (pulse) | | Explodes on detonate, when destroyed (chains), or when a hit changes its body's speed by more than 5 m/s in one step. A one-part core-less blueprint of it is the bomb. |
 | gyro | 1 | 30 | N E S W | spin [-1, 1], damp [0, 1] | | Reaction wheel (Gate 3): E and Q turn the robot, otherwise it damps spin. |
 | rotator | 1.5 | 40 | N E S W | turn [-1, 1] | angle [-1, 1] | M6 (Q5). Rotation 0 mounts on the part below (S) and carries parts on N, E, W in its own body. Z and X swing its aim at up to 2 rad/s within +-90 degrees; it holds the aim otherwise. Position motor, 600 N m (M7, was 300). M7: it swings only as fast as it can stop what it carries (`sqrt(0.2 * maxTorque / inertia)`), and its aim never runs more than 0.15 rad ahead of the turret, so a heavy turret no longer swings far past where it was aimed. |
-| cell | 0.5 | 10 | N E S W | | charge fraction | M7. A small battery, 250 units, legend `E`, builder key `-`. Made for missiles: the launcher's missile flew at thrust-to-weight 1.5 on a battery and 2.2 on a cell. |
+| cell | 0.5 | 10 | N E S W | | charge fraction | M7. A small battery, 250 units, legend `E`, builder key `-`. Made for missiles: the launcher's missile flew at thrust-to-weight 1.5 on a battery and 2.2 on a cell (3 since Gate 6's 160 N thruster). |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 

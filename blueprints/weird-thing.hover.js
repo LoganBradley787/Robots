@@ -3,11 +3,14 @@
 // Exact sensors make this simple: no estimating, just feedback on the real height and speed.
 
 const climb = param('climb', 3, { min: 0.5, max: 10 }); // m/s the target height moves while W or S is held
+const lift = param('lift', 120, { min: 10, max: 1000 }); // N, one propeller's full push (the propeller part)
 const lean = param('lean', 0.35, { min: 0, max: 1 }); // radians of lean with A or D
 
 function setup() {
   state.target = self.pos.y;
-  state.base = 0.6; // throttle that just holds the weight; learned below
+  // Throttle that just holds the weight, from the robot's mass and its propellers; learned more exactly below.
+  const props = parts.filter((p) => p.type === 'propeller').length;
+  state.base = props > 0 ? clamp((self.mass * 9.81) / (props * lift), 0, 1) : 0.5;
 }
 
 function tick() {

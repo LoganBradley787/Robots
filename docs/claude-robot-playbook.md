@@ -89,10 +89,10 @@ function tick() {
 ## Numbers that matter
 Run `pnpm sim parts` for the full table. g is 9.81.
 - **Mass (kg):** core 2, frame 1, battery 3, cell 0.5, wheel 1.5, thruster 1, propeller 1, decoupler 1, warhead 1, gyro 1, rotator 1.5.
-- **Push:** thruster 120 N, propeller 60 N, both along their arrow. Lift must beat weight: a flier needs thrust-to-weight well above 1 (1.4 hovers with room to climb; the launcher's missile needed 2.2). Propellers only push along their arrow; a drone moves sideways by leaning.
-- **Turning:** a gyro gives 40 N m. That is plenty for a small robot and far too little for a wide heavy one: a 40 kg, 11-wide drone needs its left and right propellers throttled differently to lean (see `missile-drone.hover.js`). Rotators hold 600 N m and turn at most 2 rad/s, within plus or minus 90 degrees.
+- **Push:** thruster 160 N (20 J/s), propeller 120 N (10 J/s), both along their arrow (Gate 6: Logan raised both). Lift must beat weight: a flier needs thrust-to-weight well above 1 (1.5 to 2 hovers with room to climb; the missile flies at about 3). Propellers only push along their arrow; a drone moves sideways by leaning.
+- **Turning:** a gyro gives 40 N m. That is plenty for a small robot and far too little for a wide heavy one: a 38 kg, 11-wide drone needs its left and right propellers throttled differently to lean (see `missile-drone.hover.js`). Rotators hold 600 N m and turn at most 2 rad/s, within plus or minus 90 degrees.
 - **Wheels:** 20 N m each, radius 0.45 m, grip friction 1.5. The stock car (12 kg, two wheels) does about 15 m/s and climbs the flat world's ramp.
-- **Energy:** core 600 J, battery 1500 J, cell 250 J. Draw at full input per second: thruster 20, propeller 10, wheel 5, gyro 5, rotator 3. A drone with ten propellers near 0.7 throttle uses about 60 J/s. Out of energy, nothing moves.
+- **Energy:** core 600 J, battery 1500 J, cell 250 J. Draw at full input per second: thruster 20, propeller 10, wheel 5, gyro 5, rotator 3. The 6-propeller missile drone uses about 30 J/s hovering, about two minutes on two batteries. Out of energy, nothing moves.
 - **Damage:** a warhead does 120 at its center falling to 0 at 3 m, halved by every part in the way, and pushes things away up to 5 m. Health: frame 60, core 50, battery and decoupler and gyro 30, thruster and wheel 25, warhead 20, propeller 15, cell 10. A core right next to a warhead dies.
 - **Fuze:** a warhead goes off when a hit changes its speed by more than 5 m/s in one step: a fall of about 1.3 m, a landing, a missile clipping a box. A robot with a warhead must not be deployed high in the air or land hard.
 
@@ -108,9 +108,9 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 ## Examples to start from
 - `car`: two wheels on a frame, auto controls only. D and A drive.
 - `drone` + `drone.hover.js`: five-wide hover drone; the hover script owns the propellers (`auto: false`), W and S set the height, A and D lean with a gyro.
-- `missile` + `missile.guide.js`: `M g E C X` (thruster at the tail, gyro, cell, core, warhead at the nose). The guide steers the thrust so it holds the line it was released on and cancels gravity; it detonates after `fuse` seconds (10). It flies nose-up about 27 degrees, so its tail hangs about 1.4 m below its core.
+- `missile` + `missile.guide.js`: `M g E C X` (thruster at the tail, gyro, cell, core, warhead at the nose). The guide steers the thrust so it holds the line it was released on and cancels gravity; it detonates after `fuse` seconds (10). It flies nose-up about 20 degrees, so its tail hangs about 1 m below its core. Its `thrust` param must match the thruster's force (160).
 - `launcher`: a car with a rotator turret and a `missile` hanging under a `Dv` rail. Z and X aim, F fires (a pulse on every `decoupler`).
-- `missile-drone`: the hover drone widened to 11 with two missiles under `left` and `right` rails. Its hover leans by propeller throttle and learns its trim when a missile is gone; `missile-drone.fire.js` fires the right missile first on F, then the left.
+- `missile-drone`: 11 wide, 6 propellers, two missiles under `left` and `right` rails. Its hover leans by propeller throttle and learns its trim when a missile is gone; `missile-drone.fire.js` fires the right missile first on F, then the left.
 - `longcar`, `bomb`, `wall`: targets and drop tests (`--drop wall@0:-80,5.5` puts a wall 20 m in front of a robot at x -100).
 
 ## Traps (learned the hard way)

@@ -9,7 +9,7 @@ describe('parts', () => {
     expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-']);
     const thruster = rows.find((r) => r.id === 'thruster');
     expect(thruster).toMatchObject({ key: '5', legend: ['T^', 'T<', 'Tv', 'T>'], mass: 1, health: 25, faces: ['N', 'E', 'W'], power: 20 });
-    expect(thruster?.details.join('\n')).toContain('maxForce 120 N');
+    expect(thruster?.details.join('\n')).toContain('maxForce 160 N');
     expect(rows.find((r) => r.id === 'cell')?.legend).toEqual(['E']);
   });
 

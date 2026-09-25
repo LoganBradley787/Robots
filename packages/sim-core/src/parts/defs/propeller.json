@@ -9,7 +9,7 @@
   "outputs": [],
   "powerDraw": 10,
   "behavior": "thrust",
-  "behaviorConfig": { "maxForce": 60 },
+  "behaviorConfig": { "maxForce": 120 },
   "acts": "N",
   "autoControl": { "channel": "throttle", "kind": "push" },
   "sprite": { "frame": "part.propeller", "animation": "fx.propeller" }

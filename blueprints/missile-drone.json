@@ -2,7 +2,7 @@
   "format": 1,
   "name": "missile-drone",
   "grid": [
-    "a a a a a o b b b b b",
+    "a . a . a o b . b . b",
     "F F F F B C B F F F F",
     ". c c c . . . d d d .",
     "e f g h i . j k l m n"

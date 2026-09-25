@@ -12,10 +12,14 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 ## Flagged for your call
 - **New part `cell`**: a 0.5 kg, 250 J battery (key `-`), made for missiles.
 - **Rotator**: 600 N m (was 300), turns only as fast as it can stop what it carries, and its aim never runs more than 0.15 rad ahead of the turret.
-- **Missiles**: a flat shot sinks about 3 m before it levels out; a straight-up shot sags about 15 degrees past vertical; they fly nose-up about 27 degrees, so their tail hangs low. No homing (sensors are Q22, open).
+- **Missiles**: a flat shot sinks about 3 m before it levels out; a straight-up shot sags about 15 degrees past vertical; they fly nose-up about 20 degrees (27 before the thruster change), so their tail hangs low. No homing (sensors are Q22, open).
 - **Missile drone**: after the first shot it tilts up to about 8 degrees and settles in about 3 s, because its hover learns the new balance. The second dry run's drone computed its balance from the part list instead and held 0.5 degrees; the stock drone could do the same if you want it steadier.
 - **Placed missiles share the robot's energy** while attached (their cores and cells are in the robot's pool, and the hover drains them).
 - The builder at under about 1100 px wide: the side panels cover the grid (known since M2).
 
 ## Findings
-(none yet)
+
+### 1. Propellers and thrusters too weak (Logan, fixed)
+- Logan: the missile drone needed ten propellers "just to keep this relatively light thing afloat"; it should need about 6. And missiles are slow.
+- Decided: propeller 60 to 120 N, thruster 120 to 160 N, propeller energy stays 10 J/s (Logan: drones barely last as it is).
+- Done: `missile-drone` rebuilt with 6 propellers (about 2 minutes of flight on two batteries); the missile guide's `thrust` param is 160 in every copy; hover scripts (`drone`, `weird-thing`, `missile-drone`) start from a throttle worked out from their mass and propeller count (new `lift` param, 120), so they no longer overshoot on a stronger propeller. Missiles now reach about 105 m/s (80 before).

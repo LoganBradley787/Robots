@@ -192,7 +192,7 @@ describe('mirrorCommand (M7)', () => {
     const json = JSON.parse(out.text);
     expect(json.primaryCore).toBe('core@5,1');
     expect(Object.keys(json.cores)).toEqual(['core@1,6']);
-    const r = await runSim(flat, json, { seconds: 4, seed: 1, at: { x: 100, y: 1.5 }, keys: [{ key: 'f', down: 1, up: 1 }] });
+    const r = await runSim(flat, json, { seconds: 4, seed: 1, at: { x: 300, y: 1.5 }, keys: [{ key: 'f', down: 1, up: 1 }] });
     const missile = r.pieces.find((p) => p.core.includes('missile1'));
     expect(missile).toBeDefined();
     expect((missile?.final.x ?? 0) - (missile?.track[0]?.x ?? 0)).toBeLessThan(-10);

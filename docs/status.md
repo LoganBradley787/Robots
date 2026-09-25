@@ -28,7 +28,7 @@ Updated: 2026-09-24, by a coding session (Opus 5.5), end of M7
 
 ## Known issues
 - M7: the missile drone tilts up to about 8 degrees after its first shot while its hover learns the new balance (settles in about 3 s). The second dry run's drone computed its balance from `parts` and held 0.5 degrees; the stock drone could do the same.
-- M7: missiles fly nose-up about 27 degrees to hold their weight, so their tail hangs about 1.4 m below the core and can clip a box on a low flat shot; a flat shot sinks about 3 m before leveling; a straight-up shot sags about 15 degrees past vertical.
+- M7: missiles fly nose-up about 20 degrees to hold their weight, so their tail hangs about 1 m below the core and can clip a box on a low flat shot; a flat shot sinks about 3 m before leveling; a straight-up shot sags about 15 degrees past vertical.
 - M7: a placed missile's core and cell share the robot's energy pool while attached, and the hover drains them.
 - A save round trip rewrites parts in grid reading order; with two or more cores and no `primaryCore`, the root core could change after reopening. Deploy is unaffected (it goes through the same file form).
 - Mirror mode's axis defaults to the core's column. On an asymmetric robot (the car: core in cell 2 of 6) mirroring overwrites parts on the far side. Alternative for Logan to judge: default to the center of the robot's bounding box.

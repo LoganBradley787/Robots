@@ -9,7 +9,7 @@
 
 const fuse = param('fuse', 10, { min: 0.5, max: 30 }); // seconds of flight before it detonates
 const hold = param('hold', 2, { min: 0, max: 10 }); // how fast sideways drift is taken out (per second)
-const thrust = param('thrust', 120, { min: 10, max: 1000 }); // N, the motor's full push (the thruster part)
+const thrust = param('thrust', 160, { min: 10, max: 1000 }); // N, the motor's full push (the thruster part)
 const clear = param('clear', 0.05, { min: 0, max: 2 }); // seconds flying straight before steering, to clear the launcher
 
 function wrap(a) {
