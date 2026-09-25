@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "name": "missile-up",
+  "grid": [
+    "S",
+    "X",
+    "C",
+    "g",
+    "M"
+  ],
+  "legend": {
+    "M": {
+      "part": "thruster",
+      "rot": 0,
+      "auto": false
+    },
+    "g": {
+      "part": "gyro",
+      "auto": false
+    },
+    "S": {
+      "part": "seeker",
+      "rot": 0
+    }
+  },
+  "bindings": [
+    {
+      "key": "f",
+      "mode": "toggle",
+      "target": "thruster",
+      "channel": "throttle",
+      "value": 1
+    },
+    {
+      "key": "x",
+      "mode": "pulse",
+      "target": "warhead",
+      "channel": "detonate",
+      "value": 1
+    },
+    {
+      "key": "g",
+      "mode": "script",
+      "script": "guide"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "guide",
+      "params": {
+        "arc": 1,
+        "height": 20,
+        "clear": 0.4,
+        "drop": 2
+      },
+      "source": {
+        "file": "missile-up.guide.js"
+      }
+    }
+  ]
+}
