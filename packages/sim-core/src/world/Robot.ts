@@ -18,6 +18,11 @@ export interface PartInstance {
   aim?: number;
   /** A sensor part (M8): whether it was switched on and powered on the last tick. Undefined until it first runs (sees). */
   sensing?: boolean;
+  /**
+   * A core's messages from other cores (M8), oldest first, at most 16: its scripts see those sent before this tick,
+   * then they are gone. A dormant core keeps them until it wakes. `data` is the JSON text.
+   */
+  inbox?: { from: string; tick: number; data: string }[];
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** Index of the body group that owns this part. */

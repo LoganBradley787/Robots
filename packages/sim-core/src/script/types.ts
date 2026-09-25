@@ -61,10 +61,31 @@ export interface ScannedPart {
   maxHealth: number;
 }
 
-/** Host calls a script can make mid-tick (M8). They only read the world, so the order of calls cannot change it. */
+/** A message another core sent this one (M8), as its scripts see it in `inbox`. */
+export interface ScriptMessage {
+  /** The sender's core part id. */
+  from: string;
+  /** The tick it was sent on. */
+  tick: number;
+  data: unknown;
+}
+
+/** A point a script marked for the debug overlay and the CLI side view (M8). Not simulation state. */
+export interface ScriptMark {
+  x: number;
+  y: number;
+  label?: string;
+}
+
+/**
+ * Host calls a script can make mid-tick (M8). Scripts run in a fixed order, so the order of calls is deterministic.
+ * `scan` only reads; `send` queues a message that is shown next tick.
+ */
 export interface ScriptServices {
   /** A seen robot's parts, or null when it is not seen this tick. */
   scan(id: number): ScannedPart[] | null;
+  /** Queues `json` for an attached core named `to` (its scope or its part id). False when there is no such core. */
+  send(to: string, json: string): boolean;
 }
 
 /** What a script sees on a tick. Plain data; nothing from the host leaks in. */
@@ -85,9 +106,11 @@ export interface ScriptInput {
   keys: { down: string[]; pressed: string[]; released: string[] };
   /** M8: robots this robot's sensors see, nearest first. Empty without sensors. */
   contacts: ScriptContact[];
+  /** M8: messages sent to this core since its scripts last ran, oldest first. */
+  inbox: ScriptMessage[];
 }
 
-export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[] } | { ok: false; error: ScriptError };
+export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[]; marks: ScriptMark[] } | { ok: false; error: ScriptError };
 
 export interface ScriptInstance {
   /** Params the script declared with `param()`, with the values it got. */

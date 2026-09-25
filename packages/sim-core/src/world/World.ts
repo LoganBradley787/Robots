@@ -10,7 +10,7 @@ import { allBindings, autoBindings } from '../control/autoControls';
 import { drainContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
-import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptServices } from '../script/types';
+import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
 import { sees, type SensorPose } from '../sensors/sight';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
@@ -165,6 +165,8 @@ export class World {
   private terrain: TerrainBox[] | undefined;
   /** Robots each robot's sensors saw when its scripts last ran, for `scan()` (M8). Derived, not hashed. */
   private readonly seen = new Map<number, Set<number>>();
+  /** The marks each robot's scripts made when they last ran, by script (M8). For the overlay and reports; not hashed. */
+  private readonly scriptMarks = new Map<number, { script: string; marks: ScriptMark[] }[]>();
 
   private constructor(opts: WorldOptions, file: WorldFile, registry: PartRegistry) {
     this.registry = registry;
@@ -295,6 +297,7 @@ export class World {
     this.used.delete(robot.id);
     this.logBudget.delete(robot.id);
     this.seen.delete(robot.id);
+    this.scriptMarks.delete(robot.id);
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'removed' });
   }
@@ -528,8 +531,19 @@ export class World {
       const robot = this.robots.find((r) => r.id === robotId);
       if (!controller || !robot) continue;
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
-      const services: ScriptServices = { scan: (id) => this.scan(robot, id) };
+      const services: ScriptServices = { scan: (id) => this.scan(robot, id), send: (to, json) => this.send(robot, to, json) };
       const out = runner.tick(() => this.scriptInput(robot, controller.keyState()), services);
+      if (out.ran) {
+        // Its scripts have seen the messages sent before this tick; this tick's own sends stay for next tick.
+        const core = robot.parts.get(robot.primaryCoreId ?? '');
+        if (core?.inbox) {
+          core.inbox = core.inbox.filter((m) => m.tick >= this.tickCount);
+          if (core.inbox.length === 0) delete core.inbox;
+        }
+        this.scriptMarks.set(robotId, out.marks);
+      } else {
+        this.scriptMarks.delete(robotId);
+      }
       for (const w of out.writes) controller.scriptWrite(w.target, w.channel, w.value);
       for (const c of out.crashes) this.events.push({ tick: this.tickCount, robot: robotId, kind: 'scriptCrashed', script: c.script, error: c.error });
       for (const l of out.logs) this.pushLog(robotId, l.script, l.text);
@@ -593,7 +607,36 @@ export class World {
       parts,
       keys,
       contacts: this.contactsFor(robot, true),
+      inbox: (robot.parts.get(coreId)?.inbox ?? []).filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown })),
     };
+  }
+
+  /**
+   * `send(to, data)` (M8): queues a message for a core attached to the sender's robot (in its controlled chunk), named
+   * by its scope as the sender sees it (`missile1`) or by part id. Its scripts see it from the next tick. No radio yet:
+   * a core that is not attached cannot be reached.
+   */
+  private send(robot: Robot, to: string, json: string): boolean {
+    const own = robot.primaryCoreId;
+    if (own === undefined || json.length > 1024) return false;
+    const chunk = robot.chunks.find((c) => c.partIds.includes(own));
+    const scope = coreControls(robot)?.scope;
+    const wanted = scope === undefined ? to : `${scope}.${to}`;
+    const target = chunk?.partIds.find((id) => {
+      if (id === own) return false;
+      const p = robot.parts.get(id);
+      if (!p || p.def.role !== 'core') return false;
+      return id === to || robot.blueprint.cores?.some((c) => c.core === id && c.scope === wanted) === true;
+    });
+    const part = target === undefined ? undefined : robot.parts.get(target);
+    if (!part) return false;
+    part.inbox = [...(part.inbox ?? []), { from: own, tick: this.tickCount, data: json }].slice(-16);
+    return true;
+  }
+
+  /** What a robot's scripts marked when they last ran (M8), for the overlay and reports. */
+  marks(robotId: number): readonly ScriptMark[] {
+    return (this.scriptMarks.get(robotId) ?? []).flatMap((m) => m.marks);
   }
 
   /** Fixed terrain boxes (the ground and world boxes): what blocks a sensor's view. */
@@ -852,6 +895,12 @@ export class World {
         h.addF64(part.aim ?? 0);
         // A sensor's power last tick decides what its scripts see next (M8). Other parts add nothing.
         if (part.sensing !== undefined) h.addInt(part.sensing ? 1 : 0);
+        // Messages waiting for a core (M8) shape what its scripts do.
+        for (const m of part.inbox ?? []) {
+          h.addString(m.from);
+          h.addInt(m.tick);
+          h.addString(m.data);
+        }
       }
       if (this.controllers.has(robot.id)) continue;
       for (const [id, chans] of this.channels.get(robot.id) ?? []) {

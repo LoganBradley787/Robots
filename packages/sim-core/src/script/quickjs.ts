@@ -1,7 +1,7 @@
 import { DefaultIntrinsics, newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSSyncVariant } from 'quickjs-emscripten-core';
 import { Prng } from '../rng/Prng';
 import { PRELUDE } from './prelude';
-import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInput, type ScriptInstance, type ScriptLimits, type ScriptResult, type ScriptServices, type ScriptWrite } from './types';
+import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInput, type ScriptInstance, type ScriptLimits, type ScriptMark, type ScriptResult, type ScriptServices, type ScriptWrite } from './types';
 
 /** Global code (the user's top level, and `param()` calls) gets a few ticks' worth of budget. */
 const COMPILE_BUDGET_TICKS = 4;
@@ -42,6 +42,13 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         });
         c.setProp(c.global, '__scan', scan);
         scan.dispose();
+        const send = c.newFunction('send', (toHandle, jsonHandle) => {
+          if (c.typeof(toHandle) !== 'string' || c.typeof(jsonHandle) !== 'string') return c.newString('false');
+          const ok = services.current?.send(c.getString(toHandle), c.getString(jsonHandle)) ?? false;
+          return c.newString(ok ? 'true' : 'false');
+        });
+        c.setProp(c.global, '__send', send);
+        send.dispose();
         const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})};\n${PRELUDE}`;
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
         const pre = c.evalCode(setup, 'prelude.js');
@@ -199,6 +206,7 @@ class QuickJsInstance implements ScriptInstance {
 const MAX_WRITES = 1000;
 const MAX_LOGS = 5;
 const MAX_LOG_CHARS = 300;
+const MAX_MARKS = 4;
 
 /** Checks the shape of a tick's output. Anything malformed is the script's error, never the host's. */
 function readResult(text: string): ScriptResult {
@@ -209,8 +217,8 @@ function readResult(text: string): ScriptResult {
   } catch {
     return bad;
   }
-  const o = raw as { writes?: unknown; logs?: unknown } | null;
-  if (!o || !Array.isArray(o.writes) || !Array.isArray(o.logs)) return bad;
+  const o = raw as { writes?: unknown; logs?: unknown; marks?: unknown } | null;
+  if (!o || !Array.isArray(o.writes) || !Array.isArray(o.logs) || !Array.isArray(o.marks)) return bad;
   const writes: ScriptWrite[] = [];
   for (const w of o.writes.slice(0, MAX_WRITES)) {
     if (!Array.isArray(w) || typeof w[0] !== 'string' || typeof w[1] !== 'string' || typeof w[2] !== 'number') return bad;
@@ -221,7 +229,13 @@ function readResult(text: string): ScriptResult {
     if (typeof l !== 'string') return bad;
     logs.push(l.slice(0, MAX_LOG_CHARS));
   }
-  return { ok: true, writes, logs };
+  const marks: ScriptMark[] = [];
+  for (const m of o.marks.slice(0, MAX_MARKS)) {
+    if (!Array.isArray(m) || typeof m[0] !== 'number' || typeof m[1] !== 'number') return bad;
+    if (!Number.isFinite(m[0]) || !Number.isFinite(m[1])) continue;
+    marks.push({ x: m[0], y: m[1], ...(typeof m[2] === 'string' && m[2] !== '' ? { label: m[2].slice(0, 40) } : {}) });
+  }
+  return { ok: true, writes, logs, marks };
 }
 
 type RunResult = { ok: true; text: string } | { ok: false; error: ScriptError };

@@ -16,6 +16,7 @@ const input = (over: Partial<ScriptInput> = {}): ScriptInput => ({
   parts: [{ id: 'propeller@0,1', type: 'propeller', tags: ['props', 'propeller@0,1'], pos: { x: -1, y: 5 }, angle: 0, mass: 1, in: { throttle: 0.3 }, out: {} }],
   keys: { down: ['a'], pressed: [], released: [] },
   contacts: [],
+  inbox: [],
   ...over,
 });
 
@@ -29,7 +30,7 @@ describe('QuickJS script host', () => {
   it('runs tick, reads sensors and keys, and returns writes and logs', () => {
     const s = compile(`function tick() { set('props', 'throttle', self.vel.y < 0 ? 1 : 0); if (keys.down('a')) log('a held', frame); }`);
     const r = s.tick(input());
-    expect(r).toEqual({ ok: true, writes: [{ target: 'props', channel: 'throttle', value: 1 }], logs: ['a held 1'] });
+    expect(r).toEqual({ ok: true, writes: [{ target: 'props', channel: 'throttle', value: 1 }], logs: ['a held 1'], marks: [] });
     s.dispose();
   });
 
@@ -106,7 +107,7 @@ describe('QuickJS script host', () => {
 describe('a script cannot break the host (M5 review)', () => {
   it('reassigning globals and JSON only affects the script', () => {
     const s = compile(`JSON.stringify = function () { return '{'; }; var __writes = 5; function tick() { set('a', 'b', 1); __tick = null; }`);
-    expect(s.tick(input())).toEqual({ ok: true, writes: [{ target: 'a', channel: 'b', value: 1 }], logs: [] });
+    expect(s.tick(input())).toEqual({ ok: true, writes: [{ target: 'a', channel: 'b', value: 1 }], logs: [], marks: [] });
     expect(s.tick(input())).toMatchObject({ ok: true });
     s.dispose();
   });

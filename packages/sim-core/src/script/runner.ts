@@ -1,5 +1,5 @@
 import type { ScriptSpec } from '../blueprint/types';
-import type { ScriptError, ScriptHost, ScriptInput, ScriptInstance, ScriptResult, ScriptServices, ScriptWrite } from './types';
+import type { ScriptError, ScriptHost, ScriptInput, ScriptInstance, ScriptMark, ScriptResult, ScriptServices, ScriptWrite } from './types';
 
 /** One script on one robot: its source, whether it runs, and why it stopped if it crashed. */
 export interface ScriptSlot {
@@ -10,6 +10,10 @@ export interface ScriptSlot {
 
 export interface ScriptTickOutput {
   writes: ScriptWrite[];
+  /** Marks from this tick (M8), per script; a script that ran with none clears its old ones. */
+  marks: { script: string; marks: ScriptMark[] }[];
+  /** Whether any script ran (and so saw this tick's input, its inbox included). */
+  ran: boolean;
   logs: { script: string; text: string }[];
   crashes: { script: string; error: ScriptError }[];
 }
@@ -61,12 +65,13 @@ export class ScriptRunner {
 
   /** Runs every enabled script for this tick. `input` is built only when a script needs it. */
   tick(input: () => ScriptInput, services?: ScriptServices): ScriptTickOutput {
-    const out: ScriptTickOutput = { writes: [], logs: [], crashes: this.pending };
+    const out: ScriptTickOutput = { writes: [], marks: [], ran: false, logs: [], crashes: this.pending };
     this.pending = [];
     let built: ScriptInput | undefined;
     for (const slot of this.slots) {
       if (!slot.enabled || !slot.instance) continue;
       built ??= input();
+      out.ran = true;
       const instance = slot.instance;
       const results: ScriptResult[] = [];
       try {
@@ -80,6 +85,7 @@ export class ScriptRunner {
       for (const r of results) {
         if (r.ok) {
           out.writes.push(...r.writes);
+          out.marks.push({ script: slot.id, marks: r.marks });
           out.logs.push(...r.logs.map((text) => ({ script: slot.id, text })));
         } else {
           this.crash(slot, r.error);

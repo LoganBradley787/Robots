@@ -7,8 +7,9 @@
  * `__seed` and `__params` are defined by the host just before this runs and are read once here.
  */
 export const PRELUDE = String.raw`
-(function (seed, given, hostScan) {
+(function (seed, given, hostScan, hostSend) {
   delete globalThis.__scan;
+  delete globalThis.__send;
   var stringify = JSON.stringify;
   var parse = JSON.parse;
   var hasOwn = Object.prototype.hasOwnProperty;
@@ -17,6 +18,8 @@ export const PRELUDE = String.raw`
   var specs = {};
   var input = null;
   var scans = 0;
+  var sends = 0;
+  var marks = [];
   var scanWarned = false;
   var s = seed.slice();
   function next() {
@@ -37,6 +40,18 @@ export const PRELUDE = String.raw`
   globalThis.self = null;
   globalThis.parts = [];
   globalThis.contacts = [];
+  globalThis.inbox = [];
+  globalThis.send = function (to, data) {
+    if (sends >= 16 || !hostSend) return false;
+    var text;
+    try { text = stringify(data === undefined ? null : data); } catch (e) { return false; }
+    if (typeof text !== 'string' || text.length > 1024) return false;
+    sends++;
+    return hostSend(String(to), text) === 'true';
+  };
+  globalThis.mark = function (x, y, label) {
+    if (marks.length < 4) marks[marks.length] = [Number(x), Number(y), label === undefined ? '' : String(label)];
+  };
   globalThis.scan = function (id) {
     if (scans >= 4) {
       if (!scanWarned && logs.length < 5) logs[logs.length] = 'scan(): at most 4 calls per tick; this one returned null';
@@ -96,12 +111,15 @@ export const PRELUDE = String.raw`
     globalThis.self = input.self;
     globalThis.parts = input.parts;
     globalThis.contacts = input.contacts || [];
+    globalThis.inbox = input.inbox || [];
     scans = 0;
+    sends = 0;
+    marks = [];
     writes = [];
     logs = [];
   }
   function result() {
-    return stringify({ writes: writes, logs: logs });
+    return stringify({ writes: writes, logs: logs, marks: marks });
   }
   return {
     setup: function (json) {
@@ -118,5 +136,5 @@ export const PRELUDE = String.raw`
     specs: function () { return stringify(specs); },
     hasTick: function () { return typeof globalThis.tick === 'function' ? 'true' : 'false'; }
   };
-})(__seed, __params, typeof __scan === 'function' ? __scan : null)
+})(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null)
 `;
