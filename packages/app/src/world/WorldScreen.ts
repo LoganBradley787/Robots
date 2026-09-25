@@ -2,6 +2,7 @@ import type { Graphics, Ticker } from 'pixi.js';
 import { World, activeControls, keysScriptsRead, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
+import { drawSensors, type SensorOverlay } from '../render/SensorDraw';
 import { interpolateState } from '../render/interpolate';
 import { RobotView } from '../render/RobotView';
 import { Effects } from '../render/Effects';
@@ -335,6 +336,19 @@ export class WorldScreen {
     }
   }
 
+  /** What every robot's sensors see and its scripts marked, for the debug overlay (M8). */
+  private sensorOverlays(): SensorOverlay[] {
+    const out: SensorOverlay[] = [];
+    for (const r of this.world.robots) {
+      const view = this.world.sensorView(r.id);
+      const marks = this.world.marks(r.id);
+      if (view.sensors.length === 0 && marks.length === 0) continue;
+      const s = sampleRobot(this.world, r);
+      out.push({ ...view, from: { x: s.coreX, y: s.coreY }, marks });
+    }
+    return out;
+  }
+
   frame(ticker: Ticker): void {
     const time = this.time;
     let ticks = time.takePendingSteps();
@@ -362,8 +376,10 @@ export class WorldScreen {
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
-    if (this.debugVisible) drawDebug(this.renderer.debug, this.world.physics.debugRender(), true);
-    else this.renderer.debug.clear();
+    if (this.debugVisible) {
+      drawDebug(this.renderer.debug, this.world.physics.debugRender(), true);
+      drawSensors(this.renderer.debug, this.sensorOverlays());
+    } else this.renderer.debug.clear();
 
     const s = focus ? sampleRobot(this.world, focus) : undefined;
     const controlled = this.keys.robot === undefined ? undefined : this.world.robots.find((r) => r.id === this.keys.robot);

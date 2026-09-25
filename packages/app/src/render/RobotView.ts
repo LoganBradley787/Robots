@@ -3,6 +3,7 @@ import type { BodyId, PhysicsWorld, Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { layoutRobot } from './robotLayout';
 import { damageTint } from './damageTint';
+import { multiplyTint, teamTint } from './teamTint';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from './units';
 
 /** Looks up an fx animation's frames by name. */
@@ -91,7 +92,7 @@ export class RobotView {
       const part = this.robot.parts.get(p.partId);
       if (!part || part.health === p.health) continue;
       p.health = part.health;
-      p.sprite.tint = damageTint(part.health / part.def.health);
+      p.sprite.tint = multiplyTint(damageTint(part.health / part.def.health), teamTint(this.robot.team));
     }
     for (const e of this.effects) {
       const t = Math.max(0, Math.min(1, (value?.(e.partId, e.channel) ?? 0) / e.max));

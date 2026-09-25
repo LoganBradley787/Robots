@@ -65,7 +65,9 @@ export type WorldEvent =
   /** A piece broke off with exactly one core, which woke up and can be controlled. */
   | { tick: number; robot: number; kind: 'coreWoke'; from: number }
   /** A robot is gone: all its parts were destroyed, or Clear debris took it. */
-  | { tick: number; robot: number; kind: 'removed' };
+  | { tick: number; robot: number; kind: 'removed' }
+  /** A script sent a message to an attached core (M8); `data` is its JSON text. */
+  | { tick: number; robot: number; kind: 'sent'; to: string; data: string };
 
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
@@ -613,7 +615,7 @@ export class World {
 
   /**
    * `send(to, data)` (M8): queues a message for a core attached to the sender's robot (in its controlled chunk), named
-   * by its scope as the sender sees it (`missile1`) or by part id. Its scripts see it from the next tick. No radio yet:
+   * by its scope as the sender sees it (`missile1`), a tag it carries, or its part id. Its scripts see it from the next tick. No radio yet:
    * a core that is not attached cannot be reached.
    */
   private send(robot: Robot, to: string, json: string): boolean {
@@ -626,11 +628,12 @@ export class World {
       if (id === own) return false;
       const p = robot.parts.get(id);
       if (!p || p.def.role !== 'core') return false;
-      return id === to || robot.blueprint.cores?.some((c) => c.core === id && c.scope === wanted) === true;
+      return id === to || p.tags.includes(wanted) || robot.blueprint.cores?.some((c) => c.core === id && c.scope === wanted) === true;
     });
     const part = target === undefined ? undefined : robot.parts.get(target);
     if (!part) return false;
     part.inbox = [...(part.inbox ?? []), { from: own, tick: this.tickCount, data: json }].slice(-16);
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'sent', to: part.id, data: json });
     return true;
   }
 

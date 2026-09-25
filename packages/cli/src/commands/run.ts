@@ -55,6 +55,8 @@ export interface RunReport {
   pieces: PieceReport[];
   /** M7: an ASCII side view of every piece's path over the terrain. */
   plot: string[];
+  /** M8: wall-clock milliseconds per tick on this machine (scripts are most of it), for spotting slow robots. */
+  timing: { avgMs: number; worstMs: number };
 }
 
 export class InvalidBlueprint extends Error {
@@ -96,13 +98,19 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     const tracer = new Tracer(world, robot, opts.keys ?? [], Math.max(1, Math.round(0.1 / world.dt)));
     let last = sampleRobot(world, robot);
     drive.add(last);
+    let totalMs = 0;
+    let worstMs = 0;
     for (let i = 0; i < ticks; i++) {
       while (drops.length > 0 && Math.round((drops[0]?.t ?? 0) / world.dt) <= world.tick) {
         const d = drops.shift() as Drop;
         tracer.dropped(world.spawnBlueprint(d.blueprint, d.at, { team: d.team ?? 0 }), d.name);
       }
       tracer.beforeStep();
+      const t0 = performance.now();
       world.step(inputs.get(world.tick) ?? []);
+      const took = performance.now() - t0;
+      totalMs += took;
+      worstMs = Math.max(worstMs, took);
       tracer.afterStep();
       // A robot blown to nothing has no pose: its report ends where it was last seen.
       if (!world.robots.includes(robot)) continue;
@@ -129,6 +137,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       destruction: destructionOf(world, robot.id),
       ...(aims.some((a) => Object.keys(a).length > 0) ? { aims } : {}),
       finalHash: world.hash(),
+      timing: { avgMs: ticks > 0 ? totalMs / ticks : 0, worstMs },
       ...traced(tracer, file),
     };
   } finally {
@@ -153,7 +162,7 @@ function aimsOf(world: SimWorld, robot: Robot): Record<string, number> {
 
 function traced(tracer: Tracer, file: WorldFile): Pick<RunReport, 'events' | 'pieces' | 'plot'> {
   const { pieces, events, blasts } = tracer.finish();
-  const plot = plotPaths({ world: file, tracks: pieces.map((p) => ({ mark: p.mark, points: p.track, shape: p.finalParts })), blasts });
+  const plot = plotPaths({ world: file, tracks: pieces.map((p) => ({ mark: p.mark, points: p.track, shape: p.finalParts, marks: p.marks })), blasts });
   return { events, pieces, plot };
 }
 
@@ -181,6 +190,7 @@ export function formatReport(r: RunReport): string {
   const fin = r.final;
   lines.push(formatDrive(r.drive));
   lines.push(formatEnergy(r.energy));
+  lines.push(`time per tick on this machine: ${f(r.timing.avgMs, 2)} ms average, ${f(r.timing.worstMs, 2)} ms worst (the browser has 16.7 ms per frame; scripts are most of it)`);
   const d = r.destruction;
   if (d.destroyed.length > 0 || d.explosions > 0) {
     const shown = d.destroyed.slice(0, 12).join(', ') + (d.destroyed.length > 12 ? `, and ${d.destroyed.length - 12} more` : '');
@@ -192,7 +202,7 @@ export function formatReport(r: RunReport): string {
     for (const e of r.events.slice(0, EVENTS_SHOWN)) lines.push(formatEvent(e));
     if (r.events.length > EVENTS_SHOWN) lines.push(`  ... and ${r.events.length - EVENTS_SHOWN} more events (--json has them all)`);
   }
-  if (r.pieces.length > 1) lines.push(...formatPieces(r.pieces));
+  if (r.pieces.length > 1 || r.pieces.some((p) => p.team !== 0 || p.marks.length > 0)) lines.push(...formatPieces(r.pieces));
   lines.push(...r.plot);
   lines.push(
     `final: ticks=${r.ticks} hash=${r.finalHash} resting=${fin.resting ? 'yes' : 'no'} core=(${f(fin.coreX)}, ${f(fin.coreY)}) tilt=${f(fin.tiltDeg, 2)} mass=${f(fin.massKg)} com=(${f(fin.comX)}, ${f(fin.comY)})`,
@@ -221,7 +231,9 @@ export function formatPieces(pieces: readonly PieceReport[]): string[] {
       p.goneAt !== undefined
         ? `gone at t=${f(p.goneAt, 2)}, last seen at ${where}`
         : `at ${where} tilt ${f(s.tiltDeg, 1)} speed ${f(s.speed, 2)}${s.resting ? ' resting' : ''}, ${s.parts} part${s.parts === 1 ? '' : 's'}${s.energy ? `, energy ${f(s.energy.stored, 0)} of ${f(s.energy.capacity, 0)} J` : ''}`;
-    lines.push(`  ${p.mark}  ${origin}, ${p.core}: ${state}`);
+    const team = p.team === 0 ? '' : p.team === 1 ? ' [enemy]' : ` [team ${p.team}]`;
+    const marks = p.marks.length > 0 ? `; marked ${p.marks.map((m) => `${m.label !== undefined ? `${m.label} ` : ''}(${f(m.x, 1)}, ${f(m.y, 1)})`).join(', ')}` : '';
+    lines.push(`  ${p.mark}${team}  ${origin}, ${p.core}: ${state}${marks}`);
   }
   if (debris.length > 0) lines.push(`  and ${debris.length} piece${debris.length === 1 ? '' : 's'} with no core: ${debris.join(', ')}`);
   return lines;

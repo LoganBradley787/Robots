@@ -34,6 +34,10 @@ export interface PieceReport {
   track: { t: number; x: number; y: number }[];
   /** Where each of its parts is at the end (empty when it is gone), so the side view shows its shape. */
   finalParts: { x: number; y: number }[];
+  /** M8: its team (0 yours, 1 enemy). */
+  team: number;
+  /** M8: the points its scripts marked the last time they marked any. */
+  marks: { x: number; y: number; label?: string }[];
 }
 
 export interface TraceEvent {
@@ -67,6 +71,8 @@ export class Tracer {
   /** Each robot's scripts that were on after the last step, to report a key turning one on or off. */
   private readonly scriptsOn = new Map<number, Set<string>>();
   private seenEvents = 0;
+  /** M8: what each robot's sensors see, and for how many ticks each contact has been out of sight. */
+  private readonly sight = new Map<number, Map<number, number>>();
   private stepStart = 0;
   private readonly world: World;
   private readonly trackEvery: number;
@@ -145,7 +151,9 @@ export class Tracer {
           const keys = w.controller(e.robot)?.keys ?? [];
           const scripts = w.scripts(e.robot).map((s) => s.id + (s.enabled ? '' : ' (off)'));
           const robot = w.robots.find((r) => r.id === e.robot);
-          push(e.robot, 'woke', `woke: ${robot ? coreLabel(robot) : 'its core'} runs its own controls; keys ${keys.join(', ') || 'none'}; scripts ${scripts.join(', ') || 'none'}`);
+          const waiting = robot?.parts.get(robot.primaryCoreId ?? '')?.inbox?.length ?? 0;
+          const inbox = waiting > 0 ? `; ${waiting} message${waiting === 1 ? '' : 's'} waiting in its inbox` : '';
+          push(e.robot, 'woke', `woke: ${robot ? coreLabel(robot) : 'its core'} runs its own controls; keys ${keys.join(', ') || 'none'}; scripts ${scripts.join(', ') || 'none'}${inbox}`);
           break;
         }
         case 'coreLost':
@@ -160,6 +168,12 @@ export class Tracer {
         case 'scriptCrashed':
           push(e.robot, 'scriptCrashed', `script ${e.script} stopped (${e.error.kind}): ${e.error.message}`);
           break;
+        case 'sent': {
+          const r = w.robots.find((x) => x.id === e.robot);
+          const scope = r?.blueprint.cores?.find((c) => c.core === e.to)?.scope;
+          push(e.robot, 'sent', `sent ${e.to}${scope !== undefined ? ` (${scope})` : ''}: ${e.data.length > 120 ? `${e.data.slice(0, 117)}...` : e.data}`);
+          break;
+        }
       }
     }
 
@@ -198,10 +212,14 @@ export class Tracer {
       }
     }
 
+    this.traceSight(tickTime);
+
     const alive = new Set(w.robots.map((r) => r.id));
     for (const r of w.robots) {
       const p = this.pieces.get(r.id);
       if (!p) continue;
+      const marks = w.marks(r.id);
+      if (marks.length > 0) p.marks = marks.map((m) => ({ ...m }));
       const pose = poseOf(w, r);
       if (!pose) continue;
       p.final = { ...p.final, x: pose.x, y: pose.y };
@@ -211,6 +229,33 @@ export class Tracer {
       if (p.goneAt !== undefined || alive.has(p.id)) continue;
       p.goneAt = tickTime;
       addPoint(p, { t: tickTime, x: p.final.x, y: p.final.y });
+    }
+  }
+
+  /**
+   * M8: "A sees B (enemy)" when a robot's sensors first see another, and "A lost sight of B" once it has been out of
+   * sight for a quarter second (a contact at the edge of a cone would otherwise flicker).
+   */
+  private traceSight(tickTime: number): void {
+    const w = this.world;
+    const lostAfter = Math.max(1, Math.round(0.25 / w.dt));
+    for (const r of w.robots) {
+      const view = w.sensorView(r.id);
+      const known = this.sight.get(r.id) ?? new Map<number, number>();
+      if (view.sensors.length === 0 && known.size === 0) continue;
+      this.sight.set(r.id, known);
+      const now = new Map(view.contacts.map((c) => [c.id, c.side]));
+      for (const [id, side] of now) {
+        if (!known.has(id)) this.events.push({ t: tickTime, robot: this.letter(r.id), kind: 'sees', text: `sees ${this.letter(id)} (${side})` });
+        known.set(id, 0);
+      }
+      for (const [id, unseen] of known) {
+        if (now.has(id)) continue;
+        if (unseen + 1 >= lostAfter) {
+          known.delete(id);
+          this.events.push({ t: tickTime, robot: this.letter(r.id), kind: 'lostSight', text: `lost sight of ${this.letter(id)}` });
+        } else known.set(id, unseen + 1);
+      }
     }
   }
 
@@ -246,6 +291,8 @@ export class Tracer {
       final: { x: pose.x, y: pose.y, tiltDeg: 0, speed: 0, resting: false, parts: r.parts.size },
       track: [{ t: this.world.time, x: pose.x, y: pose.y }],
       finalParts: [],
+      team: r.team,
+      marks: [],
     };
     if (r.brokeFrom !== undefined) {
       const from = this.pieces.get(r.brokeFrom);
@@ -271,6 +318,8 @@ export class Tracer {
       final: { x: at.x, y: at.y, tiltDeg: 0, speed: 0, resting: false, parts: 0 },
       track: [],
       finalParts: [],
+      team: parent?.team ?? 0,
+      marks: [],
       ...(parent ? { from: parent.mark } : {}),
     };
     this.pieces.set(id, p);

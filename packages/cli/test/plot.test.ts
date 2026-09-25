@@ -53,6 +53,12 @@ describe('plotPaths', () => {
     expect(row.slice(row.indexOf('|') + 1).startsWith('A')).toBe(false);
   });
 
+  it('draws points scripts marked as @ (M8)', () => {
+    const text = plotPaths({ world, tracks: [{ mark: 'A', points: [{ x: 0, y: 2 }], marks: [{ x: 20, y: 5 }] }], blasts: [] }).join('\n');
+    expect(text).toContain('@');
+    expect(text).toContain('@: a point a script marked');
+  });
+
   it('marks past Z draw as +', () => {
     expect(plotPaths({ world, tracks: [{ mark: 'AB', points: [{ x: 0, y: 2 }] }], blasts: [] }).join('\n')).toContain('+');
   });

@@ -140,6 +140,31 @@ describe('run report: events, pieces, and the path plot (M7)', () => {
   });
 });
 
+describe('run report: teams, sight, messages, marks (M8)', () => {
+  it('reports what a robot sees, its messages, and the pieces by team', async () => {
+    const pilot = "function tick() { if (frame === 3) send('dart1', { x: contacts[0].pos.x }); if (frame === 5) set('decoupler', 'fire', 1); mark(7, 4, 'goal'); }";
+    const bp = {
+      format: 1,
+      name: 'watcher',
+      grid: ['O  C  B  D>  a'],
+      legend: { a: { part: 'core', tags: ['dart1'] } },
+      primaryCore: 'core@1,0',
+      scripts: [{ id: 'pilot', source: pilot }],
+    };
+    const target = { format: 1, name: 'target', grid: ['C  B'] };
+    const r = await runSim(flat, bp, { seconds: 1.5, seed: 1, at: { x: -30, y: 0.5 }, drops: [{ name: 'target', blueprint: target, t: 0, at: { x: -60, y: 0.5 }, team: 1 }] });
+    const text = r.events.map((e) => `${e.robot} ${e.text}`);
+    expect(text).toContain('A sees B (enemy)');
+    expect(text.find((t) => t.startsWith('A sent'))).toMatch(/^A sent core@4,0: \{"x":-60(\.\d+)?\}$/);
+    expect(text.find((t) => t.startsWith('C woke'))).toMatch(/1 message waiting in its inbox$/);
+    const report = formatReport(r);
+    expect(report).toMatch(/B \[enemy\] {2}dropped target/);
+    expect(report).toMatch(/marked goal \(7\.0, 4\.0\)/);
+    expect(report).toMatch(/time per tick on this machine: [0-9.]+ ms average/);
+    expect(r.plot.join('\n')).toContain('@');
+  });
+});
+
 describe('validate and show', () => {
   it('validate reports ok or issues', () => {
     expect(validateCommand(carJson)).toMatchObject({ ok: true, text: 'ok' });

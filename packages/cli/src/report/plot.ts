@@ -6,6 +6,8 @@ export interface PlotTrack {
   points: readonly { x: number; y: number }[];
   /** Its parts where it ended, drawn in its uppercase letter so a wall or a robot shows its shape. */
   shape?: readonly { x: number; y: number }[];
+  /** M8: points its scripts marked last (`mark(x, y)`), drawn as @. */
+  marks?: readonly { x: number; y: number }[];
 }
 
 export interface PlotInput {
@@ -64,7 +66,7 @@ export function plotPaths(input: PlotInput): string[] {
   // Everything drawn sets the bounds (a robot's parts reach past its core's path); a point flung to infinity by the
   // physics is left out rather than breaking the plot.
   const finite = (p: { x: number; y: number }): boolean => Number.isFinite(p.x) && Number.isFinite(p.y);
-  const tracks = input.tracks.map((t) => ({ ...t, points: t.points.filter(finite), shape: (t.shape ?? []).filter(finite) }));
+  const tracks = input.tracks.map((t) => ({ ...t, points: t.points.filter(finite), shape: (t.shape ?? []).filter(finite), marks: (t.marks ?? []).filter(finite) }));
   const blasts = input.blasts.filter(finite);
   let x0 = Infinity;
   let x1 = -Infinity;
@@ -79,6 +81,7 @@ export function plotPaths(input: PlotInput): string[] {
   for (const t of tracks) {
     for (const p of t.points) grow(p);
     for (const p of t.shape) grow(p);
+    for (const p of t.marks) grow(p);
   }
   for (const b of blasts) grow(b);
   if (!Number.isFinite(x0)) return [];
@@ -128,10 +131,11 @@ export function plotPaths(input: PlotInput): string[] {
     const last = t.points.at(-1);
     if (last) put(last, ch(t.mark).toUpperCase());
   }
+  for (const t of tracks) for (const p of t.marks) put(p, '@');
 
   const labels = grid.map((_, r) => fmt(bottom + (rows - r - 0.5) * sy, sy));
   const gutter = Math.max(...labels.map((l) => l.length));
-  const out = [`side view: 1 column = ${sx} m, 1 row = ${sy} m (lowercase: the path of each piece's core, uppercase: its parts where it ended, *: explosion, #: ground and boxes as they started)`];
+  const out = [`side view: 1 column = ${sx} m, 1 row = ${sy} m (lowercase: the path of each piece's core, uppercase: its parts where it ended, *: explosion, @: a point a script marked, #: ground and boxes as they started)`];
   grid.forEach((row, r) => out.push(`${(labels[r] ?? '').padStart(gutter)} |${row.join('')}`));
   const xs = [0, Math.floor(cols / 2), cols - 1].map((c) => fmt(left + (c + 0.5) * sx, sx));
   const ruler = Array.from({ length: cols }, () => ' ');
