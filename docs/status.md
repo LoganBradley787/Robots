@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-24, by a coding session (Opus 5.5), end of M7
+Updated: 2026-09-25, by a planning session (Opus 5.5), M8 plan written
 
 - Current milestone: **M7 (Claude workflow) done, tagged `m7`. Stopped at Gate 6** for Logan to play. What to try and what to judge: `docs/critique/gate-6.md`. Plan and As built (both dry runs, the review): `docs/plans/M7-claude-loop.md`.
 - What M7 shipped:
@@ -12,6 +12,7 @@ Updated: 2026-09-24, by a coding session (Opus 5.5), end of M7
   - Keys bar shows keys the running scripts read (dashed, after a divider). Scripts see each part's `mass`.
 - Gate 6 so far (`docs/critique/gate-6.md`): five findings from Logan's play, all fixed (stronger propellers and thrusters, `missile-drone-10prop`, instant weight-shift balance, time-optimal leaning and climbing, lean 60 degrees). Logan: "Everything's working!" Still to try from the checklist: a fresh Claude Code session asked for a robot in plain words.
 - Gate 6 closed (2026-09-25): the fresh-session test passed (a Claude session built `turret-drone` from the playbook alone); its stumbles are fixed in the playbook and the run report. See `docs/critique/gate-6.md`, finding 6.
+- **M8 plan written, waiting for Logan's "go":** `docs/plans/M8-sensors-and-homing.md` (Logan's answers at the top). On "go", build T1 to T9 without stopping, review, tag `m8`, stop at Gate 7.
 - Next steps, in order (Logan's order, 2026-09-25; script speed separately and last so a break is easy to trace):
   1. Plan M8 (taste questions with recommendations, a plan in `docs/plans/M8-*.md`, Logan approves), then build it:
      - Sensors, teams, and handoff at launch: sensors per Q22 (what they see: cores and who controls them, as parts and script API); every core on a side, possession only into your own; `send('missile1', { x, y })` before release and `inbox` in the woken core's `setup()`.
