@@ -5,6 +5,8 @@
 // full and the other side off, plus the gyro) and how heavy it is to turn (its moment of inertia, from its parts),
 // throws itself toward the lean it wants at full torque, and brakes at the last moment it still can without
 // overshooting. The weight being off center (one missile gone) is worked out from the parts too, so it never tilts.
+// With a load off center (a turret swung to one side), the side that brakes a lean is not the side that starts it:
+// it plans its braking on the braking side's torque, so it neither overshoots toward the load nor stops short away (M8).
 
 const climb = param('climb', 10, { min: 0.5, max: 30 }); // m/s up or down while W or S is held
 const lift = param('lift', 120, { min: 10, max: 1000 }); // N, one propeller's full push (the propeller part)
@@ -96,10 +98,11 @@ function tick() {
   const b = body();
   const ccw = lift * b.right + gyroTorque;
   const cw = lift * b.left + gyroTorque;
-  const reach = off >= 0 ? ccw : cw;
+  // Braking is done by the other side: turning toward a load hanging off center, the side that brakes is the weaker one.
+  const stopping = off >= 0 ? cw : ccw;
   // The fastest spin it can still stop from before reaching the lean it wants: v^2 = 2 a d, planned on part of the
   // torque so there is some left to brake harder if it needs. Close in, a straight line so it settles without chatter.
-  const spinUp = (margin * reach) / Math.max(1, b.inertia);
+  const spinUp = (margin * stopping) / Math.max(1, b.inertia);
   const fast = Math.sqrt(2 * spinUp * Math.abs(off));
   const spin = Math.sign(off) * Math.min(fast, 6 * Math.abs(off));
   // Torque to reach that spin within a few ticks: this is full torque almost all the way, then full braking.
@@ -108,12 +111,17 @@ function tick() {
   // Share the torque: the gyro takes what it can, the propellers the rest, on top of the split that cancels the
   // weight being off center (equal throttle would turn it by lift * throttle * sum).
   const gyro = clamp(torque, -gyroTorque, gyroTorque);
-  const fromProps = torque - gyro - lift * throttle * b.sum;
-  const diff = (b.split !== 0 ? fromProps / (lift * b.split) : 0) + state.trim;
   // Turning comes first: the height gets the throttle that leaves room for the whole split (a real flight
-  // controller does the same), so a hard turn may cost a little height but never turns short.
-  const d = Math.abs(diff);
-  const base = d >= 0.5 ? 0.5 : clamp(throttle, d, 1 - d);
+  // controller does the same), so a hard turn may cost a little height but never turns short. The base throttle
+  // then differs from what the height asked for, and with the weight off center the base turns the drone too, so
+  // the split is worked out against the base actually used (a few rounds settle it).
+  let base = throttle;
+  let diff = 0;
+  for (let i = 0; i < 4; i++) {
+    diff = (b.split !== 0 ? (torque - gyro - lift * base * b.sum) / (lift * b.split) : 0) + state.trim;
+    const d = Math.abs(diff);
+    base = d >= 0.5 ? 0.5 : clamp(throttle, d, 1 - d);
+  }
   set('lprop', 'throttle', clamp(base - diff, 0, 1));
   set('rprop', 'throttle', clamp(base + diff, 0, 1));
   set('stab', 'spin', gyroTorque > 0 ? clamp(-gyro / gyroTorque, -1, 1) : 0); // the gyro's spin is clockwise positive
