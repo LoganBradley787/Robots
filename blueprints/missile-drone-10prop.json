@@ -131,6 +131,9 @@
   "scripts": [
     {
       "id": "hover",
+      "params": {
+        "lean": 60
+      },
       "source": {
         "file": "missile-drone-10prop.hover.js"
       }

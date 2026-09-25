@@ -6,18 +6,15 @@
 // throws itself toward the lean it wants at full torque, and brakes at the last moment it still can without
 // overshooting. The weight being off center (one missile gone) is worked out from the parts too, so it never tilts.
 
-const climb = param('climb', 3, { min: 0.5, max: 10 }); // m/s the target height moves while W or S is held
+const climb = param('climb', 10, { min: 0.5, max: 30 }); // m/s up or down while W or S is held
 const lift = param('lift', 120, { min: 10, max: 1000 }); // N, one propeller's full push (the propeller part)
 const gyroTorque = param('gyroTorque', 40, { min: 0, max: 1000 }); // N m, the gyro's full torque (the gyro part)
-const lean = (param('lean', 50, { min: 0, max: 70 }) * Math.PI) / 180; // degrees of lean with A or D
+const lean = (param('lean', 60, { min: 0, max: 70 }) * Math.PI) / 180; // degrees of lean with A or D
 const brake = param('brake', 0.04, { min: 0, max: 0.3 }); // radians of lean against each m/s of sideways speed, with A and D let go
-const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of the full turning torque it plans its braking on (the rest is room for error)
+const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of its full turning or climbing power it plans its braking on (the rest is room for error)
 
 function setup() {
-  state.target = self.pos.y;
-  // Throttle that just holds the weight, from the robot's mass and its propellers; learned more exactly below.
-  const props = parts.filter((p) => p.type === 'propeller').length;
-  state.base = props > 0 ? clamp((self.mass * 9.81) / (props * lift), 0, 1) : 0.5;
+  state.target = self.pos.y; // the height it holds; none while W or S is held
   state.trim = 0; // what the balance misses, learned slowly
 }
 
@@ -63,14 +60,30 @@ function body() {
 }
 
 function tick() {
-  if (keys.down('w')) state.target += climb * dt;
-  if (keys.down('s')) state.target -= climb * dt;
-
-  // Height: push toward the target, brake vertical speed, and slowly learn the throttle that hovers.
-  const err = state.target - self.pos.y;
-  if (Math.abs(err) < 1) state.base = clamp(state.base + 0.1 * err * dt, 0, 1);
-  // Leaning tips the push sideways: divide by the cosine so its upward part still holds the height.
-  const throttle = clamp((state.base + 0.15 * err - 0.25 * self.vel.y) / Math.max(0.4, Math.cos(self.angle)), 0, 1);
+  // Up and down, the same way as leaning (Logan, Gate 6): W and S ask for a climb or sink speed, and it gets there with
+  // all the push it has; let go and it stops at the height it can stop at soonest, braking just in time.
+  const g = 9.81;
+  const props = parts.filter((p) => p.type === 'propeller').length;
+  // Leaning tips the push sideways: only the upward part of it counts.
+  const up = props * lift * Math.max(0.3, Math.cos(self.angle));
+  const rise = Math.max(0.5, up / self.mass - g); // the most it can speed up upward (or brake a fall)
+  let climbing = 0;
+  if (keys.down('w')) climbing = climb;
+  if (keys.down('s')) climbing = -climb;
+  if (climbing !== 0) state.target = undefined;
+  else if (state.target === undefined) {
+    // Just let go: hold where it comes to rest braking hard (gravity stops a climb, the propellers stop a fall).
+    const stop = self.vel.y > 0 ? g : rise;
+    state.target = self.pos.y + (self.vel.y * Math.abs(self.vel.y)) / (2 * margin * stop);
+  }
+  if (state.target !== undefined) {
+    const err = state.target - self.pos.y;
+    // Moving up is braked by gravity, moving down by the propellers: the fastest speed it can still stop from.
+    const stop = err > 0 ? g : rise;
+    climbing = Math.sign(err) * Math.min(Math.sqrt(2 * margin * stop * Math.abs(err)), 3 * Math.abs(err), climb);
+  }
+  const upward = clamp(5 * (climbing - self.vel.y), -g, rise);
+  const throttle = clamp((self.mass * (g + upward)) / up, 0, 1);
 
   // The lean it wants: A and D, else leaning against its sideways speed to stop.
   let want = clamp(brake * self.vel.x, -lean, lean);
@@ -86,8 +99,8 @@ function tick() {
   const reach = off >= 0 ? ccw : cw;
   // The fastest spin it can still stop from before reaching the lean it wants: v^2 = 2 a d, planned on part of the
   // torque so there is some left to brake harder if it needs. Close in, a straight line so it settles without chatter.
-  const accel = (margin * reach) / Math.max(1, b.inertia);
-  const fast = Math.sqrt(2 * accel * Math.abs(off));
+  const spinUp = (margin * reach) / Math.max(1, b.inertia);
+  const fast = Math.sqrt(2 * spinUp * Math.abs(off));
   const spin = Math.sign(off) * Math.min(fast, 6 * Math.abs(off));
   // Torque to reach that spin within a few ticks: this is full torque almost all the way, then full braking.
   const torque = clamp((b.inertia * (spin - self.angVel)) / (4 * dt), -cw, ccw);
@@ -97,7 +110,11 @@ function tick() {
   const gyro = clamp(torque, -gyroTorque, gyroTorque);
   const fromProps = torque - gyro - lift * throttle * b.sum;
   const diff = (b.split !== 0 ? fromProps / (lift * b.split) : 0) + state.trim;
-  set('lprop', 'throttle', clamp(throttle - diff, 0, 1));
-  set('rprop', 'throttle', clamp(throttle + diff, 0, 1));
+  // Turning comes first: the height gets the throttle that leaves room for the whole split (a real flight
+  // controller does the same), so a hard turn may cost a little height but never turns short.
+  const d = Math.abs(diff);
+  const base = d >= 0.5 ? 0.5 : clamp(throttle, d, 1 - d);
+  set('lprop', 'throttle', clamp(base - diff, 0, 1));
+  set('rprop', 'throttle', clamp(base + diff, 0, 1));
   set('stab', 'spin', gyroTorque > 0 ? clamp(-gyro / gyroTorque, -1, 1) : 0); // the gyro's spin is clockwise positive
 }

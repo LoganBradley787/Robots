@@ -37,3 +37,9 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 ### 4. More lean, and settings you can read (Logan, done)
 - Logan: it holds its height so easily at 40 degrees that it can lean further. `missile-drone-10prop`'s `lean` is now in degrees, default 50 (up to 70); at 50 degrees both sides hover near 0.55 throttle, so there is room left, and it reaches the lean in under a second.
 - Logan saw the left propellers "off the whole time" through full swings. A log shows each swing is two halves: one side full to throw it over, then the other side full to brake, then both near half while it holds the lean. Five propellers at 0.9 lift 540 N against 412 N of weight, so it stays up. It feels too perfect because sensing is exact and propellers change thrust instantly; real propellers take time to spin up (an idea for later: a spin-up time in the propeller's data).
+
+### 5. Up and down were sluggish next to the new turning (Logan, done)
+- Logan: "you can tilt fully left to fully right in the same amount of time it takes to go up like 2 ft." Height still used the original drone's gentle control (W and S slid a target height at 3 m/s).
+- `missile-drone-10prop` now climbs the way it turns: W and S ask for a climb or sink speed (param `climb`, 10 m/s), it gets there with all its spare push (about 0.6 s), and letting go stops it at the height it can stop at soonest (gravity brakes a climb, the propellers brake a fall), within about half a meter.
+- Turning comes first: the height gets the throttle that leaves room for the whole left-right split, so climbing while leaning 60 degrees no longer wobbles or overshoots (it overshot to 68 before); a hard turn can cost a meter or two of height.
+- `lean` default is 60 degrees (Logan's pick after trying 70, which flipped it into the 2 m box).
