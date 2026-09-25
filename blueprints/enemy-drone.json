@@ -1,0 +1,386 @@
+{
+  "format": 1,
+  "name": "enemy-drone",
+  "grid": [
+    ".   a   .   b   .   .   .   c   .   x   .",
+    ".   d   .   e   .   .   .   f   .   y   .",
+    ".   g   .   h   .   .   .   i   .   z   .",
+    ".   j   .   k   .   .   .   l   .   p26 .",
+    "m   n   .   o   p   .   q   r   .   p27 s",
+    "F   t   t   t   F   u   F   v   v   v   F",
+    "F   F   F   F   B   C   B   F   F   F   F",
+    "F   t   t   t   t   w   v   v   v   v   F"
+  ],
+  "legend": {
+    "a": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ]
+    },
+    "b": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ]
+    },
+    "c": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ]
+    },
+    "d": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ]
+    },
+    "e": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ]
+    },
+    "f": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ]
+    },
+    "g": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ]
+    },
+    "h": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ]
+    },
+    "i": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ]
+    },
+    "j": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ],
+      "auto": false
+    },
+    "k": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ],
+      "auto": false
+    },
+    "l": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ],
+      "auto": false
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip1"
+      ]
+    },
+    "n": {
+      "part": "thruster",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ],
+      "auto": false
+    },
+    "o": {
+      "part": "thruster",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ],
+      "auto": false
+    },
+    "p": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip2"
+      ]
+    },
+    "q": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip3"
+      ]
+    },
+    "r": {
+      "part": "thruster",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ],
+      "auto": false
+    },
+    "s": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip4"
+      ]
+    },
+    "t": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "u": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "v": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "w": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "x": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ]
+    },
+    "y": {
+      "part": "warhead",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ]
+    },
+    "z": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ]
+    },
+    "p26": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ],
+      "auto": false
+    },
+    "p27": {
+      "part": "thruster",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ],
+      "auto": false
+    }
+  },
+  "primaryCore": "core@5,1",
+  "bindings": [],
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-drone.pilot.js"
+      }
+    }
+  ],
+  "cores": {
+    "core@1,5": {
+      "scope": "missile-up1",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 20,
+            "clear": 0.4,
+            "drop": 2
+          },
+          "source": {
+            "file": "enemy-drone.missile-up1.guide.js"
+          }
+        }
+      ]
+    },
+    "core@3,5": {
+      "scope": "missile-up2",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 20,
+            "clear": 0.4,
+            "drop": 2
+          },
+          "source": {
+            "file": "enemy-drone.missile-up2.guide.js"
+          }
+        }
+      ]
+    },
+    "core@7,5": {
+      "scope": "missile-up3",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 20,
+            "clear": 0.4,
+            "drop": 2
+          },
+          "source": {
+            "file": "enemy-drone.missile-up3.guide.js"
+          }
+        }
+      ]
+    },
+    "core@9,5": {
+      "scope": "missile-up4",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "thruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "warhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 20,
+            "clear": 0.4,
+            "drop": 2
+          },
+          "source": {
+            "file": "enemy-drone.missile-up4.guide.js"
+          }
+        }
+      ]
+    }
+  }
+}

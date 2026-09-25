@@ -44,19 +44,16 @@ function body() {
   for (const p of parts) inertia += p.mass * ((along(p) - cu) ** 2 + (across(p) - cv) ** 2 + 1 / 6);
   let sum = 0; // sum of lever arms: equal throttle on every propeller turns it by lift * throttle * sum
   let split = 0; // right minus left: a throttle difference d turns it by lift * d * split
-  let right = 0; // lever arms of the right propellers only: all of them at full, the left off, is the hardest turn
+  let right = 0; // lever arms of the propellers right of the center of mass: all at full, the rest off, is the hardest turn
   let left = 0;
   for (const p of parts) {
     if (p.type !== 'propeller') continue;
     const u = along(p) - cu;
     sum += u;
-    if (p.tags.includes('rprop')) {
-      split += u;
-      right += u;
-    } else {
-      split -= u;
-      left -= u;
-    }
+    split += p.tags.includes('rprop') ? u : -u;
+    // By where they are, not their tags, so it works deployed flipped (the rprop ones are then on the left).
+    if (u > 0) right += u;
+    else left -= u;
   }
   return { inertia, sum, split, right, left };
 }
