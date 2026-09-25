@@ -10,7 +10,8 @@ Updated: 2026-09-24, by a coding session (Opus 5.5), end of M7
   - CLI for Claude: `run` prints events in order, every piece's final state by letter, and a side view of paths and shapes; `parts`; `show` with every core's controls; `mirror`; `place`.
   - `docs/claude-robot-playbook.md`: how a fresh session builds a robot from a sentence. Two dry runs by fresh Opus subagents both produced working robots; what they tripped on is fixed.
   - Keys bar shows keys the running scripts read (dashed, after a divider). Scripts see each part's `mass`.
-- Next: Gate 6. Logan plays and files a punch list in `docs/critique/gate-6.md`. After it is empty, a planning session writes M8 (candidates in `docs/ideas.md`: sensors and homing, Q22 in `07`; teams).
+- Gate 6 so far (`docs/critique/gate-6.md`): five findings from Logan's play, all fixed (stronger propellers and thrusters, `missile-drone-10prop`, instant weight-shift balance, time-optimal leaning and climbing, lean 60 degrees). Logan: "Everything's working!" Still to try from the checklist: a fresh Claude Code session asked for a robot in plain words.
+- Next: close Gate 6 with Logan, then plan M8. Logan's goal and Claude's recommendations are written up in `docs/ideas.md`, "After Gate 6": sensors and homing missiles with teams, then an AI missile drone that tracks, fires homing missiles, and dodges; the script performance fix (measured, planned, Logan agreed) as its first task; then a fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts. The same section has the scale measurements and the native-port question.
 - Lessons from M7 builds are in the playbook (Traps); keep adding there.
 - Logan's notes for a later sensors milestone: `docs/ideas.md` (sensors, targeting, teams, possession by team).
 
