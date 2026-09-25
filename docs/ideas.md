@@ -36,6 +36,11 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 ### Logan after flying turret drones (2026-09-25)
 - In 2D, rotating things is limited, so the meta is probably flying and firing missiles in one direction: the player starts on the left, enemies come from the right. To fire both ways, launch straight up or down and let homing or Javelin guidance turn the missile at once, or drop a missile held vertically so it speeds off, works out where to go, and dives on the target. Another reason homing comes first.
 
+### Testing wishes (Logan, testing missile-v2, 2026-09-25)
+- Flip a robot left to right when deploying it in the world (like the builder's F for a held blueprint), so a second launcher can face the first.
+- Right-click a rotator in the world and type an angle to send it there; right-click a thruster (or any part with an input) and set a value that overrides what its keys and scripts are doing. A small "inspect and poke" panel for testing.
+- missile-v2 finding: a missile launched by a decoupler records its line the tick after release, while the decoupler's kick is spinning it (0.47 rad/s in a logged flat launch), so its line tilts about 0.23 degrees and it creeps (about 0.4 m per second at 100 m/s) while holding that line to within a centimeter. Launched flat off a block or from a tube, it flies flat. Possible fix: subtract one tick of spin when recording the line.
+
 ### Cores talking to each other (Logan, 2026-09-25)
 - Logan: should a robot be able to spot an enemy, pick a spot, launch a missile, and tell it "go here", or should the missile figure it out after launch?
 - Three styles, all worth having: fire and forget (the missile's own sensor part), told at launch (the launcher's sensor, a cheap dumb missile), steered in flight (the launcher keeps correcting it; breaks if the launcher dies or loses sight).
