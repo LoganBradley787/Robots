@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "missile-v2",
+  "grid": [
+    "M  g  E  C  X"
+  ],
+  "legend": {
+    "M": {
+      "part": "thruster",
+      "rot": 270,
+      "auto": false
+    },
+    "g": {
+      "part": "gyro",
+      "auto": false
+    }
+  },
+  "bindings": [
+    {
+      "key": "f",
+      "mode": "toggle",
+      "target": "thruster",
+      "channel": "throttle",
+      "value": 1
+    },
+    {
+      "key": "x",
+      "mode": "pulse",
+      "target": "warhead",
+      "channel": "detonate",
+      "value": 1
+    },
+    {
+      "key": "g",
+      "mode": "script",
+      "script": "guide"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "guide",
+      "source": {
+        "file": "missile-v2.guide.js"
+      }
+    }
+  ]
+}

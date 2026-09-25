@@ -51,3 +51,8 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - Open, carried forward: (1) the fast hover (`missile-drone-10prop.hover.js`) overshoots leaning toward a load that has swung off center (74 degrees at a 60 degree lean) and falls short leaning away; the turret drone uses a gentler lean for now. Its guess at the cause (the turn planner assumes full torque while some is spent holding the weight) needs checking. (2) Logan: a missile fired at a downward angle falls well below its line before recovering, slowly: the guide holds its heading and cancels drift but does not steer back to the line. Homing and Javelin guidance (steering toward a point) replace this in M8.
 
 Gate 6 closed (Logan, 2026-09-25): everything is working.
+
+### 7. Missile v2: steer back onto the line (Logan's idea, done)
+- Logan: the missile knows its position and heading at launch, so it can project a line and correct for how far it is off it, not only for drift.
+- `missile-v2` does that (a spring on the distance off the line, v1's damper on drift). From a turret 60 m up: flat shot ends about 1 m off its line (v1: 4 m low); 30 degrees below level recovers from 4 m low to 2.5 m (v1 stays 5 m low). Stiffer settings made the flat shot swing wide or dive (the missile's 40 N m gyro turns its nose too slowly for a tighter loop). Both still sag in the first second, while the missile has no speed; a stronger gyro, or aiming the thrust above the line at release, would help, and M8's homing and Javelin guidance build on the same idea. `missile` (v1) is unchanged, so every placed copy is too.
+
