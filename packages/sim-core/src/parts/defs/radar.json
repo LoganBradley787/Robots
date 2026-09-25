@@ -1,0 +1,14 @@
+{
+  "id": "radar",
+  "name": "Radar",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 1,
+  "health": 40,
+  "symmetry": 1,
+  "inputs": [{ "name": "on", "min": 0, "max": 1, "default": 1 }],
+  "outputs": [],
+  "powerDraw": 3,
+  "behavior": "sensor",
+  "sensor": { "cone": 360, "range": 500 },
+  "sprite": { "frame": "part.radar" }
+}

@@ -64,7 +64,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'sensor', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -177,6 +177,13 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   if (o.impact !== undefined) {
     const io = r.obj(o.impact, 'impact', ['speed']);
     def.impact = { speed: r.positive(io, 'speed', 'impact') };
+  }
+  if (o.sensor !== undefined) {
+    const so = r.obj(o.sensor, 'sensor', ['cone', 'range']);
+    const cone = r.positive(so, 'cone', 'sensor');
+    if (cone > 360) r.fail('sensor.cone', 'must be at most 360 degrees (360 sees all around)');
+    if (cone < 360 && def.acts === undefined) r.fail('sensor', 'a cone narrower than 360 degrees needs "acts" (the way the part looks)');
+    def.sensor = { cone, range: r.positive(so, 'range', 'sensor') };
   }
   if (o.defaultTags !== undefined) {
     def.defaultTags = r.arr(o, 'defaultTags', '').map((t, i) => {

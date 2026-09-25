@@ -16,7 +16,7 @@ export interface PartRow {
   details: string[];
 }
 
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-'];
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';'];
 
 /** Units for behavior settings, by setting name. */
 const UNITS: Record<string, string> = {
@@ -58,6 +58,10 @@ function details(d: PartDef): string[] {
   }
   const boom = d.onDestroyed?.explode;
   if (boom) out.push(`explodes when destroyed: ${boom.damage} damage at the center falling to 0 at ${boom.radius} m (halved by each part or box in the way), push ${boom.push} N s per cell out to ${boom.pushRadius} m`);
+  if (d.sensor) {
+    const cone = d.sensor.cone >= 360 ? 'all around' : `in a ${d.sensor.cone} degree cone toward its ${d.acts ?? 'N'} face`;
+    out.push(`sensor: sees robots ${cone} out to ${d.sensor.range} m (terrain blocks it, robots do not); scripts read them in contacts and scan(id); on 0 switches it off`);
+  }
   if (d.impact) out.push(`breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
   return out;
 }

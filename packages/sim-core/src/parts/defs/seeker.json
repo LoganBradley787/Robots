@@ -1,0 +1,15 @@
+{
+  "id": "seeker",
+  "name": "Seeker",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["E", "S", "W"] }],
+  "mass": 0.3,
+  "health": 20,
+  "symmetry": 4,
+  "inputs": [{ "name": "on", "min": 0, "max": 1, "default": 1 }],
+  "outputs": [],
+  "powerDraw": 1,
+  "behavior": "sensor",
+  "acts": "N",
+  "sensor": { "cone": 90, "range": 300 },
+  "sprite": { "frame": "part.seeker" }
+}

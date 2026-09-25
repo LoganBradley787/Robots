@@ -10,7 +10,9 @@ import { allBindings, autoBindings } from '../control/autoControls';
 import { drainContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
-import type { ScriptError, ScriptHost, ScriptInput } from '../script/types';
+import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptServices } from '../script/types';
+import { sees, type SensorPose } from '../sensors/sight';
+import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
@@ -159,6 +161,10 @@ export class World {
    */
   private readonly unsettled = new Map<BodyId, number>();
   private readonly gravityY: number;
+  /** Fixed terrain boxes, read once: they never change after the world is built. */
+  private terrain: TerrainBox[] | undefined;
+  /** Robots each robot's sensors saw when its scripts last ran, for `scan()` (M8). Derived, not hashed. */
+  private readonly seen = new Map<number, Set<number>>();
 
   private constructor(opts: WorldOptions, file: WorldFile, registry: PartRegistry) {
     this.registry = registry;
@@ -288,6 +294,7 @@ export class World {
     this.dirty.delete(robot);
     this.used.delete(robot.id);
     this.logBudget.delete(robot.id);
+    this.seen.delete(robot.id);
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'removed' });
   }
@@ -521,7 +528,8 @@ export class World {
       const robot = this.robots.find((r) => r.id === robotId);
       if (!controller || !robot) continue;
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
-      const out = runner.tick(() => this.scriptInput(robot, controller.keyState()));
+      const services: ScriptServices = { scan: (id) => this.scan(robot, id) };
+      const out = runner.tick(() => this.scriptInput(robot, controller.keyState()), services);
       for (const w of out.writes) controller.scriptWrite(w.target, w.channel, w.value);
       for (const c of out.crashes) this.events.push({ tick: this.tickCount, robot: robotId, kind: 'scriptCrashed', script: c.script, error: c.error });
       for (const l of out.logs) this.pushLog(robotId, l.script, l.text);
@@ -584,7 +592,108 @@ export class World {
       },
       parts,
       keys,
+      contacts: this.contactsFor(robot, true),
     };
+  }
+
+  /** Fixed terrain boxes (the ground and world boxes): what blocks a sensor's view. */
+  private terrainBoxes(): TerrainBox[] {
+    this.terrain ??= this.physics.terrainBoxes();
+    return this.terrain;
+  }
+
+  /** The sensor parts of the robot's controlled chunk that work this tick (switched on and powered last tick), in part order. */
+  private workingSensors(robot: Robot): SensorPose[] {
+    const coreId = robot.primaryCoreId;
+    if (coreId === undefined || !this.controllers.has(robot.id)) return [];
+    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+    const out: SensorPose[] = [];
+    for (const id of chunk?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      const spec = p?.def.sensor;
+      if (!p || !spec || p.sensing === false) continue;
+      const pose = partWorldPose(this, robot, id);
+      const d = faceDir(rotateFace(p.def.acts ?? 'N', p.rot));
+      out.push({ id, x: pose.x, y: pose.y, facing: pose.angle + Math.atan2(d.y, d.x), cone: spec.cone, range: spec.range });
+    }
+    return out;
+  }
+
+  /** Where a robot is for sensors: its live core, else its center of mass; with its mass and center either way. */
+  private reference(r: Robot): { core: boolean; pos: { x: number; y: number }; vel: { x: number; y: number }; center: { x: number; y: number }; mass: number } {
+    let mass = 0;
+    let cx = 0;
+    let cy = 0;
+    let vx = 0;
+    let vy = 0;
+    for (const g of r.groups) {
+      const mp = this.physics.massProperties(g.bodyId);
+      const s = this.physics.state(g.bodyId);
+      mass += mp.mass;
+      cx += mp.mass * mp.comX;
+      cy += mp.mass * mp.comY;
+      vx += mp.mass * s.vx;
+      vy += mp.mass * s.vy;
+    }
+    const center = mass > 0 ? { x: cx / mass, y: cy / mass } : { x: r.spawnX, y: r.spawnY };
+    const coreId = r.primaryCoreId;
+    const core = coreId !== undefined && this.controllers.has(r.id) && r.parts.has(coreId);
+    if (core) {
+      const pose = partWorldPose(this, r, coreId);
+      const s = this.physics.state(r.groups[r.parts.get(coreId)?.group ?? 0]?.bodyId ?? 0);
+      return { core, pos: { x: pose.x, y: pose.y }, vel: { x: s.vx, y: s.vy }, center, mass };
+    }
+    return { core, pos: center, vel: mass > 0 ? { x: vx / mass, y: vy / mass } : { x: 0, y: 0 }, center, mass };
+  }
+
+  /**
+   * Every robot the robot's working sensors see, nearest first (ties by id). `remember` keeps the ids for `scan()`
+   * this tick; the overlay's read-only view does not.
+   */
+  private contactsFor(robot: Robot, remember: boolean): ScriptContact[] {
+    const sensors = this.workingSensors(robot);
+    if (remember) this.seen.delete(robot.id);
+    if (sensors.length === 0) return [];
+    const terrain = this.terrainBoxes();
+    const coreId = robot.primaryCoreId ?? robot.rootId;
+    const from = partWorldPose(this, robot, coreId);
+    const out: ScriptContact[] = [];
+    for (const other of this.robots) {
+      if (other === robot || other.groups.length === 0) continue;
+      const ref = this.reference(other);
+      const by = sensors.filter((s) => sees(s, ref.pos, terrain)).map((s) => s.id);
+      if (by.length === 0) continue;
+      const side = !this.controllers.has(other.id) ? 'none' : other.team === robot.team ? 'friend' : 'enemy';
+      out.push({ id: other.id, side, core: ref.core, pos: ref.pos, vel: ref.vel, center: ref.center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(ref.pos.x - from.x, ref.pos.y - from.y), by });
+    }
+    out.sort((a, b) => a.distance - b.distance || a.id - b.id);
+    if (remember) this.seen.set(robot.id, new Set(out.map((c) => c.id)));
+    return out;
+  }
+
+  /** `scan(id)` (M8): a robot the viewer's sensors saw this tick, part by part, in blueprint order; null otherwise. */
+  private scan(viewer: Robot, id: number): ScannedPart[] | null {
+    if (!this.seen.get(viewer.id)?.has(id)) return null;
+    const r = this.robots.find((x) => x.id === id);
+    if (!r) return null;
+    const out: ScannedPart[] = [];
+    for (const bp of r.blueprint.parts) {
+      const p = r.parts.get(bp.id);
+      if (!p) continue;
+      const pose = partWorldPose(this, r, p.id);
+      out.push({ id: p.id, type: p.def.id, pos: { x: pose.x, y: pose.y }, angle: pose.angle, health: p.health, maxHealth: p.def.health });
+    }
+    return out;
+  }
+
+  /**
+   * What a robot's sensors see now, for the debug overlay (M8): each working sensor and each contact. Read-only; the
+   * same rule scripts get.
+   */
+  sensorView(robotId: number): { sensors: SensorPose[]; contacts: { id: number; side: ScriptContact['side']; x: number; y: number }[] } {
+    const robot = this.robots.find((r) => r.id === robotId);
+    if (!robot) return { sensors: [], contacts: [] };
+    return { sensors: this.workingSensors(robot), contacts: this.contactsFor(robot, false).map((c) => ({ id: c.id, side: c.side, x: c.pos.x, y: c.pos.y })) };
   }
 
   /** A robot's scripts and whether each runs or crashed. Read-only. */
@@ -741,6 +850,8 @@ export class World {
         h.addF64(part.health);
         h.addString((part.cut ?? []).join(''));
         h.addF64(part.aim ?? 0);
+        // A sensor's power last tick decides what its scripts see next (M8). Other parts add nothing.
+        if (part.sensing !== undefined) h.addInt(part.sensing ? 1 : 0);
       }
       if (this.controllers.has(robot.id)) continue;
       for (const [id, chans] of this.channels.get(robot.id) ?? []) {

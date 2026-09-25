@@ -61,6 +61,9 @@ export function TopBar({ store, actions }: { store: Store<AppState>; actions: Bu
   );
 }
 
+/** The builder key for each palette slot, in order (`Builder.ts` handles them). */
+const PALETTE_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';'];
+
 export function Palette({ store, defs, actions }: { store: Store<AppState>; defs: PartDef[]; actions: BuilderActions }) {
   const held = useStore(store, (s) => s.builder.held);
   const eraser = useStore(store, (s) => s.builder.eraser);
@@ -71,13 +74,16 @@ export function Palette({ store, defs, actions }: { store: Store<AppState>; defs
   const saved = doc.files.filter((f) => f.file !== doc.file);
   return (
     <div class="palette panel">
-      {defs.map((d, i) => (
-        <button key={d.id} class={held?.part === d.id ? 'part active' : 'part'} onClick={() => actions.hold(d.id)} title={i < 10 ? `${d.name} (${(i + 1) % 10})` : i === 10 ? `${d.name} (-)` : d.name}>
-          {icons[d.id] ? <img src={icons[d.id]} alt="" /> : <span class="icon-missing" />}
-          <span class="part-name">{d.name}</span>
-          {i < 10 && <span class="part-key">{(i + 1) % 10}</span>}
-        </button>
-      ))}
+      {defs.map((d, i) => {
+        const key = PALETTE_KEYS[i];
+        return (
+          <button key={d.id} class={held?.part === d.id ? 'part active' : 'part'} onClick={() => actions.hold(d.id)} title={key ? `${d.name} (${key})` : d.name}>
+            {icons[d.id] ? <img src={icons[d.id]} alt="" /> : <span class="icon-missing" />}
+            <span class="part-name">{d.name}</span>
+            {key && <span class="part-key">{key}</span>}
+          </button>
+        );
+      })}
       <button class={eraser ? 'part eraser active' : 'part eraser'} onClick={actions.eraser} title="Eraser (E): click or drag to erase">
         <span class="eraser-icon" />
         <span class="part-name">Eraser</span>

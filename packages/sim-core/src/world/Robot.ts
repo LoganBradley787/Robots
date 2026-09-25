@@ -16,6 +16,8 @@ export interface PartInstance {
   cut?: Face[];
   /** A rotator's aim: radians relative to its base, within its range. */
   aim?: number;
+  /** A sensor part (M8): whether it was switched on and powered on the last tick. Undefined until it first runs (sees). */
+  sensing?: boolean;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** Index of the body group that owns this part. */

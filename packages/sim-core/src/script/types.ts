@@ -30,6 +30,43 @@ export interface ScriptWrite {
   value: number;
 }
 
+/**
+ * A robot this robot's sensors see (M8). `side` is relative to the viewer: `enemy` (another team), `friend` (its own
+ * team), or `none` (debris, or a robot whose core is gone). `pos` and `vel` are its live core's, or for a robot
+ * without one its center of mass's.
+ */
+export interface ScriptContact {
+  id: number;
+  side: 'enemy' | 'friend' | 'none';
+  /** Whether it has a live core. */
+  core: boolean;
+  pos: { x: number; y: number };
+  vel: { x: number; y: number };
+  center: { x: number; y: number };
+  mass: number;
+  parts: number;
+  /** From this robot's core to `pos`, in meters. */
+  distance: number;
+  /** Ids of this robot's sensor parts that see it. */
+  by: string[];
+}
+
+/** One part of a seen robot, from `scan(id)` (M8). */
+export interface ScannedPart {
+  id: string;
+  type: string;
+  pos: { x: number; y: number };
+  angle: number;
+  health: number;
+  maxHealth: number;
+}
+
+/** Host calls a script can make mid-tick (M8). They only read the world, so the order of calls cannot change it. */
+export interface ScriptServices {
+  /** A seen robot's parts, or null when it is not seen this tick. */
+  scan(id: number): ScannedPart[] | null;
+}
+
 /** What a script sees on a tick. Plain data; nothing from the host leaks in. */
 export interface ScriptInput {
   frame: number;
@@ -46,6 +83,8 @@ export interface ScriptInput {
   /** Every part still attached to the script's core, in world coordinates, with its mass (kg) from its def. */
   parts: { id: string; type: string; tags: string[]; pos: { x: number; y: number }; angle: number; mass: number; in: Record<string, number>; out: Record<string, number> }[];
   keys: { down: string[]; pressed: string[]; released: string[] };
+  /** M8: robots this robot's sensors see, nearest first. Empty without sensors. */
+  contacts: ScriptContact[];
 }
 
 export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[] } | { ok: false; error: ScriptError };
@@ -54,9 +93,9 @@ export interface ScriptInstance {
   /** Params the script declared with `param()`, with the values it got. */
   readonly params: Readonly<Record<string, ParamSpec>>;
   /** Clears `state` and runs `setup()` if the script defines it. */
-  setup(input: ScriptInput): ScriptResult;
+  setup(input: ScriptInput, services?: ScriptServices): ScriptResult;
   /** Runs `tick()`. Synchronous by contract, so the sim stays a plain loop in browser and Node. */
-  tick(input: ScriptInput): ScriptResult;
+  tick(input: ScriptInput, services?: ScriptServices): ScriptResult;
   dispose(): void;
 }
 

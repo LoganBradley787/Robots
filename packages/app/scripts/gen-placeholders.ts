@@ -481,6 +481,48 @@ function drawWarhead(): Canvas {
   return cv;
 }
 
+/** Seeker (M8): a dark housing with a glass eye on the top (N) edge, the way it looks, and a green lens glow. */
+function drawSeeker(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 0, 0, CELL, CELL, hex('#2f4a3a'), hex('#1b2b22'), 3);
+  for (const [x, y] of [[9, 55], [55, 55]] as const) rivet(cv, x, y);
+  // Eye: a dome cut by the top edge, glass over a lens.
+  const cx = 32;
+  const cy = 22;
+  cv.fill(circle(cx, cy, 17), DARK_METAL);
+  cv.fill(circle(cx, cy, 14), hex('#0f1a14'));
+  cv.fill(circle(cx, cy, 9), hex('#3dff8b'), 0.9);
+  cv.fill(circle(cx, cy, 4), hex('#d8ffe8'));
+  glow(cv, cx, cy, 16, hex('#3dff8b'), 0.45);
+  cv.fill(diff(circle(cx, cy, 14), circle(cx + 3, cy + 3, 14)), WHITE, 0.25);
+  // Sight lines fanning out of the top edge: it looks up (its cone).
+  cv.fill(union(seg(cx, cy - 6, 12, 3, 1.4), seg(cx, cy - 6, 52, 3, 1.4)), hex('#3dff8b'), 0.5);
+  cv.fill(rect(18, 44, 46, 48), hex('#1b2b22'));
+  return cv;
+}
+
+/** Radar (M8): a round dish with sweep rings; it sees all around. */
+function drawRadar(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 0, 0, CELL, CELL, hex('#4a5663'), hex('#2a323b'), 3);
+  for (const [x, y] of [[9, 9], [55, 9], [9, 55], [55, 55]] as const) rivet(cv, x, y);
+  const cx = 32;
+  const cy = 32;
+  cv.fill(circle(cx, cy, 22), hex('#16202a'));
+  for (const r of [8, 14, 20]) cv.fill(ring(cx, cy, r - 0.8, r + 0.8), hex('#3dff8b'), 0.55);
+  // Sweep: a bright wedge from the center.
+  const sweep: Shape = (x, y) => {
+    const r = Math.hypot(x - cx, y - cy);
+    if (r > 21) return false;
+    const deg = ((Math.atan2(y - cy, x - cx) * 180) / Math.PI + 360) % 360;
+    return deg >= 300 && deg <= 345;
+  };
+  cv.fill(sweep, hex('#3dff8b'), 0.6);
+  cv.fill(seg(cx, cy, cx + 20 * Math.cos((345 * Math.PI) / 180), cy + 20 * Math.sin((345 * Math.PI) / 180), 1.6), hex('#d8ffe8'));
+  cv.fill(circle(cx, cy, 3), hex('#d8ffe8'));
+  return cv;
+}
+
 // ---------------------------------------------------------------- fx
 
 /** Flame anchored at the top edge (the nozzle exit), pointing down. */
@@ -780,6 +822,8 @@ function main(): void {
     { name: 'part.gyro', canvas: drawGyro() },
     { name: 'part.rotator', canvas: drawRotator() },
     { name: 'part.rotator.mount', canvas: drawRotatorMount() },
+    { name: 'part.seeker', canvas: drawSeeker() },
+    { name: 'part.radar', canvas: drawRadar() },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
   write('sheets/parts.png', partsSheet.png);

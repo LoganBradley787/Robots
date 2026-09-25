@@ -7,6 +7,7 @@ import { gyro } from './gyro';
 import { decoupler } from './decoupler';
 import { warhead } from './warhead';
 import { rotator } from './rotator';
+import { sensor } from './sensor';
 
 export interface BehaviorContext {
   physics: PhysicsWorld;
@@ -60,4 +61,5 @@ export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior
   ['decoupler', decoupler],
   ['warhead', warhead],
   ['rotator', rotator],
+  ['sensor', sensor],
 ]);

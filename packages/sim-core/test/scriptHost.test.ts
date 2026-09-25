@@ -15,6 +15,7 @@ const input = (over: Partial<ScriptInput> = {}): ScriptInput => ({
   self: { pos: { x: 0, y: 5 }, vel: { x: 0, y: -1 }, angle: 0, angVel: 0, mass: 10, energy: { stored: 600, capacity: 600 } },
   parts: [{ id: 'propeller@0,1', type: 'propeller', tags: ['props', 'propeller@0,1'], pos: { x: -1, y: 5 }, angle: 0, mass: 1, in: { throttle: 0.3 }, out: {} }],
   keys: { down: ['a'], pressed: [], released: [] },
+  contacts: [],
   ...over,
 });
 

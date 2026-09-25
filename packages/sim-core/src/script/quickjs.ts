@@ -1,7 +1,7 @@
 import { DefaultIntrinsics, newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSSyncVariant } from 'quickjs-emscripten-core';
 import { Prng } from '../rng/Prng';
 import { PRELUDE } from './prelude';
-import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInput, type ScriptInstance, type ScriptLimits, type ScriptResult, type ScriptWrite } from './types';
+import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInput, type ScriptInstance, type ScriptLimits, type ScriptResult, type ScriptServices, type ScriptWrite } from './types';
 
 /** Global code (the user's top level, and `param()` calls) gets a few ticks' worth of budget. */
 const COMPILE_BUDGET_TICKS = 4;
@@ -33,6 +33,15 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         ctx = runtime.newContext({ intrinsics: { ...DefaultIntrinsics, Date: false } });
         const c = ctx;
         const seed = new Prng(opts.seed >>> 0).state();
+        // Host calls (M8): the prelude takes them and deletes the global, so only its capped wrappers reach them.
+        const services: { current?: ScriptServices } = {};
+        const scan = c.newFunction('scan', (idHandle) => {
+          const id = c.typeof(idHandle) === 'number' ? c.getNumber(idHandle) : Number.NaN;
+          const found = Number.isInteger(id) ? (services.current?.scan(id) ?? null) : null;
+          return c.newString(JSON.stringify(found));
+        });
+        c.setProp(c.global, '__scan', scan);
+        scan.dispose();
         const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})};\n${PRELUDE}`;
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
         const pre = c.evalCode(setup, 'prelude.js');
@@ -59,7 +68,7 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         meter.arm(limits.budgetPerTick);
         const specs = run(c, meter, () => c.callFunction(entries.specs, c.undefined));
         if (!specs.ok) return fail(specs.error);
-        return { ok: true, instance: new QuickJsInstance(runtime, c, meter, limits, readSpecs(specs.text), entries, handles) };
+        return { ok: true, instance: new QuickJsInstance(runtime, c, meter, limits, readSpecs(specs.text), entries, handles, services) };
       } catch (e) {
         // Anything the engine throws at the host (not a script error) must not escape into the world.
         return fail({ kind: 'throw', message: e instanceof Error ? e.message : String(e) });
@@ -130,6 +139,7 @@ class QuickJsInstance implements ScriptInstance {
   private readonly limits: ScriptLimits;
   private readonly entries: { setup: QuickJSHandle; tick: QuickJSHandle };
   private readonly handles: QuickJSHandle[];
+  private readonly services: { current?: ScriptServices };
   private disposed = false;
 
   constructor(
@@ -140,7 +150,9 @@ class QuickJsInstance implements ScriptInstance {
     params: Record<string, ParamSpec>,
     entries: { setup: QuickJSHandle; tick: QuickJSHandle },
     handles: QuickJSHandle[],
+    services: { current?: ScriptServices },
   ) {
+    this.services = services;
     this.runtime = runtime;
     this.ctx = ctx;
     this.meter = meter;
@@ -150,12 +162,12 @@ class QuickJsInstance implements ScriptInstance {
     this.handles = handles;
   }
 
-  setup(input: ScriptInput): ScriptResult {
-    return this.call(this.entries.setup, input);
+  setup(input: ScriptInput, services?: ScriptServices): ScriptResult {
+    return this.call(this.entries.setup, input, services);
   }
 
-  tick(input: ScriptInput): ScriptResult {
-    return this.call(this.entries.tick, input);
+  tick(input: ScriptInput, services?: ScriptServices): ScriptResult {
+    return this.call(this.entries.tick, input, services);
   }
 
   dispose(): void {
@@ -166,9 +178,11 @@ class QuickJsInstance implements ScriptInstance {
     safely(() => this.runtime.dispose());
   }
 
-  private call(entry: QuickJSHandle, input: ScriptInput): ScriptResult {
+  private call(entry: QuickJSHandle, input: ScriptInput, services?: ScriptServices): ScriptResult {
     if (this.disposed) return { ok: false, error: { kind: 'throw', message: 'script was stopped' } };
     const ctx = this.ctx;
+    if (services) this.services.current = services;
+    else delete this.services.current;
     try {
       this.meter.arm(this.limits.budgetPerTick);
       const arg = ctx.newString(JSON.stringify(input));

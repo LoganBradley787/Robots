@@ -7,7 +7,8 @@
  * `__seed` and `__params` are defined by the host just before this runs and are read once here.
  */
 export const PRELUDE = String.raw`
-(function (seed, given) {
+(function (seed, given, hostScan) {
+  delete globalThis.__scan;
   var stringify = JSON.stringify;
   var parse = JSON.parse;
   var hasOwn = Object.prototype.hasOwnProperty;
@@ -15,6 +16,8 @@ export const PRELUDE = String.raw`
   var logs = [];
   var specs = {};
   var input = null;
+  var scans = 0;
+  var scanWarned = false;
   var s = seed.slice();
   function next() {
     var t = (((s[0] + s[1]) | 0) + s[3]) | 0;
@@ -33,6 +36,16 @@ export const PRELUDE = String.raw`
   globalThis.time = 0;
   globalThis.self = null;
   globalThis.parts = [];
+  globalThis.contacts = [];
+  globalThis.scan = function (id) {
+    if (scans >= 4) {
+      if (!scanWarned && logs.length < 5) logs[logs.length] = 'scan(): at most 4 calls per tick; this one returned null';
+      scanWarned = true;
+      return null;
+    }
+    scans++;
+    return hostScan ? parse(hostScan(Number(id))) : null;
+  };
   globalThis.param = function (name, def, opts) {
     name = String(name);
     var spec = { default: Number(def) };
@@ -82,6 +95,8 @@ export const PRELUDE = String.raw`
     globalThis.time = input.time;
     globalThis.self = input.self;
     globalThis.parts = input.parts;
+    globalThis.contacts = input.contacts || [];
+    scans = 0;
     writes = [];
     logs = [];
   }
@@ -103,5 +118,5 @@ export const PRELUDE = String.raw`
     specs: function () { return stringify(specs); },
     hasTick: function () { return typeof globalThis.tick === 'function' ? 'true' : 'false'; }
   };
-})(__seed, __params)
+})(__seed, __params, typeof __scan === 'function' ? __scan : null)
 `;

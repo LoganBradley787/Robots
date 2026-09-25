@@ -70,6 +70,15 @@ export interface ExplodeSpec {
   lift: number;
 }
 
+/**
+ * A sensor (M8): it sees robots whose reference point (a live core, else the center of mass) is within `range` meters
+ * and inside a `cone` of that many degrees around the part's `acts` face (360: all around), with no terrain between.
+ */
+export interface SensorSpec {
+  cone: number;
+  range: number;
+}
+
 /** A part that breaks when a hit stops its body by more than `speed` m/s within one step (a warhead's fuze). */
 export interface ImpactSpec {
   speed: number;
@@ -111,6 +120,7 @@ export interface PartDef {
   resource?: ResourceSpec;
   onDestroyed?: { explode?: ExplodeSpec };
   impact?: ImpactSpec;
+  sensor?: SensorSpec;
   sprite: SpriteSpec;
   defaultTags?: string[];
 }
