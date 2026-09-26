@@ -1,4 +1,4 @@
-import { autoBindings, defaultRegistry, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
+import { autoBindings, defaultRegistry, recipeStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -14,12 +14,27 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   if (g) lines.push('grid:', ...g.grid.map((r) => `  ${r}`));
   else {
     lines.push('parts (not expressible as a grid):');
-    for (const p of bp.parts) lines.push(`  ${p.id}: ${p.part} at (${p.x}, ${p.y}) rot ${p.rot} tags ${p.tags.join(', ')}${p.auto === false ? ', auto controls off' : ''}${p.armed === true ? ', armed at start' : ''}`);
+    for (const p of bp.parts) lines.push(`  ${p.id}: ${p.part} at (${p.x}, ${p.y}) rot ${p.rot} tags ${p.tags.join(', ')}${p.auto === false ? ', auto controls off' : ''}${p.armed === true ? ', armed at start' : ''}${p.makes !== undefined ? `, makes ${p.makes}` : ''}`);
   }
   const legend = Object.entries(g?.legend ?? {});
   if (legend.length > 0) {
     lines.push('legend:');
-    for (const [token, e] of legend) lines.push(`  ${token} = ${e.part} rot ${e.rot ?? 0}${e.tags ? ` tags ${e.tags.join(', ')}` : ''}${e.auto === false ? ', auto controls off' : ''}${e.armed === true ? ', armed at start' : ''}`);
+    for (const [token, e] of legend) lines.push(`  ${token} = ${e.part} rot ${e.rot ?? 0}${e.tags ? ` tags ${e.tags.join(', ')}` : ''}${e.auto === false ? ', auto controls off' : ''}${e.armed === true ? ', armed at start' : ''}${e.makes !== undefined ? `, makes ${e.makes}` : ''}`);
+  }
+  // M12: what its fabricator bays build, and what each costs in each bay that makes it.
+  if (bp.recipes && bp.recipes.length > 0) {
+    lines.push('recipes:');
+    for (const r of bp.recipes) {
+      const s = recipeStats(r.blueprint, registry);
+      const costs = bp.parts
+        .filter((p) => p.makes === r.name)
+        .map((p) => {
+          const f = registry.get(p.part).fabricate;
+          return f ? `${p.id}: ${(f.secondsPerKg * s.mass).toFixed(1)} s, ${Math.round(f.joulesPerKg * s.mass + s.stored)} J each` : '';
+        })
+        .filter((t) => t !== '');
+      lines.push(`  ${r.name}: ${r.blueprint.parts.length} parts, ${s.mass.toFixed(1)} kg${costs.length > 0 ? `; ${costs.join('; ')}` : ' (no bay makes it)'}`);
+    }
   }
   let mass = 0;
   let mx = 0;

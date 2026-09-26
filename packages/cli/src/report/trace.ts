@@ -167,6 +167,12 @@ export class Tracer {
         case 'burntOut':
           push(e.robot, 'burntOut', `${e.part} burnt out`);
           break;
+        case 'built':
+          push(e.robot, 'built', `${e.part} built ${e.recipe} (${e.scope}), holding it`);
+          break;
+        case 'released':
+          push(e.robot, 'released', `${e.part} let go of ${e.scope}`);
+          break;
         case 'coreLost':
           push(e.robot, 'coreLost', 'lost its core: nobody controls it now, its inputs stay as they were');
           break;
