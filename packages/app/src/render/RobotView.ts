@@ -28,8 +28,8 @@ export class RobotView {
   private readonly robot: Robot;
   private readonly bodies: { bodyId: BodyId; view: Container }[] = [];
   private readonly effects: Effect[] = [];
-  /** Part sprites with the health they were last tinted for. */
-  private readonly parts: { partId: string; sprite: Sprite; health: number }[] = [];
+  /** Part sprites with the health they were last tinted for, and (M10) the armed look they last showed. */
+  private readonly parts: { partId: string; sprite: Sprite; health: number; plain?: Texture; lit?: Texture; armed?: boolean }[] = [];
 
   constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations) {
     this.robot = robot;
@@ -57,7 +57,11 @@ export class RobotView {
         sprite.position.set(p.x, p.y);
         sprite.rotation = toScreenAngle(s.rotation);
         view.addChild(sprite);
-        if (s.kind === 'part') this.parts.push({ partId: s.partId, sprite, health: Number.NaN });
+        if (s.kind === 'part') {
+          // A part that needs arming (M10) swaps to its armed frame once armed.
+          const lit = def?.arming === true && def.sprite.armedFrame !== undefined && !s.animation ? frame(def.sprite.armedFrame) : undefined;
+          this.parts.push({ partId: s.partId, sprite, health: Number.NaN, ...(lit ? { plain: sprite.texture, lit } : {}) });
+        }
         if (s.overlay && animations && s.channel) {
           const flame = new AnimatedSprite(animations(s.overlay.name));
           flame.anchor.set(0.5, 0);
@@ -90,6 +94,12 @@ export class RobotView {
     }
     for (const p of this.parts) {
       const part = this.robot.parts.get(p.partId);
+      if (p.lit && part && part.armed !== p.armed) {
+        p.armed = part.armed;
+        p.sprite.texture = (part.armed ? p.lit : p.plain) ?? p.sprite.texture;
+        p.sprite.width = PIXELS_PER_METER;
+        p.sprite.height = PIXELS_PER_METER;
+      }
       if (!part || part.health === p.health) continue;
       p.health = part.health;
       p.sprite.tint = multiplyTint(damageTint(part.health / part.def.health), teamTint(this.robot.team));

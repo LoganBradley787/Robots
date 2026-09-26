@@ -200,9 +200,29 @@
         "h": 64
       }
     },
-    "part.gyro": {
+    "part.warhead.armed": {
       "frame": {
         "x": 3,
+        "y": 139,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.gyro": {
+      "frame": {
+        "x": 71,
         "y": 139,
         "w": 64,
         "h": 64
@@ -222,7 +242,7 @@
     },
     "part.rotator": {
       "frame": {
-        "x": 71,
+        "x": 139,
         "y": 139,
         "w": 64,
         "h": 64
@@ -242,7 +262,7 @@
     },
     "part.rotator.mount": {
       "frame": {
-        "x": 139,
+        "x": 207,
         "y": 139,
         "w": 64,
         "h": 64
@@ -262,7 +282,7 @@
     },
     "part.seeker": {
       "frame": {
-        "x": 207,
+        "x": 275,
         "y": 139,
         "w": 64,
         "h": 64
@@ -282,26 +302,6 @@
     },
     "part.booster": {
       "frame": {
-        "x": 275,
-        "y": 139,
-        "w": 64,
-        "h": 64
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 64,
-        "h": 64
-      },
-      "sourceSize": {
-        "w": 64,
-        "h": 64
-      }
-    },
-    "part.heavywarhead": {
-      "frame": {
         "x": 3,
         "y": 207,
         "w": 64,
@@ -320,7 +320,7 @@
         "h": 64
       }
     },
-    "part.heavygyro": {
+    "part.heavywarhead": {
       "frame": {
         "x": 71,
         "y": 207,
@@ -340,7 +340,7 @@
         "h": 64
       }
     },
-    "part.densebattery": {
+    "part.heavywarhead.armed": {
       "frame": {
         "x": 139,
         "y": 207,
@@ -360,10 +360,50 @@
         "h": 64
       }
     },
-    "part.radar": {
+    "part.heavygyro": {
       "frame": {
         "x": 207,
         "y": 207,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.densebattery": {
+      "frame": {
+        "x": 275,
+        "y": 207,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.radar": {
+      "frame": {
+        "x": 3,
+        "y": 275,
         "w": 64,
         "h": 64
       },
@@ -386,7 +426,7 @@
     "format": "RGBA8888",
     "size": {
       "w": 342,
-      "h": 274
+      "h": 342
     },
     "scale": "1"
   }

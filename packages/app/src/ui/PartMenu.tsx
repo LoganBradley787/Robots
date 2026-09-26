@@ -9,6 +9,8 @@ export interface PartMenuActions {
   addTag(ids: string[], tag: string): void;
   removeTag(ids: string[], tag: string): void;
   setAuto(ids: string[], on: boolean): void;
+  /** M10: start these parts (ones that need arming) armed or not. */
+  setArmed(ids: string[], on: boolean): void;
   rotate(dir: 1 | -1): void;
   deleteSelection(): void;
   closeMenu(): void;
@@ -61,6 +63,8 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
   const one = parts.length === 1 ? parts[0] : undefined;
   const autoParts = parts.filter((p) => autoLabel(registry, p) !== undefined);
   const autoOn = autoParts.filter((p) => p.auto !== false).length;
+  const armParts = parts.filter((p) => registry.has(p.part) && registry.get(p.part).arming === true);
+  const armedOn = armParts.filter((p) => p.armed === true).length;
   const add = (): void => {
     const t = text.trim();
     if (t === '') return;
@@ -101,6 +105,22 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
         </label>
       )}
       {autoParts.length > 0 && draft.autoControls === false && <p class="muted small">Auto controls are off for this whole blueprint (Controls panel).</p>}
+      {armParts.length > 0 && (
+        <label class="check" title="An unarmed warhead is a plain part: it breaks without exploding and ignores detonate. A key or script arms it (its arm input), for good.">
+          <input
+            type="checkbox"
+            checked={armedOn === armParts.length}
+            ref={(el) => {
+              if (el) el.indeterminate = armedOn > 0 && armedOn < armParts.length;
+            }}
+            onChange={(e) => actions.setArmed(armParts.map((p) => p.id), (e.target as HTMLInputElement).checked)}
+          />
+          <span>
+            Armed at start
+            <span class="muted"> {armParts.length === 1 ? (armedOn === 1 ? 'live from deploy' : 'safe until armed') : `${armedOn} of ${armParts.length}`}</span>
+          </span>
+        </label>
+      )}
       <div class="tags">
         {tagCounts(draft, ids).map(({ tag, count }) => (
           <span class="tag" key={tag}>

@@ -451,7 +451,7 @@ function drawDecoupler(): Canvas {
   return cv;
 }
 
-function drawWarhead(red = hex('#8e2323'), edge = hex('#561414'), band = hex('#c0463c')): Canvas {
+function drawWarhead(red = hex('#8e2323'), edge = hex('#561414'), band = hex('#c0463c'), armed = false): Canvas {
   const cv = new Canvas(CELL, CELL);
   plate(cv, 0, 0, CELL, CELL, red, edge, 3);
   // Nose band on the top edge.
@@ -475,6 +475,16 @@ function drawWarhead(red = hex('#8e2323'), edge = hex('#561414'), band = hex('#c
   };
   cv.fill(trefoil, hex('#1d1f23'));
   cv.fill(circle(cx, cy, 2.4), hex('#1d1f23'));
+  if (armed) {
+    // M10: armed. A lit red light in the nose band (unarmed ones have a dark socket there).
+    cv.fill(circle(52, 9, 7.5), hex('#ff2a1a'), 0.35);
+    cv.fill(circle(52, 9, 4.6), hex('#1d1f23'));
+    cv.fill(circle(52, 9, 3.6), hex('#ff3b2a'));
+    cv.fill(circle(51, 8, 1.3), WHITE, 0.8);
+  } else {
+    cv.fill(circle(52, 9, 4.6), hex('#1d1f23'));
+    cv.fill(circle(52, 9, 3.6), hex('#3a1512'));
+  }
   return cv;
 }
 
@@ -815,6 +825,7 @@ function main(): void {
     { name: 'part.propeller', canvas: drawPropeller(1) },
     { name: 'part.decoupler', canvas: drawDecoupler() },
     { name: 'part.warhead', canvas: drawWarhead() },
+    { name: 'part.warhead.armed', canvas: drawWarhead(undefined, undefined, undefined, true) },
     { name: 'part.gyro', canvas: drawGyro() },
     { name: 'part.rotator', canvas: drawRotator() },
     { name: 'part.rotator.mount', canvas: drawRotatorMount() },
@@ -822,6 +833,7 @@ function main(): void {
     // Booster (Gate 7): the thruster in orange, with a hot band; heavy warhead: the warhead in near black with an orange band.
     { name: 'part.booster', canvas: drawThruster(hex('#d0762c'), hex('#8a3b12')) },
     { name: 'part.heavywarhead', canvas: drawWarhead(hex('#2a2c31'), hex('#121316'), hex('#e0712c')) },
+    { name: 'part.heavywarhead.armed', canvas: drawWarhead(hex('#2a2c31'), hex('#121316'), hex('#e0712c'), true) },
     // Heavy gyro: the gyro in dark teal.
     { name: 'part.heavygyro', canvas: drawGyro(hex('#1f7a78'), hex('#0f4543')) },
     // Dense battery (Logan): the battery in blue.

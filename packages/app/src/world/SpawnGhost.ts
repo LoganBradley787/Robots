@@ -20,7 +20,7 @@ export class SpawnGhost {
     for (const p of bp?.parts ?? []) {
       if (!root || !registry.has(p.part)) continue;
       const spec = registry.get(p.part).sprite;
-      for (const f of [spec.frame, spec.mountFrame]) {
+      for (const f of [p.armed === true && spec.armedFrame ? spec.armedFrame : spec.frame, spec.mountFrame]) {
         if (!f) continue;
         const s = new Sprite(frame(f));
         s.anchor.set(0.5);

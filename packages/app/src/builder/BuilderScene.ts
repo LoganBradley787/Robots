@@ -72,16 +72,17 @@ export class BuilderScene {
     return s;
   }
 
-  private addPart(into: Container, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, alpha = 1): void {
+  private addPart(into: Container, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, alpha = 1, armed = false): void {
     if (!registry.has(part)) return;
     const spec = registry.get(part).sprite;
-    into.addChild(this.sprite(spec.frame, x, y, rot, alpha));
+    // A part set to start armed (M10) shows its armed frame.
+    into.addChild(this.sprite(armed && spec.armedFrame ? spec.armedFrame : spec.frame, x, y, rot, alpha));
     if (spec.mountFrame) into.addChild(this.sprite(spec.mountFrame, x, y, rot, alpha));
   }
 
   drawParts(bp: Blueprint, registry: PartRegistry): void {
     for (const c of this.parts.removeChildren()) c.destroy();
-    for (const p of bp.parts) this.addPart(this.parts, registry, p.part, p.x, p.y, p.rot);
+    for (const p of bp.parts) this.addPart(this.parts, registry, p.part, p.x, p.y, p.rot, 1, p.armed === true);
   }
 
   drawGhost(editor: EditorState, bp: Blueprint, registry: PartRegistry): void {
