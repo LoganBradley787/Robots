@@ -1,0 +1,65 @@
+# M12 Fabricator Bay Implementation Plan
+
+> **For agentic workers:** Read `CLAUDE.md`, `docs/START-HERE.md`, `docs/status.md`, `docs/design/02-parts-and-blueprints.md` (footprints, decouplers, arming, decoys), `03` (splits, blasts), `04` (cores, scopes, `send`, latching), `05` (energy pools), `docs/plans/M7-*.md` (placed cores waking), `docs/plans/M11-flares.md` (As built), and `docs/claude-robot-playbook.md` (Placing) first. Tests first for every sim-core change, one commit per task (`M12 T<n>: <what>`), tree green at every commit, commit often and push only at the gate. Plain game terms (M8 wording note). Rules go by parts, never by kinds of robots (Logan): nothing in the engine names a missile or a bay's recipe.
+
+**Goal:** weapons that do not run out. A fabricator bay is a big hollow part that builds a copy of a blueprint (a guided missile) inside itself, out of the robot's energy, then lets it slide out through its open side when fired, and starts the next. Firepower now lasts as long as the power and the bay do, so the bay is the thing worth armoring. Ends at Gate 11.
+
+**Written by:** an Opus 5.5 session, 2026-09-26, after Logan's answers.
+
+## Logan's answers (2026-09-26)
+- **Makes any blueprint:** each bay names a blueprint and builds copies of it.
+- **Costs energy and build time.**
+- **A multi-cell bay** big enough to hold what it makes; the finished thing sits inside and the bay lets it go like a decoupler, sliding out.
+- **Refills itself:** whenever it is empty (and has energy) it starts the next one; a key or script only lets finished ones go.
+- **About 4 s** for a guided missile.
+- **Appears part by part** while it builds.
+- **Half-built:** "it just hits the bay as a whole": the item is not a physical thing until finished.
+- **One robot for now:** a drone with no missiles, only a fabricator bay making guided missiles. Existing robots unchanged.
+- **No scoreboard** (too limiting).
+
+## What exists already (code map, 2026-09-26)
+- **Multi-cell parts are half built.** `FootprintCell {x, y, faces}` lists; the parser only needs `footprint[0]` at (0, 0), so a U with a hole is already legal and other parts may sit in the hole (overlap is checked per occupied cell). `partCells` rotates cells and faces; assembly attaches per cell; physics gets one collider per cell with the mass split. Missing or origin-only: sprites (one cell at `localX/Y`), the builder's ghost, hover and eraser (one cell), blasts (one `BlastCell` per part, at its origin), `partWorldPose`, mirroring an asymmetric footprint, and `World.detach` (it takes the first neighbour across the face from any cell). No shipped part is multi-cell.
+- **Placing is pure** (`blueprint/place.ts`): a copy gets a scope (`missile1`), tags `[scope, scope.<tag>, id]`, and a `cores` entry with its bindings and scripts; its core sleeps until its piece breaks off, then wakes with those controls (`World.rebuildDirty`, `coreWoke`). `send(scope, data)` reaches an attached copy's inbox.
+- **A live robot's structure** is `robot.blueprint` (parts, cores), `robot.parts` (PartInstances), groups and chunks, rebuilt by `rebuildRobot` from `robot.blueprint.parts` that are still alive. `destroyDeadParts`, `rebuildRobot`, `controllerFor`, `coreControls`, and `send` all read `robot.blueprint`. The host's `Controller` resolves its parts once and can only shrink (`restrict`).
+- **Replays** re-spawn the raw blueprints from the spawn log and replay key edges; anything built at run time must follow from the raw blueprint. The top-level blueprint keys are a closed list (`expand.ts` `TOP_KEYS`).
+- **Energy:** a behavior asks for `powerDraw * load * dt` from its chunk's pool and runs with the grant (brownout scales it). An attached copy's containers join the host's pool.
+
+## Decisions (Claude's call unless marked Logan's, overturnable at Gate 11)
+
+1. **The bay part (data).** `fabbay` ("Fabricator bay"), a U three cells wide and six tall at rotation 0, open at the top (its `acts` face, N): bottom row (-1..1, 0), walls (-1, 1..5) and (1, 1..5); the hollow is (0, 1..5), sized for a `missile-up` (seeker, heavy warhead, core, heavy gyro, booster: 1 wide, 5 tall). 13 cells, about 13 kg, health 150 (armor: it is the thing to protect). Outer faces attach normally. The faces into the hollow are **grips** (a new optional `grips: Face[]` per footprint cell): they hold whatever sits in the hollow while the bay is holding, and nothing once it lets go. Larger bays (for `big-missile`, `drone-bomb`) are more defs later, same fields.
+2. **Grips (generic).** Assembly attaches a cell face listed in `grips` only while the part's `holding` is true (a new `PartInstance` field, hashed). Letting go sets `holding` false and marks the robot dirty; the rebuild splits the item off as its own piece (existing split and wake rules), and the bay pushes it out along its `acts` face with `separation` (N s, a config value, 4) and the bay the other way. This replaces per-face `cut` for bays (cut is per part, and would also cut the walls' outer faces).
+3. **Recipes live in the blueprint (Logan: any blueprint).** A bay's legend entry or part carries `"makes": "<name>"`, and the host blueprint carries `"recipes": { "<name>": <a whole blueprint, scripts inline or as files> }`. Replays and saves need nothing else: the raw blueprint has the recipe. Script files for a recipe are named `<host>.<recipe>.<script>.js` and loaded by `resolveScripts` like cores' scripts. The validator checks that the recipe validates on its own, has a core, and **fits the hollow**: placed with its bounding box's bottom row on the hollow's bottom row, every cell inside the hollow cells, and at least one of its parts touching a grip face (else it would fall out as soon as it is built). `BAD_RECIPE` with the reason. `makes` on a part without a hollow is `BAD_MAKES`.
+4. **Building (Logan: refills itself, about 4 s).** A `fabricate` behavior: while the bay holds nothing and has a recipe, it works at load 1; each tick adds `grant * dt` to `progress` (seconds, stored as whole ticks on the PartInstance, hashed). Build time is `secondsPerKg * recipe mass` (0.6 s/kg: a 6.8 kg `missile-up` takes about 4.1 s). Energy is `joulesPerKg * mass` plus the energy the finished item's containers hold (they start full, so building never makes energy from nothing: an attached copy joins the pool). At 40 J/kg a `missile-up` costs 272 + 600 = 872 J, drawn evenly over the build (`powerDraw` set so the full draw at load 1 spends that over the build time; the def gives `joulesPerKg`, `secondsPerKg`, and the behavior works out the draw from the recipe). Out of energy, it builds slower or stops (brownout), and resumes when energy is back.
+5. **Finishing: parts are added to the live robot.** When `progress` reaches the build time, and the hollow is clear of any body (a physics overlap check on the hollow cells: the last item may still be sliding out), the world places the recipe into the robot as `pnpm sim place` would: a new scope named after the bay (`<bay's first tag>.<n>`, n counting that bay's builds, hashed), new PartInstances (full health, containers full, warheads unarmed), a new `cores` entry (its core asleep), the bay's `holding` set true, and a rebuild. `robot.blueprint` becomes a new object with the added parts (pieces keep their own reference). The host's controller is rebuilt and given back its held keys and toggles (a new `Controller.restore(state)`), so the item's parts join its controls as a placed copy's would. Caches keyed by robot version heal; `decoyCache` and `emptied` are cleared. A `built` event (tick, robot, part, recipe, scope).
+6. **Letting go.** The bay's `release` input above 0.5 lets go of a finished item (a pulse is enough), once. Its outputs: `ready` (1 while it holds a finished item), `progress` (0 to 1). A fire script does what the hunter's does today: `send(scope, { x, y, vx, vy, id, arc })` to the held item, then `set('<bay tag>', 'release', 1)` on the same tick. The item wakes as a missile let go from a decoupler does, reads its inbox in `setup()`, arms once clear.
+7. **Half-built (Logan: it hits the bay as a whole).** Until finished the item has no body: shots into the open top hit the bay's walls or pass through the empty hollow. A bay destroyed mid-build loses its progress; a finished item still held becomes part of the wreck like any placed copy (unarmed, so it does not go off).
+8. **Look (Logan: part by part).** The app draws the recipe's parts inside the hollow as they are "built": part k of n (bottom row first) appears once progress passes k/n, faint, then solid when finished and real. A small progress bar on the bay. The bay sprite is drawn over its whole footprint (T1).
+9. **Multi-cell parts, finished for this.** Sprites span the footprint's bounding box (a def's sprite gets an optional `size` in cells and an `anchor` cell; one-cell parts unchanged); the builder's ghost, hover, eraser highlight, and spawn ghost cover every cell; blasts reach a multi-cell part at its nearest cell (per-cell blast cells, damage applied to the part once, from its nearest cell); `partWorldPose` stays the origin cell. Mirroring a footprint that is not symmetric about its origin column is refused with a clear error (`BAD_MIRROR`), since a mirrored copy is not a rotation; the bay is symmetric. Golden hashes are unchanged (every shipped part before M12 is one cell).
+10. **The robot (Logan: one drone, only a bay).** `fab-drone`: the hunter drone's airframe (propellers, hover, radar), no missiles on top, one `fabbay` making `missile-up` standing in the middle of its top, flare racks on the sides (V), dense batteries for about 20 missiles plus flight. F fires the held missile at the nearest tracked enemy (straight or arc, as the hunter). Hover balance comes from `parts` already, so a missile appearing and leaving keeps it level.
+11. **Report and CLI.** `built` and `released` in the run report; `pnpm sim show` lists recipes and what each bay makes; `pnpm sim parts` describes grips and fabricate.
+
+## Tasks
+### T1: multi-cell parts, finished (sim-core, app)
+- Tests first: a U part in a custom registry: blast damage from a cell far from the origin; overlap and attach with parts in the hollow; grips not yet (T2); mirror refuses an asymmetric footprint with `BAD_MIRROR`, accepts a symmetric one; one-cell parts and golden hashes unchanged.
+- Blasts per cell; sprite `size` and `anchor` in the def parser; `robotLayout`, `RobotView`, `BuilderScene` (ghost, hover, eraser), `SpawnGhost` draw the whole footprint.
+
+### T2: grips, recipes, building (sim-core)
+- Tests first: `grips` parse and attach only while `holding`; `makes` and `recipes` expand, validate (`BAD_RECIPE` for a recipe that does not fit, has no core, or touches no grip; `BAD_MAKES`), serialize, `resolveScripts` for recipe scripts, `toGrid`; the `fabbay` def; `fabricate` draws energy and advances `progress` (brownout slows it; empty stops it); `progress` hashed.
+
+### T3: finishing and letting go (sim-core)
+- Tests first: a bay on a fixed test robot finishes a `missile-up` in about 4.1 s, adds its parts (new scope, sleeping core), the host keeps its held keys; `ready` 1; `release` lets it go, it wakes, reads a message sent the same tick, and flies; the bay starts the next only once the hollow is clear; a bay destroyed mid-build builds nothing; energy spent matches the cost (no energy from nothing); a run with builds replays exactly (`replayFile`); worlds without bays hash as before.
+- `World.fabricate`, `Controller.restore`, `built` and `released` events, hash fields (`holding`, `progress`, build count).
+
+### T4: builder and app
+- Part menu for a bay: Makes (a dropdown of saved blueprints that fit; choosing one copies it into the blueprint's `recipes`); the build look (parts appearing, progress bar); the Controls panel lists the bay's `release`.
+
+### T5: the fab drone (blueprints)
+- `fab-drone.json` with its hover, fire, and flares scripts. Done-when tests: it builds a missile in about 4 s after deploy; F launches it at a parked car 100 m away and hits; holding F fires one about every 4 s until energy runs out (count them: more than the hunter's 4); flares still work; a blast that destroys the bay stops production but the drone flies on. A golden scene with it.
+
+### T6: docs, review, gate
+- `02` (grips, fabricate, recipes, multi-cell drawing), `04` (a fabricated item's scope and waking), the playbook (bays, recipes, the fab drone, costs), status, As built, `docs/critique/gate-11.md`. Opus review subagent; fix findings; tag `m12`, push once, stop at Gate 11.
+
+## Gate 11 (Logan)
+- Deploy `fab-drone` and watch a missile build in its bay; fire it at an enemy; keep firing and see how long the power lasts.
+- Shoot at an enemy's bay (once enemies get them) or have yours shot: what happens mid-build, with a finished missile inside.
+- Build your own: a bay on something else, making something else (the recipe must fit its hollow). Try a rotator wall over the bay that opens to launch.

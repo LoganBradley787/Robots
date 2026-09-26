@@ -11,8 +11,8 @@ Updated: 2026-09-26, by an Opus 5.5 session, end of M11 (flares)
 - M10 (before): warheads safe until armed; `drone-bomb`, `enemy-flying-silo`, `enemy-truck`; after Gate 9 opened, `big-drone`, `enemy-big-drone`, `carrier`, `enemy-carrier`.
 - Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE). 21 scenes since M11.
 - Next steps, in order:
-  1. Logan plays Gate 10 and files findings in `docs/critique/gate-10.md`. Flagged there: the 2 s burn, enemies flaring very well, racks acting as side armor.
-  2. Candidates after that (`ideas.md`): a bomber (flies over and drops bombs), a jammer, MASTER DRONE, fabricator bay (missiles that do not run out), debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
+  1. Gate 10 played (Logan's big battle, findings in `docs/critique/gate-10.md`; the 4x speed slowdown is fixed). **M12, the fabricator bay**, is planned in `docs/plans/M12-fabricator-bay.md`. Waiting for Logan's go.
+  2. Candidates after that (`ideas.md`): a bomber (flies over and drops bombs), a jammer, MASTER DRONE, debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
   - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
   - Details and measurements: `docs/ideas.md`.
 - Wording note (2026-09-25, M8): writing the homing missile tripped Opus's safety classifier several times. Write in plain game terms (no real weapon names or tactics talk in code or docs), build in small steps. The Javelin is the `arc` option.
