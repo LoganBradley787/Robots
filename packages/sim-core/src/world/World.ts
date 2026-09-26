@@ -76,6 +76,14 @@ export type WorldEvent =
   /** M11: a decoy burnt out; it is destroyed this tick without a blast. */
   | { tick: number; robot: number; kind: 'burntOut'; part: string };
 
+/** A burning decoy as a sensor sees it (M11): where it is, which piece holds it, and how it moves. */
+interface SeenDecoy {
+  robot: Robot;
+  partId: string;
+  pos: { x: number; y: number };
+  vel: { x: number; y: number };
+}
+
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
 
@@ -213,6 +221,10 @@ export class World {
    * Pruned when the world is scanned for burning decoys. Derived from hashed state (each part's `burn`).
    */
   private readonly decoys = new Set<PartInstance>();
+  /** Burning decoys as sensors see them, for the tick they were found on (M11). Derived; dropped when robots come or go. */
+  private decoyCache: { tick: number; view: { of: Map<number, SeenDecoy[]>; pieces: Set<number> } | undefined } | undefined;
+  /** Contacts each robot's sensors saw at a decoy when its scripts last ran, for `scan()` (M11). Derived, not hashed. */
+  private readonly seenDecoys = new Map<number, Map<number, SeenDecoy>>();
   /** Robots each robot's sensors saw when its scripts last ran, for `scan()` (M8). Derived, not hashed. */
   private readonly seen = new Map<number, Set<number>>();
   /** The marks each robot's scripts made when they last ran, by script (M8). For the overlay and reports; not hashed. */
@@ -256,6 +268,7 @@ export class World {
     const robot = spawnRobot(this.physics, this.registry, blueprint, plan, { id: this.nextRobotId++, tick: this.tickCount, at, team });
     this.robots.push(robot);
     this.byId.set(robot.id, robot);
+    this.decoyCache = undefined;
     const controller = controllerFor(robot, this.registry);
     if (controller) {
       this.controllers.set(robot.id, controller);
@@ -301,6 +314,7 @@ export class World {
       if (!Number.isInteger(input.robot) || input.robot < 1 || input.robot >= this.nextRobotId) throw new Error(`robot ${input.robot} does not exist`);
     }
     const accepted = inputs.filter((i) => this.controllers.has(i.robot));
+    this.decoyCache = undefined;
     const change: WorldChange = {};
     if (this.pendingUnlimited !== undefined) change.unlimitedEnergy = this.pendingUnlimited;
     if (this.pendingClearDebris) change.clearDebris = true;
@@ -386,6 +400,8 @@ export class World {
     this.used.delete(robot.id);
     this.logBudget.delete(robot.id);
     this.seen.delete(robot.id);
+    this.seenDecoys.delete(robot.id);
+    this.decoyCache = undefined;
     this.scriptMarks.delete(robot.id);
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'removed' });
@@ -932,38 +948,104 @@ export class World {
 
   /**
    * Every robot the robot's working sensors see, nearest first (ties by id). `remember` keeps the ids for `scan()`
-   * this tick; the overlay's read-only view does not.
+   * this tick; the overlay's read-only view does not. `decoysOut` gets the contacts reported at a decoy.
+   *
+   * M11: a burning decoy stands in for the robot it was part of when lit. When a sensor sees one, that robot is
+   * reported at the decoy (its position and velocity; the robot's id, side, core, mass, and part count), whether or
+   * not the robot is also in view; of several, the one nearest the viewer. A piece that is only burning decoys is not
+   * listed as itself. Nothing here names a kind of robot: whatever steers by these contacts is fooled as a result.
    */
-  private contactsFor(robot: Robot, remember: boolean): ScriptContact[] {
+  private contactsFor(robot: Robot, remember: boolean, decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
     const sensors = this.workingSensors(robot);
-    if (remember) this.seen.delete(robot.id);
+    if (remember) {
+      this.seen.delete(robot.id);
+      this.seenDecoys.delete(robot.id);
+    }
     if (sensors.length === 0) return [];
     const terrain = this.terrainBoxes();
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const from = partWorldPose(this, robot, coreId);
+    const lit = this.burningDecoys();
+    const fooled = remember || decoysOut ? new Map<number, SeenDecoy>() : undefined;
     const out: ScriptContact[] = [];
     for (const other of this.robots) {
-      if (other === robot || other.groups.length === 0) continue;
+      if (other === robot || other.groups.length === 0 || lit?.pieces.has(other.id)) continue;
       const ref = this.reference(other);
-      const by = sensors.filter((s) => sees(s, ref.pos, terrain)).map((s) => s.id);
-      if (by.length === 0) continue;
+      let at: SeenDecoy | undefined;
+      let by: string[] = [];
+      let best = Infinity;
+      for (const d of lit?.of.get(other.id) ?? []) {
+        const dist = Math.hypot(d.pos.x - from.x, d.pos.y - from.y);
+        if (dist >= best) continue;
+        const b = sensors.filter((s) => sees(s, d.pos, terrain)).map((s) => s.id);
+        if (b.length === 0) continue;
+        at = d;
+        by = b;
+        best = dist;
+      }
+      if (!at) {
+        by = sensors.filter((s) => sees(s, ref.pos, terrain)).map((s) => s.id);
+        if (by.length === 0) continue;
+      }
+      const pos = at ? at.pos : ref.pos;
       const side = !this.controllers.has(other.id) ? 'none' : other.team === robot.team ? 'friend' : 'enemy';
-      out.push({ id: other.id, side, core: ref.core, pos: ref.pos, vel: ref.vel, center: ref.center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(ref.pos.x - from.x, ref.pos.y - from.y), by });
+      if (at) fooled?.set(other.id, at);
+      out.push({ id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center: at ? at.pos : ref.center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(pos.x - from.x, pos.y - from.y), by });
     }
     out.sort((a, b) => a.distance - b.distance || a.id - b.id);
-    if (remember) this.seen.set(robot.id, new Set(out.map((c) => c.id)));
+    if (remember) {
+      this.seen.set(robot.id, new Set(out.map((c) => c.id)));
+      if (fooled && fooled.size > 0) this.seenDecoys.set(robot.id, fooled);
+    }
+    if (decoysOut && fooled) for (const [id, d] of fooled) decoysOut.set(id, d);
     return out;
   }
 
-  /** `scan(id)` (M8): a robot the viewer's sensors saw this tick, part by part, in blueprint order; null otherwise. */
+  /**
+   * Every burning decoy now, by the robot it stands in for, and the pieces made only of decoys standing in for another
+   * robot (M11). Undefined when none has been lit (the usual case costs nothing). Computed once per tick.
+   */
+  private burningDecoys(): { of: Map<number, SeenDecoy[]>; pieces: Set<number> } | undefined {
+    if (this.decoys.size === 0) return undefined;
+    if (this.decoyCache?.tick === this.tickCount) return this.decoyCache.view;
+    const of = new Map<number, SeenDecoy[]>();
+    const pieces = new Set<number>();
+    this.decoys.clear();
+    for (const r of this.robots) {
+      let others = 0;
+      for (const bp of r.blueprint.parts) {
+        const part = r.parts.get(bp.id);
+        if (!part || (part.burn ?? 0) <= 0 || part.decoyOf === undefined) continue;
+        this.decoys.add(part);
+        if (part.decoyOf !== r.id) others++;
+        const group = r.groups[part.group];
+        if (!group) continue;
+        const pose = partWorldPose(this, r, part.id);
+        const s = this.physics.state(group.bodyId);
+        const list = of.get(part.decoyOf) ?? [];
+        list.push({ robot: r, partId: part.id, pos: { x: pose.x, y: pose.y }, vel: { x: s.vx, y: s.vy } });
+        of.set(part.decoyOf, list);
+      }
+      if (others > 0 && others === r.parts.size) pieces.add(r.id);
+    }
+    const view = this.decoys.size === 0 ? undefined : { of, pieces };
+    this.decoyCache = { tick: this.tickCount, view };
+    return view;
+  }
+
+  /**
+   * `scan(id)` (M8): a robot the viewer's sensors saw this tick, part by part, in blueprint order; null otherwise.
+   * M11: a robot seen at a decoy scans as what the sensor sees there: the decoy.
+   */
   private scan(viewer: Robot, id: number): ScannedPart[] | null {
     if (!this.seen.get(viewer.id)?.has(id)) return null;
-    const r = this.byId.get(id);
+    const decoy = this.seenDecoys.get(viewer.id)?.get(id);
+    const r = decoy ? decoy.robot : this.byId.get(id);
     if (!r) return null;
     const out: ScannedPart[] = [];
     for (const bp of r.blueprint.parts) {
       const p = r.parts.get(bp.id);
-      if (!p) continue;
+      if (!p || (decoy && p.id !== decoy.partId)) continue;
       const pose = partWorldPose(this, r, p.id);
       out.push({ id: p.id, type: p.def.id, pos: { x: pose.x, y: pose.y }, angle: pose.angle, health: p.health, maxHealth: p.def.health });
     }
@@ -972,12 +1054,14 @@ export class World {
 
   /**
    * What a robot's sensors see now, for the debug overlay (M8): each working sensor and each contact. Read-only; the
-   * same rule scripts get.
+   * same rule scripts get. `decoy` marks a contact seen at a decoy (M11), which scripts are never told.
    */
-  sensorView(robotId: number): { sensors: SensorPose[]; contacts: { id: number; side: ScriptContact['side']; x: number; y: number }[] } {
+  sensorView(robotId: number): { sensors: SensorPose[]; contacts: { id: number; side: ScriptContact['side']; x: number; y: number; decoy?: true }[] } {
     const robot = this.byId.get(robotId);
     if (!robot) return { sensors: [], contacts: [] };
-    return { sensors: this.workingSensors(robot), contacts: this.contactsFor(robot, false).map((c) => ({ id: c.id, side: c.side, x: c.pos.x, y: c.pos.y })) };
+    const fooled = new Map<number, SeenDecoy>();
+    const contacts = this.contactsFor(robot, false, fooled);
+    return { sensors: this.workingSensors(robot), contacts: contacts.map((c) => ({ id: c.id, side: c.side, x: c.pos.x, y: c.pos.y, ...(fooled.has(c.id) ? { decoy: true as const } : {}) })) };
   }
 
   /** A robot's scripts and whether each runs or crashed. Read-only. */
