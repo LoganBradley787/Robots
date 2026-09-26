@@ -10,7 +10,7 @@ Updated: 2026-09-25, by an Opus 5.5 session, end of M10
 - M9 (before): scripts about 5 to 15 times cheaper; 100 hovering drones in about 13 ms per tick headless; `pnpm sim bench`; perf readout and Stress menu in the app.
 - Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE).
 - Next steps, in order:
-  1. Gate 9 punch list (Logan plays M10).
+  1. Gate 9 extras done (big drone, carrier); Logan's Gate 9 play feedback: the meta is all missiles, so **M11, flares**, is planned in `docs/plans/M11-flares.md` (a burning flare stands in for its robot to every sensor that sees it). Waiting for Logan's go.
   2. Candidates after that: MASTER DRONE and drone bomb carriers (`ideas.md`, After Gate 8), fabricator bay (missiles that do not run out), debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
   - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
   - Details and measurements: `docs/ideas.md`.

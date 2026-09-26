@@ -57,6 +57,11 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - What is left, if it is ever needed: the scripts' own work is now most of it (QuickJS interprets, no JIT); behaviors (thruster and gyro forces) are next at about 16 percent. The browser runs scripts about 20 to 40 percent slower than Node.
 - **Web Worker** (still an idea): the sim on its own thread, so drawing never waits for a slow tick. When a tick costs close to a whole frame the fixed step catches up in bursts of several ticks per frame and the frame rate drops, though the sim keeps real time.
 
+### After Gate 9 (Logan, 2026-09-26)
+- **A bomber:** flies above you and drops bombs (armed at start, or armed by the bomber as it lets go).
+- **A jammer pod:** dropped, it blinds every sensor within about 30 m for a few seconds (flares came first).
+- **Missiles that do not run out** (the fabricator bay) would also change "fire everything, then float".
+
 ### After Gate 8 (Logan, 2026-09-25)
 - **MASTER DRONE:** four seeker missiles, a big missile, and two drone bombs on one big drone. The drone bomb already sleeps while carried and arms when let go; a carrier needs grips for it and a fire script that hands it its target (it finds its own with its radar, so a plain release works too).
 - **Drone bomb carriers:** an enemy drone that carries two drone bombs and drops them on you.

@@ -1,0 +1,53 @@
+# M11 Flares Implementation Plan
+
+> **For agentic workers:** Read `CLAUDE.md`, `docs/START-HERE.md`, `docs/status.md`, `docs/design/02-parts-and-blueprints.md` (sensor parts, arming), `04` (Script API: contacts, scan), `docs/plans/M8-sensors-and-homing.md` (how sensing works), `docs/plans/M10-arming-and-enemies.md`, and `docs/claude-robot-playbook.md` first. Tests first for every sim-core change, one commit per task (`M11 T<n>: <what>`), tree green at every commit, commit often and push only at the gate. Plain game terms (M8 wording note).
+
+**Goal:** a way to survive incoming fire that is not firing back. A robot lets go of a flare; while it burns, every sensor that sees it takes it for the robot that let it go. Timed right, whatever is steering at you by its sensors steers at the flare instead. Ends at Gate 10.
+
+**Written by:** an Opus 5.5 session, 2026-09-26, after Logan's answers.
+
+## Logan's answers (2026-09-26)
+- **Flares** (not a jammer, for now). Released, not worn: "if it's on your device, it's no fun." Timing matters: too early or too late does not work.
+- **They fool sensors, all of them:** seekers and radar. **Rules attach to sensors, never to kinds of robots** (Logan): nothing names missiles or drone bombs; whatever steers by a fooled sensor is fooled as a consequence. The same holds for every later mechanic.
+- **Who gets them:** your drones on a key, and enemies (they pop one when they see something coming at them).
+
+## What exists already
+- Sensors (M8): a part def with `sensor: { cone, range }`; `World.contactsFor` lists every robot whose reference point (live core, else center of mass) a working sensor sees, with line of sight through terrain; `scan(id)` returns a seen robot's parts. Scripts see only `contacts` and `scan`.
+- Releasing things: decouplers (a release impulse of 2 N s), latched channels on a piece that breaks off (`04`, Latching: script-layer values latch, one-tick key pulses do not), arming (M10) as the model for a part with a latched state.
+- Threat prediction in `enemy-drone.pilot.js` (`threat()`: closest pass of an incoming light robot).
+
+## Decisions (Claude's call unless marked Logan's, overturnable at Gate 10)
+
+1. **The flare part (data).** `flare`: 0.2 kg, health 5, one cell, attaches on every face, legend `Q`, a builder key. Its def says `decoy: { burn: 2 }` (seconds) and it has an `ignite` input (above 0.5 lights it, for good) and a `burning` output. A new `flare` behavior counts the burn down; when it ends, the part is destroyed quietly (no blast) and falls away as nothing. `PartInstance` gains the burn left and the robot it stands in for (see 2), both in the state hash. The engine reads `decoy`; it never names `flare`.
+2. **The sensor rule (Logan: every sensor).** A burning decoy stands in for the robot it was part of when it was lit (`decoyOf`: that robot's id, recorded on the part at ignition). For any robot's sensors that see the decoy's position (cone, range, line of sight, as for any robot), that robot's contact is reported **at the decoy**: the decoy's position and velocity, with the real robot's id, side, core, mass, and part count, whether or not the real robot is also in view. Several of its decoys in view: the nearest to the viewer. `scan(id)` of it returns what the sensor sees there: the decoy's part. The decoy's own piece is not listed separately while it burns. Once burnt out, the contact goes back to the real robot if it is seen.
+   - Consequences, not rules: a missile following you by id follows the flare; a launcher's radar reports you at the flare; a drone bomb (radar) chases it; your own robots' sensors see your flare as you too (it fools everyone).
+   - The timing window falls out: lit too early, it burns out first and the chaser finds you again; too late, the chaser is already on you (a blast reaches 3 to 4 m) or the flare is outside a narrow seeker's cone.
+3. **Lighting and letting go.** A flare lights when its `ignite` input goes above 0.5, attached or not. A rack is flares on decouplers; a rack script sets `ignite` on the flare and fires its grip on the same tick, so the flare leaves burning (the 2 N s release gives a 0.2 kg flare about 10 m/s away from the robot). A key binding can do both too (a pulse on `ignite` and on the grip).
+4. **Shipped robots.** Flare racks (six flares, each on its own grip) on `hunter-drone`, `big-drone`, and `carrier`, released by V (pairs: one left, one right, tossed out sideways). `enemy-drone`, `enemy-big-drone`, `enemy-flying-silo`, and `enemy-carrier` get racks too and pop a pair when their threat check predicts something passing within a few meters in about a second (the enemy drone's `threat()`, moved into each pilot). Added with `pnpm sim place` so blueprints stay data.
+5. **Look.** A burning flare draws bright with a small glow (a lit frame and the thruster's flame-style overlay while `burning` is 1); a spent one is gone.
+6. **Report and overlay.** The run report logs `lit` and `burnt out`; the debug overlay draws a contact line to a decoy as it would to the robot, marked as a decoy (so you can see who is fooled).
+
+## Tasks
+### T1: the flare part (sim-core)
+- Tests first: lights on `ignite` (key and script), burns 2 s, then is destroyed without a blast; the burn and `decoyOf` are hashed; `burning` output; a flare released burning keeps burning (latched channels); a part without `decoy` is unaffected.
+- Def, behavior, `PartInstance` fields, def parser (`decoy` requires `ignite` and `burning`), legend token, builder key, placeholder sprites (unlit, lit).
+
+### T2: the sensor rule (sim-core)
+- Tests first: a seeker and a radar both report a robot at its burning flare; nearest of two flares; the flare's own piece not listed while burning; back to the real robot after burnout; `scan` returns the flare; a flare out of a sensor's cone or behind terrain fools nothing; parity and golden hashes unchanged for scenes without flares.
+- `World.contactsFor`, `scan`, `sensorView`.
+
+### T3: racks on shipped robots, and the timing (blueprints)
+- A `flare-rack` blueprint (six flares on grips) placed on the drones and carriers; rack scripts (V, pairs); enemy pilots pop flares on a predicted pass.
+- Done-when tests: a seeker missile fired at a hovering drone is pulled off by a pair lit about 1 s before it arrives, and hits otherwise; lit 4 s early, it hits anyway; lit 0.2 s before, it hits anyway (or the blast reaches); a drone bomb chasing a drone is pulled off by a well-timed pair; an enemy drone survives more of a hunter's volley with its flares than without.
+- Tune the burn time and the release so the window is fair, and record the numbers.
+
+### T4: look, overlay, docs, review, gate
+- Flare sprites and glow, overlay decoy lines, run report events.
+- `02`, `04` (contacts can be decoys: the rule), the playbook (flares, racks, and the rule by sensor), status, As built, `docs/critique/gate-10.md`.
+- Opus review subagent; fix findings; golden scenes with flares; tag `m11`, push once, stop at Gate 10.
+
+## Gate 10 (Logan)
+- Fly the hunter drone at an enemy drone; when its missile comes, press V at different moments: too early, about right, too late.
+- Watch the debug overlay: fooled sensors draw their line to the flare.
+- Let a carrier's drone bombs chase you and flare them.
+- Fight the enemy drones and silos, which now flare your missiles.

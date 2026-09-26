@@ -25,3 +25,9 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - A script's memory limit does not cap many small allocations (planned in `docs/plans/script-memory-limit.md`, not started).
 
 ## Findings
+
+### 1. The meta is all missiles (Logan, 2026-09-26)
+- "You just shoot all your missiles, and then you float in the air aimlessly and then die." Wants more attack patterns (a carrier of drone bombs first, built; a bomber that flies over and drops bombs later) and a way to survive incoming fire without firing back.
+- Big missiles mostly "discombobulate the field"; missiles tracking other big missiles is fine.
+- Decided: flares (M11, `docs/plans/M11-flares.md`): released, not worn; they fool every sensor, and what is fooled follows from the sensor, never from a kind of robot (Logan).
+
