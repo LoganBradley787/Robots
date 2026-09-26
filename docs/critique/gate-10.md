@@ -21,3 +21,12 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - A script's memory limit does not cap many small allocations (planned in `docs/plans/script-memory-limit.md`, not started).
 
 ## Findings
+
+### 1. Big battle (Logan, 2026-09-26)
+Five of Logan's carriers (enemy-carrier blueprints on his team, 30 drone bombs) against four enemy trucks, an enemy flying silo, and an enemy big drone, at quarter speed.
+- Flares worked: a missile pulled off by a flare, one that missed and redirected; drone bombs soaked up missile fire. "Not enough" alone under a heavy volley.
+- The carriers were deployed too close: they collided, stacked in a cluster, and some drone bombs could not launch. They fell when their energy ran out.
+- A truck's missile hit the enemy flying silo overhead (friendly fire).
+- Trucks backing away from drone bombs do not fire; they fire only when stopped. Out of missiles, they just sit.
+- **No clear winner:** battles end with damaged robots out of ammo, still flying or wrecked. "Did anyone really win?" Wants a fabricator bay (missiles and drone bombs that do not run out).
+- **4x speed drops to 10 fps** (1x and 2x hold 120). Cause (Claude): the app runs up to 16 ticks per frame to keep up; when a tick costs more than the frame has (a big battle), frames get longer, which asks for more ticks per frame, until each frame runs 16 ticks. Fix: cap the sim's time per frame (say 10 ms), so a heavy scene runs slower than 4x but stays smooth.
