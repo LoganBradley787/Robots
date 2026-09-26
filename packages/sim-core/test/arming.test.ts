@@ -163,7 +163,7 @@ describe('arming (M10)', () => {
     expect(armedIds(bp)).toEqual(['warhead@1,0', 'warhead@2,0']);
     const back = expandBlueprint(toFileJson(bp, registry)).blueprint;
     expect(armedIds(back ?? { parts: [] })).toEqual(['warhead@1,0', 'warhead@2,0']);
-    expect(armedIds(mirrorBlueprint(bp, 4))).toHaveLength(2);
+    expect(armedIds(mirrorBlueprint(bp, 4, registry))).toHaveLength(2);
     expect(armedIds(orientBlueprint(bp, { flip: true, rot: 90 }, registry))).toHaveLength(2);
     const target = expandBlueprint({ format: 1, name: 't', grid: ['C  F  F  F  F'] }).blueprint;
     if (!target) throw new Error('bad target');

@@ -1,10 +1,11 @@
 import { AnimatedSprite, Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import { footprintBox, recipePlacement, rootPartId, rotateCell, rotationRadians, type BodyId, type PartRegistry, type PhysicsWorld, type Robot } from '@robots/sim-core';
+import { footprintBox, footprintOf, recipePlacement, rootPartId, rotateCell, rotationRadians, type BodyId, type PartRegistry, type PhysicsWorld, type Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { layoutRobot } from './robotLayout';
 import { damageTint } from './damageTint';
 import { multiplyTint, teamTint } from './teamTint';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from './units';
+import { partSprites } from './partSprites';
 
 /** Looks up an fx animation's frames by name. */
 export type Animations = (name: string) => Texture[];
@@ -36,7 +37,7 @@ export class RobotView {
    * What each fabricator bay is building (M12): its recipe's parts, bottom row first, shown faint one by one as the
    * build goes, and a progress bar across the bay's floor. Hidden while it holds a finished (real) copy.
    */
-  private readonly builds: { partId: string; ghosts: Sprite[]; bar: Graphics; barW: number }[] = [];
+  private readonly builds: { partId: string; ghosts: Container[]; bar: Graphics; barW: number }[] = [];
   private frames = 0;
 
   constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations, registry?: PartRegistry) {
@@ -124,30 +125,36 @@ export class RobotView {
           const off = rotateCell({ x: p.x - root.x, y: p.y - root.y }, where.rot);
           const rot = ((p.rot + where.rot) % 360) as 0 | 90 | 180 | 270;
           const def = registry.get(p.part);
-          const box = footprintBox(def);
-          const b = rotateCell({ x: box.cx, y: box.cy }, rot);
-          const s = new Sprite(frame(def.sprite.frame));
-          s.anchor.set(0.5);
-          s.width = PIXELS_PER_METER * box.w;
-          s.height = PIXELS_PER_METER * box.h;
-          const pos = toScreen({ x: where.at.x + off.x - ox + b.x, y: where.at.y + off.y - oy + b.y });
-          s.position.set(pos.x, pos.y);
-          s.rotation = toScreenAngle(rotationRadians(rot));
-          s.alpha = 0.4;
-          s.visible = false;
-          view.addChild(s);
+          // One ghost per part, drawn as the part is (a sized bay in a recipe too).
+          const c = new Container();
+          for (const t of partSprites(def, rot, footprintOf(def, p.size))) {
+            const s = new Sprite(frame(t.frame));
+            s.anchor.set(0.5);
+            s.width = PIXELS_PER_METER * t.w;
+            s.height = PIXELS_PER_METER * t.h;
+            if (t.flip) s.scale.x *= -1;
+            const pos = toScreen({ x: where.at.x + off.x - ox + t.x, y: where.at.y + off.y - oy + t.y });
+            s.position.set(pos.x, pos.y);
+            s.rotation = toScreenAngle(rotationRadians(rot));
+            c.addChild(s);
+          }
+          c.alpha = 0.4;
+          c.visible = false;
+          view.addChild(c);
           // The recipe sits in the bay as it is (turned only with the bay), so its own rows are the bay's, bottom first.
-          return { s, order: p.y };
+          return { s: c, order: p.y };
         })
         .sort((a, b) => a.order - b.order)
         .map((g) => g.s);
       const bar = new Graphics();
-      const floor = rotateCell({ x: 0, y: -0.38 }, bay.rot);
+      // Across the floor under the whole hollow, however wide the bay is.
+      const width = footprintBox(bay.def, bay.footprint).w - 2;
+      const floor = rotateCell({ x: (width - 1) / 2, y: -0.38 }, bay.rot);
       const p = toScreen({ x: bay.localX + floor.x, y: bay.localY + floor.y });
       bar.position.set(p.x, p.y);
       bar.rotation = toScreenAngle(rotationRadians(bay.rot));
       view.addChild(bar);
-      this.builds.push({ partId: bay.id, ghosts, bar, barW: PIXELS_PER_METER * 2.6 });
+      this.builds.push({ partId: bay.id, ghosts, bar, barW: PIXELS_PER_METER * (width + 1.6) });
     }
   }
 

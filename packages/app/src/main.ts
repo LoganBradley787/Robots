@@ -198,7 +198,21 @@ async function boot(): Promise<void> {
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
     setAuto: (ids, on) => builder.edit((bp) => setPartsAuto(bp, ids, on)),
     setArmed: (ids, on) => builder.edit((bp) => setPartsArmed(bp, ids, on)),
-    setSize: (ids, size) => builder.edit((bp) => setPartsSize(bp, ids, size)),
+    resize: (ids, dw, dh) =>
+      builder.edit((bp) =>
+        setPartsSize(
+          bp,
+          ids,
+          (size) => {
+            // Within its def's range; it grows right and up from its origin (its floor's left cell under the hollow).
+            const st = bp.parts.find((p) => ids.includes(p.id) && registry.has(p.part) && registry.get(p.part).stretch)?.part;
+            const spec = st ? registry.get(st).stretch : undefined;
+            if (!spec) return size;
+            return [Math.max(spec.min[0], Math.min(spec.max[0], size[0] + dw)), Math.max(spec.min[1], Math.min(spec.max[1], size[1] + dh))];
+          },
+          registry,
+        ),
+      ),
     setMakes: (ids, choice) => {
       if (choice === undefined) return builder.edit((bp) => setPartsMakes(bp, ids, undefined));
       if ('recipe' in choice) return builder.edit((bp) => setPartsMakes(bp, ids, bp.recipes?.find((r) => r.name === choice.recipe)));

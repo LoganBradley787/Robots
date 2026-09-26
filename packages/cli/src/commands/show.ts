@@ -1,4 +1,4 @@
-import { autoBindings, defaultRegistry, footprintOf, partMass, recipeStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
+import { autoBindings, defaultRegistry, recipeStats, staticStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -14,12 +14,12 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   if (g) lines.push('grid:', ...g.grid.map((r) => `  ${r}`));
   else {
     lines.push('parts (not expressible as a grid):');
-    for (const p of bp.parts) lines.push(`  ${p.id}: ${p.part} at (${p.x}, ${p.y}) rot ${p.rot} tags ${p.tags.join(', ')}${p.auto === false ? ', auto controls off' : ''}${p.armed === true ? ', armed at start' : ''}${p.makes !== undefined ? `, makes ${p.makes}` : ''}`);
+    for (const p of bp.parts) lines.push(`  ${p.id}: ${p.part} at (${p.x}, ${p.y}) rot ${p.rot} tags ${p.tags.join(', ')}${p.auto === false ? ', auto controls off' : ''}${p.armed === true ? ', armed at start' : ''}${p.makes !== undefined ? `, makes ${p.makes}` : ''}${p.size !== undefined ? `, hollow ${p.size[0]} by ${p.size[1]}` : ''}`);
   }
   const legend = Object.entries(g?.legend ?? {});
   if (legend.length > 0) {
     lines.push('legend:');
-    for (const [token, e] of legend) lines.push(`  ${token} = ${e.part} rot ${e.rot ?? 0}${e.tags ? ` tags ${e.tags.join(', ')}` : ''}${e.auto === false ? ', auto controls off' : ''}${e.armed === true ? ', armed at start' : ''}${e.makes !== undefined ? `, makes ${e.makes}` : ''}`);
+    for (const [token, e] of legend) lines.push(`  ${token} = ${e.part} rot ${e.rot ?? 0}${e.tags ? ` tags ${e.tags.join(', ')}` : ''}${e.auto === false ? ', auto controls off' : ''}${e.armed === true ? ', armed at start' : ''}${e.makes !== undefined ? `, makes ${e.makes}` : ''}${e.size !== undefined ? `, hollow ${e.size[0]} by ${e.size[1]}` : ''}`);
   }
   // M12: what its fabricator bays build, and what each costs in each bay that makes it.
   if (bp.recipes && bp.recipes.length > 0) {
@@ -40,15 +40,11 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
       lines.push(`  ${r.name}: ${r.blueprint.parts.length} parts, ${s.mass.toFixed(1)} kg${costs.length > 0 ? `; ${costs.join('; ')}` : ' (no bay makes it)'}`);
     }
   }
-  let mass = 0;
-  let mx = 0;
-  let my = 0;
-  for (const p of bp.parts) {
-    const m = partMass(registry.get(p.part), footprintOf(registry.get(p.part), p.size));
-    mass += m;
-    mx += m * p.x;
-    my += m * p.y;
-  }
+  // Mass spread over each part's cells (a big bay weighs along its whole footprint, M12).
+  const st = staticStats(bp, registry);
+  const mass = st.massKg;
+  const mx = st.comX * mass;
+  const my = st.comY * mass;
   lines.push(`mass: ${mass.toFixed(3)} kg, center of mass at cell (${(mx / mass).toFixed(3)}, ${(my / mass).toFixed(3)})`);
   lines.push(`chunks: ${plan.chunks.length}, bodies: ${plan.groups.length}`);
   for (const grp of plan.groups) {

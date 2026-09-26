@@ -1,4 +1,5 @@
 import { partCells } from '../assembly/assemble';
+import { defaultSize } from '../parts/footprint';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
@@ -160,15 +161,21 @@ export function setPartsMakes(bp: Blueprint, ids: readonly string[], recipe: Rec
   return recipes.length > 0 ? { ...rest, parts, recipes } : { ...rest, parts };
 }
 
-/** M12: the size of the given stretchy parts (a bay's hollow); `undefined` goes back to the def's default. */
-export function setPartsSize(bp: Blueprint, ids: readonly string[], size: [number, number] | undefined): Blueprint {
+/**
+ * M12: the size of the given stretchy parts (a bay's hollow), each from its own: `resize` gets a part's size and gives
+ * its new one. The def's default size is stored as no size at all, so the file keeps the plain token.
+ */
+export function setPartsSize(bp: Blueprint, ids: readonly string[], resize: (size: [number, number]) => [number, number], registry: PartRegistry): Blueprint {
   return {
     ...bp,
     parts: bp.parts.map((p) => {
-      if (!ids.includes(p.id)) return p;
-      if (size !== undefined) return { ...p, size: [size[0], size[1]] };
+      if (!ids.includes(p.id) || !registry.has(p.part)) return p;
+      const def = registry.get(p.part);
+      const d = defaultSize(def);
+      if (!d) return p;
+      const next = resize(p.size ?? d);
       const { size: _size, ...rest } = p;
-      return rest;
+      return next[0] === d[0] && next[1] === d[1] ? rest : { ...rest, size: [next[0], next[1]] };
     }),
   };
 }

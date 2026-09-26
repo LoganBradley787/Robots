@@ -304,3 +304,38 @@ describe('stretchy bays (M12, Logan: sized where placed)', () => {
     expect(flipped).toEqual(before.map((k) => { const [x, y] = k.split(',').map(Number); return `${-(x as number) + 0},${y}`; }).sort());
   });
 });
+
+describe('stretchy bays: review fixes (M12)', () => {
+  it('an unknown part with a size is reported, not thrown', () => {
+    const v = validateBlueprint({ format: 1, name: 'x', parts: [{ part: 'fabbayy', x: 0, y: 0, size: [2, 2] }] }, registry);
+    expect(v.issues.map((i) => i.code)).toContain('UNKNOWN_PART');
+  });
+
+  it('mirroring a sized bay at every rotation lands on the reflected cells', async () => {
+    const { mirrorBlueprint } = await import('../src/blueprint/mirror');
+    const { partCells } = await import('../src/assembly/assemble');
+    for (const rot of [0, 90, 180, 270]) {
+      const bp = validateBlueprint({ format: 1, name: 'x', parts: [{ part: 'fabbay', x: 0, y: 0, rot, size: [3, 2] }] }, registry).blueprint!;
+      const cells = (b: typeof bp): string[] => b.parts.flatMap((p) => partCells(p, registry).map((c) => `${c.cell.x},${c.cell.y}`)).sort();
+      const mirrored = cells(mirrorBlueprint(bp, 0, registry));
+      expect(mirrored, `rot ${rot}`).toEqual(cells(bp).map((k) => { const [x, y] = k.split(',').map(Number); return `${-(x as number) + 0},${y}`; }).sort());
+    }
+  });
+
+  it('setPartsSize resizes each from its own size, and the default size is stored as none', async () => {
+    const { setPartsSize } = await import('../src/blueprint/edit');
+    const bp = validateBlueprint({ format: 1, name: 'x', parts: [{ part: 'fabbay', x: 0, y: 0 }, { part: 'fabbay', x: 5, y: 0, size: [2, 5] }] }, registry).blueprint!;
+    const grown = setPartsSize(bp, ['fabbay@0,0', 'fabbay@5,0'], ([w, h]) => [w + 1, h], registry);
+    expect(grown.parts.map((p) => p.size)).toEqual([[2, 5], [3, 5]]);
+    const back = setPartsSize(grown, ['fabbay@0,0'], ([w, h]) => [w - 1, h], registry);
+    expect(back.parts[0]?.size).toBeUndefined();
+  });
+
+  it('parse: a stretchy def must list a cup of its mass, open to the N', async () => {
+    const { parsePartDef } = await import('../src/parts/parsePartDef');
+    const raw = JSON.parse(readFileSync(new URL('../src/parts/defs/fabbay.json', import.meta.url), 'utf8'));
+    expect(() => parsePartDef({ ...raw, mass: 12 }, 'x.json')).toThrow(/massPerCell times its default cells \(13\)/);
+    expect(() => parsePartDef({ ...raw, acts: 'E' }, 'x.json')).toThrow(/must be N/);
+    expect(() => parsePartDef({ ...raw, footprint: raw.footprint.slice(0, 12), mass: 12 }, 'x.json')).toThrow(/must be a cup/);
+  });
+});

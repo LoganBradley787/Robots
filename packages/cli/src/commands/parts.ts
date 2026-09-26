@@ -64,11 +64,12 @@ function details(d: PartDef): string[] {
     const cone = d.sensor.cone >= 360 ? 'all around' : `in a ${d.sensor.cone} degree cone toward its ${d.acts ?? 'N'} face`;
     out.push(`sensor: sees robots ${cone} out to ${d.sensor.range} m (terrain blocks it, robots do not); scripts read them in contacts and scan(id); on 0 switches it off`);
   }
+  if (d.stretch) out.push(`stretches: "size": [w, h] on the placed part sets its hollow, ${d.stretch.min[0]} to ${d.stretch.max[0]} wide and ${d.stretch.min[1]} to ${d.stretch.max[1]} tall; ${d.stretch.massPerCell} kg per cell (the mass above is its default size)`);
   if (d.fabricate) {
     const hollow = hollowCells(d);
     const w = Math.max(...hollow.map((c) => c.x)) - Math.min(...hollow.map((c) => c.x)) + 1;
     const h = Math.max(...hollow.map((c) => c.y)) - Math.min(...hollow.map((c) => c.y)) + 1;
-    out.push(`fabricator: builds its recipe (the part's "makes") in its ${w} by ${h} hollow: ${d.fabricate.joulesPerKg} J per kg plus what its containers hold, ${d.fabricate.secondsPerKg} s per kg (longer if its draw of ${d.powerDraw} J/s cannot pay for that); starts the next as soon as its hollow is clear; release lets the finished one go (pushed out ${d.fabricate.separation} N s along its ${d.acts ?? 'N'} face); outputs ready, progress (0 to 1), built`);
+    out.push(`fabricator: builds its recipe (the part's "makes") in its hollow (${w} by ${h} by default): ${d.fabricate.joulesPerKg} J per kg plus what its containers hold, ${d.fabricate.secondsPerKg} s per kg (longer if its draw of ${d.powerDraw} J/s cannot pay for that); starts the next as soon as its hollow is clear; release lets the finished one go (pushed out ${d.fabricate.separation} N s along its ${d.acts ?? 'N'} face); outputs ready, progress (0 to 1), built`);
   }
   if (d.decoy) out.push(`decoy: lit for good once its ignite input goes above 0.5 (a key or a script), it burns ${d.decoy.burn} s and is gone; while it burns, every sensor that sees it takes it for the robot it was part of when lit (contacts and scan report that robot at the flare); burning reads 1`);
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);

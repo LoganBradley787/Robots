@@ -20,7 +20,7 @@ export function mirrorRotation(rot: Rotation): Rotation {
  */
 export function mirrorProblem(bp: Pick<Blueprint, 'parts'>, registry: PartRegistry): string | undefined {
   const bad = bp.parts.find((p) => registry.has(p.part) && !mirrorable(registry.get(p.part), footprintOf(registry.get(p.part), p.size)));
-  return bad ? `${bad.id} (${bad.part}) cannot be mirrored: its footprint is not symmetric about its own column` : undefined;
+  return bad ? `${bad.id} (${bad.part}) cannot be mirrored: its footprint is not symmetric about any column (a mirrored copy would be a different part)` : undefined;
 }
 
 export function mirrorX(x: number, axisHalfCells: number): number {
@@ -32,12 +32,12 @@ export function mirrorX(x: number, axisHalfCells: number): number {
  * a part by id (binding targets, `primaryCore`, `corePriority`, each core's controls) follows it. Tags and scripts are
  * kept as they are: a script that steers left or right still does, so it may need its signs flipped.
  */
-export function mirrorBlueprint(bp: Blueprint, axisHalfCells: number, registry?: PartRegistry): Blueprint {
+export function mirrorBlueprint(bp: Blueprint, axisHalfCells: number, registry: PartRegistry): Blueprint {
   const newId = new Map<string, string>();
   const parts = bp.parts.map((p) => {
     const rot = mirrorRotation(p.rot);
     // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
-    const shift = registry?.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), rot) : { x: 0, y: 0 };
+    const shift = registry.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), rot) : { x: 0, y: 0 };
     const x = mirrorX(p.x, axisHalfCells) + shift.x;
     const y = p.y + shift.y;
     const id = partId(p.part, x, y);

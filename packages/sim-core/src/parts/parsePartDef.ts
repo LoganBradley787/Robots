@@ -227,6 +227,7 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const listed = JSON.stringify(sortCells(def.footprint));
     if (listed !== JSON.stringify(sortCells(cupFootprint(size[0], size[1])))) r.fail('stretch', `its footprint must be a cup (its default size, ${size[0]} by ${size[1]})`);
     if (size[0] < min[0] || size[1] < min[1] || size[0] > max[0] || size[1] > max[1]) r.fail('stretch', 'its default size must be within min and max');
+    if (Math.abs(def.mass - def.stretch.massPerCell * def.footprint.length) > 1e-9) r.fail('stretch', `its mass must be massPerCell times its default cells (${def.stretch.massPerCell * def.footprint.length})`);
   }
   if (o.fabricate !== undefined) {
     const f = r.obj(o.fabricate, 'fabricate', ['joulesPerKg', 'secondsPerKg', 'separation']);
