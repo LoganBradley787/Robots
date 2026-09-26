@@ -14,7 +14,7 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 |---|---|---|
 | 1 hovering drone | 0.53 ms per tick | 0.17 |
 | 25 | 11.2 | 2.9 |
-| 100 | 46.2 | 12.6 |
+| 100 | 46.2 | 12.6 to 15 (varies with how busy the Mac is) |
 | `flying-silo` | 1.89 | 0.68 |
 | 6 vs 6 battle | 7.3 | 4.2 |
 
