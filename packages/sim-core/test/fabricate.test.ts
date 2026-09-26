@@ -193,3 +193,62 @@ describe('setPartsMakes (M12)', () => {
     expect(none.recipes).toBeUndefined();
   });
 });
+
+describe('fabricator bay: review fixes (M12)', () => {
+  const codes = (raw: unknown): string[] => validateBlueprint(raw, registry).issues.filter((i) => i.severity === 'error').map((i) => i.code);
+  const withParts = (parts: Record<string, unknown>[], recipe: unknown = missileUp): Record<string, unknown> => ({ ...bayBot(recipe), parts });
+  const base = [{ part: 'core', x: 0, y: 0 }, { part: 'densebattery', x: -1, y: 0 }, { part: 'densebattery', x: 1, y: 0 }];
+
+  it('a bay needs a tag of its own, and nothing else may use its copies’ names', () => {
+    expect(codes(withParts([...base, { part: 'fabbay', x: 0, y: 1, makes: 'item' }]))).toContain('BAD_MAKES');
+    expect(codes(withParts([...base, { part: 'frame', x: 2, y: 0 }, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item' }, { part: 'fabbay', x: 4, y: 0, tags: ['bay'], makes: 'item' }]))).toContain('BAD_MAKES');
+    expect(codes(withParts([...base, { part: 'frame', x: 2, y: 0, tags: ['bay1'] }, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item' }]))).toContain('BAD_MAKES');
+  });
+
+  it('its hollow must be empty, and a lid over its mouth is refused (it could never let go)', () => {
+    expect(codes(withParts([...base, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item' }, { part: 'frame', x: 0, y: 3 }]))).toContain('BAD_RECIPE');
+    const lid = [...base, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item' }, { part: 'frame', x: -1, y: 7 }, { part: 'frame', x: 0, y: 7 }, { part: 'frame', x: 1, y: 7 }];
+    // A column of frames fills the hollow and meets the lid; a missile-up's seeker (no N face) does not.
+    expect(validateBlueprint(withParts(lid, { format: 1, name: 'col', grid: ['F', 'F', 'F', 'F', 'C'] }), registry).issues.find((i) => i.code === 'BAD_RECIPE')?.message).toMatch(/would attach to frame@0,7 across its mouth/);
+    expect(codes(withParts(lid))).not.toContain('BAD_RECIPE');
+  });
+
+  it('picking what a bay makes gives an untagged bay a free tag', async () => {
+    const { setPartsMakes } = await import('../src/blueprint/edit');
+    const bp = validateBlueprint(withParts([...base, { part: 'frame', x: 2, y: 0, tags: ['bay'] }, { part: 'fabbay', x: 0, y: 1 }]), registry).blueprint!;
+    const recipe = validateBlueprint(missileUp, registry).blueprint!;
+    const out = setPartsMakes(bp, ['fabbay@0,1'], { name: 'missile-up', blueprint: recipe });
+    expect(out.parts.find((p) => p.id === 'fabbay@0,1')?.tags[0]).toBe('bayB');
+  });
+
+  it('tells once when a finished build cannot be placed', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(bayBot({ format: 1, name: 'lump', grid: ['F'] }), { x: -100, y: 0.5 });
+    for (let t = 0; t < 60; t++) w.step();
+    w.step(tap(r.id, 'r'));
+    w.step(lift(r.id, 'r'));
+    for (let t = 0; t < 300; t++) w.step();
+    expect(events(w, 'buildBlocked')).toMatchObject([{ part: 'fabbay@0,1', why: 'something is in its hollow' }]);
+    w.dispose();
+  });
+
+  it('a bay destroyed while holding lets its copy go (as a decoupler does), and a wreck builds nothing', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(bayBot(), { x: -100, y: 0.5 });
+    for (let t = 0; t < 260; t++) w.step();
+    expect(w.partOutput(r.id, 'fabbay@0,1', 'ready')).toBe(1);
+    const bay = r.parts.get('fabbay@0,1');
+    if (bay) bay.health = 0;
+    w.step();
+    expect(events(w, 'coreWoke')).toHaveLength(1);
+    // A wreck: its core gone, its bay keeps nothing going.
+    const w2 = await World.create({ seed: 1 }, flat);
+    const r2 = w2.spawnBlueprint(bayBot(), { x: -100, y: 0.5 });
+    const core = r2.parts.get('core@0,0');
+    if (core) core.health = 0;
+    for (let t = 0; t < 400; t++) w2.step();
+    expect(events(w2, 'built')).toHaveLength(0);
+    w.dispose();
+    w2.dispose();
+  });
+});

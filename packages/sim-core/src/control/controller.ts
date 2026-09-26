@@ -150,12 +150,24 @@ export class Controller {
   }
 
   /**
-   * Takes over another controller's held keys and toggles (M12): a robot that grew parts (a fabricator bay finishing
-   * an item) gets a new controller for its new bindings, and keys held or toggled on stay so. A toggle carries to the
+   * Takes over another controller's state (M12): a robot that grew parts (a fabricator bay finishing an item) gets a
+   * new controller for its new bindings, and keys held or toggled on stay so, as do this tick's presses, pulses, and
+   * script writes. A toggle carries to the
    * same binding (key, mode, target, channel, value), wherever it now is in the list.
    */
   carryFrom(old: Controller): void {
     for (const k of old.held) this.held.add(k);
+    // This tick's edges, pulses, and script writes too: the robot grows mid-tick, and what the rest of the tick
+    // computes must not fall back to defaults (a hover's throttles went to 0 for the build's tick).
+    for (const k of old.pressedNow) this.pressedNow.add(k);
+    for (const k of old.releasedNow) this.releasedNow.add(k);
+    this.toggledScripts.push(...old.toggledScripts);
+    for (const [id, chans] of old.scriptLayer) if (this.channels.has(id)) this.scriptLayer.set(id, new Map(chans));
+    for (const i of old.pulses) {
+      const sig = old.writers.find((w) => w.index === i)?.sig;
+      const w = this.writers.find((x) => x.sig === sig && x.mode === 'pulse');
+      if (w) this.pulses.add(w.index);
+    }
     const used = new Set<number>();
     for (const i of [...old.toggles].sort((a, b) => a - b)) {
       const sig = old.writers.find((w) => w.index === i)?.sig;

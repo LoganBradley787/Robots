@@ -138,9 +138,20 @@ export function setAutoControls(bp: Blueprint, on: boolean): Blueprint {
  * it; without, the parts make nothing. Recipes no part makes any more are dropped.
  */
 export function setPartsMakes(bp: Blueprint, ids: readonly string[], recipe: Recipe | undefined): Blueprint {
+  // A bay names what it builds after its tag: one without a tag gets a free one (`bay`, then `bayB`, `bayC`, ...).
+  const used = new Set(bp.parts.flatMap((p) => p.tags));
+  const freeTag = (): string => {
+    for (const t of ['bay', ...'BCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => `bay${c}`)]) if (!used.has(t)) return t;
+    return `bay${used.size}`;
+  };
   const parts: PlacedPart[] = bp.parts.map((p) => {
     if (!ids.includes(p.id)) return p;
-    if (recipe) return { ...p, makes: recipe.name };
+    if (recipe) {
+      if (p.tags.some((t) => t !== p.id)) return { ...p, makes: recipe.name };
+      const tag = freeTag();
+      used.add(tag);
+      return { ...p, tags: [tag, ...p.tags], makes: recipe.name };
+    }
     const { makes: _makes, ...rest } = p;
     return rest;
   });

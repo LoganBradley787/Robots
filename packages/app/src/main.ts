@@ -205,7 +205,9 @@ async function boot(): Promise<void> {
       doc
         .loadForPlacing(choice.file)
         .then((recipe) => {
-          if (recipe) builder.edit((bp) => setPartsMakes(bp, ids, { name: recipe.name, blueprint: recipe }));
+          // A recipe cannot carry recipes of its own.
+          const { recipes: _own, ...plain } = recipe ?? { recipes: undefined };
+          if (recipe) builder.edit((bp) => setPartsMakes(bp, ids, { name: recipe.name, blueprint: plain as typeof recipe }));
         })
         .catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
     },

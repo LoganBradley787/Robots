@@ -39,11 +39,13 @@ export interface PartInstance {
   /** M12: for a part with grips (a fabricator bay), whether its grips hold what touches them. Undefined for others. */
   holding?: boolean;
   /**
-   * M12: a fabricator bay's build: ticks of work done on the item it is making (reset when the item is finished), and
-   * how many it has finished so far (names each item's scope). Undefined for other parts.
+   * M12: a fabricator bay's build: how far along the item it is making is (0 to 1, reset when the item is finished),
+   * how many it has finished so far (names each item's scope), and the scope of the item it holds. Undefined for other
+   * parts.
    */
   progress?: number;
   built?: number;
+  holds?: string;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** Index of the body group that owns this part. */

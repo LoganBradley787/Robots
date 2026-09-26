@@ -42,6 +42,7 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
   const menu = useStore(store, (s) => s.builder.menu);
   const draft = useStore(store, (s) => s.builder.draft);
   const files = useStore(store, (s) => s.doc.files);
+  const docFile = useStore(store, (s) => s.doc.file);
   const [text, setText] = useState('');
   const box = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -148,7 +149,7 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
               </option>
             ))}
             <optgroup label="a copy of a saved blueprint">
-              {files.map((f) => (
+              {files.filter((f) => f.file !== docFile).map((f) => (
                 <option key={`f-${f.file}`} value={`file:${f.file}`}>
                   {f.file.replace(/\.json$/, '')}
                 </option>

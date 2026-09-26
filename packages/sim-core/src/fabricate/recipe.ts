@@ -75,3 +75,26 @@ export function hollowAt(bay: PlacedPart, def: PartDef): Cell[] {
   });
 }
 
+
+/**
+ * What a fabricator names its copies after (M12): its most specific explicit tag (`bay`, or `fab-drone1.bay` in a
+ * placed copy, so a woken copy's scripts still reach `bay1` inside their scope). Copies are `<base><n>`. Undefined
+ * without an explicit tag.
+ */
+export function scopeBase(bay: PlacedPart, def: PartDef): string | undefined {
+  const explicit = bay.tags.filter((t) => t !== bay.id && !(def.defaultTags ?? []).includes(t));
+  return explicit[explicit.length - 1];
+}
+
+/** The cells (and faces) a recipe's parts take in the robot once built, from `recipePlacement`. */
+export function placedRecipeCells(recipe: Blueprint, at: Cell, rot: Rotation, registry: PartRegistry): { id: string; cell: Cell; faces: string[] }[] {
+  const rootId = rootPartId(recipe, registry);
+  const root = recipe.parts.find((p) => p.id === rootId);
+  if (!root) return [];
+  return recipe.parts.flatMap((p) => {
+    if (!registry.has(p.part)) return [];
+    const off = rotateCell({ x: p.x - root.x, y: p.y - root.y }, rot);
+    const moved: PlacedPart = { ...p, x: at.x + off.x, y: at.y + off.y, rot: ((p.rot + rot) % 360) as Rotation };
+    return partCells(moved, registry).map((c) => ({ id: p.id, cell: c.cell, faces: c.faces }));
+  });
+}

@@ -21,7 +21,7 @@ import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
 import { spawnRobot } from '../assembly/spawn';
 import { partCells, rootPartId } from '../assembly/assemble';
 import { placeBlueprint } from '../blueprint/place';
-import { hollowAt, recipePlacement, recipeStats } from '../fabricate/recipe';
+import { hollowAt, recipePlacement, recipeStats, scopeBase } from '../fabricate/recipe';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
@@ -80,7 +80,9 @@ export type WorldEvent =
   /** M12: a fabricator finished a copy of `recipe`, now held in it with its own `scope`. */
   | { tick: number; robot: number; kind: 'built'; part: string; recipe: string; scope: string }
   /** M12: a fabricator let go of what it held. */
-  | { tick: number; robot: number; kind: 'released'; part: string; scope: string };
+  | { tick: number; robot: number; kind: 'released'; part: string; scope: string }
+  /** M12: a fabricator finished a build but cannot place it yet (`why`); it tries every tick. Once per wait. */
+  | { tick: number; robot: number; kind: 'buildBlocked'; part: string; why: string };
 
 /** The world center of each footprint cell of a part, from its origin cell's pose (M12, multi-cell parts). */
 function footprintPoses(origin: { x: number; y: number; angle: number }, part: PartInstance): BlastCell[] {
@@ -239,6 +241,8 @@ export class World {
    * Pruned when the world is scanned for burning decoys. Derived from hashed state (each part's `burn`).
    */
   private readonly decoys = new Set<PartInstance>();
+  /** Fabricators waiting on a finished build, told once (M12). Reporting only, not hashed. */
+  private readonly stuck = new WeakSet<PartInstance>();
   /** Robots that grew parts this tick (M12: a fabricator finished): their controller is rebuilt with the rebuild. */
   private readonly grown = new Set<Robot>();
   /** Each robot blueprint's fabricator jobs by part (M12), worked out once per blueprint object. Derived. */
@@ -597,7 +601,8 @@ export class World {
       }
     }
     const fx = blastEffects({ x: b.x, y: b.y }, b.spec, cells, this.physics.terrainBoxes());
-    // A part takes the damage of its worst hit cell, and the push of all its cells together.
+    // A part takes the damage of its worst hit cell, and the push of all its cells together, applied at its origin cell
+    // (so an off-center hit on a big part does not turn it; fine for now).
     const damage = targets.map(() => 0);
     const push = targets.map(() => ({ jx: 0, jy: 0 }));
     owners.forEach((t, i) => {
@@ -683,7 +688,8 @@ export class World {
   /** What a fabricator's recipe costs (M12): seconds of build and joules, from the recipe's mass and containers. */
   private jobOf(robot: Robot, part: PartInstance): { seconds: number; joules: number } | undefined {
     const spec = part.def.fabricate;
-    if (!spec) return undefined;
+    // A wreck (no core in charge) builds nothing: nobody could fire it.
+    if (!spec || !this.controllers.has(robot.id)) return undefined;
     let byPart = this.jobs.get(robot.blueprint);
     if (!byPart) this.jobs.set(robot.blueprint, (byPart = new Map()));
     if (byPart.has(part.id)) return byPart.get(part.id);
@@ -709,8 +715,10 @@ export class World {
     const recipe = placed?.makes === undefined ? undefined : robot.blueprint.recipes?.find((r) => r.name === placed.makes);
     const group = robot.groups[bay.group];
     if (!placed || !recipe || !group) return;
+    // A wreck (no core in charge) builds nothing: nobody could fire it.
+    if (!this.controllers.has(robot.id)) return;
     const where = recipePlacement(placed, recipe.blueprint, this.registry);
-    if (!where.ok) return;
+    if (!where.ok) return this.blocked(robot, bay, where.error);
     // The hollow must be empty: probe each of its cells with a ball a little smaller than a cell (any tilt).
     const pose = partWorldPose(this, robot, bay.id);
     const c = Math.cos(pose.angle);
@@ -720,12 +728,13 @@ export class World {
       const dy = h.y - placed.y;
       return { x: pose.x + c * dx - s * dy, y: pose.y + s * dx + c * dy, shape: { shape: 'ball' as const, radius: 0.45 } };
     });
-    if (this.physics.overlapsShapes(probes)) return;
-    const explicit = placed.tags.filter((t) => t !== placed.id && !(bay.def.defaultTags ?? []).includes(t));
-    const scope = `${explicit[0] ?? 'item'}${(bay.built ?? 0) + 1}`;
+    if (this.physics.overlapsShapes(probes)) return this.blocked(robot, bay, 'something is in its hollow');
+    const base = scopeBase(placed, bay.def);
+    if (base === undefined) return this.blocked(robot, bay, 'it has no tag to name what it builds');
+    const scope = `${base}${(bay.built ?? 0) + 1}`;
     const live: Blueprint = { ...robot.blueprint, parts: robot.blueprint.parts.filter((p) => robot.parts.has(p.id)) };
     const result = placeBlueprint(live, recipe.blueprint, where.at, this.registry, { rot: where.rot, scope, reservedIds: new Set(robot.blueprint.parts.map((p) => p.id)) });
-    if (!result.ok) return;
+    if (!result.ok) return this.blocked(robot, bay, result.error);
     const liveIds = new Set(live.parts.map((p) => p.id));
     const added = result.blueprint.parts
       .filter((p) => !liveIds.has(p.id))
@@ -750,13 +759,22 @@ export class World {
       robot.parts.set(p.id, inst);
     }
     bay.holding = true;
+    bay.holds = scope;
     bay.progress = 0;
     bay.built = (bay.built ?? 0) + 1;
+    this.stuck.delete(bay);
     this.dirty.add(robot);
     this.grown.add(robot);
     this.decoyCache = undefined;
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'built', part: bay.id, recipe: recipe.name, scope });
+  }
+
+  /** A finished build that cannot be placed (M12): told once per wait, then tried again every tick. */
+  private blocked(robot: Robot, bay: PartInstance, why: string): void {
+    if (this.stuck.has(bay)) return;
+    this.stuck.add(bay);
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'buildBlocked', part: bay.id, why });
   }
 
   /**
@@ -769,9 +787,8 @@ export class World {
     if (!spec || bay.holding !== true) return;
     bay.holding = false;
     this.dirty.add(robot);
-    const placed = robot.blueprint.parts.find((p) => p.id === bay.id);
-    const explicit = (placed?.tags ?? []).filter((t) => t !== bay.id && !(bay.def.defaultTags ?? []).includes(t));
-    const scope = `${explicit[0] ?? 'item'}${bay.built ?? 0}`;
+    const scope = bay.holds ?? '';
+    delete bay.holds;
     const held = [...robot.parts.values()].filter((p) => p.tags[0] === scope);
     const d = faceDir(rotateFace(bay.def.acts ?? 'N', bay.rot));
     const s = this.physics.state(robot.groups[bay.group]?.bodyId ?? 0);
@@ -1393,6 +1410,7 @@ export class World {
           h.addInt(part.holding === true ? 1 : 0);
           h.addF64(part.progress ?? 0);
           h.addInt(part.built ?? 0);
+          h.addString(part.holds ?? '');
         }
         // A decoy's burn left and the robot it stands in for (M11). Other parts add nothing.
         if (part.def.decoy !== undefined) {

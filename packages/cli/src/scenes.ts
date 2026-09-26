@@ -44,10 +44,10 @@ export const GOLDEN_SCENES: readonly Scene[] = [
   { name: 'enemy-big-drone-vs-hunter', bp: 'enemy-big-drone', x: -100, y: 1.55, seconds: 20, team: 1, drops: ['hunter-drone@0:-250,15'] },
   { name: 'enemy-carrier-vs-hunter', bp: 'enemy-carrier', x: -100, y: 1.55, seconds: 25, team: 1, drops: ['hunter-drone@0:-280,15'] },
   { name: 'enemy-flying-silo-vs-hunter', bp: 'enemy-flying-silo', x: -100, y: 1.5, seconds: 20, team: 1, drops: ['hunter-drone@0:-250,15'] },
-  // M11: flares. The hunter pops a pair three times while the enemy flying silo fires at it (hunter-duel and the enemy
-  // scenes above have the enemies popping their own).
   // M12: the fabricator bay builds missiles while it fires them at a row of cars.
   { name: 'fab-drone', bp: 'fab-drone', x: -100, y: 15, seconds: 16, keys: 'f:1-16', drops: ['car@0:-200,1.45:enemy', 'car@0:-230,1.45:enemy'] },
+  // M11: flares. The hunter pops a pair three times while the enemy flying silo fires at it (hunter-duel and the enemy
+  // scenes above have the enemies popping their own).
   { name: 'hunter-flares', bp: 'hunter-drone', x: -250, y: 15, seconds: 12, keys: 'v:3.8, v:6, v:8.5', drops: ['enemy-flying-silo@0:-100,1.5:enemy'] },
 ];
 

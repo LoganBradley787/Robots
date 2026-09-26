@@ -1,12 +1,13 @@
 import { assemble, isCore, partCells, rootPartId, type AssemblyPlan } from '../assembly/assemble';
 import { matchesTarget, scopedView } from '../control/target';
 import { keyProblem } from '../control/keys';
-import { FACES, rotateFace } from '../parts/faces';
+import { FACES, faceDir, opposite, rotateFace } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Face } from '../parts/types';
 import { expandBlueprint } from './expand';
 import { toFileJson } from './serialize';
-import { recipePlacement } from '../fabricate/recipe';
+import { allScripts } from './scripts';
+import { hollowAt, placedRecipeCells, recipePlacement, scopeBase } from '../fabricate/recipe';
 import type { Binding, Blueprint, Issue, PlacedPart, ScriptSpec } from './types';
 
 export interface ValidationResult {
@@ -167,7 +168,7 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
     checkBindings(c.bindings, c.scripts, view, registry, err, warn, label);
   }
   const files = new Set<string>();
-  for (const s of [...blueprint.scripts, ...(blueprint.cores ?? []).flatMap((c) => c.scripts)]) {
+  for (const s of allScripts(blueprint)) {
     if (s.file !== undefined && files.has(s.file)) err('BAD_SCRIPT', `two scripts use the file '${s.file}'; give each its own`);
     if (s.file !== undefined) files.add(s.file);
   }
@@ -200,7 +201,44 @@ function checkRecipes(bp: Blueprint, registry: PartRegistry, err: Report, warn: 
       continue;
     }
     const place = recipePlacement(p, recipe.blueprint, registry);
-    if (!place.ok) err('BAD_RECIPE', `${p.id}: ${place.error}`, at);
+    if (!place.ok) {
+      err('BAD_RECIPE', `${p.id}: ${place.error}`, at);
+      continue;
+    }
+    // Its hollow must be empty, and what it builds must touch nothing but the bay: attached to anything else (a lid
+    // over the mouth), it could never be let go.
+    const hollow = new Set(hollowAt(p, registry.get(p.part)).map((c) => `${c.x},${c.y}`));
+    const byCell = new Map<string, { part: PlacedPart; faces: string[] }>();
+    for (const q of bp.parts) for (const c of partCells(q, registry)) byCell.set(`${c.cell.x},${c.cell.y}`, { part: q, faces: c.faces });
+    const inside = bp.parts.find((q) => q.id !== p.id && partCells(q, registry).some((c) => hollow.has(`${c.cell.x},${c.cell.y}`)));
+    if (inside) err('BAD_RECIPE', `${p.id}'s hollow must be empty: ${inside.id} is in it`, at);
+    for (const c of placedRecipeCells(recipe.blueprint, place.at, place.rot, registry)) {
+      const touching = c.faces.flatMap((f) => {
+        const d = faceDir(f as Face);
+        const o = byCell.get(`${c.cell.x + d.x},${c.cell.y + d.y}`);
+        return o && o.part.id !== p.id && o.faces.includes(opposite(f as Face)) ? [o.part.id] : [];
+      });
+      if (touching.length > 0) {
+        err('BAD_RECIPE', `${p.id}: what it builds would attach to ${touching[0]} across its mouth and could never be let go; leave the cells in front of its opening clear, or make them parts without faces there`, at);
+        break;
+      }
+    }
+  }
+  // Copies are named `<the bay's tag><n>`: every bay needs a tag of its own, and nothing else may use those names.
+  const bases = new Map<string, string>();
+  for (const p of bp.parts) {
+    if (p.makes === undefined || !registry.get(p.part).fabricate) continue;
+    const base = scopeBase(p, registry.get(p.part));
+    if (base === undefined) {
+      err('BAD_MAKES', `${p.id} needs a tag: what it builds is named after it (tag it "bay", and its copies are bay1, bay2, ...)`, { partId: p.id });
+      continue;
+    }
+    const other = bases.get(base);
+    if (other !== undefined) err('BAD_MAKES', `${p.id} and ${other} both name what they build after the tag '${base}'; give each bay its own tag`, { partId: p.id });
+    bases.set(base, p.id);
+    const named = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\d+($|\\.)`);
+    const clash = bp.parts.flatMap((q) => q.tags).find((t) => named.test(t)) ?? (bp.cores ?? []).map((c) => c.scope ?? '').find((s) => named.test(s));
+    if (clash !== undefined) err('BAD_MAKES', `${p.id} names what it builds '${base}1', '${base}2', ..., but the robot already uses '${clash}'; give the bay another tag`, { partId: p.id });
   }
 }
 

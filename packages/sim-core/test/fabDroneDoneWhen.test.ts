@@ -86,3 +86,18 @@ describe('M12 fab drone, done when', () => {
     w.dispose();
   });
 });
+
+describe('M12 fab drone, review fixes', () => {
+  it('its hover keeps its throttles on the tick a missile is finished', { timeout: 30_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const d = w.spawnBlueprint(blueprint('fab-drone'), { x: -100, y: 15 });
+    const throttles: number[] = [];
+    for (let t = 0; t < 300; t++) {
+      w.step();
+      if (w.events.some((e) => e.kind === 'built' && e.tick === w.tick - 1)) throttles.push(w.channelValue(d.id, 'propeller@3,0', 'throttle') ?? 0);
+    }
+    expect(throttles).toHaveLength(1);
+    expect(throttles[0]).toBeGreaterThan(0.2);
+    w.dispose();
+  });
+});

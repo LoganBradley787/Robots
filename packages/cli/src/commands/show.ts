@@ -30,7 +30,11 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
         .filter((p) => p.makes === r.name)
         .map((p) => {
           const f = registry.get(p.part).fabricate;
-          return f ? `${p.id}: ${(f.secondsPerKg * s.mass).toFixed(1)} s, ${Math.round(f.joulesPerKg * s.mass + s.stored)} J each` : '';
+          if (!f) return '';
+          const joules = f.joulesPerKg * s.mass + s.stored;
+          // As fast as its time per kg allows, unless its draw cannot pay for that.
+          const seconds = Math.max(f.secondsPerKg * s.mass, joules / registry.get(p.part).powerDraw);
+          return `${p.id}: ${seconds.toFixed(1)} s, ${Math.round(joules)} J each`;
         })
         .filter((t) => t !== '');
       lines.push(`  ${r.name}: ${r.blueprint.parts.length} parts, ${s.mass.toFixed(1)} kg${costs.length > 0 ? `; ${costs.join('; ')}` : ' (no bay makes it)'}`);
