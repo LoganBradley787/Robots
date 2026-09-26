@@ -3,9 +3,9 @@
 // - Track, dodge, and fly: as the enemy drone (a spot `standoff` meters beside and `above` meters over the nearest
 //   robot on the other side its radar tracks, home with nothing tracked, dodging missiles about to pass close).
 // - Fire: in range, it sends what its bay holds at that robot and lets it go, `settle` seconds after it first tracks
-//   it and at most one every `reload` seconds. The message suits a missile (point, speed, id, arc); a drone bomb reads
-//   only the id. The bay builds the next by itself (a missile 4.1 s, a drone bomb 7.2 s), so it keeps firing for as
-//   long as its batteries last. After letting one go it holds still for `hold` seconds so it leaves the bay cleanly
+//   it, as soon as the bay has one ready (no reload: the bay's build time is the pace, Logan). The message suits a
+//   missile (point, speed, id, arc); a drone bomb reads only the id. The bay builds the next by itself (a missile
+//   4.1 s, a heavy drone bomb 8.7 s), so it keeps firing for as long as its batteries last. After letting one go it holds still for `hold` seconds so it leaves the bay cleanly
 //   (sliding away at once, the bay's wall shoved a drone bomb still inside it, which wedged and carried it up).
 // - Off the line (Logan): nothing it sees within `width` meters to either side, `space` above, or `under` below. It
 //   slides away sideways: a drone bomb it let go (or anything else) may wait or fall there, and one flew into its
@@ -30,7 +30,6 @@ const below = param('below', 10, { min: -100, max: 100 }); // m: a target more t
 const minRange = param('minRange', 25, { min: 0, max: 500 }); // m: closer than this it holds fire
 const maxRange = param('maxRange', 250, { min: 10, max: 1000 }); // m: further than this it holds fire
 const level = (param('level', 15, { min: 1, max: 90 }) * Math.PI) / 180; // fires only within this many degrees of level (a missile leaves the way the bay points; a drone bomb climbs straight up whatever the tilt)
-const reload = param('reload', 3, { min: 0.5, max: 60 }); // s between launches
 const jitter = param('jitter', 1, { min: 0, max: 10 }); // up to this many seconds more, at random (seeded), so two drones do not fire in step
 const nearby = param('nearby', 8, { min: 0, max: 50 }); // m: a friendly robot this close just after a release may still be in the bay
 const hold = param('hold', 1, { min: 0, max: 10 }); // s it stays where it let one go, so it leaves the bay cleanly (dodging still comes first)
@@ -172,7 +171,7 @@ function tick() {
   // sliding off the line, or knocked askew (Logan).
   if (target && !danger && time >= state.dodgeUntil) {
     const range = Math.hypot(target.pos.x - self.pos.x, target.pos.y - self.pos.y);
-    const ready = time - state.lastShot >= reload + state.wait && time - state.trackedSince >= settle + state.wait && Math.abs(self.angle) < level;
+    const ready = time - state.lastShot >= state.wait && time - state.trackedSince >= settle + state.wait && Math.abs(self.angle) < level;
     if (range >= minRange && range <= maxRange && ready) fire(target);
   }
   if (danger) {

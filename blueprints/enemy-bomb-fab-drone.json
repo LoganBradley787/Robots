@@ -160,7 +160,6 @@
         "level": 30,
         "settle": 0,
         "jitter": 0,
-        "reload": 0.5,
         "minRange": 0,
         "maxRange": 1000
       }
