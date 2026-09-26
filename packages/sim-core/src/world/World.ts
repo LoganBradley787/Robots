@@ -11,7 +11,7 @@ import { drainContainers, grantFactor, poolTotals, type Container } from '../res
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
-import { extrasJson, HEADER, layoutJson, numberCount, put, putHead, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
+import { extrasJson, HEADER, layoutJson, numberCount, put, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
@@ -108,10 +108,20 @@ export interface WorldOptions {
   scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
 }
 
+/** A body's state with the cosine and sine of its angle, read once per tick for all its parts. */
+interface BodyPose {
+  s: { x: number; y: number; angle: number; vx: number; vy: number; w: number };
+  c: number;
+  n: number;
+}
+
 /** A robot's script layout (M9, `script/frame.ts`), kept until the robot changes. */
 interface ScriptFeed {
   /** `Robot.version` and the core the scripts run on. */
   key: string;
+  /** The chunk the scripts see (the core's), and the robot's mass: both fixed until the robot is rebuilt. */
+  chunk: number;
+  mass: number;
   layout: ScriptLayout;
   parts: { id: string; part: PartInstance; in: readonly string[]; out: readonly string[] }[];
   numbers: Float64Array;
@@ -141,6 +151,8 @@ export class World {
   private readonly scriptHost: ScriptHost | undefined;
   private readonly scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
   private readonly feeds = new WeakMap<Robot, ScriptFeed>();
+  /** Every robot in `robots`, by id (M9: lookups on every tick without scanning the list). */
+  private readonly byId = new Map<number, Robot>();
   private layouts = 0;
   /** Scripts per robot, on robots with a core. */
   private readonly runners = new Map<number, ScriptRunner>();
@@ -232,6 +244,7 @@ export class World {
     const { blueprint, plan } = loadBlueprint(raw, this.registry);
     const robot = spawnRobot(this.physics, this.registry, blueprint, plan, { id: this.nextRobotId++, tick: this.tickCount, at, team });
     this.robots.push(robot);
+    this.byId.set(robot.id, robot);
     const controller = controllerFor(robot, this.registry);
     if (controller) {
       this.controllers.set(robot.id, controller);
@@ -317,6 +330,7 @@ export class World {
     robot.groups = [];
     const i = this.robots.indexOf(robot);
     if (i >= 0) this.robots.splice(i, 1);
+    this.byId.delete(robot.id);
     this.controllers.delete(robot.id);
     this.channels.delete(robot.id);
     this.runners.get(robot.id)?.dispose();
@@ -430,6 +444,7 @@ export class World {
       }
       for (const piece of pieces.slice(1)) {
         this.robots.push(piece);
+        this.byId.set(piece.id, piece);
         const woke = piece.woke ? controllerFor(piece, this.registry) : undefined;
         if (woke) {
           this.controllers.set(piece.id, woke);
@@ -556,7 +571,7 @@ export class World {
   private runScripts(): void {
     for (const [robotId, runner] of this.runners) {
       const controller = this.controllers.get(robotId);
-      const robot = this.robots.find((r) => r.id === robotId);
+      const robot = this.byId.get(robotId);
       if (!controller || !robot) continue;
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
       const services: ScriptServices = { scan: (id) => this.scan(robot, id), send: (to, json) => this.send(robot, to, json) };
@@ -610,80 +625,120 @@ export class World {
       feed = this.buildFeed(robot, key);
       if (!this.fillFeed(robot, feed)) throw new Error(`script layout of ${robot.name} did not match right after it was built`);
     }
-    const coreBody = robot.groups[robot.parts.get(coreId)?.group ?? 0]?.bodyId ?? 0;
-    const core = partWorldPose(this, robot, coreId);
-    const s = this.physics.state(coreBody);
-    let mass = 0;
-    for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
-    const energy = this.energy(robot.id);
-    const n = feed.numbers;
-    const head = putHead(n, {
-      frame: this.tickCount,
-      dt: this.dt,
-      time: this.tickCount * this.dt,
-      self: { pos: { x: core.x, y: core.y }, vel: { x: s.vx, y: s.vy }, angle: s.angle, angVel: s.w, mass, energy: { stored: energy?.stored ?? 0, capacity: energy?.capacity ?? 0 } },
-    });
-    n[0] = head && n[0] === 1 ? 1 : 0;
     const inbox = (robot.parts.get(coreId)?.inbox ?? []).filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown }));
-    return { layout: feed.layout, numbers: n, extras: extrasJson({ keys, contacts: this.contactsFor(robot, true), inbox }) };
+    return { layout: feed.layout, numbers: feed.numbers, extras: extrasJson({ keys, contacts: this.contactsFor(robot, true), inbox }) };
   }
 
   /** A new layout for the robot's controlled chunk, with the values present on each part right now. */
   private buildFeed(robot: Robot, key: string): ScriptFeed {
     const coreId = robot.primaryCoreId ?? robot.rootId;
-    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+    const chunk = chunkIndex(robot, coreId);
     const chans = this.channels.get(robot.id);
     const scope = coreControls(robot)?.scope;
+    const pool = this.lazyPool(robot, chunk);
     const parts: ScriptFeed['parts'] = [];
     const layout: LayoutPart[] = [];
-    for (const id of chunk?.partIds ?? []) {
+    for (const id of robot.chunks[chunk]?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
       const ins = [...(chans?.get(id)?.keys() ?? [])];
-      const outs = p.def.outputs.map((o) => o.name).filter((name) => this.partOutput(robot.id, id, name) !== undefined);
+      const outs: string[] = [];
+      for (const o of p.def.outputs) if (this.outputOf(p, o.name, pool) !== undefined) outs.push(o.name);
       parts.push({ id, part: p, in: ins, out: outs });
       layout.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: p.def.mass, in: ins, out: outs });
     }
-    const feed: ScriptFeed = { key, layout: { id: ++this.layouts, json: layoutJson(layout) }, parts, numbers: new Float64Array(numberCount(layout)) };
+    // The robot's mass only changes when it is rebuilt, which makes a new layout.
+    let mass = 0;
+    for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
+    const feed: ScriptFeed = { key, chunk, mass, layout: { id: ++this.layouts, json: layoutJson(layout) }, parts, numbers: new Float64Array(numberCount(layout)) };
     this.feeds.set(robot, feed);
     return feed;
   }
 
   /**
-   * Writes every part's numbers into the feed; false when the robot no longer matches its layout (a part gone, or a
-   * value that appeared or went away), so the caller rebuilds it. Sets slot 0 to whether all part numbers are finite.
+   * Writes this tick's numbers into the feed (the header, `self`, every part); false when the robot no longer matches
+   * its layout (a part gone, or a value that appeared or went away), so the caller rebuilds it. Each body's state is
+   * read once, and the chunk's energy pool is added up once, however many parts ask for them.
    */
   private fillFeed(robot: Robot, feed: ScriptFeed): boolean {
     const chans = this.channels.get(robot.id);
     const n = feed.numbers;
+    const pool = this.lazyPool(robot, feed.chunk);
+    const bodies: (BodyPose | undefined)[] = [];
+    const bodyOf = (group: number): BodyPose => {
+      let b = bodies[group];
+      if (!b) {
+        const s = this.physics.state(robot.groups[group]?.bodyId ?? 0);
+        b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+        bodies[group] = b;
+      }
+      return b;
+    };
     let ok = true;
     let k = HEADER + SELF;
     for (const fp of feed.parts) {
-      if (robot.parts.get(fp.id) !== fp.part) return false;
-      const pose = partWorldPose(this, robot, fp.id);
-      ok = put(n, k++, pose.x) && ok;
-      ok = put(n, k++, pose.y) && ok;
-      ok = put(n, k++, pose.angle) && ok;
+      const part = fp.part;
+      if (robot.parts.get(fp.id) !== part || !robot.groups[part.group]) return false;
+      const { s, c, n: sn } = bodyOf(part.group);
+      ok = put(n, k++, s.x + c * part.localX - sn * part.localY) && ok;
+      ok = put(n, k++, s.y + sn * part.localX + c * part.localY) && ok;
+      ok = put(n, k++, s.angle) && ok;
       const values = chans?.get(fp.id);
       if ((values?.size ?? 0) !== fp.in.length) return false;
-      let j = 0;
-      for (const [name, v] of values ?? []) {
-        if (fp.in[j++] !== name) return false;
-        ok = put(n, k++, v) && ok;
+      if (values) {
+        let j = 0;
+        for (const [name, v] of values) {
+          if (fp.in[j++] !== name) return false;
+          ok = put(n, k++, v) && ok;
+        }
       }
-      j = 0;
-      for (const o of fp.part.def.outputs) {
-        const v = this.partOutput(robot.id, fp.id, o.name);
-        const listed = fp.out[j] === o.name;
-        if ((v !== undefined) !== listed) return false;
+      let j = 0;
+      for (const o of part.def.outputs) {
+        const v = this.outputOf(part, o.name, pool);
+        if ((v !== undefined) !== (fp.out[j] === o.name)) return false;
         if (v === undefined) continue;
         j++;
         ok = put(n, k++, v) && ok;
       }
       if (j !== fp.out.length) return false;
     }
+    const coreId = robot.primaryCoreId ?? robot.rootId;
+    const core = robot.parts.get(coreId);
+    const { s, c, n: sn } = bodyOf(core?.group ?? 0);
+    const lx = core?.localX ?? 0;
+    const ly = core?.localY ?? 0;
+    // The energy of the chunk the robot is controlled through (`energy()`): the core's, which is the feed's chunk.
+    const energy = robot.primaryCoreId === undefined ? poolTotals(poolContainers(robot, 0)) : pool();
+    ok = put(n, 1, this.tickCount) && ok;
+    ok = put(n, 2, this.dt) && ok;
+    ok = put(n, 3, this.tickCount * this.dt) && ok;
+    k = HEADER;
+    ok = put(n, k++, s.x + c * lx - sn * ly) && ok;
+    ok = put(n, k++, s.y + sn * lx + c * ly) && ok;
+    ok = put(n, k++, s.vx) && ok;
+    ok = put(n, k++, s.vy) && ok;
+    ok = put(n, k++, s.angle) && ok;
+    ok = put(n, k++, s.w) && ok;
+    ok = put(n, k++, feed.mass) && ok;
+    ok = put(n, k++, energy.stored) && ok;
+    ok = put(n, k++, energy.capacity) && ok;
     n[0] = ok ? 1 : 0;
     return true;
+  }
+
+  /** A chunk's energy totals, added up on first use. */
+  private lazyPool(robot: Robot, chunk: number): () => { stored: number; capacity: number } {
+    let totals: { stored: number; capacity: number } | undefined;
+    return () => (totals ??= poolTotals(poolContainers(robot, chunk)));
+  }
+
+  /** `partOutput` for a part and an output name it is known to have, with its chunk's pool (M9: no lookups). */
+  private outputOf(part: PartInstance, name: string, pool: () => { stored: number; capacity: number }): number | undefined {
+    const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name);
+    if (own !== undefined) return own;
+    if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
+    if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
+    return undefined;
   }
 
   /**
@@ -852,7 +907,7 @@ export class World {
   /** `scan(id)` (M8): a robot the viewer's sensors saw this tick, part by part, in blueprint order; null otherwise. */
   private scan(viewer: Robot, id: number): ScannedPart[] | null {
     if (!this.seen.get(viewer.id)?.has(id)) return null;
-    const r = this.robots.find((x) => x.id === id);
+    const r = this.byId.get(id);
     if (!r) return null;
     const out: ScannedPart[] = [];
     for (const bp of r.blueprint.parts) {
@@ -869,7 +924,7 @@ export class World {
    * same rule scripts get.
    */
   sensorView(robotId: number): { sensors: SensorPose[]; contacts: { id: number; side: ScriptContact['side']; x: number; y: number }[] } {
-    const robot = this.robots.find((r) => r.id === robotId);
+    const robot = this.byId.get(robotId);
     if (!robot) return { sensors: [], contacts: [] };
     return { sensors: this.workingSensors(robot), contacts: this.contactsFor(robot, false).map((c) => ({ id: c.id, side: c.side, x: c.pos.x, y: c.pos.y })) };
   }
@@ -950,17 +1005,10 @@ export class World {
    * `energyCapacity` are its chunk's pool. Other outputs (sensors) arrive with scripts (M5); undefined until then.
    */
   partOutput(robotId: number, partId: string, name: string): number | undefined {
-    const robot = this.robots.find((r) => r.id === robotId);
+    const robot = this.byId.get(robotId);
     const part = robot?.parts.get(partId);
     if (!robot || !part || !part.def.outputs.some((o) => o.name === name)) return undefined;
-    const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name);
-    if (own !== undefined) return own;
-    if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
-    if (name === 'energy' || name === 'energyCapacity') {
-      const pool = poolTotals(poolContainers(robot, chunkIndex(robot, partId)));
-      return name === 'energy' ? pool.stored : pool.capacity;
-    }
-    return undefined;
+    return this.outputOf(part, name, this.lazyPool(robot, chunkIndex(robot, partId)));
   }
 
   /**
@@ -968,11 +1016,16 @@ export class World {
    * when it has no core. `used` is everything drawn so far.
    */
   energy(robotId: number): { stored: number; capacity: number; used: number } | undefined {
-    const robot = this.robots.find((r) => r.id === robotId);
+    const robot = this.byId.get(robotId);
     if (!robot) return undefined;
     const core = robot.primaryCoreId;
-    const chunk = core === undefined ? 0 : Math.max(0, robot.chunks.findIndex((c) => c.partIds.includes(core)));
+    const chunk = core === undefined ? 0 : chunkIndex(robot, core);
     return { ...poolTotals(poolContainers(robot, chunk)), used: this.used.get(robotId) ?? 0 };
+  }
+
+  /** The robot with this id, if it is still in the world. Read-only use outside the sim. */
+  robotById(id: number): Robot | undefined {
+    return this.byId.get(id);
   }
 
   /** The robot's controller, or undefined when it has no core. Read-only use outside the sim. */
@@ -1141,9 +1194,21 @@ function controllerFor(robot: Robot, registry: PartRegistry): Controller | undef
   return new Controller([...auto, ...own.bindings], parts);
 }
 
-/** Index of the chunk holding the part (every part is in exactly one). */
+/** Each robot's part-to-chunk map, rebuilt when the robot is (its `version` changes). */
+const chunkMaps = new WeakMap<Robot, { version: number; chunks: Robot['chunks']; of: Map<string, number> }>();
+
+/** Index of the chunk holding the part (every part is in exactly one; 0 when none holds it). */
 function chunkIndex(robot: Robot, partId: string): number {
-  return Math.max(0, robot.chunks.findIndex((c) => c.partIds.includes(partId)));
+  let m = chunkMaps.get(robot);
+  if (!m || m.version !== robot.version || m.chunks !== robot.chunks) {
+    const of = new Map<string, number>();
+    robot.chunks.forEach((c, i) => {
+      for (const id of c.partIds) if (!of.has(id)) of.set(id, i);
+    });
+    m = { version: robot.version, chunks: robot.chunks, of };
+    chunkMaps.set(robot, m);
+  }
+  return m.of.get(partId) ?? 0;
 }
 
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */

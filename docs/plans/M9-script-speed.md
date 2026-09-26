@@ -134,3 +134,22 @@
   - Part fields other than the numbers (`id`, `type`, `tags`, `pos`, `mass`, `in`, `out`) are read-only properties, set once per layout: a script's `p.pos = ...` is ignored rather than leaving the refill writing into an object the script no longer sees. Putting them back every tick instead cost about 4 us per call.
   - The sandbox fills parts in one tight loop when every number is finite (the usual case) and checks each number only when one is not (about 5 us saved).
   - The world's `scriptProbe` option (tests only) hands the parity test the old input for each robot.
+
+### After T3 (host-side plumbing)
+| scene | n | avg ms | p95 | worst | scripts | rest | calls/tick |
+|---|---|---|---|---|---|---|---|
+| hover | 1 | 0.17 | 0.20 | 0.70 | 0.10 | 0.06 | 2 |
+| hover | 10 | 1.20 | 1.33 | 1.57 | 0.85 | 0.35 | 20 |
+| hover | 25 | 2.89 | 3.14 | 4.43 | 2.07 | 0.83 | 50 |
+| hover | 50 | 6.12 | 7.22 | 23.68 | 4.30 | 1.81 | 100 |
+| hover | 100 | **12.61** | 13.81 | 15.06 | 9.08 | 3.53 | 200 |
+| big (flying-silo) | 1 | 0.68 | 0.77 | 0.99 | 0.28 | 0.40 | 2 |
+| battle (6 vs 6, 20 s) | 6 | 4.15 | 5.74 | 10.60 | 2.52 | 1.63 | 15.7 |
+
+- Target met: 100 hovering drones take 12.6 ms per tick on average (was 46.2). Hashes unchanged throughout (the hover 50 worst tick of 23.7 ms is one outlier; the machine's own noise shows up in single worst ticks).
+- Building what the scripts see: `missile-drone-10prop` 18 to 5 us, `flying-silo` 100 to 17 us (the plan's target was under 20).
+- What changed:
+  - `World.robotById` and an id map replace `robots.find` on every per-tick path (`partOutput`, `energy`, `runScripts`, `scan`, `sensorView`);
+  - the frame fill reads each body's state once for all its parts, adds up the energy pool once, and keeps the robot's mass with the layout (it only changes when the robot is rebuilt);
+  - a part-to-chunk map per robot version replaces a scan of every chunk's part list for each part, every tick, in `runBehaviors` (quadratic in part count before).
+- Measured and left alone: the result path (host `JSON.parse` and reading the text out) is under 2% of a tick, so it stays JSON (decision 6). Of the 100-drone tick, 67% is now inside QuickJS (mostly the scripts' own work: the hover script loops over all 38 parts four times) and 16% is behaviors (physics forces). Under `tsx` (the CLI), every closure created costs a little extra (its `__name` helper); the browser build does not have that.
