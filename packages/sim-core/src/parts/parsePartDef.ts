@@ -1,5 +1,6 @@
 import { isFace } from './faces';
 import { keyProblem } from '../control/keys';
+import { cupFootprint, defaultSize } from './footprint';
 import type { ChannelDef, ColliderSpec, Face, FootprintCell, JointSpec, PartDef, SpriteSpec } from './types';
 
 export class PartDefError extends Error {}
@@ -64,7 +65,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'fabricate', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -209,6 +210,24 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (!def.outputs.some((c) => c.name === 'burning')) r.fail('decoy', 'a decoy must have a "burning" output');
     def.decoy = { burn: r.positive(d, 'burn', 'decoy') };
   }
+  if (o.stretch !== undefined) {
+    const so = r.obj(o.stretch, 'stretch', ['shape', 'min', 'max', 'massPerCell']);
+    if (so.shape !== 'cup') r.fail('stretch.shape', 'must be "cup" (the only stretchy shape)');
+    const pair = (k: 'min' | 'max'): [number, number] => {
+      const v = so[k];
+      if (!Array.isArray(v) || v.length !== 2 || !v.every((n) => Number.isInteger(n) && n >= 1)) r.fail(`stretch.${k}`, 'must be [width, height], whole numbers of 1 or more');
+      return [v[0] as number, v[1] as number];
+    };
+    const min = pair('min');
+    const max = pair('max');
+    if (max[0] < min[0] || max[1] < min[1]) r.fail('stretch', 'max must be at least min');
+    if (def.acts !== 'N') r.fail('stretch', 'a cup opens on its acts face, which must be N');
+    def.stretch = { shape: 'cup', min, max, massPerCell: r.positive(so, 'massPerCell', 'stretch') };
+    const size = defaultSize(def) as [number, number];
+    const listed = JSON.stringify(sortCells(def.footprint));
+    if (listed !== JSON.stringify(sortCells(cupFootprint(size[0], size[1])))) r.fail('stretch', `its footprint must be a cup (its default size, ${size[0]} by ${size[1]})`);
+    if (size[0] < min[0] || size[1] < min[1] || size[0] > max[0] || size[1] > max[1]) r.fail('stretch', 'its default size must be within min and max');
+  }
   if (o.fabricate !== undefined) {
     const f = r.obj(o.fabricate, 'fabricate', ['joulesPerKg', 'secondsPerKg', 'separation']);
     if (!def.footprint.some((c) => (c.grips ?? []).length > 0)) r.fail('fabricate', 'a fabricator needs grips to hold what it builds');
@@ -227,13 +246,17 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
 }
 
 function sprite(r: Reader, v: unknown): SpriteSpec {
-  const so = r.obj(v, 'sprite', ['frame', 'mountFrame', 'animation', 'overlay', 'armedFrame', 'litFrame']);
+  const so = r.obj(v, 'sprite', ['frame', 'mountFrame', 'animation', 'overlay', 'armedFrame', 'litFrame', 'tiles']);
   const s: SpriteSpec = { frame: r.str(so, 'frame', 'sprite') };
   if (so.mountFrame !== undefined) s.mountFrame = r.str(so, 'mountFrame', 'sprite');
   if (so.animation !== undefined) s.animation = r.str(so, 'animation', 'sprite');
   if (so.overlay !== undefined) s.overlay = r.str(so, 'overlay', 'sprite');
   if (so.armedFrame !== undefined) s.armedFrame = r.str(so, 'armedFrame', 'sprite');
   if (so.litFrame !== undefined) s.litFrame = r.str(so, 'litFrame', 'sprite');
+  if (so.tiles !== undefined) {
+    const t = r.obj(so.tiles, 'sprite.tiles', ['floor', 'corner', 'wall', 'mouth', 'back']);
+    s.tiles = { floor: r.str(t, 'floor', 'sprite.tiles'), corner: r.str(t, 'corner', 'sprite.tiles'), wall: r.str(t, 'wall', 'sprite.tiles'), mouth: r.str(t, 'mouth', 'sprite.tiles'), back: r.str(t, 'back', 'sprite.tiles') };
+  }
   return s;
 }
 
@@ -272,4 +295,11 @@ function collider(r: Reader, v: unknown): ColliderSpec {
     c.friction = f;
   }
   return c;
+}
+
+/** Cells in a fixed order with sorted faces, to compare footprints. */
+function sortCells(cells: readonly FootprintCell[]): unknown[] {
+  return [...cells]
+    .map((c) => ({ x: c.x, y: c.y, faces: [...c.faces].sort(), grips: [...(c.grips ?? [])].sort() }))
+    .sort((a, b) => a.y - b.y || a.x - b.x);
 }

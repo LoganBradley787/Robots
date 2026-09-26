@@ -26,9 +26,9 @@ export function toGrid(bp: Blueprint, registry: PartRegistry): GridForm | null {
   for (const p of bp.parts) {
     if (p.id !== partId(p.part, p.x, p.y)) return null;
     const extraTags = p.tags.filter((t) => t !== p.id);
-    let token = extraTags.length === 0 && p.auto !== false && p.armed !== true && p.makes === undefined ? defaults.find(([, e]) => e.part === p.part && (e.rot ?? 0) === p.rot)?.[0] : undefined;
+    let token = extraTags.length === 0 && p.auto !== false && p.armed !== true && p.makes === undefined && p.size === undefined ? defaults.find(([, e]) => e.part === p.part && (e.rot ?? 0) === p.rot)?.[0] : undefined;
     if (!token) {
-      const key = JSON.stringify([p.part, p.rot, extraTags, p.auto !== false, p.armed === true, p.makes ?? null]);
+      const key = JSON.stringify([p.part, p.rot, extraTags, p.auto !== false, p.armed === true, p.makes ?? null, p.size ?? null]);
       token = generated.get(key);
       if (!token) {
         token = tokenName(generated.size);
@@ -38,6 +38,7 @@ export function toGrid(bp: Blueprint, registry: PartRegistry): GridForm | null {
         if (p.auto === false) entry.auto = false;
         if (p.armed === true) entry.armed = true;
         if (p.makes !== undefined) entry.makes = p.makes;
+        if (p.size !== undefined) entry.size = p.size;
         legend[token] = entry;
       }
     }

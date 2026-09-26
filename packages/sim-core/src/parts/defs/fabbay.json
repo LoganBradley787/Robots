@@ -29,5 +29,9 @@
   "acts": "N",
   "behavior": "fabricate",
   "fabricate": { "joulesPerKg": 40, "secondsPerKg": 0.6, "separation": 4 },
-  "sprite": { "frame": "part.fabbay" }
+  "stretch": { "shape": "cup", "min": [1, 1], "max": [8, 10], "massPerCell": 1 },
+  "sprite": {
+    "frame": "part.fabbay",
+    "tiles": { "floor": "part.fabbay.floor", "corner": "part.fabbay.corner", "wall": "part.fabbay.wall", "mouth": "part.fabbay.mouth", "back": "part.fabbay.back" }
+  }
 }

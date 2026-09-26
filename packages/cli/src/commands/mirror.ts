@@ -26,7 +26,7 @@ export function mirrorCommand(raw: unknown, args: MirrorArgs): MirrorOutput {
   const axis = args.axis ?? (xs.length > 0 ? Math.min(...xs) + Math.max(...xs) : 0);
   const problem = mirrorProblem(src, registry);
   if (problem) return { ok: false, text: '', notes: [problem], files: [] };
-  let bp = mirrorBlueprint(src, axis);
+  let bp = mirrorBlueprint(src, axis, registry);
   const notes: string[] = [];
   if (allScripts(bp).length > 0) notes.push('note: scripts are copied unchanged; one that steers left or right (signs of x, spin, or angle) may need flipping');
   const v = validateBlueprint(toFileJson(bp, registry, { inlineScripts: true }), registry);

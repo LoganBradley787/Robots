@@ -159,3 +159,16 @@ export function setPartsMakes(bp: Blueprint, ids: readonly string[], recipe: Rec
   const { recipes: _old, ...rest } = bp;
   return recipes.length > 0 ? { ...rest, parts, recipes } : { ...rest, parts };
 }
+
+/** M12: the size of the given stretchy parts (a bay's hollow); `undefined` goes back to the def's default. */
+export function setPartsSize(bp: Blueprint, ids: readonly string[], size: [number, number] | undefined): Blueprint {
+  return {
+    ...bp,
+    parts: bp.parts.map((p) => {
+      if (!ids.includes(p.id)) return p;
+      if (size !== undefined) return { ...p, size: [size[0], size[1]] };
+      const { size: _size, ...rest } = p;
+      return rest;
+    }),
+  };
+}

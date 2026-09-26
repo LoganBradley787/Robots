@@ -1,4 +1,5 @@
-import { faceDir, footprintBox, rotateCell, rotateFace, rotationRadians, type BodyId, type Robot } from '@robots/sim-core';
+import { faceDir, rotateFace, rotationRadians, type BodyId, type Robot } from '@robots/sim-core';
+import { partSprites, type PartSprite } from './partSprites';
 
 export interface SpriteLayout {
   /** `mount` sprites belong to a joint part but are drawn on its parent body (the wheel's axle bracket). */
@@ -12,6 +13,8 @@ export interface SpriteLayout {
   /** Size in cells before rotation: a multi-cell part's sprite spans its footprint (M12). 1 by 1 for the rest. */
   w: number;
   h: number;
+  /** Mirrored left to right in the part's frame (a stretchy cup's right side, M12). */
+  flip?: boolean;
   /** Looping fx animation that replaces the frame while the part acts (propeller spin). */
   animation?: string;
   /**
@@ -38,10 +41,13 @@ export function layoutRobot(robot: Robot): BodyLayout[] {
     for (const id of g.partIds) {
       const p = robot.parts.get(id);
       if (!p) continue;
-      // A multi-cell part's sprite is centered on its footprint's box, turned with the part.
-      const box = footprintBox(p.def);
-      const off = rotateCell({ x: box.cx, y: box.cy }, p.rot);
-      const sprite: SpriteLayout = { kind: 'part', partId: id, frame: p.def.sprite.frame, x: p.localX + off.x, y: p.localY + off.y, rotation: rotationRadians(p.rot), w: box.w, h: box.h };
+      // A multi-cell part spans its footprint's box, turned with the part; a stretchy cup is tiles, one per cell (M12).
+      const tiles = partSprites(p.def, p.rot, p.footprint ?? p.def.footprint);
+      for (const t of tiles.slice(0, -1)) {
+        body.sprites.push({ kind: 'part', partId: id, frame: t.frame, x: p.localX + t.x, y: p.localY + t.y, rotation: rotationRadians(p.rot), w: t.w, h: t.h, ...(t.flip ? { flip: true } : {}) });
+      }
+      const last = tiles[tiles.length - 1] as PartSprite;
+      const sprite: SpriteLayout = { kind: 'part', partId: id, frame: last.frame, x: p.localX + last.x, y: p.localY + last.y, rotation: rotationRadians(p.rot), w: last.w, h: last.h, ...(last.flip ? { flip: true } : {}) };
       const channel = p.def.inputs[0]?.name;
       if (channel !== undefined && (p.def.sprite.animation !== undefined || p.def.sprite.overlay !== undefined)) sprite.channel = channel;
       if (p.def.sprite.animation !== undefined) sprite.animation = p.def.sprite.animation;

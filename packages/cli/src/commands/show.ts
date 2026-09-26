@@ -1,4 +1,4 @@
-import { autoBindings, defaultRegistry, recipeStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
+import { autoBindings, defaultRegistry, footprintOf, partMass, recipeStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -44,7 +44,7 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   let mx = 0;
   let my = 0;
   for (const p of bp.parts) {
-    const m = registry.get(p.part).mass;
+    const m = partMass(registry.get(p.part), footprintOf(registry.get(p.part), p.size));
     mass += m;
     mx += m * p.x;
     my += m * p.y;

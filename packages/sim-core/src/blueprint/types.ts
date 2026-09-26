@@ -20,6 +20,8 @@ export interface LegendEntry {
   armed?: true;
   /** M12: what a fabricator bay makes: the name of one of the blueprint's `recipes`. */
   makes?: string;
+  /** M12: a stretchy part's size (its hollow's width and height). Absent means the def's default. */
+  size?: [number, number];
 }
 
 export interface PlacedPart {
@@ -35,6 +37,8 @@ export interface PlacedPart {
   armed?: true;
   /** M12: what a fabricator bay makes: the name of one of the blueprint's `recipes`. */
   makes?: string;
+  /** M12: a stretchy part's size (its hollow's width and height). Absent means the def's default. */
+  size?: [number, number];
 }
 
 /**

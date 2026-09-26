@@ -75,6 +75,15 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
     }
     seenIds.add(p.id);
   }
+  // M12: only a stretchy part has a size, within its def's range (checked before cells: a size makes them).
+  for (const p of src.parts) {
+    if (p.size === undefined) continue;
+    const st = registry.get(p.part).stretch;
+    if (!st) err('BAD_SIZE', `${p.id} has a size, but a ${p.part} does not stretch; remove "size"`, { partId: p.id, cell: { x: p.x, y: p.y } });
+    else if (p.size[0] < st.min[0] || p.size[1] < st.min[1] || p.size[0] > st.max[0] || p.size[1] > st.max[1]) {
+      err('BAD_SIZE', `${p.id} is ${p.size[0]} by ${p.size[1]}; a ${p.part} is ${st.min[0]} to ${st.max[0]} wide and ${st.min[1]} to ${st.max[1]} tall`, { partId: p.id, cell: { x: p.x, y: p.y } });
+    }
+  }
   if (issues.length > 0) return { issues, ok: false };
 
   const occupied = new Map<string, string>();

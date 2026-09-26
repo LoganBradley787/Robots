@@ -1,7 +1,8 @@
 import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import { footprintBox, mirrorable, mirrorRotation, partCells, rotateCell, mirrorX, partAt, rotationRadians, type Blueprint, type PartRegistry, type Rotation } from '@robots/sim-core';
+import { footprintOf, mirrorable, mirroredShift, mirrorRotation, partCells, mirrorX, partAt, rotationRadians, type Blueprint, type PartRegistry, type Rotation } from '@robots/sim-core';
 import { applyCamera } from '../render/cameraView';
 import { createCamera, screenToWorld, type CameraState } from '../render/camera';
+import { partSprites } from '../render/partSprites';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from '../render/units';
 import type { Cell, EditorState } from './editorState';
 import { stampGhost } from './stamp';
@@ -60,32 +61,32 @@ export class BuilderScene {
     return g;
   }
 
-  private sprite(name: string, x: number, y: number, rot: Rotation, alpha = 1, box = { cx: 0, cy: 0, w: 1, h: 1 }): Sprite {
+  private sprite(name: string, x: number, y: number, rot: Rotation, alpha = 1, t: { x: number; y: number; w: number; h: number; flip?: boolean } = { x: 0, y: 0, w: 1, h: 1 }): Sprite {
     const s = new Sprite(this.texture(name));
     s.anchor.set(0.5);
-    // A multi-cell part (M12) spans its footprint's box, turned with it.
-    s.width = PIXELS_PER_METER * box.w;
-    s.height = PIXELS_PER_METER * box.h;
-    const off = rotateCell({ x: box.cx, y: box.cy }, rot);
-    const p = toScreen({ x: x + off.x, y: y + off.y });
+    // A multi-cell part (M12) spans its footprint's box (or its tiles), turned with it.
+    s.width = PIXELS_PER_METER * t.w;
+    s.height = PIXELS_PER_METER * t.h;
+    if (t.flip) s.scale.x *= -1;
+    const p = toScreen({ x: x + t.x, y: y + t.y });
     s.position.set(p.x, p.y);
     s.rotation = toScreenAngle(rotationRadians(rot));
     s.alpha = alpha;
     return s;
   }
 
-  private addPart(into: Container, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, alpha = 1, armed = false): void {
+  private addPart(into: Container, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, alpha = 1, armed = false, size?: [number, number]): void {
     if (!registry.has(part)) return;
     const def = registry.get(part);
     const spec = def.sprite;
     // A part set to start armed (M10) shows its armed frame.
-    into.addChild(this.sprite(armed && spec.armedFrame ? spec.armedFrame : spec.frame, x, y, rot, alpha, footprintBox(def)));
+    for (const t of partSprites(def, rot, footprintOf(def, size), armed && spec.armedFrame ? spec.armedFrame : spec.frame)) into.addChild(this.sprite(t.frame, x, y, rot, alpha, t));
     if (spec.mountFrame) into.addChild(this.sprite(spec.mountFrame, x, y, rot, alpha));
   }
 
   drawParts(bp: Blueprint, registry: PartRegistry): void {
     for (const c of this.parts.removeChildren()) c.destroy();
-    for (const p of bp.parts) this.addPart(this.parts, registry, p.part, p.x, p.y, p.rot, 1, p.armed === true);
+    for (const p of bp.parts) this.addPart(this.parts, registry, p.part, p.x, p.y, p.rot, 1, p.armed === true, p.size);
   }
 
   drawGhost(editor: EditorState, bp: Blueprint, registry: PartRegistry): void {
@@ -95,22 +96,26 @@ export class BuilderScene {
     if (editor.stamp && h) {
       // A held blueprint: every part it would add, red where a click would be refused (an overlap).
       const g = stampGhost(bp, editor.stamp, h, editor.mirror, registry);
-      for (const p of g.parts) this.addPart(this.ghost, registry, p.part, p.x, p.y, p.rot, 0.55, p.armed === true);
+      for (const p of g.parts) this.addPart(this.ghost, registry, p.part, p.x, p.y, p.rot, 0.55, p.armed === true, p.size);
       if (!g.ok) for (const c of this.ghost.children) (c as Sprite).tint = 0xff7a7a;
       return;
     }
     if (!held || !h || editor.gesture?.kind === 'erase') return;
-    const spots: Array<{ x: number; rot: Rotation }> = [{ x: h.x, rot: held.rot }];
+    const spots: Array<{ x: number; y: number; rot: Rotation }> = [{ x: h.x, y: h.y, rot: held.rot }];
     const mx = mirrorX(h.x, editor.mirror.axisHalfCells);
-    if (editor.mirror.on && mx !== h.x && mirrorable(registry.get(held.part))) spots.push({ x: mx, rot: mirrorRotation(held.rot) });
+    if (editor.mirror.on && mx !== h.x && mirrorable(registry.get(held.part))) {
+      const rot = mirrorRotation(held.rot);
+      const shift = mirroredShift(registry.get(held.part).footprint, rot);
+      spots.push({ x: mx + shift.x, y: h.y + shift.y, rot });
+    }
     for (const s of spots) {
       const before = this.ghost.children.length;
-      this.addPart(this.ghost, registry, held.part, s.x, h.y, s.rot, 0.55);
+      this.addPart(this.ghost, registry, held.part, s.x, s.y, s.rot, 0.55);
       // Red when it would replace another part in any of its cells (M12: a multi-cell part covers several).
-      const cells = partCells({ id: '', part: held.part, x: s.x, y: h.y, rot: s.rot, tags: [] }, registry).map((c) => c.cell);
+      const cells = partCells({ id: '', part: held.part, x: s.x, y: s.y, rot: s.rot, tags: [] }, registry).map((c) => c.cell);
       const replaces = cells.some((c) => {
         const other = partAt(bp, registry, c.x, c.y);
-        return other !== undefined && !(other.part === held.part && other.rot === s.rot && other.x === s.x && other.y === h.y);
+        return other !== undefined && !(other.part === held.part && other.rot === s.rot && other.x === s.x && other.y === s.y);
       });
       if (replaces) for (const c of this.ghost.children.slice(before)) (c as Sprite).tint = 0xff7a7a;
     }

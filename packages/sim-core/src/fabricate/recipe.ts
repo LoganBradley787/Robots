@@ -1,4 +1,5 @@
 import { partCells, rootPartId } from '../assembly/assemble';
+import { footprintOf, partMass } from '../parts/footprint';
 import { faceDir, opposite, rotateCell, type Cell } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { PartDef, Rotation } from '../parts/types';
@@ -8,10 +9,11 @@ import type { Blueprint, PlacedPart } from '../blueprint/types';
  * A part's hollow (M12): the cells inside its footprint's bounding box that are not part of it, at rotation 0,
  * from its origin. A fabricator bay builds inside it.
  */
-export function hollowCells(def: PartDef): Cell[] {
-  const own = new Set(def.footprint.map((c) => `${c.x},${c.y}`));
-  const xs = def.footprint.map((c) => c.x);
-  const ys = def.footprint.map((c) => c.y);
+export function hollowCells(def: PartDef, size?: readonly [number, number]): Cell[] {
+  const fp = footprintOf(def, size);
+  const own = new Set(fp.map((c) => `${c.x},${c.y}`));
+  const xs = fp.map((c) => c.x);
+  const ys = fp.map((c) => c.y);
   const out: Cell[] = [];
   for (let y = Math.min(...ys); y <= Math.max(...ys); y++) for (let x = Math.min(...xs); x <= Math.max(...xs); x++) if (!own.has(`${x},${y}`)) out.push({ x, y });
   return out;
@@ -23,7 +25,7 @@ export function recipeStats(bp: Blueprint, registry: PartRegistry): { mass: numb
   let stored = 0;
   for (const p of bp.parts) {
     const d = registry.get(p.part);
-    mass += d.mass;
+    mass += partMass(d, footprintOf(d, p.size));
     stored += d.resource?.capacity ?? 0;
   }
   return { mass, stored };
@@ -37,7 +39,7 @@ export function recipeStats(bp: Blueprint, registry: PartRegistry): { mass: numb
  */
 export function recipePlacement(bay: PlacedPart, recipe: Blueprint, registry: PartRegistry): { ok: true; at: Cell; rot: Rotation } | { ok: false; error: string } {
   const def = registry.get(bay.part);
-  const hollow = hollowCells(def);
+  const hollow = hollowCells(def, bay.size);
   if (hollow.length === 0) return { ok: false, error: `a ${bay.part} has no hollow to build in` };
   if (recipe.parts.length === 0) return { ok: false, error: `${recipe.name} has no parts` };
   const cells = recipe.parts.flatMap((p) => (registry.has(p.part) ? partCells(p, registry) : []));
@@ -53,7 +55,7 @@ export function recipePlacement(bay: PlacedPart, recipe: Blueprint, registry: Pa
     return { ok: false, error: `${recipe.name} does not fit a ${bay.part}'s hollow (${w} wide, ${h} tall, filled from its bottom-left)` };
   }
   const grips = new Map<string, readonly string[]>();
-  for (const fc of def.footprint) if (fc.grips) grips.set(`${fc.x},${fc.y}`, fc.grips);
+  for (const fc of footprintOf(def, bay.size)) if (fc.grips) grips.set(`${fc.x},${fc.y}`, fc.grips);
   const held = cells.some((c) =>
     c.faces.some((f) => {
       const d = faceDir(f);
@@ -69,7 +71,7 @@ export function recipePlacement(bay: PlacedPart, recipe: Blueprint, registry: Pa
 
 /** The bay's hollow cells in the robot's cells, turned with it. */
 export function hollowAt(bay: PlacedPart, def: PartDef): Cell[] {
-  return hollowCells(def).map((c) => {
+  return hollowCells(def, bay.size).map((c) => {
     const o = rotateCell(c, bay.rot);
     return { x: bay.x + o.x, y: bay.y + o.y };
   });

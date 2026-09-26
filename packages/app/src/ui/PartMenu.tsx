@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
-import type { Blueprint, PartRegistry } from '@robots/sim-core';
+import { defaultSize, type Blueprint, type PartRegistry } from '@robots/sim-core';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
@@ -13,6 +13,8 @@ export interface PartMenuActions {
   setArmed(ids: string[], on: boolean): void;
   /** M12: what these fabricators build: a saved blueprint's file, a recipe the blueprint has, or nothing. */
   setMakes(ids: string[], choice: { file: string } | { recipe: string } | undefined): void;
+  /** M12: the hollow size of these stretchy parts. */
+  setSize(ids: string[], size: [number, number]): void;
   rotate(dir: 1 | -1): void;
   deleteSelection(): void;
   closeMenu(): void;
@@ -72,6 +74,16 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
   const makers = parts.filter((p) => registry.has(p.part) && registry.get(p.part).fabricate !== undefined);
   const makes = new Set(makers.map((p) => p.makes ?? ''));
   const current = makes.size === 1 ? [...makes][0] : undefined;
+  const stretchy = parts.filter((p) => registry.has(p.part) && registry.get(p.part).stretch !== undefined);
+  const first = stretchy[0];
+  const spec = first ? registry.get(first.part).stretch : undefined;
+  const size: [number, number] = first ? (first.size ?? defaultSize(registry.get(first.part)) ?? [1, 1]) : [1, 1];
+  const resize = (dw: number, dh: number): void => {
+    if (!spec) return;
+    const w = Math.max(spec.min[0], Math.min(spec.max[0], size[0] + dw));
+    const h = Math.max(spec.min[1], Math.min(spec.max[1], size[1] + dh));
+    if (w !== size[0] || h !== size[1]) actions.setSize(stretchy.map((p) => p.id), [w, h]);
+  };
   const add = (): void => {
     const t = text.trim();
     if (t === '') return;
@@ -127,6 +139,17 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
             <span class="muted"> {armParts.length === 1 ? (armedOn === 1 ? 'live from deploy' : 'safe until armed') : `${armedOn} of ${armParts.length}`}</span>
           </span>
         </label>
+      )}
+      {spec && (
+        <div class="size-row" title="The size of its hollow: what it builds must fit inside. Parts in the way are reported in the issues list.">
+          <span>Hollow</span>
+          <button onClick={() => resize(-1, 0)} aria-label="narrower">-</button>
+          <span>{size[0]} wide</span>
+          <button onClick={() => resize(1, 0)} aria-label="wider">+</button>
+          <button onClick={() => resize(0, -1)} aria-label="shorter">-</button>
+          <span>{size[1]} tall</span>
+          <button onClick={() => resize(0, 1)} aria-label="taller">+</button>
+        </div>
       )}
       {makers.length > 0 && (
         <label class="makes" title="What the bay builds: a copy of a blueprint, from the robot's energy, held until its release input lets it go. It must fit the bay's hollow (the issues list says if not).">

@@ -28,6 +28,7 @@ export function toFileJson(bp: Blueprint, registry: PartRegistry, opts: { inline
       if (p.auto === false) e.auto = false;
       if (p.armed === true) e.armed = true;
       if (p.makes !== undefined) e.makes = p.makes;
+      if (p.size !== undefined) e.size = p.size;
       return e;
     });
   }

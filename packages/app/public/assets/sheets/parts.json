@@ -102,8 +102,8 @@
     },
     "part.wheel.mount": {
       "frame": {
-        "x": 3,
-        "y": 71,
+        "x": 343,
+        "y": 3,
         "w": 64,
         "h": 64
       },
@@ -122,7 +122,7 @@
     },
     "part.thruster": {
       "frame": {
-        "x": 71,
+        "x": 3,
         "y": 71,
         "w": 64,
         "h": 64
@@ -142,7 +142,7 @@
     },
     "part.propeller": {
       "frame": {
-        "x": 139,
+        "x": 71,
         "y": 71,
         "w": 64,
         "h": 64
@@ -162,7 +162,7 @@
     },
     "part.decoupler": {
       "frame": {
-        "x": 207,
+        "x": 139,
         "y": 71,
         "w": 64,
         "h": 64
@@ -182,7 +182,7 @@
     },
     "part.warhead": {
       "frame": {
-        "x": 275,
+        "x": 207,
         "y": 71,
         "w": 64,
         "h": 64
@@ -202,8 +202,8 @@
     },
     "part.warhead.armed": {
       "frame": {
-        "x": 3,
-        "y": 139,
+        "x": 275,
+        "y": 71,
         "w": 64,
         "h": 64
       },
@@ -222,8 +222,8 @@
     },
     "part.gyro": {
       "frame": {
-        "x": 71,
-        "y": 139,
+        "x": 343,
+        "y": 71,
         "w": 64,
         "h": 64
       },
@@ -242,7 +242,7 @@
     },
     "part.rotator": {
       "frame": {
-        "x": 139,
+        "x": 3,
         "y": 139,
         "w": 64,
         "h": 64
@@ -262,7 +262,7 @@
     },
     "part.rotator.mount": {
       "frame": {
-        "x": 207,
+        "x": 71,
         "y": 139,
         "w": 64,
         "h": 64
@@ -282,7 +282,7 @@
     },
     "part.seeker": {
       "frame": {
-        "x": 275,
+        "x": 139,
         "y": 139,
         "w": 64,
         "h": 64
@@ -302,8 +302,8 @@
     },
     "part.booster": {
       "frame": {
-        "x": 3,
-        "y": 207,
+        "x": 207,
+        "y": 139,
         "w": 64,
         "h": 64
       },
@@ -322,8 +322,8 @@
     },
     "part.heavywarhead": {
       "frame": {
-        "x": 71,
-        "y": 207,
+        "x": 275,
+        "y": 139,
         "w": 64,
         "h": 64
       },
@@ -342,8 +342,8 @@
     },
     "part.heavywarhead.armed": {
       "frame": {
-        "x": 139,
-        "y": 207,
+        "x": 343,
+        "y": 139,
         "w": 64,
         "h": 64
       },
@@ -362,7 +362,7 @@
     },
     "part.heavygyro": {
       "frame": {
-        "x": 207,
+        "x": 3,
         "y": 207,
         "w": 64,
         "h": 64
@@ -382,7 +382,7 @@
     },
     "part.densebattery": {
       "frame": {
-        "x": 275,
+        "x": 71,
         "y": 207,
         "w": 64,
         "h": 64
@@ -402,8 +402,8 @@
     },
     "part.radar": {
       "frame": {
-        "x": 3,
-        "y": 275,
+        "x": 139,
+        "y": 207,
         "w": 64,
         "h": 64
       },
@@ -422,8 +422,8 @@
     },
     "part.flare": {
       "frame": {
-        "x": 71,
-        "y": 275,
+        "x": 207,
+        "y": 207,
         "w": 64,
         "h": 64
       },
@@ -442,8 +442,8 @@
     },
     "part.flare.lit": {
       "frame": {
-        "x": 139,
-        "y": 275,
+        "x": 275,
+        "y": 207,
         "w": 64,
         "h": 64
       },
@@ -479,13 +479,113 @@
         "w": 192,
         "h": 384
       }
+    },
+    "part.fabbay.floor": {
+      "frame": {
+        "x": 343,
+        "y": 207,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.corner": {
+      "frame": {
+        "x": 3,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.wall": {
+      "frame": {
+        "x": 71,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.mouth": {
+      "frame": {
+        "x": 139,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.back": {
+      "frame": {
+        "x": 207,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
     }
   },
   "meta": {
     "image": "parts.png",
     "format": "RGBA8888",
     "size": {
-      "w": 342,
+      "w": 410,
       "h": 730
     },
     "scale": "1"

@@ -2,6 +2,7 @@ import {
   erasePartAt,
   isCore,
   mirrorable,
+  mirroredShift,
   mirrorRotation,
   removeParts,
   setPartRotation,
@@ -125,7 +126,11 @@ function applyAt(editor: EditorState, bp: Blueprint, kind: 'paint' | 'erase', c:
   if (!held) return bp;
   const once = placePart(bp, registry, held.part, c.x, c.y, held.rot);
   // A part with no mirrored twin (a lopsided multi-cell part, M12) is placed once.
-  return both && mirrorable(registry.get(held.part)) ? placePart(once, registry, held.part, mx, c.y, mirrorRotation(held.rot)) : once;
+  if (!both || !mirrorable(registry.get(held.part))) return once;
+  // A multi-cell part symmetric about another column than its origin's moves its origin when mirrored (M12).
+  const rot = mirrorRotation(held.rot);
+  const shift = mirroredShift(registry.get(held.part).footprint, rot);
+  return placePart(once, registry, held.part, mx + shift.x, c.y + shift.y, rot);
 }
 
 /** Pure builder input handling. `partIds` is the palette order (number keys 1 to 9, then 0). */

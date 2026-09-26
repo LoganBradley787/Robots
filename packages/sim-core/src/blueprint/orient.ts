@@ -4,6 +4,7 @@ import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
 import { mirrorProblem, mirrorRotation } from './mirror';
+import { footprintOf, mirroredShift } from '../parts/footprint';
 import { toFileJson } from './serialize';
 import { validateBlueprint } from './validate';
 import type { Binding, Blueprint } from './types';
@@ -33,18 +34,23 @@ export function orientBlueprint(bp: Blueprint, o: Orientation, registry: PartReg
   const newId = new Map<string, string>();
   const parts = bp.parts.map((p) => {
     let dx = p.x - root.x;
+    let dy = p.y - root.y;
     let r = p.rot;
     if (o.flip) {
       dx = -dx;
       r = mirrorRotation(r);
+      // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
+      const shift = registry.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), r) : { x: 0, y: 0 };
+      dx += shift.x;
+      dy += shift.y;
     }
-    const d = rotateCell({ x: dx, y: p.y - root.y }, rot);
+    const d = rotateCell({ x: dx, y: dy }, rot);
     const x = root.x + d.x;
     const y = root.y + d.y;
     const id = partId(p.part, x, y);
     newId.set(p.id, id);
     const explicit = p.tags.filter((t) => t !== p.id);
-    return { id, part: p.part, x, y, rot: ((r + rot) % 360) as Rotation, tags: [...explicit, id], ...(p.auto === false ? { auto: false as const } : {}), ...(p.armed === true ? { armed: true as const } : {}), ...(p.makes !== undefined ? { makes: p.makes } : {}) };
+    return { id, part: p.part, x, y, rot: ((r + rot) % 360) as Rotation, tags: [...explicit, id], ...(p.auto === false ? { auto: false as const } : {}), ...(p.armed === true ? { armed: true as const } : {}), ...(p.makes !== undefined ? { makes: p.makes } : {}), ...(p.size !== undefined ? { size: p.size } : {}) };
   });
   const rename = (id: string): string => newId.get(id) ?? id;
   const renameBindings = (bs: readonly Binding[]): Binding[] => bs.map((b) => (b.target !== undefined && newId.has(b.target) ? { ...b, target: rename(b.target) } : b));

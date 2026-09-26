@@ -59,6 +59,12 @@ export interface SpriteSpec {
   armedFrame?: string;
   /** M11: drawn instead of `frame` while the part burns (a part with `decoy`). */
   litFrame?: string;
+  /**
+   * M12: a stretchy cup is drawn cell by cell from these one-cell frames (left side; the right side is them flipped):
+   * `floor` under the hollow, `corner` below a wall, `wall`, `mouth` (a wall's top cell), `back` behind the hollow.
+   * `frame` stays its palette icon.
+   */
+  tiles?: { floor: string; corner: string; wall: string; mouth: string; back: string };
 }
 
 export interface ResourceSpec {
@@ -126,6 +132,19 @@ export interface FabricateSpec {
   separation: number;
 }
 
+/**
+ * M12 (Logan: a bay's size is set where it is placed): the part stretches. `cup` is a U open on its `acts` face (N at
+ * rotation 0): a floor one cell thick, walls one cell thick, a hollow `size` wide and tall, the floor cells under the
+ * hollow and the walls' inner faces are grips. Its footprint in the def is its default size; `min` and `max` bound
+ * the hollow; its mass is `massPerCell` times its cells.
+ */
+export interface StretchSpec {
+  shape: 'cup';
+  min: [number, number];
+  max: [number, number];
+  massPerCell: number;
+}
+
 export interface PartDef {
   id: string;
   name: string;
@@ -157,6 +176,8 @@ export interface PartDef {
   sensor?: SensorSpec;
   /** M11: the part is a decoy (a flare). It needs an `ignite` input and a `burning` output. */
   decoy?: DecoySpec;
+  /** M12: the part's size is set per placement (`size` on the placed part). */
+  stretch?: StretchSpec;
   /** M12: the part builds things (a fabricator bay). It needs grips, `acts`, a `release` input, and `ready`, `progress`, and `built` outputs. */
   fabricate?: FabricateSpec;
   sprite: SpriteSpec;

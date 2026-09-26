@@ -135,13 +135,17 @@ function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
       err('UNSUPPORTED', `${path} names a blueprint; blueprints are not referenced, they are copied in (\`pnpm sim place\` or the builder's Blueprints palette)`, { path });
       continue;
     }
-    const extra = unknownKeys(entry, ['part', 'rot', 'tags', 'auto', 'armed', 'makes']);
+    const extra = unknownKeys(entry, ['part', 'rot', 'tags', 'auto', 'armed', 'makes', 'size']);
     if (extra.length > 0) {
-      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected part, rot, tags, auto, armed, makes)`, { path });
+      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected part, rot, tags, auto, armed, makes, size)`, { path });
       continue;
     }
     if (entry.auto !== undefined && typeof entry.auto !== 'boolean') {
       err('BAD_FORMAT', `${path}.auto must be true or false`, { path: `${path}.auto` });
+      continue;
+    }
+    if (entry.size !== undefined && !isSize(entry.size)) {
+      err('BAD_FORMAT', `${path}.size must be [width, height], whole numbers of 1 or more`, { path: `${path}.size` });
       continue;
     }
     if (entry.makes !== undefined && !isNonEmptyString(entry.makes)) {
@@ -170,6 +174,7 @@ function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
     if (entry.auto === false) e.auto = false;
     if (entry.armed === true) e.armed = true;
     if (entry.makes !== undefined) e.makes = entry.makes as string;
+    if (entry.size !== undefined) e.size = [...(entry.size as [number, number])];
     legend.set(token, e);
   }
   return legend;
@@ -201,6 +206,7 @@ function expandGrid(raw: Obj, parts: PlacedPart[], continuations: { x: number; y
       if (entry.auto === false) placed.auto = false;
       if (entry.armed === true) placed.armed = true;
       if (entry.makes !== undefined) placed.makes = entry.makes;
+      if (entry.size !== undefined) placed.size = [...entry.size];
       parts.push(placed);
     });
   });
@@ -217,13 +223,14 @@ function expandParts(raw: unknown, parts: PlacedPart[], err: Err): void {
       err('BAD_FORMAT', `${path} must be an object`, { path });
       return;
     }
-    const extra = unknownKeys(p, ['id', 'part', 'x', 'y', 'rot', 'tags', 'auto', 'armed', 'makes']);
+    const extra = unknownKeys(p, ['id', 'part', 'x', 'y', 'rot', 'tags', 'auto', 'armed', 'makes', 'size']);
     if (extra.length > 0) {
-      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected id, part, x, y, rot, tags, auto, armed, makes)`, { path });
+      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected id, part, x, y, rot, tags, auto, armed, makes, size)`, { path });
       return;
     }
     if (p.auto !== undefined && typeof p.auto !== 'boolean') return err('BAD_FORMAT', `${path}.auto must be true or false`, { path: `${path}.auto` });
     if (p.armed !== undefined && typeof p.armed !== 'boolean') return err('BAD_FORMAT', `${path}.armed must be true or false`, { path: `${path}.armed` });
+    if (p.size !== undefined && !isSize(p.size)) return err('BAD_FORMAT', `${path}.size must be [width, height], whole numbers of 1 or more`, { path: `${path}.size` });
     if (p.makes !== undefined && !isNonEmptyString(p.makes)) return err('BAD_FORMAT', `${path}.makes must be the name of a recipe`, { path: `${path}.makes` });
     if (!isNonEmptyString(p.part)) return err('BAD_FORMAT', `${path}.part must be a part name`, { path: `${path}.part` });
     if (!Number.isInteger(p.x) || !Number.isInteger(p.y)) {
@@ -243,6 +250,7 @@ function expandParts(raw: unknown, parts: PlacedPart[], err: Err): void {
     if (p.auto === false) placed.auto = false;
     if (p.armed === true) placed.armed = true;
     if (p.makes !== undefined) placed.makes = p.makes as string;
+    if (p.size !== undefined) placed.size = [...(p.size as [number, number])];
     parts.push(placed);
   });
 }
@@ -344,4 +352,8 @@ function readScripts(raw: unknown, err: Err, at = 'scripts'): ScriptSpec[] {
     out.push({ id: s.id, enabled: s.enabled !== false, params, source, ...(file !== undefined ? { file } : {}) });
   });
   return out;
+}
+
+function isSize(v: unknown): v is [number, number] {
+  return Array.isArray(v) && v.length === 2 && v.every((n) => Number.isInteger(n) && (n as number) >= 1);
 }

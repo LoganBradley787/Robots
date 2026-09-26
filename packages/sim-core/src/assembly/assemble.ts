@@ -1,3 +1,4 @@
+import { footprintOf } from '../parts/footprint';
 import type { Blueprint, PlacedPart } from '../blueprint/types';
 import { faceDir, opposite, rotateCell, rotateFace, type Cell } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
@@ -42,7 +43,7 @@ export type CutFaces = ReadonlyMap<string, readonly Face[]>;
 /** Occupied world cells of a part: its footprint rotated by its rotation, plus its position. */
 export function partCells(part: PlacedPart, registry: PartRegistry, holding = false): { cell: Cell; faces: Face[] }[] {
   const def = registry.get(part.part);
-  return def.footprint.map((fc) => {
+  return footprintOf(def, part.size).map((fc) => {
     const off = rotateCell(fc, part.rot);
     // A holding part's grips (M12) attach like faces.
     const faces = holding && fc.grips ? [...fc.faces, ...fc.grips] : fc.faces;

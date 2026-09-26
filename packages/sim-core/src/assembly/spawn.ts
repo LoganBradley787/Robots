@@ -1,3 +1,4 @@
+import { footprintOf } from '../parts/footprint';
 import type { Blueprint } from '../blueprint/types';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { buildBodies } from './build';
@@ -35,6 +36,9 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
     const def = registry.get(p.part);
     const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: 0, localX: 0, localY: 0 };
     if (def.resource) inst.stored = def.resource.capacity;
+    // M12: a stretchy part placed at another size keeps its own cells.
+    const cells = footprintOf(def, p.size);
+    if (cells !== def.footprint) inst.footprint = cells;
     // M10: a part that needs arming starts safe unless the blueprint starts it armed.
     if (def.arming === true) inst.armed = p.armed === true;
     // M12: a fabricator starts empty.

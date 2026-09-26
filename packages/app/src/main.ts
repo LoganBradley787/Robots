@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, createQuickJsHost, orientRaw, setPartsAuto, setPartsArmed, setPartsMakes, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
+import { addTagToParts, createQuickJsHost, orientRaw, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
@@ -198,6 +198,7 @@ async function boot(): Promise<void> {
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
     setAuto: (ids, on) => builder.edit((bp) => setPartsAuto(bp, ids, on)),
     setArmed: (ids, on) => builder.edit((bp) => setPartsArmed(bp, ids, on)),
+    setSize: (ids, size) => builder.edit((bp) => setPartsSize(bp, ids, size)),
     setMakes: (ids, choice) => {
       if (choice === undefined) return builder.edit((bp) => setPartsMakes(bp, ids, undefined));
       if ('recipe' in choice) return builder.edit((bp) => setPartsMakes(bp, ids, bp.recipes?.find((r) => r.name === choice.recipe)));

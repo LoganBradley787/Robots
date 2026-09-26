@@ -22,6 +22,7 @@ import { spawnRobot } from '../assembly/spawn';
 import { partCells, rootPartId } from '../assembly/assemble';
 import { placeBlueprint } from '../blueprint/place';
 import { hollowAt, recipePlacement, recipeStats, scopeBase } from '../fabricate/recipe';
+import { footprintOf, partMass } from '../parts/footprint';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
@@ -88,7 +89,7 @@ export type WorldEvent =
 function footprintPoses(origin: { x: number; y: number; angle: number }, part: PartInstance): BlastCell[] {
   const c = Math.cos(origin.angle);
   const s = Math.sin(origin.angle);
-  return part.def.footprint.map((fc) => {
+  return (part.footprint ?? part.def.footprint).map((fc) => {
     const o = rotateCell(fc, part.rot);
     return { x: origin.x + c * o.x - s * o.y, y: origin.y + s * o.x + c * o.y, angle: origin.angle };
   });
@@ -590,7 +591,7 @@ export class World {
         // Destroyed by an earlier blast in this batch: gone, so it neither takes damage nor covers anything.
         if (part.health <= 0) continue;
         const pose = partWorldPose(this, robot, part.id);
-        const own = part.def.footprint.length === 1 ? [pose] : footprintPoses(pose, part);
+        const own = (part.footprint ?? part.def.footprint).length === 1 ? [pose] : footprintPoses(pose, part);
         const near = own.filter((c) => (c.x - b.x) ** 2 + (c.y - b.y) ** 2 <= reach * reach);
         if (near.length === 0) continue;
         for (const c of near) {
@@ -661,7 +662,7 @@ export class World {
     this.dirty.add(robot);
     const d = faceDir(face);
     const cellsOf = (p: PartInstance): { x: number; y: number }[] =>
-      p.def.footprint.map((fc) => {
+      (p.footprint ?? p.def.footprint).map((fc) => {
         const off = rotateCell(fc, p.rot);
         return { x: p.x + off.x, y: p.y + off.y };
       });
@@ -669,7 +670,7 @@ export class World {
     // Only a part that was attached through that face (it has the opposite face there) is pushed away.
     const back = opposite(face);
     const neighbor = [...robot.parts.values()].find(
-      (p) => p !== part && p.def.footprint.some((fc) => {
+      (p) => p !== part && (p.footprint ?? p.def.footprint).some((fc) => {
         const off = rotateCell(fc, p.rot);
         return across.has(`${p.x + off.x},${p.y + off.y}`) && fc.faces.some((f) => rotateFace(f, p.rot) === back);
       }),
@@ -750,6 +751,8 @@ export class World {
       const def = this.registry.get(p.part);
       const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: bay.group, localX: p.x - (origin?.x ?? bay.x), localY: p.y - (origin?.y ?? bay.y) };
       if (def.resource) inst.stored = def.resource.capacity;
+      const cells = footprintOf(def, p.size);
+      if (cells !== def.footprint) inst.footprint = cells;
       if (def.arming === true) inst.armed = p.armed === true;
       if (def.fabricate) {
         inst.holding = false;
@@ -886,7 +889,7 @@ export class World {
       const outs: string[] = [];
       for (const o of p.def.outputs) if (this.outputOf(p, o.name, pool) !== undefined) outs.push(o.name);
       parts.push({ id, part: p, in: ins, out: outs });
-      layout.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: p.def.mass, in: ins, out: outs });
+      layout.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: partMass(p.def, p.footprint), in: ins, out: outs });
     }
     // The robot's mass only changes when it is rebuilt, which makes a new layout.
     let mass = 0;
@@ -1009,7 +1012,7 @@ export class World {
         const v = referenceOutput(robot, p, id, o.name);
         if (v !== undefined) out[o.name] = v;
       }
-      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: p.def.mass, in: Object.fromEntries(chans?.get(id) ?? []), out });
+      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out });
     }
     return {
       frame: this.tickCount,

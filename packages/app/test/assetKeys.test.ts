@@ -28,6 +28,7 @@ describe('asset keys', () => {
       if (def.sprite.mountFrame !== undefined) expect(parts.frames, `${def.id} sprite.mountFrame`).toHaveProperty([def.sprite.mountFrame]);
       if (def.sprite.armedFrame !== undefined) expect(parts.frames, `${def.id} sprite.armedFrame`).toHaveProperty([def.sprite.armedFrame]);
       if (def.sprite.litFrame !== undefined) expect(parts.frames, `${def.id} sprite.litFrame`).toHaveProperty([def.sprite.litFrame]);
+      for (const t of Object.values(def.sprite.tiles ?? {})) expect(parts.frames, `${def.id} sprite.tiles`).toHaveProperty([t]);
     }
   });
 

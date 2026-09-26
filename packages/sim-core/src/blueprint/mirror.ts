@@ -1,6 +1,6 @@
 import type { Rotation } from '../parts/types';
 import type { PartRegistry } from '../parts/registry';
-import { mirrorable } from '../parts/footprint';
+import { footprintOf, mirrorable, mirroredShift } from '../parts/footprint';
 import { partId } from './expand';
 import type { Binding, Blueprint } from './types';
 
@@ -19,7 +19,7 @@ export function mirrorRotation(rot: Rotation): Rotation {
  * its own column has no mirrored twin among the parts (`mirrorable`).
  */
 export function mirrorProblem(bp: Pick<Blueprint, 'parts'>, registry: PartRegistry): string | undefined {
-  const bad = bp.parts.find((p) => registry.has(p.part) && !mirrorable(registry.get(p.part)));
+  const bad = bp.parts.find((p) => registry.has(p.part) && !mirrorable(registry.get(p.part), footprintOf(registry.get(p.part), p.size)));
   return bad ? `${bad.id} (${bad.part}) cannot be mirrored: its footprint is not symmetric about its own column` : undefined;
 }
 
@@ -32,14 +32,18 @@ export function mirrorX(x: number, axisHalfCells: number): number {
  * a part by id (binding targets, `primaryCore`, `corePriority`, each core's controls) follows it. Tags and scripts are
  * kept as they are: a script that steers left or right still does, so it may need its signs flipped.
  */
-export function mirrorBlueprint(bp: Blueprint, axisHalfCells: number): Blueprint {
+export function mirrorBlueprint(bp: Blueprint, axisHalfCells: number, registry?: PartRegistry): Blueprint {
   const newId = new Map<string, string>();
   const parts = bp.parts.map((p) => {
-    const x = mirrorX(p.x, axisHalfCells);
-    const id = partId(p.part, x, p.y);
+    const rot = mirrorRotation(p.rot);
+    // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
+    const shift = registry?.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), rot) : { x: 0, y: 0 };
+    const x = mirrorX(p.x, axisHalfCells) + shift.x;
+    const y = p.y + shift.y;
+    const id = partId(p.part, x, y);
     newId.set(p.id, id);
     const explicit = p.tags.filter((t) => t !== p.id);
-    return { id, part: p.part, x, y: p.y, rot: mirrorRotation(p.rot), tags: [...explicit, id], ...(p.auto === false ? { auto: false as const } : {}), ...(p.armed === true ? { armed: true as const } : {}), ...(p.makes !== undefined ? { makes: p.makes } : {}) };
+    return { id, part: p.part, x, y, rot, tags: [...explicit, id], ...(p.auto === false ? { auto: false as const } : {}), ...(p.armed === true ? { armed: true as const } : {}), ...(p.makes !== undefined ? { makes: p.makes } : {}), ...(p.size !== undefined ? { size: p.size } : {}) };
   });
   const rename = (id: string): string => newId.get(id) ?? id;
   const renameBindings = (bs: readonly Binding[]): Binding[] => bs.map((b) => (b.target !== undefined && newId.has(b.target) ? { ...b, target: rename(b.target) } : b));

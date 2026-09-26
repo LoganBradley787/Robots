@@ -61,6 +61,7 @@ export class RobotView {
         sprite.anchor.set(0.5);
         sprite.width = PIXELS_PER_METER * s.w;
         sprite.height = PIXELS_PER_METER * s.h;
+        if (s.flip) sprite.scale.x *= -1;
         const p = toScreen(s);
         sprite.position.set(p.x, p.y);
         sprite.rotation = toScreenAngle(s.rotation);
@@ -68,7 +69,7 @@ export class RobotView {
         if (s.kind === 'part') {
           // A part that needs arming (M10) swaps to its armed frame once armed; a decoy (M11) to its lit frame while it burns.
           const litName = def?.arming === true ? def.sprite.armedFrame : def?.decoy !== undefined ? def.sprite.litFrame : undefined;
-          const lit = litName !== undefined && !s.animation ? frame(litName) : undefined;
+          const lit = litName !== undefined && !s.animation && !def?.sprite.tiles ? frame(litName) : undefined;
           this.parts.push({ partId: s.partId, sprite, health: Number.NaN, ...(lit ? { plain: sprite.texture, lit } : {}) });
         }
         if (s.kind === 'part' && def?.decoy !== undefined) {
@@ -163,8 +164,8 @@ export class RobotView {
       if (p.lit && part && on !== p.on) {
         p.on = on;
         p.sprite.texture = (on ? p.lit : p.plain) ?? p.sprite.texture;
-        p.sprite.width = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def).w);
-        p.sprite.height = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def).h);
+        p.sprite.width = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def, part.footprint).w);
+        p.sprite.height = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def, part.footprint).h);
       }
       if (!part || part.health === p.health) continue;
       p.health = part.health;

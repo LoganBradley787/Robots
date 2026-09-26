@@ -4,6 +4,7 @@ import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
 import { mirrorProblem, mirrorRotation } from './mirror';
+import { footprintOf, mirroredShift } from '../parts/footprint';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from './types';
 
 export interface PlaceOptions {
@@ -49,12 +50,17 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
   const newId = new Map<string, string>();
   const moved: PlacedPart[] = source.parts.map((p) => {
     let dx = p.x - anchor.x;
+    let dy = p.y - anchor.y;
     let r = p.rot;
     if (opts.mirror) {
       dx = -dx;
       r = mirrorRotation(r);
+      // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
+      const shift = registry.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), r) : { x: 0, y: 0 };
+      dx += shift.x;
+      dy += shift.y;
     }
-    const d = rotateCell({ x: dx, y: p.y - anchor.y }, rot);
+    const d = rotateCell({ x: dx, y: dy }, rot);
     const x = at.x + d.x;
     const y = at.y + d.y;
     const part = p.part;
@@ -66,6 +72,7 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
     if (p.auto === false || source.autoControls === false) out.auto = false;
     if (p.armed === true) out.armed = true;
     if (p.makes !== undefined) out.makes = p.makes;
+    if (p.size !== undefined) out.size = p.size;
     return out;
   });
 

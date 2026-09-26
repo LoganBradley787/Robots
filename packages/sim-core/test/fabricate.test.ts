@@ -252,3 +252,55 @@ describe('fabricator bay: review fixes (M12)', () => {
     w2.dispose();
   });
 });
+
+describe('stretchy bays (M12, Logan: sized where placed)', () => {
+  it('a cup footprint: floor, walls, a hollow of any size; mass per cell', async () => {
+    const { cupFootprint, footprintOf, partMass, defaultSize } = await import('../src/parts/footprint');
+    const bay = registry.get('fabbay');
+    expect(defaultSize(bay)).toEqual([1, 5]);
+    expect(footprintOf(bay, [1, 5])).toBe(bay.footprint);
+    const big = footprintOf(bay, [2, 6]);
+    expect(big).toHaveLength(2 + 2 + 12);
+    expect(partMass(bay, big)).toBe(16);
+    expect(hollowCells(bay, [2, 6])).toHaveLength(12);
+    expect(cupFootprint(1, 5)).toHaveLength(13);
+  });
+
+  it('validates sizes: only on a stretchy part, within its range', () => {
+    const codes = (raw: unknown): string[] => validateBlueprint(raw, registry).issues.filter((i) => i.severity === 'error').map((i) => i.code);
+    const sized = (size: unknown): Record<string, unknown> => ({ ...bayBot(), parts: [{ part: 'core', x: 0, y: 0 }, { part: 'densebattery', x: -1, y: 0 }, { part: 'densebattery', x: 1, y: 0 }, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item', size }] });
+    expect(codes(sized([2, 6]))).toEqual([]);
+    expect(codes(sized([9, 6]))).toContain('BAD_SIZE');
+    expect(codes(sized([0, 6]))).toContain('BAD_FORMAT');
+    expect(codes({ format: 1, name: 'x', parts: [{ part: 'frame', x: 0, y: 0, size: [2, 2] }] })).toContain('BAD_SIZE');
+  });
+
+  it('a 2 by 6 bay builds a big missile, and saves and reloads at its size', async () => {
+    const bigMissile = resolveScripts(JSON.parse(bpFile('big-missile.json')), bpFile).raw;
+    const raw = { ...bayBot(bigMissile), parts: [{ part: 'core', x: 0, y: 0 }, { part: 'densebattery', x: -1, y: 0 }, { part: 'densebattery', x: 1, y: 0 }, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item', size: [2, 6] }] };
+    const v = validateBlueprint(raw, registry);
+    expect(v.ok).toBe(true);
+    const again = validateBlueprint(toFileJson(v.blueprint!, registry, { inlineScripts: true }), registry);
+    expect(again.blueprint?.parts.find((p) => p.part === 'fabbay')?.size).toEqual([2, 6]);
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(raw, { x: -100, y: 0.5 });
+    for (let t = 0; t < 12 * 60; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(1);
+    expect(w.partOutput(r.id, 'fabbay@0,1', 'ready')).toBe(1);
+    w.dispose();
+  });
+
+  it('mirrors an even-width bay onto the mirrored cells', async () => {
+    const { orientRaw } = await import('../src/blueprint/orient');
+    const { partCells } = await import('../src/assembly/assemble');
+    const raw = { format: 1, name: 'x', parts: [{ part: 'core', x: 0, y: 0 }, { part: 'fabbay', x: 0, y: 1, size: [2, 3] }] };
+    const cellsOf = (b: unknown): string[] => {
+      const bp = validateBlueprint(b, registry).blueprint!;
+      return bp.parts.flatMap((p) => partCells(p, registry).map((c) => `${c.cell.x},${c.cell.y}`)).sort();
+    };
+    const before = cellsOf(raw);
+    const flipped = cellsOf(orientRaw(raw, { flip: true }, registry));
+    // Flipped across the core's column (x 0): every cell x goes to -x.
+    expect(flipped).toEqual(before.map((k) => { const [x, y] = k.split(',').map(Number); return `${-(x as number) + 0},${y}`; }).sort());
+  });
+});

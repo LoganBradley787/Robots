@@ -541,6 +541,39 @@ function drawFabBay(): Canvas {
   return cv;
 }
 
+/** Fabricator bay tiles (M12): drawn per cell so a bay of any size looks built. Left side; the right is flipped. */
+function drawFabTile(kind: 'floor' | 'corner' | 'wall' | 'mouth' | 'back'): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  const steel = hex('#4b525c');
+  const edge = hex('#262a30');
+  if (kind === 'back') {
+    cv.fill(rect(0, 0, CELL, CELL), hex('#12151a'), 0.6);
+    cv.fill(rect(0, CELL - 2, CELL, CELL), hex('#2a3f4a'), 0.8);
+    return cv;
+  }
+  if (kind === 'floor') {
+    plate(cv, 0, 0, CELL, CELL, hex('#3c424b'), edge, 2);
+    // The machine bed: a press plate on top, lit where it grips.
+    cv.fill(rect(4, 3, CELL - 4, 12), hex('#8a9099'));
+    bevel(cv, 4, 3, CELL - 4, 12, 1.5, 0.3, 0.3);
+    cv.fill(rect(6, 1, CELL - 6, 3), CYAN, 0.8);
+    rivet(cv, 12, 48, 2.6);
+    rivet(cv, CELL - 12, 48, 2.6);
+    return cv;
+  }
+  plate(cv, 0, 0, CELL, CELL, kind === 'corner' ? hex('#3c424b') : steel, edge, 2);
+  if (kind !== 'corner') {
+    // Grip strip on the inner (right) side.
+    cv.fill(rect(CELL - 8, 0, CELL - 3, CELL), hex('#1d6f86'));
+    cv.fill(rect(CELL - 7, 0, CELL - 5, CELL), CYAN, 0.8);
+  }
+  if (kind === 'mouth') {
+    hazard(cv, rect(3, 3, CELL - 9, 16));
+    rivet(cv, 12, 34, 2.6);
+  } else rivet(cv, 12, 32, 2.6);
+  return cv;
+}
+
 /** Seeker (M8): a dark housing with a glass eye on the top (N) edge, the way it looks, and a green lens glow. */
 function drawSeeker(): Canvas {
   const cv = new Canvas(CELL, CELL);
@@ -908,6 +941,11 @@ function main(): void {
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
     { name: 'part.fabbay', canvas: drawFabBay() },
+    { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
+    { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },
+    { name: 'part.fabbay.wall', canvas: drawFabTile('wall') },
+    { name: 'part.fabbay.mouth', canvas: drawFabTile('mouth') },
+    { name: 'part.fabbay.back', canvas: drawFabTile('back') },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
   write('sheets/parts.png', partsSheet.png);

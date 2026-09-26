@@ -1,3 +1,4 @@
+import { partMass } from '../parts/footprint';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { rotateCell } from '../parts/faces';
 import type { BodyGroup, PartInstance } from '../world/Robot';
@@ -51,8 +52,9 @@ export function buildBodies(
     for (const id of g.partIds) {
       const p = part(id);
       const def = p.def;
-      const cellMass = def.mass / def.footprint.length;
-      for (const fc of def.footprint) {
+      const cells = p.footprint ?? def.footprint;
+      const cellMass = partMass(def, cells) / cells.length;
+      for (const fc of cells) {
         const off = rotateCell(fc, p.rot);
         const offsetX = p.x + off.x - origin.x;
         const offsetY = p.y + off.y - origin.y;

@@ -174,3 +174,15 @@ kbd { font: 10px ui-monospace, Menlo, monospace; padding: 0 4px; border: 1px sol
 .script-state.crashed { color: #ff9a8a; }
 .script-state.crashed .dot { background: #ff5c5c; }
 .log-line { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* M12: a stretchy part's hollow size in its part menu. */
+.part-menu .size-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 6px 0;
+}
+.part-menu .size-row button {
+  min-width: 22px;
+  padding: 0 4px;
+}

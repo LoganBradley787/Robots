@@ -1,6 +1,6 @@
 import type { Blueprint } from '../blueprint/types';
 import type { BodyId, JointId } from '../physics/PhysicsWorld';
-import type { Face, PartDef, Rotation } from '../parts/types';
+import type { Face, FootprintCell, PartDef, Rotation } from '../parts/types';
 
 /** A placed part in a spawned robot. */
 export interface PartInstance {
@@ -48,6 +48,8 @@ export interface PartInstance {
   holds?: string;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
+  /** M12: the part's cells when they differ from its def's (a stretchy part placed at another size). */
+  footprint?: FootprintCell[];
   /** Index of the body group that owns this part. */
   group: number;
   /** Offset of this part's cell from its group's origin cell, in meters (body frame). */

@@ -1,4 +1,5 @@
 import { partCells } from '../assembly/assemble';
+import { footprintOf, partMass } from '../parts/footprint';
 import type { PartRegistry } from '../parts/registry';
 import type { Blueprint } from './types';
 
@@ -27,7 +28,7 @@ export function staticStats(bp: Blueprint, registry: PartRegistry): StaticStats 
     if (def.resource?.kind === 'energy') energy += def.resource.capacity;
     fullDraw += def.powerDraw;
     const cells = partCells(p, registry);
-    const m = def.mass / cells.length;
+    const m = partMass(def, footprintOf(def, p.size)) / cells.length;
     for (const { cell } of cells) {
       mass += m;
       mx += m * cell.x;
