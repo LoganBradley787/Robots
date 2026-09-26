@@ -21,7 +21,7 @@ describe('validateBlueprint', () => {
   });
 
   it('passes expansion errors through and stops', () => {
-    expect(only({ format: 1, name: 't', grid: ['Q'] })?.code).toBe('UNKNOWN_TOKEN');
+    expect(only({ format: 1, name: 't', grid: ['J'] })?.code).toBe('UNKNOWN_TOKEN');
   });
 
   it('UNKNOWN_PART names the known parts', () => {
@@ -29,7 +29,7 @@ describe('validateBlueprint', () => {
     expect(i).toEqual({
       severity: 'error',
       code: 'UNKNOWN_PART',
-      message: "zap@0,0 uses part 'zap', which does not exist (known: core, frame, battery, wheel, thruster, propeller, decoupler, warhead, gyro, rotator, cell, seeker, radar, booster, heavywarhead, heavygyro, densebattery)",
+      message: "zap@0,0 uses part 'zap', which does not exist (known: core, frame, battery, wheel, thruster, propeller, decoupler, warhead, gyro, rotator, cell, seeker, radar, booster, heavywarhead, heavygyro, densebattery, flare)",
       partId: 'zap@0,0',
       cell: { x: 0, y: 0 },
     });

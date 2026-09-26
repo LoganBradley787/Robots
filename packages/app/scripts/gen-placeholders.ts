@@ -488,6 +488,27 @@ function drawWarhead(red = hex('#8e2323'), edge = hex('#561414'), band = hex('#c
   return cv;
 }
 
+/**
+ * Flare (M11): a short red tube in a small mounting plate with a striker cap on top. Lit, the cap end burns white
+ * with a yellow and orange glow over the tube.
+ */
+function drawFlare(lit = false): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 6, 36, 58, 62, hex('#6f747d'), OUTLINE, 2);
+  for (const [x, y] of [[12, 49], [52, 49]] as const) rivet(cv, x, y, 2.2);
+  plate(cv, 20, 12, 44, 58, hex('#c2412b'), hex('#6e1d12'), 2.5);
+  cv.fill(rect(23, 14, 27, 56), WHITE, 0.22);
+  cv.fill(rect(22.5, 40, 41.5, 45), YELLOW);
+  plate(cv, 18, 6, 46, 16, lit ? hex('#fff3c4') : hex('#3b3e45'), lit ? hex('#ffb13b') : hex('#1d1f23'), 2);
+  if (lit) {
+    cv.fill(circle(32, 11, 24), hex('#ff9a2e'), 0.28);
+    cv.fill(circle(32, 11, 16), hex('#ffd24a'), 0.45);
+    cv.fill(circle(32, 11, 9), hex('#fff7d6'), 0.95);
+    cv.fill(circle(32, 11, 4.5), WHITE);
+  }
+  return cv;
+}
+
 /** Seeker (M8): a dark housing with a glass eye on the top (N) edge, the way it looks, and a green lens glow. */
 function drawSeeker(): Canvas {
   const cv = new Canvas(CELL, CELL);
@@ -839,6 +860,8 @@ function main(): void {
     // Dense battery (Logan): the battery in blue.
     { name: 'part.densebattery', canvas: drawBattery(hex('#3f7fd6'), hex('#224a80')) },
     { name: 'part.radar', canvas: drawRadar() },
+    { name: 'part.flare', canvas: drawFlare() },
+    { name: 'part.flare.lit', canvas: drawFlare(true) },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
   write('sheets/parts.png', partsSheet.png);

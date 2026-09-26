@@ -52,6 +52,8 @@ export interface SpriteSpec {
   overlay?: string;
   /** M10: drawn instead of `frame` while the part is armed (a part with `arming`). */
   armedFrame?: string;
+  /** M11: drawn instead of `frame` while the part burns (a part with `decoy`). */
+  litFrame?: string;
 }
 
 export interface ResourceSpec {
@@ -100,6 +102,14 @@ export interface AutoControlSpec {
   labels?: [string, string];
 }
 
+/**
+ * A decoy (M11, a flare): once its `ignite` input goes above 0.5 it burns for `burn` seconds, then is gone. While it
+ * burns, every sensor that sees it takes it for the robot it was part of when it was lit (`03`, `04`: contacts).
+ */
+export interface DecoySpec {
+  burn: number;
+}
+
 export interface PartDef {
   id: string;
   name: string;
@@ -129,6 +139,8 @@ export interface PartDef {
    */
   arming?: boolean;
   sensor?: SensorSpec;
+  /** M11: the part is a decoy (a flare). It needs an `ignite` input and a `burning` output. */
+  decoy?: DecoySpec;
   sprite: SpriteSpec;
   defaultTags?: string[];
 }

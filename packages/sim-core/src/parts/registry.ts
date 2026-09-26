@@ -17,6 +17,7 @@ import booster from './defs/booster.json';
 import heavywarhead from './defs/heavywarhead.json';
 import heavygyro from './defs/heavygyro.json';
 import densebattery from './defs/densebattery.json';
+import flare from './defs/flare.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -66,6 +67,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['heavywarhead.json', heavywarhead],
   ['heavygyro.json', heavygyro],
   ['densebattery.json', densebattery],
+  ['flare.json', flare],
 ];
 
 let shipped: PartRegistry | null = null;

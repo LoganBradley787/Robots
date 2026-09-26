@@ -419,6 +419,46 @@
         "w": 64,
         "h": 64
       }
+    },
+    "part.flare": {
+      "frame": {
+        "x": 71,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.flare.lit": {
+      "frame": {
+        "x": 139,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
     }
   },
   "meta": {

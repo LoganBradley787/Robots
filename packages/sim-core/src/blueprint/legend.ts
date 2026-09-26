@@ -37,6 +37,7 @@ export const DEFAULT_LEGEND: Readonly<Record<string, LegendEntry>> = {
   Sv: { part: 'seeker', rot: 180 },
   'S<': { part: 'seeker', rot: 90 },
   'S>': { part: 'seeker', rot: 270 },
+  Q: { part: 'flare' },
   R: { part: 'rotator', rot: 0 },
   Rv: { part: 'rotator', rot: 180 },
   'R<': { part: 'rotator', rot: 90 },

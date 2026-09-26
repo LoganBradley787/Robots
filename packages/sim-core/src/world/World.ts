@@ -54,7 +54,7 @@ export type WorldEvent =
     }
   | { tick: number; robot: number; kind: 'scriptCrashed'; script: string; error: ScriptError }
   /** A part reached 0 health and is gone. `x`, `y` is where its cell was; `exploded` when it set off a blast (M10). */
-  | { tick: number; robot: number; kind: 'partDestroyed'; part: string; partType: string; x: number; y: number; exploded: boolean }
+  | { tick: number; robot: number; kind: 'partDestroyed'; part: string; partType: string; x: number; y: number; exploded: boolean; burntOut?: true }
   /** A blast went off (`robot` owned the part that exploded). */
   | { tick: number; robot: number; kind: 'explosion'; x: number; y: number; radius: number }
   /** A robot broke apart: it keeps one piece, the others are new robots. */
@@ -70,7 +70,11 @@ export type WorldEvent =
   /** A script sent a message to an attached core (M8); `data` is its JSON text. */
   | { tick: number; robot: number; kind: 'sent'; to: string; data: string }
   /** M10: a part that needs arming was armed by its `arm` input (a key or a script). */
-  | { tick: number; robot: number; kind: 'armed'; part: string };
+  | { tick: number; robot: number; kind: 'armed'; part: string }
+  /** M11: a decoy (a flare) was lit by its `ignite` input; `of` is the robot it stands in for while it burns. */
+  | { tick: number; robot: number; kind: 'lit'; part: string; of: number }
+  /** M11: a decoy burnt out; it is destroyed this tick without a blast. */
+  | { tick: number; robot: number; kind: 'burntOut'; part: string };
 
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
@@ -204,6 +208,11 @@ export class World {
   private readonly lastSentEvent = new Map<string, number>();
   /** Fixed terrain boxes, read once: they never change after the world is built. */
   private terrain: TerrainBox[] | undefined;
+  /**
+   * Decoys lit at some point and maybe still burning (M11), so contacts skip looking for decoys when there are none.
+   * Pruned when the world is scanned for burning decoys. Derived from hashed state (each part's `burn`).
+   */
+  private readonly decoys = new Set<PartInstance>();
   /** Robots each robot's sensors saw when its scripts last ran, for `scan()` (M8). Derived, not hashed. */
   private readonly seen = new Map<number, Set<number>>();
   /** The marks each robot's scripts made when they last ran, by script (M8). For the overlay and reports; not hashed. */
@@ -318,16 +327,36 @@ export class World {
   /**
    * M10: a part that needs arming (`arming` in its def) is armed for good once its `arm` input is above 0.5, before
    * behaviors run, so arming and `detonate` on the same tick go off.
+   * M11: a decoy is lit for good once its `ignite` input is above 0.5, before behaviors run, so a decoupler letting
+   * it go on the same tick lets it go burning, standing in for the robot it was part of. A lit decoy burns down one
+   * tick at a time and is destroyed (quietly: a decoy has no blast) when it reaches 0.
    */
   private armParts(): void {
     for (const robot of this.robots) {
       const chans = this.channels.get(robot.id);
       for (const part of robot.parts.values()) {
+        if (part.def.decoy !== undefined) this.burnDecoy(robot, part, chans?.get(part.id)?.get('ignite') ?? 0, part.def.decoy.burn);
         if (part.armed !== false || (chans?.get(part.id)?.get('arm') ?? 0) <= 0.5) continue;
         part.armed = true;
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'armed', part: part.id });
       }
     }
+  }
+
+  private burnDecoy(robot: Robot, part: PartInstance, ignite: number, seconds: number): void {
+    if (part.burn === undefined) {
+      if (ignite <= 0.5 || part.health <= 0) return;
+      part.burn = Math.max(1, Math.round(seconds / this.dt));
+      part.decoyOf = robot.id;
+      this.decoys.add(part);
+      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'lit', part: part.id, of: robot.id });
+      return;
+    }
+    if (part.burn <= 0) return;
+    part.burn--;
+    if (part.burn > 0) return;
+    part.health = 0;
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'burntOut', part: part.id });
   }
 
   /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
@@ -414,7 +443,7 @@ export class World {
         this.dirty.add(robot);
         // An unarmed part that needs arming breaks like any other part (M10).
         const explode = part.armed === false ? undefined : part.def.onDestroyed?.explode;
-        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y, exploded: explode !== undefined });
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y, exploded: explode !== undefined, ...(part.burn === 0 ? { burntOut: true as const } : {}) });
         if (explode) this.queuedBlasts.push({ robot: robot.id, x: pose.x, y: pose.y, spec: explode });
       }
     }
@@ -759,6 +788,7 @@ export class World {
     if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
     if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
+    if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
     return undefined;
   }
 
@@ -1106,6 +1136,11 @@ export class World {
         if (part.sensing !== undefined) h.addInt(part.sensing ? 1 : 0);
         // Whether a part that needs arming is armed (M10). Other parts add nothing.
         if (part.armed !== undefined) h.addInt(part.armed ? 2 : 3);
+        // A decoy's burn left and the robot it stands in for (M11). Other parts add nothing.
+        if (part.def.decoy !== undefined) {
+          h.addInt(part.burn ?? -1);
+          h.addInt(part.decoyOf ?? 0);
+        }
         // Messages waiting for a core (M8) shape what its scripts do.
         for (const m of part.inbox ?? []) {
           h.addString(m.from);
@@ -1241,6 +1276,7 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
     return name === 'energy' ? pool.stored : pool.capacity;
   }
   if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
+  if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
   return undefined;
 }
 

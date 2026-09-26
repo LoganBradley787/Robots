@@ -64,7 +64,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -193,6 +193,12 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (cone < 360 && def.acts === undefined) r.fail('sensor', 'a cone narrower than 360 degrees needs "acts" (the way the part looks)');
     def.sensor = { cone, range: r.positive(so, 'range', 'sensor') };
   }
+  if (o.decoy !== undefined) {
+    const d = r.obj(o.decoy, 'decoy', ['burn']);
+    if (!def.inputs.some((c) => c.name === 'ignite')) r.fail('decoy', 'a decoy must have an "ignite" input');
+    if (!def.outputs.some((c) => c.name === 'burning')) r.fail('decoy', 'a decoy must have a "burning" output');
+    def.decoy = { burn: r.positive(d, 'burn', 'decoy') };
+  }
   if (o.defaultTags !== undefined) {
     def.defaultTags = r.arr(o, 'defaultTags', '').map((t, i) => {
       if (typeof t !== 'string' || t === '') r.fail(`defaultTags[${i}]`, 'must be a non-empty string');
@@ -203,12 +209,13 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
 }
 
 function sprite(r: Reader, v: unknown): SpriteSpec {
-  const so = r.obj(v, 'sprite', ['frame', 'mountFrame', 'animation', 'overlay', 'armedFrame']);
+  const so = r.obj(v, 'sprite', ['frame', 'mountFrame', 'animation', 'overlay', 'armedFrame', 'litFrame']);
   const s: SpriteSpec = { frame: r.str(so, 'frame', 'sprite') };
   if (so.mountFrame !== undefined) s.mountFrame = r.str(so, 'mountFrame', 'sprite');
   if (so.animation !== undefined) s.animation = r.str(so, 'animation', 'sprite');
   if (so.overlay !== undefined) s.overlay = r.str(so, 'overlay', 'sprite');
   if (so.armedFrame !== undefined) s.armedFrame = r.str(so, 'armedFrame', 'sprite');
+  if (so.litFrame !== undefined) s.litFrame = r.str(so, 'litFrame', 'sprite');
   return s;
 }
 

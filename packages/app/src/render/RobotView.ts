@@ -28,8 +28,8 @@ export class RobotView {
   private readonly robot: Robot;
   private readonly bodies: { bodyId: BodyId; view: Container }[] = [];
   private readonly effects: Effect[] = [];
-  /** Part sprites with the health they were last tinted for, and (M10) the armed look they last showed. */
-  private readonly parts: { partId: string; sprite: Sprite; health: number; plain?: Texture; lit?: Texture; armed?: boolean }[] = [];
+  /** Part sprites with the health they were last tinted for, and the lit look (M10 armed, M11 burning) they last showed. */
+  private readonly parts: { partId: string; sprite: Sprite; health: number; plain?: Texture; lit?: Texture; on?: boolean }[] = [];
 
   constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations) {
     this.robot = robot;
@@ -58,8 +58,9 @@ export class RobotView {
         sprite.rotation = toScreenAngle(s.rotation);
         view.addChild(sprite);
         if (s.kind === 'part') {
-          // A part that needs arming (M10) swaps to its armed frame once armed.
-          const lit = def?.arming === true && def.sprite.armedFrame !== undefined && !s.animation ? frame(def.sprite.armedFrame) : undefined;
+          // A part that needs arming (M10) swaps to its armed frame once armed; a decoy (M11) to its lit frame while it burns.
+          const litName = def?.arming === true ? def.sprite.armedFrame : def?.decoy !== undefined ? def.sprite.litFrame : undefined;
+          const lit = litName !== undefined && !s.animation ? frame(litName) : undefined;
           this.parts.push({ partId: s.partId, sprite, health: Number.NaN, ...(lit ? { plain: sprite.texture, lit } : {}) });
         }
         if (s.overlay && animations && s.channel) {
@@ -94,9 +95,10 @@ export class RobotView {
     }
     for (const p of this.parts) {
       const part = this.robot.parts.get(p.partId);
-      if (p.lit && part && part.armed !== p.armed) {
-        p.armed = part.armed;
-        p.sprite.texture = (part.armed ? p.lit : p.plain) ?? p.sprite.texture;
+      const on = part?.armed === true || (part?.burn ?? 0) > 0;
+      if (p.lit && part && on !== p.on) {
+        p.on = on;
+        p.sprite.texture = (on ? p.lit : p.plain) ?? p.sprite.texture;
         p.sprite.width = PIXELS_PER_METER;
         p.sprite.height = PIXELS_PER_METER;
       }

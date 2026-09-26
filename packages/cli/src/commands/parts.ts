@@ -64,6 +64,7 @@ function details(d: PartDef): string[] {
     const cone = d.sensor.cone >= 360 ? 'all around' : `in a ${d.sensor.cone} degree cone toward its ${d.acts ?? 'N'} face`;
     out.push(`sensor: sees robots ${cone} out to ${d.sensor.range} m (terrain blocks it, robots do not); scripts read them in contacts and scan(id); on 0 switches it off`);
   }
+  if (d.decoy) out.push(`decoy: lit for good once its ignite input goes above 0.5 (a key or a script), it burns ${d.decoy.burn} s and is gone; while it burns, every sensor that sees it takes it for the robot it was part of when lit (contacts and scan report that robot at the flare); burning reads 1`);
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
   return out;
 }

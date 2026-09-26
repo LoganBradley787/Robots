@@ -29,6 +29,13 @@ export interface PartInstance {
    * warhead ignores `detonate`.
    */
   armed?: boolean;
+  /**
+   * M11: for a part whose def has `decoy`, the ticks it has left to burn once lit (counting down to 0, when it is
+   * destroyed). Undefined until lit.
+   */
+  burn?: number;
+  /** M11: the robot a lit decoy stands in for: the one it was part of when it was lit. */
+  decoyOf?: number;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** Index of the body group that owns this part. */

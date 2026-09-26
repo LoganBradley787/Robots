@@ -35,6 +35,7 @@ describe('default part defs', () => {
       'heavywarhead',
       'heavygyro',
       'densebattery',
+      'flare',
     ]);
   });
 
@@ -44,7 +45,7 @@ describe('default part defs', () => {
 
   it('health (M6): frames are armor, propellers are fragile', () => {
     const health = Object.fromEntries(defaultRegistry().list().map((d) => [d.id, d.health]));
-    expect(health).toEqual({ core: 50, frame: 60, battery: 30, wheel: 25, thruster: 25, propeller: 15, decoupler: 30, warhead: 20, gyro: 30, rotator: 40, cell: 10, seeker: 20, radar: 40, booster: 25, heavywarhead: 20, heavygyro: 30, densebattery: 30 });
+    expect(health).toEqual({ core: 50, frame: 60, battery: 30, wheel: 25, thruster: 25, propeller: 15, decoupler: 30, warhead: 20, gyro: 30, rotator: 40, cell: 10, seeker: 20, radar: 40, booster: 25, heavywarhead: 20, heavygyro: 30, densebattery: 30, flare: 5 });
   });
 
   it('the warhead explodes when destroyed and breaks on a hard hit', () => {
@@ -104,6 +105,19 @@ describe('parsePartDef', () => {
     expect(() => parsePartDef({ ...minimal, inputs: [arm], arming: true }, 'thing.json')).toThrow('must have an "armed" output');
     expect(() => parsePartDef({ ...minimal, arming: 'yes' }, 'thing.json')).toThrow('arming must be true or false');
     expect(defaultRegistry().list().filter((d) => d.arming === true).map((d) => d.id).sort()).toEqual(['heavywarhead', 'warhead']);
+  });
+
+  it('decoy (M11): needs an ignite input, a burning output, and a burn time; the sprite may name a litFrame', () => {
+    const ignite = { name: 'ignite', min: 0, max: 1, default: 0 };
+    const burning = { name: 'burning', min: 0, max: 1, default: 0 };
+    const ok = parsePartDef({ ...minimal, inputs: [ignite], outputs: [burning], decoy: { burn: 2 }, sprite: { frame: 'part.x', litFrame: 'part.x.lit' } }, 'thing.json');
+    expect(ok.decoy).toEqual({ burn: 2 });
+    expect(ok.sprite.litFrame).toBe('part.x.lit');
+    expect(() => parsePartDef({ ...minimal, outputs: [burning], decoy: { burn: 2 } }, 'thing.json')).toThrow('must have an "ignite" input');
+    expect(() => parsePartDef({ ...minimal, inputs: [ignite], decoy: { burn: 2 } }, 'thing.json')).toThrow('must have a "burning" output');
+    expect(() => parsePartDef({ ...minimal, inputs: [ignite], outputs: [burning], decoy: { burn: 0 } }, 'thing.json')).toThrow(PartDefError);
+    expect(defaultRegistry().list().filter((d) => d.decoy !== undefined).map((d) => d.id)).toEqual(['flare']);
+    expect(defaultRegistry().get('flare')).toMatchObject({ mass: 0.2, health: 5, decoy: { burn: 2 } });
   });
 
   it('rejects unknown keys', () => {
