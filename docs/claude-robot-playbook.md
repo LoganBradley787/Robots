@@ -28,6 +28,7 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
   - `--unlimited`: energy never runs out. `--json`: the whole report as JSON.
   - `--world <path>`: another world file (`worlds/flat.json` is the default).
 - `pnpm sim determinism <bp> [run flags]`: runs twice, compares hashes.
+- `pnpm sim bench [hover|big|battle|debris] [--n <count>]` (M9): ms per tick on this machine for fixed scenes (1 to 100 hovering drones, one `flying-silo`, an enemy drone battle), split into scripts and the rest. For checking that a script or a change did not get slow.
 - `pnpm sim place <target> <source> --at x,y [--rot 90] [--mirror] [--save <name or path.json>] [--force]`: copies `source` onto `target` with its core (else its first part) at cell (x, y). See Placing.
 - `pnpm sim mirror <bp> [--axis <half cells>] [--save <name or path.json>] [--force]`: flips left to right in place.
 - `place` and `mirror` print the blueprint's JSON on stdout (scripts inline) and their notes on stderr, so `> draft.json` captures a clean file. Better: `--save drafts/x.json` writes the blueprint and every script as files there (`x.hover.js`, `x.missile1.guide.js`); `--save x` writes them into `blueprints/`.
@@ -89,6 +90,7 @@ function tick() {
 - `send(to, data)`: a message for a core still attached to this robot, named by its scope (`missile1`), a tag, or its part id. `data` is anything JSON, up to 1 KB; up to 16 calls per script per tick and 32 per robot. It arrives next tick.
 - `inbox`: messages that arrived, `[{ from, tick, data }]`, shown once. A placed core that is still attached keeps its messages until it wakes, so its `setup()` reads what the launcher sent just before letting go.
 - `mark(x, y, label)`: a point drawn in the app's debug overlay and the run report's side view (up to 4 per tick). For showing where a script is aiming.
+- `parts` entries are the same objects every tick (M9), with their numbers (`pos`, `angle`, `in`, `out` values) updated in place; `id`, `type`, `tags`, `pos`, `mass`, `in`, `out` cannot be replaced. Treat them as read-only, and copy what you keep (`state.start = { x: p.pos.x, y: p.pos.y }`, not `state.start = p.pos`). `parts` itself, `self`, `contacts`, and `inbox` are new every tick.
 - `contacts`, `inbox`, `parts`, `self`, `state`, `keys` are set by the host every tick: do not name your own variables that. `set()` with NaN or Infinity is ignored with one log line; `mark()` skips such points.
 - Signs that trip people: a gyro's `spin` is clockwise positive (the opposite of `self.angle`); a rotator's `angle` output is -1 to 1 of its range.
 - Name parts by tag or type in scripts, never by id: ids change when a blueprint is placed or mirrored.
@@ -178,6 +180,8 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 - **Fire order:** when two missiles hang side by side pointing the same way, fire the front one first, or the back one flies through it.
 - **Spawn in the open.** `worlds/flat.json`: a 2 by 2 m box from x 7 to 9, the ramp (a 6 by 1 m box tilted 18 degrees, x 12 to 18, top about 1.9 m), a 1 by 1 m box from x -8.5 to -7.5, and ground from x -500 to 500. Open ground: x below -10 or between 20 and 490. In the app Logan deploys wherever they click, so a robot for the ramp can start anywhere left of it; headless, the gap between the 2 m box and the ramp is only 3 m (x 9 to 12), so a car tested there must be at most about 5 wide with its rear edge past x 9, or spawn at x 20 and drive left.
 - **Energy.** Check `energy:` in the report; fliers run dry in tens of seconds on one battery.
+- **A part kept in `state` keeps moving.** Since M9 part objects are reused between ticks, so `state.p = parts[0]` follows that part live instead of remembering where it was. Copy the numbers you want to remember.
+- **Script cost.** Since M9 a script call costs about 20 us before it does anything; the rest is its own work (the drone hover's four loops over 38 parts cost about 40 us more). 100 hovering drones fit in one frame headless. A loop over every part inside another loop over every part is what gets slow on big robots; `pnpm sim bench` shows it.
 
 - **Deploying in the app:** the robot lands where Logan clicks, and no part may be below the ground. A tall robot can stand on a missile's nose (a warhead only goes off on a hit of more than 5 m/s).
 - **Replays in tests need the script host:** `runReplay(replay, undefined, host)`. Without it every scripted robot sits still in the replay and the hashes never match.

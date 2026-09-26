@@ -76,6 +76,8 @@ interface InputFrame {
 - Every tick's `RobotInput` edges are recorded to the input log with the tick.
 
 ## Script API (draft, Q10)
+
+As built (M9, script speed): what a script sees is unchanged, but it crosses into the sandbox in three pieces (`script/frame.ts`): a layout (each part's id, type, tags, mass, and the names of its `in` and `out` values) sent only when the robot changes, one binary block of every number that moves, and a small JSON text for keys, contacts, and inbox. Part objects are built once per layout and refilled in place every tick; their fields other than the numbers are read-only, so a script copies what it keeps. JSON's quirks are kept (`-0` arrives as `0`, `NaN` and `Infinity` as `null`). A parity test checks every script call in 15 scenes against the old JSON path, and golden hashes (`packages/cli/test/golden-hashes.json`) check that no run changed.
 Injected globals inside the sandbox. Everything is plain data; no host objects leak in.
 
 ```js
