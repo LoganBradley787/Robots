@@ -216,7 +216,7 @@ export class WorldScreen {
     for (const robot of this.world.robots) {
       const old = this.views.get(robot.id);
       if (old && old.version === robot.version) continue;
-      const view = new RobotView(robot, (f) => this.textures.part(f), (name) => this.textures.fx.animations[name] ?? []);
+      const view = new RobotView(robot, (f) => this.textures.part(f), (name) => this.textures.fx.animations[name] ?? [], this.world.registry);
       if (old) {
         this.renderer.bodies.addChildAt(view.root, this.renderer.bodies.getChildIndex(old.root));
         old.root.destroy({ children: true });

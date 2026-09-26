@@ -2,7 +2,7 @@ import { partCells } from '../assembly/assemble';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import type { Binding, Blueprint, PlacedPart } from './types';
+import type { Binding, Blueprint, PlacedPart, Recipe } from './types';
 
 /**
  * Pure edit operations for the builder. Each returns a new Blueprint, or the same object when nothing changed,
@@ -131,4 +131,20 @@ export function setAutoControls(bp: Blueprint, on: boolean): Blueprint {
     return rest;
   }
   return { ...bp, autoControls: false };
+}
+
+/**
+ * M12: what the given fabricators make. With a recipe, it is added (or replaces the one of its name) and the parts make
+ * it; without, the parts make nothing. Recipes no part makes any more are dropped.
+ */
+export function setPartsMakes(bp: Blueprint, ids: readonly string[], recipe: Recipe | undefined): Blueprint {
+  const parts: PlacedPart[] = bp.parts.map((p) => {
+    if (!ids.includes(p.id)) return p;
+    if (recipe) return { ...p, makes: recipe.name };
+    const { makes: _makes, ...rest } = p;
+    return rest;
+  });
+  const recipes = [...(bp.recipes ?? []).filter((r) => r.name !== recipe?.name), ...(recipe ? [recipe] : [])].filter((r) => parts.some((p) => p.makes === r.name));
+  const { recipes: _old, ...rest } = bp;
+  return recipes.length > 0 ? { ...rest, parts, recipes } : { ...rest, parts };
 }

@@ -1,5 +1,5 @@
 import { AnimatedSprite, Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import { footprintBox, type BodyId, type PhysicsWorld, type Robot } from '@robots/sim-core';
+import { footprintBox, recipePlacement, rootPartId, rotateCell, rotationRadians, type BodyId, type PartRegistry, type PhysicsWorld, type Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { layoutRobot } from './robotLayout';
 import { damageTint } from './damageTint';
@@ -32,9 +32,14 @@ export class RobotView {
   private readonly parts: { partId: string; sprite: Sprite; health: number; plain?: Texture; lit?: Texture; on?: boolean }[] = [];
   /** A glow over each flare (M11), shown while it burns and flickering. */
   private readonly glows: { partId: string; glow: Graphics }[] = [];
+  /**
+   * What each fabricator bay is building (M12): its recipe's parts, bottom row first, shown faint one by one as the
+   * build goes, and a progress bar across the bay's floor. Hidden while it holds a finished (real) copy.
+   */
+  private readonly builds: { partId: string; ghosts: Sprite[]; bar: Graphics; barW: number }[] = [];
   private frames = 0;
 
-  constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations) {
+  constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations, registry?: PartRegistry) {
     this.robot = robot;
     this.version = robot.version;
     for (const body of layoutRobot(robot)) {
@@ -91,10 +96,57 @@ export class RobotView {
         }
         if (effect.spin || effect.flame) this.effects.push(effect);
       }
+      if (registry) this.addBuilds(body.group, view, frame, registry);
       // Flames draw behind the body so they come out of the nozzle, not over the frame.
       view.addChildAt(flames, 0);
       this.root.addChild(view);
       this.bodies.push({ bodyId: body.bodyId, view });
+    }
+  }
+
+  /** The ghost of each bay's recipe on this body (M12), laid out where the finished copy will sit. */
+  private addBuilds(group: number, view: Container, frame: (name: string) => Texture, registry: PartRegistry): void {
+    for (const placed of this.robot.blueprint.parts) {
+      const bay = this.robot.parts.get(placed.id);
+      const recipe = placed.makes === undefined ? undefined : this.robot.blueprint.recipes?.find((r) => r.name === placed.makes);
+      if (!bay || bay.group !== group || !bay.def.fabricate || !recipe) continue;
+      const where = recipePlacement(placed, recipe.blueprint, registry);
+      const rootId = rootPartId(recipe.blueprint, registry);
+      const root = recipe.blueprint.parts.find((p) => p.id === rootId);
+      if (!where.ok || !root) continue;
+      // Cells to this body's frame: the bay's cell sits at its localX, localY.
+      const ox = bay.x - bay.localX;
+      const oy = bay.y - bay.localY;
+      const ghosts = recipe.blueprint.parts
+        .filter((p) => registry.has(p.part))
+        .map((p) => {
+          const off = rotateCell({ x: p.x - root.x, y: p.y - root.y }, where.rot);
+          const rot = ((p.rot + where.rot) % 360) as 0 | 90 | 180 | 270;
+          const def = registry.get(p.part);
+          const box = footprintBox(def);
+          const b = rotateCell({ x: box.cx, y: box.cy }, rot);
+          const s = new Sprite(frame(def.sprite.frame));
+          s.anchor.set(0.5);
+          s.width = PIXELS_PER_METER * box.w;
+          s.height = PIXELS_PER_METER * box.h;
+          const pos = toScreen({ x: where.at.x + off.x - ox + b.x, y: where.at.y + off.y - oy + b.y });
+          s.position.set(pos.x, pos.y);
+          s.rotation = toScreenAngle(rotationRadians(rot));
+          s.alpha = 0.4;
+          s.visible = false;
+          view.addChild(s);
+          // The recipe sits in the bay as it is (turned only with the bay), so its own rows are the bay's, bottom first.
+          return { s, order: p.y };
+        })
+        .sort((a, b) => a.order - b.order)
+        .map((g) => g.s);
+      const bar = new Graphics();
+      const floor = rotateCell({ x: 0, y: -0.38 }, bay.rot);
+      const p = toScreen({ x: bay.localX + floor.x, y: bay.localY + floor.y });
+      bar.position.set(p.x, p.y);
+      bar.rotation = toScreenAngle(rotationRadians(bay.rot));
+      view.addChild(bar);
+      this.builds.push({ partId: bay.id, ghosts, bar, barW: PIXELS_PER_METER * 2.6 });
     }
   }
 
@@ -117,6 +169,15 @@ export class RobotView {
       if (!part || part.health === p.health) continue;
       p.health = part.health;
       p.sprite.tint = multiplyTint(damageTint(part.health / part.def.health), teamTint(this.robot.team));
+    }
+    for (const b of this.builds) {
+      const bay = this.robot.parts.get(b.partId);
+      const building = bay !== undefined && bay.holding !== true && (bay.progress ?? 0) > 0;
+      const progress = building ? (bay?.progress ?? 0) : 0;
+      const shown = building ? Math.min(b.ghosts.length, Math.floor(progress * b.ghosts.length) + 1) : 0;
+      b.ghosts.forEach((g, i) => (g.visible = i < shown));
+      b.bar.clear();
+      if (building) b.bar.rect(-b.barW / 2, -3, b.barW * progress, 6).fill({ color: 0x38d6ff, alpha: 0.9 });
     }
     this.frames++;
     for (const g of this.glows) {

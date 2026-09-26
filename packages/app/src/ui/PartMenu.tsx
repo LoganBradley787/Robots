@@ -11,6 +11,8 @@ export interface PartMenuActions {
   setAuto(ids: string[], on: boolean): void;
   /** M10: start these parts (ones that need arming) armed or not. */
   setArmed(ids: string[], on: boolean): void;
+  /** M12: what these fabricators build: a saved blueprint's file, a recipe the blueprint has, or nothing. */
+  setMakes(ids: string[], choice: { file: string } | { recipe: string } | undefined): void;
   rotate(dir: 1 | -1): void;
   deleteSelection(): void;
   closeMenu(): void;
@@ -39,6 +41,7 @@ function allTags(bp: Blueprint): string[] {
 export function PartMenu({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: PartMenuActions }) {
   const menu = useStore(store, (s) => s.builder.menu);
   const draft = useStore(store, (s) => s.builder.draft);
+  const files = useStore(store, (s) => s.doc.files);
   const [text, setText] = useState('');
   const box = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: 0, top: 0 });
@@ -65,6 +68,9 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
   const autoOn = autoParts.filter((p) => p.auto !== false).length;
   const armParts = parts.filter((p) => registry.has(p.part) && registry.get(p.part).arming === true);
   const armedOn = armParts.filter((p) => p.armed === true).length;
+  const makers = parts.filter((p) => registry.has(p.part) && registry.get(p.part).fabricate !== undefined);
+  const makes = new Set(makers.map((p) => p.makes ?? ''));
+  const current = makes.size === 1 ? [...makes][0] : undefined;
   const add = (): void => {
     const t = text.trim();
     if (t === '') return;
@@ -119,6 +125,36 @@ export function PartMenu({ store, registry, actions }: { store: Store<AppState>;
             Armed at start
             <span class="muted"> {armParts.length === 1 ? (armedOn === 1 ? 'live from deploy' : 'safe until armed') : `${armedOn} of ${armParts.length}`}</span>
           </span>
+        </label>
+      )}
+      {makers.length > 0 && (
+        <label class="makes" title="What the bay builds: a copy of a blueprint, from the robot's energy, held until its release input lets it go. It must fit the bay's hollow (the issues list says if not).">
+          <span>Makes </span>
+          <select
+            value={current === undefined ? '*' : current === '' ? '' : `recipe:${current}`}
+            onChange={(e) => {
+              const v = (e.target as HTMLSelectElement).value;
+              if (v === '') actions.setMakes(makers.map((p) => p.id), undefined);
+              else if (v.startsWith('recipe:')) actions.setMakes(makers.map((p) => p.id), { recipe: v.slice(7) });
+              else if (v.startsWith('file:')) actions.setMakes(makers.map((p) => p.id), { file: v.slice(5) });
+              (e.target as HTMLSelectElement).blur();
+            }}
+          >
+            {current === undefined && <option value="*">(several)</option>}
+            <option value="">nothing</option>
+            {(draft.recipes ?? []).map((r) => (
+              <option key={`r-${r.name}`} value={`recipe:${r.name}`}>
+                {r.name}
+              </option>
+            ))}
+            <optgroup label="a copy of a saved blueprint">
+              {files.map((f) => (
+                <option key={`f-${f.file}`} value={`file:${f.file}`}>
+                  {f.file.replace(/\.json$/, '')}
+                </option>
+              ))}
+            </optgroup>
+          </select>
         </label>
       )}
       <div class="tags">
