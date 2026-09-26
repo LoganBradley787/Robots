@@ -1,19 +1,21 @@
 // Drone bomb (M10): a small drone that goes after the nearest robot on the other side and sets its heavy warhead off
 // on it. It runs whenever its core is awake: deployed alone it starts at once; carried on something bigger, its core
-// sleeps until it is let go, like a missile; woken, it climbs straight up `clearDist` meters clear of its carrier, and goes after the robot its carrier names (a message with `id`) while
-// it sees it. Its warhead arms the first time it has a target.
+// sleeps until it is let go, like a missile; woken, it climbs straight up at full power `clearDist` meters clear of
+// whatever carried it (out of a fabricator bay's walls too), and goes after the robot its carrier names (a message with
+// `id`) while it sees it. Its warheads arm the first time it has a target.
 // - Chase: it flies toward where the target will be, at the fastest closing speed it can still brake from over the
 //   distance left, so it catches a moving drone without flying past it, but never slower than `ram`: it hits, it does
 //   not park against its target. Relative to the target, so a target that runs away at full speed is only caught if
 //   the drone bomb is faster.
-// - Height: it keeps `above` meters over its target until within `close` meters sideways, then comes down on it, so
-//   its warhead (underneath) meets the target first; that also keeps it off the ground, which it cannot see. It never
-//   climbs more than `ceiling` over where it started (two drone bombs chasing each other would otherwise climb
-//   forever).
-// - Going off: when its warhead comes within `proximity` meters of any of the target's parts (from scan), on a hard
-//   hit (its warhead's fuze, live once armed), or after touching the target with any other part for `stuck` seconds
-//   (it keeps pushing its warhead in meanwhile: a blast set off from its side would mostly hit its own parts). With
-//   nothing tracked it hovers where it is and waits.
+// - Straight in (Logan, after the fab drones): it flies straight at the target's nearest part from whatever side it
+//   is on, never with its lowest part below `low` meters over the target's lowest part, so it does not skim the
+//   ground it cannot see, and at least `pass` meters over any friendly robot on the way. It never climbs more than
+//   `ceiling` over where it started (two drone bombs chasing each other would otherwise climb forever).
+// - Going off: when its warhead nearest the target (it may carry several, on any side) comes within `proximity`
+//   meters of any of the target's parts (from scan), on a hard hit (a warhead's fuze, live once armed), or after
+//   touching the target with any other part for `stuck` seconds (it keeps pushing its warhead in meanwhile). Every
+//   warhead is told to go off; armed ones caught in the blast go off too. With nothing tracked it waits where it
+//   cleared, or where it last had a target.
 // - Swarms: it keeps `space` meters from friendly robots (other drone bombs let go with it), steering away from them,
 //   so they come in from different sides and one blast does not set off the rest.
 // Flying is the enemy drone's hover (time-optimal leaning, balance from its parts), asked for a velocity instead of
@@ -28,17 +30,15 @@ const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of its turni
 const speed = param('speed', 30, { min: 1, max: 80 }); // m/s, fastest it closes on a target
 const brake = param('brake', 7, { min: 1, max: 40 }); // m/s^2 it plans to brake at when closing (leaning back and cutting lift)
 const lead = param('lead', 1.5, { min: 0, max: 5 }); // most seconds ahead it aims at a moving target
-const above = param('above', 6, { min: 0, max: 50 }); // m over the target it keeps until close
-const close = param('close', 12, { min: 1, max: 100 }); // m sideways from the target where it comes straight in
+const pass = param('pass', 10, { min: 0, max: 50 }); // m it keeps over a friendly robot on its way to the target
+const low = param('low', 1, { min: 0, max: 20 }); // m its lowest part stays over the target's lowest part (the ground may be just under it)
 const proximity = param('proximity', 1.5, { min: 0.5, max: 4 }); // m from its warhead to a target part where it goes off
 const touch = param('touch', 1.3, { min: 0.5, max: 4 }); // m between one of its parts and a target part that counts as touching (touching cells are 1 m apart)
 const stuck = param('stuck', 0.4, { min: 0, max: 5 }); // s of touching with its side before it goes off anyway
 const ram = param('ram', 3, { min: 0, max: 30 }); // m/s it still closes at when about to hit (below the fuze's 5, so a side bump does not set it off)
 const ceiling = param('ceiling', 40, { min: 0, max: 500 }); // m above where it started it never climbs past
-const clearTime = param('clearTime', 0.8, { min: 0, max: 5 }); // s it climbs straight up after waking, clear of whatever carried it
-const clearSpeed = param('clearSpeed', 6, { min: 1, max: 30 }); // m/s it climbs clear at (faster only overshoots: it can brake a climb at 1 g)
 const clearWidth = param('clearWidth', 0, { min: 0, max: 100 }); // m sideways from where it was let go before it comes down (a carrier sets its own half width, so they do not dive through its deck)
-const clearDist = param('clearDist', 5, { min: 0, max: 30 }); // and meters it climbs (both must pass before it steers or arms)
+const clearDist = param('clearDist', 15, { min: 0, max: 50 }); // m it climbs straight up at full power after waking, before it steers or arms
 const space = param('space', 7, { min: 0, max: 30 }); // m it keeps from friendly robots (other drone bombs in a swarm), so one blast does not set off the rest
 const spread = param('spread', 12, { min: 0, max: 40 }); // m/s it steers away from a friend right next to it (less further out)
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (missiles) are not worth chasing
@@ -117,23 +117,35 @@ function fly(vx, vy) {
   set('stab', 'spin', gyroTorque > 0 ? clamp(-gyro / gyroTorque, -1, 1) : 0); // the gyro's spin is clockwise positive
 }
 
-/** Where the warhead is (it leads the way in), or the core if the warhead is gone. */
-function nose() {
-  const w = parts.find((p) => p.type === 'heavywarhead' || p.type === 'warhead');
-  return w ? w.pos : self.pos;
+/** Its warhead nearest the point (it may carry several, on any side), or its core with none left. */
+function nose(x, y) {
+  let best = self.pos;
+  let bestD = Infinity;
+  for (const p of parts) {
+    if (p.type !== 'heavywarhead' && p.type !== 'warhead') continue;
+    const d = Math.hypot(p.pos.x - x, p.pos.y - y);
+    if (d < bestD) {
+      best = p.pos;
+      bestD = d;
+    }
+  }
+  return best;
 }
 
 /**
- * The target's part closest to the warhead (when scanned), else its core, with the distance from the warhead; and
- * whether any of its own parts touches any part of the target.
+ * The target's part closest to the warhead (when scanned), else its core, with the distance from the warhead; its
+ * lowest part seen (its core when not scanned); and whether any of its own parts touches any part of the target.
  */
 function aimPoint(t, from) {
   const seen = t.distance < 40 ? scan(t.id) : null;
-  let best = { x: t.pos.x, y: t.pos.y, d: Math.hypot(t.pos.x - from.x, t.pos.y - from.y), touching: false };
+  let best = { x: t.pos.x, y: t.pos.y, d: Math.hypot(t.pos.x - from.x, t.pos.y - from.y), touching: false, bottom: t.pos.y };
+  let bottom = t.pos.y;
   for (const p of seen || []) {
+    bottom = Math.min(bottom, p.pos.y);
     const d = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);
     if (d < best.d) best = { x: p.pos.x, y: p.pos.y, d, touching: false };
   }
+  best.bottom = bottom;
   if (seen && best.d < touch + 6) {
     for (const mine of parts) {
       for (const p of seen) {
@@ -145,13 +157,16 @@ function aimPoint(t, from) {
 }
 
 function tick() {
-  // Just woken (let go by a carrier, or deployed): climb straight up clear of it first, still safe.
+  // Just woken (let go by a carrier or a bay, or deployed): straight up at full power, still safe, until it would coast
+  // the rest of the way up. It steers from there: braking a climb leaves no push to lean with, so it wasted a second.
   if (!state.cleared) {
-    if (time - state.start < clearTime || self.pos.y - state.startY < clearDist) {
-      fly(0, clearSpeed);
+    const left = state.startY + clearDist - self.pos.y;
+    if (left > 0 && self.vel.y * Math.max(0, self.vel.y) < 2 * 9.81 * left) {
+      fly(0, climb);
       return;
     }
     state.cleared = true;
+    state.hold = { x: self.pos.x, y: state.startY + clearDist }; // with nothing to chase it waits here, clear
   }
   // The robot it was sent at while it is still seen, else the nearest.
   const target = contacts.find((c) => c.id === state.want && c.side === 'enemy' && c.core) || contacts.find((c) => c.side === 'enemy' && c.core && c.mass >= minMass);
@@ -165,7 +180,9 @@ function tick() {
   // nothing to chase does not go off where it lands when its battery runs out.
   set('heavywarhead', 'arm', 1);
   set('warhead', 'arm', 1);
-  const from = nose();
+  // The warhead nearest the target leads, aimed at the target's part nearest that warhead.
+  const near = aimPoint(target, nose(target.pos.x, target.pos.y));
+  const from = nose(near.x, near.y);
   const aim = aimPoint(target, from);
   if (!aim.touching) state.touchSince = undefined;
   else if (state.touchSince === undefined) state.touchSince = time;
@@ -175,14 +192,27 @@ function tick() {
     return;
   }
 
-  // Where to go: the aim point led by the target's velocity (at most `lead` seconds), and high over it until close.
+  // Where to go: straight at the aim point led by the target's velocity (at most `lead` seconds), its lowest part no
+  // lower than `low` over the target's lowest part.
   const rx = aim.x - from.x;
   const ry = aim.y - from.y;
   const dist = Math.hypot(rx, ry);
   const t = Math.min(lead, dist / Math.max(1, speed));
   let gx = rx + target.vel.x * t;
   let gy = ry + target.vel.y * t;
-  if (Math.abs(gx) > close) gy = Math.max(gy, target.pos.y + above - from.y);
+  let lowest = Infinity;
+  for (const p of parts) lowest = Math.min(lowest, p.pos.y);
+  gy = Math.max(gy, aim.bottom + target.vel.y * t + low - lowest);
+  // Over any friendly robot on the way (what let it go included): straight in went through its own fab drone.
+  const pd = Math.max(0.01, Math.hypot(gx, gy));
+  for (const c of contacts) {
+    if (c.side !== 'friend') continue;
+    const fx = c.pos.x - from.x;
+    const fy = c.pos.y - from.y;
+    const along = (fx * gx + fy * gy) / (pd * pd);
+    if (along <= 0 || along >= 1 || Math.abs(fx * gy - fy * gx) / pd >= pass) continue;
+    gy = Math.max(gy, fy + pass);
+  }
   gy = Math.min(gy, state.startY + ceiling - from.y);
   // Let go by a carrier: no lower than where it cleared until it is past the carrier's edge.
   if (!state.wide && Math.abs(self.pos.x - state.startX) < clearWidth) gy = Math.max(gy, state.startY + clearDist - from.y);

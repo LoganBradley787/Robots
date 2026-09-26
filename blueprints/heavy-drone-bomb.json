@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "heavy-drone-bomb",
+  "grid": [
+    "L  L  R  R",
+    "H  C  O  H",
+    "H  G  E  H"
+  ],
+  "legend": {
+    "L": {
+      "part": "propeller",
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "R": {
+      "part": "propeller",
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "O": {
+      "part": "radar",
+      "tags": [
+        "radar"
+      ]
+    },
+    "H": {
+      "part": "heavywarhead",
+      "auto": false
+    },
+    "G": {
+      "part": "gyro",
+      "tags": [
+        "stab"
+      ],
+      "auto": false
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "heavy-drone-bomb.pilot.js"
+      },
+      "params": {
+        "brake": 14,
+        "ram": 10,
+        "speed": 40,
+        "lean": 65
+      }
+    }
+  ]
+}

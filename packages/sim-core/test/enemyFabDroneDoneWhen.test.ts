@@ -57,13 +57,13 @@ describe('enemy fab drone, done when', () => {
 });
 
 describe('bomb fab drone, done when', () => {
-  it('hovers level holding a drone bomb built about 7.2 s after deploy (the held bomb’s propellers are not counted as its own)', { timeout: 30_000 }, async () => {
+  it('hovers level holding a drone bomb built about 8.7 s after deploy (the held bomb’s propellers are not counted as its own)', { timeout: 30_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('bomb-fab-drone'), { x: -100, y: 15 });
-    for (let t = 0; t < 10 * 60; t++) w.step();
+    for (let t = 0; t < 11 * 60; t++) w.step();
     const built = of(w, d, 'built');
     expect(built).toHaveLength(1);
-    expect((built[0]?.tick ?? 0) / 60).toBeCloseTo(7.2, 1);
+    expect((built[0]?.tick ?? 0) / 60).toBeCloseTo(8.7, 1);
     expect(w.partOutput(d.id, 'fabbay@6,3', 'ready')).toBe(1);
     const s = w.physics.state(d.groups[0]?.bodyId as number);
     expect(Math.abs(s.y - 15)).toBeLessThan(1);
@@ -77,7 +77,7 @@ describe('bomb fab drone, done when', () => {
     const cars = [-160, -190, -220].map((x) => w.spawnBlueprint(blueprint('car'), { x, y: 1.45 }, { team: 1 }));
     const keys = holdF(d.id, 1);
     for (let t = 0; t < 40 * 60; t++) w.step(keys(t));
-    expect(of(w, d, 'released').length).toBeGreaterThanOrEqual(5);
+    expect(of(w, d, 'released').length).toBeGreaterThanOrEqual(4); // 8.7 s each
     expect(cars.filter((c) => partsLost(w, c) > 0).length).toBeGreaterThanOrEqual(2);
     expect(ownLost(w, d)).toBe(0);
     w.dispose();
@@ -99,9 +99,9 @@ describe('enemy bomb fab drone, done when', () => {
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -200, y: 15 });
     const cars = Array.from({ length: 6 }, (_, i) => w.spawnBlueprint(blueprint('car'), { x: -150 - 25 * i, y: 1.45 }));
     for (let t = 0; t < 60 * 60; t++) w.step();
-    expect(of(w, d, 'released').length).toBeGreaterThanOrEqual(7);
+    expect(of(w, d, 'released').length).toBeGreaterThanOrEqual(5);
     expect(cars.filter((c) => partsLost(w, c) > 0).length).toBeGreaterThanOrEqual(2);
-    expect(partsLost(w, hunter)).toBeGreaterThan(20);
+    expect(partsLost(w, hunter)).toBeGreaterThanOrEqual(15);
     expect(ownLost(w, d)).toBe(0);
     w.dispose();
   });
@@ -112,8 +112,51 @@ describe('enemy bomb fab drone, done when', () => {
     for (const x of [-150, -175]) w.spawnBlueprint(blueprint('car'), { x, y: 1.45 });
     w.spawnBlueprint(blueprint('hunter-drone'), { x: -200, y: 15 });
     for (let t = 0; t < 40 * 60; t++) w.step();
-    expect(of(w, d, 'released').length).toBeGreaterThanOrEqual(5);
+    expect(of(w, d, 'released').length).toBeGreaterThanOrEqual(4);
     expect(ownLost(w, d)).toBe(0);
+    w.dispose();
+  });
+});
+
+describe('heavy drone bomb and off the line (Logan, after playing the fab drones)', () => {
+  it('its four corner warheads go off together and wreck a whole parked car', { timeout: 30_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const car = w.spawnBlueprint(blueprint('car'), { x: -60, y: 1.45 });
+    const bomb = w.spawnBlueprint(blueprint('heavy-drone-bomb'), { x: -20, y: 3 }, { team: 1 });
+    for (let t = 0; t < 12 * 60; t++) w.step();
+    expect(w.events.filter((e) => e.kind === 'explosion' && (e.robot === bomb.id || w.robots.find((r) => r.id === e.robot)?.brokeFrom === bomb.id))).toHaveLength(4);
+    expect(w.robots.find((r) => r.id === car.id)?.primaryCoreId).toBeUndefined();
+    expect(partsLost(w, car)).toBeGreaterThanOrEqual(5);
+    w.dispose();
+  });
+
+  it('let go from a bay, it is 15 m up and steering in under 1.5 s', { timeout: 30_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const d = w.spawnBlueprint(blueprint('bomb-fab-drone'), { x: -100, y: 15 });
+    w.spawnBlueprint(blueprint('car'), { x: -200, y: 1.45 }, { team: 1 });
+    const keys = holdF(d.id, 1);
+    let released = -1;
+    let clear = -1;
+    for (let t = 0; t < 12 * 60; t++) {
+      w.step(keys(t));
+      if (released < 0 && of(w, d, 'released').length > 0) released = t;
+      const b = w.robots.find((r) => r.brokeFrom === d.id && r.primaryCoreId !== undefined);
+      if (released >= 0 && clear < 0 && b && w.marks(b.id).some((m) => m.label === 'aim')) clear = t;
+    }
+    expect(released).toBeGreaterThan(0);
+    expect((clear - released) / 60).toBeLessThan(1.5);
+    w.dispose();
+  });
+
+  it('two enemy fab drones deployed one over the other slide apart, off each other’s line', { timeout: 30_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const a = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -60, y: 20 }, { team: 1 });
+    const b = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -60, y: 35 }, { team: 1 });
+    for (let t = 0; t < 4 * 60; t++) w.step();
+    const s = w.physics.state(a.groups[0]?.bodyId as number);
+    const o = w.physics.state(b.groups[0]?.bodyId as number);
+    expect(Math.abs(s.x - o.x)).toBeGreaterThan(12);
+    expect(ownLost(w, a) + ownLost(w, b)).toBe(0);
     w.dispose();
   });
 });

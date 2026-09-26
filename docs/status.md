@@ -11,6 +11,7 @@ Updated: 2026-09-26, by an Opus 5.5 session, end of M12 (fabricator bay)
 - Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE). 24 scenes since the fab drones.
 - Next steps, in order:
   1. **Done (2026-09-26): fab drones.** `enemy-fab-drone` (missiles), `bomb-fab-drone` (yours: a 4 by 3 bay making drone bombs, F held), `enemy-bomb-fab-drone`. Pilot `enemy-fab-drone.pilot.js` (holds still after a release, never climbs under a friendly robot). Tests `enemyFabDroneDoneWhen.test.ts`, golden scenes `enemy-fab-drone-vs-cars` and `bomb-fab-drones` (24 scenes). The run report now prints `buildBlocked`. Found: debris landing in an open bay blocks it for good (Known issues; a question for Logan).
+     - After Logan played them: the fab drones build `heavy-drone-bomb` (a warhead on each corner, chained: wrecks a car outright); every drone bomb now climbs 15 m at full power, then flies straight in from any side (never below the target's bottom, and over friendly robots on the way); the fab drone pilot stays off the line (nothing within 12 m sideways and 20 m up or down). Golden hashes rewritten on purpose: `drone-bomb-vs-drone`, `enemy-carrier-vs-hunter`, `enemy-fab-drone-vs-cars`, `bomb-fab-drones`. Still slow-ish: 8.7 s to build, about 7 s to fly 90 m (four propellers on 14.5 kg).
   2. Logan plays Gate 11 and files findings in `docs/critique/gate-11.md`. Open questions there: cost and speed, whether a destroyed bay's held missile should be a dud, resizing mirrored pairs.
   3. Candidates after that (`ideas.md`): a bomber (flies over and drops bombs), a jammer, MASTER DRONE, debris cleanup, a ground-seeing part, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
   - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
@@ -38,7 +39,7 @@ Updated: 2026-09-26, by an Opus 5.5 session, end of M12 (fabricator bay)
 - M12: `canPlace` probes each cell with 0.5 half extents (colliders are 0.49); unchanged, noted for multi-cell parts.
 - M11: flare racks stick out 2 cells a side and soak up side hits (a drone bomb homes on the nearest part it scans). Gate 10 question.
 - M11: a drone bomb (brakes at 7 m/s^2) overshoots a flare thrown toward it; flares against it work popped early, or with flying off.
-- M10: robots cannot see the ground: the drone bomb comes in from 6 m over its target, and the truck only knows a step by getting stuck on it.
+- M10: robots cannot see the ground: the drone bomb keeps its lowest part 1 m over the target's lowest part, and the truck only knows a step by getting stuck on it.
 - M9 review: a script's memory limit does not cap many small allocations (a script keeping 40,000 small arrays grew the process by 356 MB); it only catches big ones. Older than M9.
 - M9: Stress drones run out of energy after tens of seconds unless Unlimited energy is on.
 - M8: an attached missile shares its robot's energy pool while attached, so a hovering drone drains its missiles (about 60 percent left after 40 s).

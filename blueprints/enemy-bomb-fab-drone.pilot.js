@@ -5,11 +5,11 @@
 // - Fire: in range, it sends what its bay holds at that robot and lets it go, `settle` seconds after it first tracks
 //   it and at most one every `reload` seconds. The message suits a missile (point, speed, id, arc); a drone bomb reads
 //   only the id. The bay builds the next by itself (a missile 4.1 s, a drone bomb 7.2 s), so it keeps firing for as
-//   long as its batteries last. After letting one go it holds where it was for `hold` seconds, so it does not fly
-//   into it while it climbs clear (it did, switching targets just after a drone bomb left).
-// - Room: it never climbs with a friendly robot less than `space` meters above it and `width` to either side (what it
-//   let go, other drones on its side): a drone bomb with nothing in range waits where it cleared, and one it let go
-//   met it as it climbed to a new spot.
+//   long as its batteries last. After letting one go it holds still for `hold` seconds so it leaves the bay cleanly
+//   (sliding away at once, the bay's wall shoved a drone bomb still inside it, which wedged and carried it up).
+// - Off the line (Logan): nothing it sees within `width` meters to either side and `space` above or below it. It
+//   slides away sideways: a drone bomb it let go (or anything else) may wait or fall there, and one flew into its
+//   own drone bomb climbing to a new spot.
 // Flying is the hunter drone's hover (time-optimal leaning, balance from its parts, height braking just in time),
 // with the AI asking for a sideways speed and a height instead of keys. Left and right are worked out from where the
 // propellers are, not their tags, so it works deployed flipped. Only its own propellers (`lprop`, `rprop`) count
@@ -32,9 +32,9 @@ const maxRange = param('maxRange', 250, { min: 10, max: 1000 }); // m: further t
 const level = (param('level', 15, { min: 1, max: 90 }) * Math.PI) / 180; // launches only within this many degrees of level
 const reload = param('reload', 3, { min: 0.5, max: 60 }); // s between launches
 const jitter = param('jitter', 1, { min: 0, max: 10 }); // up to this many seconds more, at random (seeded), so two drones do not fire in step
-const hold = param('hold', 2, { min: 0, max: 10 }); // s it stays where it let one go (dodging still comes first)
-const space = param('space', 20, { min: 0, max: 100 }); // m: a friendly robot less than this far above it stops its climb
-const width = param('width', 12, { min: 0, max: 100 }); // and less than this far to either side (it is 15 wide)
+const hold = param('hold', 1, { min: 0, max: 10 }); // s it stays where it let one go, so it leaves the bay cleanly (dodging still comes first)
+const space = param('space', 20, { min: 0, max: 100 }); // m above or below it where nothing may be
+const width = param('width', 12, { min: 0, max: 100 }); // m to either side that counts as straight above or below (it is 15 wide)
 const settle = param('settle', 1.5, { min: 0, max: 30 }); // s it holds fire after it first tracks a robot
 const dodge = param('dodge', 1, { min: 0, max: 1 }); // 0: never dodges
 const dodgeAhead = param('dodgeAhead', 2.5, { min: 0.2, max: 10 }); // s ahead it looks for a missile passing close
@@ -200,14 +200,28 @@ function tick() {
     return;
   }
 
-  // Never climbs with a friendly robot overhead: what it let go may be waiting there (a drone bomb with nothing in
-  // range hovers where it cleared), and climbing to a new spot it flew into one.
-  const over = contacts.some((c) => c.side === 'friend' && c.pos.y > self.pos.y && c.pos.y - self.pos.y < space && Math.abs(c.pos.x - self.pos.x) < width);
-  const top = (y) => (over ? Math.min(y, self.pos.y) : y);
-
   if (time - state.lastShot < hold) {
-    fly(clamp(0.5 * (state.shotAt.x - self.pos.x), -speed, speed), top(state.shotAt.y));
+    fly(clamp(0.5 * (state.shotAt.x - self.pos.x), -speed, speed), state.shotAt.y);
     mark(state.shotAt.x, state.shotAt.y, 'hold');
+    return;
+  }
+
+  // Off the line (Logan): nothing it sees (friend, enemy, or wreckage) straight above or below it. Something above may
+  // come down on it or into its bay (what it let go waits there with nothing in range; debris falls), and a robot below
+  // may send something straight up. It slides away sideways at full speed, holding its height.
+  const line = contacts.find((c) => c.distance > 0.01 && Math.abs(c.pos.x - self.pos.x) < width && Math.abs(c.pos.y - self.pos.y) < space);
+  if (!line) {
+    // Off it now: with nothing tracked it waits here, not back on the line (two deployed together shared a home).
+    if (state.lineY !== undefined) state.home = { x: self.pos.x + state.lineAway * 0.5 * width, y: state.home.y };
+    state.lineY = undefined;
+  } else {
+    if (state.lineY === undefined) state.lineY = self.pos.y;
+    // Straight over each other, both would pick the same side: the lower one goes right, the upper one left.
+    const dx = self.pos.x - line.pos.x;
+    const away = Math.abs(dx) > 1 ? Math.sign(dx) : self.pos.y < line.pos.y ? 1 : -1;
+    state.lineAway = away;
+    fly(away * speed, state.lineY);
+    mark(line.pos.x, line.pos.y, 'off the line');
     return;
   }
 
@@ -220,6 +234,6 @@ function tick() {
     if (range >= minRange && range <= maxRange && ready) fire(target);
   }
   const vx = clamp(0.5 * (goal.x - self.pos.x), -speed, speed);
-  fly(vx, top(goal.y));
+  fly(vx, goal.y);
   mark(goal.x, goal.y, target ? 'hold' : 'home');
 }

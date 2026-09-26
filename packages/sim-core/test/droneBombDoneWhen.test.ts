@@ -97,12 +97,12 @@ describe('M10 drone bomb, done when', () => {
     w.dispose();
   });
 
-  it('with nothing to chase it hovers where it was deployed, its warhead safe until it has a target', async () => {
+  it('with nothing to chase it climbs clear and waits there, its warhead safe until it has a target', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const bomb = w.spawnBlueprint(blueprint('drone-bomb'), { x: -100, y: 5 });
     run(w, 5 * 60);
     const s = w.physics.state(bomb.groups[0]?.bodyId as number);
-    expect(Math.hypot(s.x - -98.5, s.y - 5)).toBeLessThan(2);
+    expect(Math.hypot(s.x - -98.5, s.y - 20)).toBeLessThan(2); // 15 m (clearDist) over where it was deployed
     expect(w.partOutput(bomb.id, 'heavywarhead@1,0', 'armed')).toBe(0);
     w.dispose();
   });

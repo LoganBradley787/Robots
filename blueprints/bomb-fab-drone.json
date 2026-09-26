@@ -143,7 +143,7 @@
       "tags": [
         "bay"
       ],
-      "makes": "drone-bomb",
+      "makes": "heavy-drone-bomb",
       "size": [
         4,
         3
@@ -181,13 +181,13 @@
     }
   ],
   "recipes": {
-    "drone-bomb": {
+    "heavy-drone-bomb": {
       "format": 1,
-      "name": "drone-bomb",
+      "name": "heavy-drone-bomb",
       "grid": [
         "L  L  R  R",
-        "F  C  O  F",
-        ".  H  G  E"
+        "H  C  O  H",
+        "H  G  E  H"
       ],
       "legend": {
         "L": {
@@ -226,10 +226,14 @@
         {
           "id": "pilot",
           "source": {
-            "file": "bomb-fab-drone.drone-bomb.pilot.js"
+            "file": "bomb-fab-drone.heavy-drone-bomb.pilot.js"
           },
           "params": {
-            "clearWidth": 10
+            "clearWidth": 10,
+            "brake": 14,
+            "ram": 10,
+            "speed": 40,
+            "lean": 65
           }
         }
       ]
