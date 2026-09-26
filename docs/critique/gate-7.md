@@ -43,3 +43,5 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - "The arc missiles, I have to say, are incredibly accurate. It's barely possible to dodge them." They land on top of drones, where the propellers are, so a drone often survives; a straight shot from below would do more.
 - Logan built a big two-wide missile (`big-missile`, `big-launcher`), a 12-missile `silo`, and a `flying-silo` (boosters and eighteen heavy gyros; no hover script, so hard to steer, and it used up its energy fast).
 - Done: drone and silo missiles climb clear, then go straight in at targets level or above and over the top at targets below (the launching script chooses per shot); a `densebattery` part (6000 J); `flying-silo` got a hover (W S A D) on its boosters and four dense batteries.
+
+Gate 7 closed (Logan, 2026-09-25): "This is all looking good. I'm happy with everything we got."

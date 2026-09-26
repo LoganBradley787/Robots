@@ -10,12 +10,11 @@ Updated: 2026-09-25, by a coding session (Opus 5.5), end of M8
   - Homing: `missile-seeker` + `launcher-seeker`, `missile-arc` + `launcher-arc` (climbs and comes down on the target), `missile-up` (stands on drones).
   - `hunter-drone` (yours: F launches at the nearest enemy) and `enemy-drone` (flies itself: tracks, launches, dodges).
   - Fast hover fix for a load that swings off center.
-- Gate 7 in progress (2026-09-25): the Opus review's findings are fixed; Logan's first findings (missiles big and slow, AI drones climbing forever, missiles hitting their neighbor) are fixed with new `booster`, `heavywarhead`, and `heavygyro` parts and a rebuilt seeker guide; see `docs/critique/gate-7.md`. Tagged `m8`. Next: Logan plays again.
+- Gate 7 closed (2026-09-25, Logan: "I'm happy with everything we got"). After the review fixes it added the `booster`, `heavywarhead`, `heavygyro`, and `densebattery` parts, a rebuilt seeker guide (climb clear, arc or straight per shot), `big-missile` and `big-launcher`, `silo`, and a hover for Logan's `flying-silo`. See `docs/critique/gate-7.md`.
 - Wording note (2026-09-25): writing the homing missile tripped Opus's safety classifier several times. Logan and Claude agreed to write in plain game terms (no real weapon names or tactics talk in code or docs), to build in small steps, and to switch models for that part if it keeps happening. The Javelin is the `arc` option.
 - Next steps, in order (Logan's order, 2026-09-25; script speed separately so a break is easy to trace):
-  1. Gate 7 play and punch list.
-  2. Script performance, as its own milestone (the plan in `docs/ideas.md`), with `pnpm sim bench`; determinism and replay checks prove nothing changed.
-  3. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
+  1. Next: plan M9, script performance, as its own milestone (the plan in `docs/ideas.md`), with `pnpm sim bench`; determinism and replay checks prove nothing changed.
+  2. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
   - Details and measurements: `docs/ideas.md`, "After Gate 6".
 - `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
 - Lessons from builds are in the playbook (Traps, and the new Sensors section); keep adding there.
