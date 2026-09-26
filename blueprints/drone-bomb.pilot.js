@@ -25,12 +25,15 @@ const climb = param('climb', 25, { min: 1, max: 60 }); // m/s, fastest climb or 
 const lift = param('lift', 120, { min: 10, max: 1000 }); // N, one propeller's full push (the propeller part)
 const gyroTorque = param('gyroTorque', 40, { min: 0, max: 1000 }); // N m, the gyro's full torque (the gyro part)
 const lean = (param('lean', 55, { min: 0, max: 75 }) * Math.PI) / 180; // most it leans, degrees
+const diveLean = (param('diveLean', 80, { min: 0, max: 88 }) * Math.PI) / 180; // most it leans while asked to go down, degrees
 const steer = param('steer', 0.08, { min: 0.01, max: 0.5 }); // radians of lean per m/s it is off the sideways speed it wants
 const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of its turning or climbing power it plans braking on
 const speed = param('speed', 30, { min: 1, max: 80 }); // m/s, fastest it closes on a target
 const brake = param('brake', 7, { min: 1, max: 40 }); // m/s^2 it plans to brake at when closing (leaning back and cutting lift)
 const lead = param('lead', 1.5, { min: 0, max: 5 }); // most seconds ahead it aims at a moving target
 const pass = param('pass', 10, { min: 0, max: 50 }); // m it keeps over a friendly robot on its way to the target
+const glide = param('glide', 0.2, { min: 0, max: 2 }); // m up per m out of the line it comes in along when it drops from high
+const dropBrake = param('dropBrake', 15, { min: 1, max: 40 }); // m/s^2 it plans to brake a drop at (its propellers)
 const low = param('low', 1, { min: 0, max: 20 }); // m its lowest part stays over the target's lowest part (the ground may be just under it)
 const proximity = param('proximity', 1.5, { min: 0.5, max: 4 }); // m from its warhead to a target part where it goes off
 const touch = param('touch', 1.3, { min: 0.5, max: 4 }); // m between one of its parts and a target part that counts as touching (touching cells are 1 m apart)
@@ -38,6 +41,7 @@ const stuck = param('stuck', 0.4, { min: 0, max: 5 }); // s of touching with its
 const ram = param('ram', 3, { min: 0, max: 30 }); // m/s it still closes at when about to hit (below the fuze's 5, so a side bump does not set it off)
 const ceiling = param('ceiling', 40, { min: 0, max: 500 }); // m above where it started it never climbs past
 const clearWidth = param('clearWidth', 0, { min: 0, max: 100 }); // m sideways from where it was let go before it comes down (a carrier sets its own half width, so they do not dive through its deck)
+const clearWalls = param('clearWalls', 5, { min: 0, max: 20 }); // m it moves holding the tilt it was let go at (out of a bay)
 const clearDist = param('clearDist', 15, { min: 0, max: 50 }); // m it climbs straight up at full power after waking, before it steers or arms
 const space = param('space', 7, { min: 0, max: 30 }); // m it keeps from friendly robots (other drone bombs in a swarm), so one blast does not set off the rest
 const spread = param('spread', 12, { min: 0, max: 40 }); // m/s it steers away from a friend right next to it (less further out)
@@ -50,6 +54,7 @@ function setup() {
   state.startY = self.pos.y;
   state.start = time;
   state.startX = self.pos.x;
+  state.startAngle = self.angle; // a bay or rack it leaves may be tilted
 }
 
 /** The drone as a body that turns: moment of inertia and propeller lever arms, from every part still attached. */
@@ -85,17 +90,29 @@ function body() {
   return { inertia, sum, split, right, left };
 }
 
-/** Flies toward a sideways speed `vx` and a climb speed `vy`. */
-function fly(vx, vy) {
+/** Flies toward a sideways speed `vx` and a climb speed `vy`, or holding the tilt `angle` when given. */
+function fly(vx, vy, angle) {
   const g = 9.81;
   const props = parts.filter((p) => p.type === 'propeller').length;
   const up = Math.max(1, props * lift * Math.max(0.3, Math.cos(self.angle)));
   const rise = Math.max(0.5, up / self.mass - g);
   const upward = clamp(5 * (vy - self.vel.y), -g, rise);
-  const throttle = clamp((self.mass * (g + upward)) / up, 0, 1);
+  let throttle = clamp((self.mass * (g + upward)) / up, 0, 1);
+  // At least the push along its lean that the whole acceleration it wants calls for (sideways and up together):
+  // asked to go down and sideways, the height alone cut the push to nothing, and it hung leaning with no push while
+  // gravity slowly took it down (Logan).
+  const across = clamp(3 * (vx - self.vel.x), -15, 15);
+  const along = -Math.sin(self.angle) * across + Math.cos(self.angle) * (g + upward); // leaning left pushes it left
+  let sideways = clamp((self.mass * along) / (props * lift), 0, 1);
+  // Asked to go down, that push may hold it up by at most half of gravity, so it still drops.
+  const c = Math.cos(self.angle);
+  if (upward < 0 && c > 0.05) sideways = Math.min(sideways, (self.mass * (g + upward + 0.5 * g)) / (c * props * lift));
+  throttle = Math.max(throttle, sideways);
 
   // Leaning left (counterclockwise) pushes it left: lean against the sideways speed it is short of.
-  const want = clamp(-steer * (vx - self.vel.x), -lean, lean);
+  // Going down it leans further, so its push is mostly sideways and gravity does the dropping.
+  const most = upward < 0 ? Math.max(lean, diveLean) : lean;
+  const want = angle !== undefined ? angle : clamp(-steer * (vx - self.vel.x), -most, most);
   const off = want - self.angle;
   const b = body();
   const ccw = lift * b.right + gyroTorque;
@@ -162,7 +179,9 @@ function tick() {
   if (!state.cleared) {
     const left = state.startY + clearDist - self.pos.y;
     if (left > 0 && self.vel.y * Math.max(0, self.vel.y) < 2 * 9.81 * left) {
-      fly(0, climb);
+      // Out along the bay it sat in, tilted or not, for the first `clearWalls` meters: climbing straight up out of a
+      // tilted bay as wide as itself, it wedged against the wall.
+      fly(0, climb, Math.hypot(self.pos.x - state.startX, self.pos.y - state.startY) < clearWalls ? state.startAngle : undefined);
       return;
     }
     state.cleared = true;
@@ -205,6 +224,7 @@ function tick() {
   gy = Math.max(gy, aim.bottom + target.vel.y * t + low - lowest);
   // Over any friendly robot on the way (what let it go included): straight in went through its own fab drone.
   const pd = Math.max(0.01, Math.hypot(gx, gy));
+  let over = false;
   for (const c of contacts) {
     if (c.side !== 'friend') continue;
     const fx = c.pos.x - from.x;
@@ -212,6 +232,7 @@ function tick() {
     const along = (fx * gx + fy * gy) / (pd * pd);
     if (along <= 0 || along >= 1 || Math.abs(fx * gy - fy * gx) / pd >= pass) continue;
     gy = Math.max(gy, fy + pass);
+    over = true;
   }
   gy = Math.min(gy, state.startY + ceiling - from.y);
   // Let go by a carrier: no lower than where it cleared until it is past the carrier's edge.
@@ -233,7 +254,12 @@ function tick() {
   // The target's own climb is added in, so the ceiling caps the climb speed too: no faster than it can stop from by
   // the ceiling (gravity brakes a climb).
   const room = Math.max(0, state.startY + ceiling - from.y);
-  const vy = Math.min(target.vel.y + (gy / gd) * closing + ay, Math.sqrt(2 * 9.81 * margin * room));
+  let vy = Math.min(target.vel.y + (gy / gd) * closing + ay, Math.sqrt(2 * 9.81 * margin * room));
+  // Well over a gentle glide in (`glide` meters up per meter out, over the target's lowest part): drop to it fast,
+  // braking on its propellers, rather than sink along the straight line (Logan: drop like a rock). Not while going
+  // over a friendly robot, and not before it is past a carrier's edge.
+  const glideOver = lowest - (aim.bottom + low + glide * Math.abs(gx));
+  if (!over && state.wide && glideOver > 1) vy = Math.min(vy, -Math.min(climb, Math.sqrt(2 * dropBrake * margin * glideOver)));
   fly(clamp(vx, -speed - 20, speed + 20), clamp(vy, -climb, climb));
   mark(from.x + gx, from.y + gy, 'aim');
 }

@@ -99,3 +99,8 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 ## Sharing it: a static site on GitHub Pages (Logan, 2026-09-25)
 - Logan wants to show it to people without an install: a link, or clone and run two commands. The game is already a static site (`pnpm build` gives HTML, JavaScript, and WebAssembly; the physics and the script sandbox run in the browser). Only file saving needs the dev server (the `blueprintStore` and `replayStore` Vite plugins read and write `blueprints/` and `replays/`).
 - For GitHub Pages: bundle the shipped blueprints into the build, save to browser storage (IndexedDB), and add Export and Import for sharing blueprint and replay files. A task or two.
+
+## From playing the fab drones (Logan, 2026-09-26)
+- Balance later, not now. Nothing gets kneecapped by script params (a pilot holding a finished missile for no reason); things get better or worse by changing parts in their entirety.
+- Build time per part (Logan's leaning): a bay's build time comes from what the copy is made of, not only its mass. Boosters are advanced and slow to build, propellers basic and quick. Energy cost stays as it is: running out of power is boring.
+- Nothing is balanced while energy is effectively free: a huge drone with 15 missile bays, blue batteries, and boosters would fire one or two missiles a second forever. Likely answers: a swarm of drones that tracks you and hangs a fixed distance off to soak up missiles, or a fab bay that builds flares and lets them go.

@@ -14,13 +14,13 @@
   "battle-2v2": "050f0970",
   "big-launcher": "a8ce5589",
   "drone-bombed": "2f740861",
-  "drone-bomb-vs-drone": "0919e743",
+  "drone-bomb-vs-drone": "b15a31b8",
   "truck-vs-car": "f66717d2",
   "enemy-flying-silo-vs-hunter": "ae5778b8",
   "enemy-big-drone-vs-hunter": "a9804a0f",
-  "enemy-carrier-vs-hunter": "e05321cc",
+  "enemy-carrier-vs-hunter": "e5d0c1e0",
   "hunter-flares": "62c33645",
   "fab-drone": "4a883d1e",
-  "enemy-fab-drone-vs-cars": "db649eb4",
-  "bomb-fab-drones": "424ad1b7"
+  "enemy-fab-drone-vs-cars": "17301a4c",
+  "bomb-fab-drones": "0a705332"
 }

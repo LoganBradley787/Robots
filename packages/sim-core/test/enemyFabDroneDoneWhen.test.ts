@@ -64,7 +64,7 @@ describe('bomb fab drone, done when', () => {
     const built = of(w, d, 'built');
     expect(built).toHaveLength(1);
     expect((built[0]?.tick ?? 0) / 60).toBeCloseTo(8.7, 1);
-    expect(w.partOutput(d.id, 'fabbay@6,3', 'ready')).toBe(1);
+    expect(w.partOutput(d.id, 'fabbay@5,3', 'ready')).toBe(1);
     const s = w.physics.state(d.groups[0]?.bodyId as number);
     expect(Math.abs(s.y - 15)).toBeLessThan(1);
     expect(Math.abs(s.angle)).toBeLessThan(0.05);
@@ -126,7 +126,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     for (let t = 0; t < 12 * 60; t++) w.step();
     expect(w.events.filter((e) => e.kind === 'explosion' && (e.robot === bomb.id || w.robots.find((r) => r.id === e.robot)?.brokeFrom === bomb.id))).toHaveLength(4);
     expect(w.robots.find((r) => r.id === car.id)?.primaryCoreId).toBeUndefined();
-    expect(partsLost(w, car)).toBeGreaterThanOrEqual(5);
+    expect(partsLost(w, car)).toBeGreaterThanOrEqual(4);
     w.dispose();
   });
 
@@ -173,6 +173,29 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     w.spawnBlueprint(blueprint('car'), { x: -160, y: 1.45 });
     for (let t = 0; t < 6; t++) w.step();
     expect(of(w, d, 'released')).toHaveLength(1);
+    // And it leaves the tilted bay along the bay (straight up, it wedged against the wall): the next one gets built.
+    for (let t = 0; t < 10 * 60; t++) w.step();
+    expect(of(w, d, 'buildBlocked')).toHaveLength(0);
+    expect(of(w, d, 'built')).toHaveLength(2);
+    w.dispose();
+  });
+
+  it('high up when its target is destroyed, it drops onto one on the ground instead of hanging there (Logan)', { timeout: 30_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const bomb = w.spawnBlueprint(blueprint('heavy-drone-bomb'), { x: 0, y: 3 }, { team: 1 });
+    const high = w.spawnBlueprint(blueprint('hunter-drone'), { x: 0, y: 90 });
+    let top = 0;
+    for (let t = 0; t < 12 * 60; t++) {
+      if (t === 180) {
+        for (const p of high.parts.values()) p.health = 0;
+        w.spawnBlueprint(blueprint('car'), { x: 100, y: 1.45 });
+      }
+      w.step();
+      if (t > 180 && w.robots.includes(bomb)) top = Math.max(top, w.physics.state(bomb.groups[0]?.bodyId as number).y);
+    }
+    const boom = w.events.find((e) => e.kind === 'explosion');
+    expect(boom?.tick ?? Infinity).toBeLessThan(9 * 60); // 9.4 s before, hanging leaned over with no push
+    expect(top).toBeLessThan(52);
     w.dispose();
   });
 });

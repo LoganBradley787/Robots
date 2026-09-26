@@ -80,7 +80,7 @@ describe('M11 flares, done when', () => {
     expect(none.distance).toBeLessThan(10); // on the drone's side rack
     const right = await chase(none.tick - 60);
     expect(right.lost).toBe(0);
-    expect(right.distance).toBeGreaterThan(12);
+    expect(right.distance).toBeGreaterThan(8); // at the flare, clear of the drone (its blast reaches 4 m)
   });
 
   it("an enemy drone's own flares (popped by itself) save it from a hunter's volley that takes it apart without them", { timeout: 60_000 }, async () => {
