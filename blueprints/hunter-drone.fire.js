@@ -3,6 +3,7 @@
 // Order: left outer, right outer, left inner, right inner, so the drone stays balanced. With nothing tracked, F does
 // nothing (a missile with no point would keep climbing).
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (other missiles) are skipped
+const below = param('below', 10, { min: -100, max: 100 }); // m: a target more than this far below gets an arc shot, the rest a direct one
 const ORDER = [1, 4, 2, 3]; // grip k holds missile-up k
 
 function tick() {
@@ -14,7 +15,9 @@ function tick() {
   }
   for (const k of ORDER) {
     if (!(get('grip' + k, 'armed') > 0)) continue;
-    send('missile-up' + k, { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id });
+    // Over the top onto a target well below; straight in (from underneath, after the climb) at one level or above.
+    const arc = t.pos.y < self.pos.y - below ? 1 : 0;
+    send('missile-up' + k, { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, arc });
     set('grip' + k, 'fire', 1);
     return;
   }

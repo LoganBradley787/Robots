@@ -1,6 +1,7 @@
 // Seeker guide (M8): flies to the point its launcher sent it, and follows the robot its seeker tracks there.
 // Starts when the missile wakes (its decoupler lets go) or on deploy. G turns it off and on.
-// - setup() reads the launcher's point from inbox. With none, it flies straight and follows the first robot it tracks.
+// - setup() reads the launcher's point from inbox (and `arc` if the launcher chose the path for this shot). With none,
+//   it flies straight and follows the first robot it tracks.
 // - While the seeker tracks the robot, it aims ahead of it by the robot's speed. If it loses track, it flies to the
 //   last point it had (a robot on the ground there is hit on impact); with nothing there it flies on and keeps looking.
 // - It flies straight for `clear` seconds and `clearDist` meters after release, so it turns only once clear of its
@@ -99,6 +100,8 @@ function setup() {
     state.point = { x: d.x, y: d.y };
     state.vel = { x: typeof d.vx === 'number' ? d.vx : 0, y: typeof d.vy === 'number' ? d.vy : 0 };
     if (typeof d.id === 'number') state.id = d.id;
+    // The launcher may choose the path for this shot: `arc: 1` over the top, `arc: 0` straight in.
+    if (typeof d.arc === 'number') state.phase = d.arc > 0.5 ? 'climb' : 'direct';
   }
 }
 

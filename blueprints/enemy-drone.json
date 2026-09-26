@@ -261,7 +261,7 @@
             "height": 60,
             "arcSpeed": 50,
             "clear": 0.4,
-            "clearDist": 6,
+            "clearDist": 15,
             "thrust": 400,
             "gyroTorque": 200
           },
@@ -302,7 +302,7 @@
             "height": 60,
             "arcSpeed": 50,
             "clear": 0.4,
-            "clearDist": 6,
+            "clearDist": 15,
             "thrust": 400,
             "gyroTorque": 200
           },
@@ -343,7 +343,7 @@
             "height": 60,
             "arcSpeed": 50,
             "clear": 0.4,
-            "clearDist": 6,
+            "clearDist": 15,
             "thrust": 400,
             "gyroTorque": 200
           },
@@ -384,7 +384,7 @@
             "height": 60,
             "arcSpeed": 50,
             "clear": 0.4,
-            "clearDist": 6,
+            "clearDist": 15,
             "thrust": 400,
             "gyroTorque": 200
           },

@@ -21,6 +21,7 @@ const standoff = param('standoff', 50, { min: 5, max: 300 }); // m to the side o
 const above = param('above', 12, { min: 0, max: 100 }); // m above it
 const ceiling = param('ceiling', 30, { min: 0, max: 500 }); // m above where it was deployed it never climbs past (two of these tracking each other would otherwise climb forever)
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots are missiles (dodged, not chased)
+const below = param('below', 10, { min: -100, max: 100 }); // m: a target more than this far below gets an arc shot, the rest a direct one
 const minRange = param('minRange', 25, { min: 0, max: 500 }); // m: closer than this it holds fire
 const maxRange = param('maxRange', 250, { min: 10, max: 1000 }); // m: further than this it holds fire
 const level = (param('level', 15, { min: 1, max: 90 }) * Math.PI) / 180; // launches only within this many degrees of level
@@ -139,7 +140,9 @@ function threat() {
 function fire(t) {
   for (const k of ORDER) {
     if (!(get('grip' + k, 'armed') > 0)) continue;
-    send('missile-up' + k, { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id });
+    // Over the top onto a target well below; straight in (from underneath, after the climb) at one level or above.
+    const arc = t.pos.y < self.pos.y - below ? 1 : 0;
+    send('missile-up' + k, { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, arc });
     set('grip' + k, 'fire', 1);
     state.lastShot = time;
     state.wait = jitter * random();
