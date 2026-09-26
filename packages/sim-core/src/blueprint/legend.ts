@@ -8,6 +8,7 @@ export const DEFAULT_LEGEND: Readonly<Record<string, LegendEntry>> = {
   C: { part: 'core' },
   F: { part: 'frame' },
   B: { part: 'battery' },
+  Z: { part: 'densebattery' },
   E: { part: 'cell' },
   X: { part: 'warhead' },
   G: { part: 'gyro' },

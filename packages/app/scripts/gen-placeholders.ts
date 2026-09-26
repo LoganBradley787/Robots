@@ -277,10 +277,9 @@ function drawFrame(): Canvas {
   return cv;
 }
 
-function drawBattery(): Canvas {
+function drawBattery(green = hex('#3fae5a'), edge = hex('#22703a')): Canvas {
   const cv = new Canvas(CELL, CELL);
-  const green = hex('#3fae5a');
-  plate(cv, 0, 0, CELL, CELL, green, hex('#22703a'), 3);
+  plate(cv, 0, 0, CELL, CELL, green, edge, 3);
   // Terminal nub on the top (N) edge.
   cv.fill(rect(21, 0, 43, 11), DARK_METAL);
   cv.fill(rect(23, 0, 41, 9), hex('#c3c8cf'));
@@ -825,6 +824,8 @@ function main(): void {
     { name: 'part.heavywarhead', canvas: drawWarhead(hex('#2a2c31'), hex('#121316'), hex('#e0712c')) },
     // Heavy gyro: the gyro in dark teal.
     { name: 'part.heavygyro', canvas: drawGyro(hex('#1f7a78'), hex('#0f4543')) },
+    // Dense battery (Logan): the battery in blue.
+    { name: 'part.densebattery', canvas: drawBattery(hex('#3f7fd6'), hex('#224a80')) },
     { name: 'part.radar', canvas: drawRadar() },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
