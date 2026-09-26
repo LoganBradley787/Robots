@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-25, by a coding session (Opus 5.5), end of M8
+Updated: 2026-09-25, by an Opus 5.5 session, M9 planned
 
 - Current milestone: **M8 (sensors, teams, homing) done, stopped at Gate 7** for Logan to play. What to try: `docs/critique/gate-7.md`. Plan and As built (every change from the plan and why): `docs/plans/M8-sensors-and-homing.md`.
 - What M8 shipped:
@@ -13,7 +13,7 @@ Updated: 2026-09-25, by a coding session (Opus 5.5), end of M8
 - Gate 7 closed (2026-09-25, Logan: "I'm happy with everything we got"). After the review fixes it added the `booster`, `heavywarhead`, `heavygyro`, and `densebattery` parts, a rebuilt seeker guide (climb clear, arc or straight per shot), `big-missile` and `big-launcher`, `silo`, and a hover for Logan's `flying-silo`. See `docs/critique/gate-7.md`.
 - Wording note (2026-09-25): writing the homing missile tripped Opus's safety classifier several times. Logan and Claude agreed to write in plain game terms (no real weapon names or tactics talk in code or docs), to build in small steps, and to switch models for that part if it keeps happening. The Javelin is the `arc` option.
 - Next steps, in order (Logan's order, 2026-09-25; script speed separately so a break is easy to trace):
-  1. Next: plan M9, script performance, as its own milestone (the plan in `docs/ideas.md`), with `pnpm sim bench`; determinism and replay checks prove nothing changed.
+  1. Next: **M9, script speed**, planned in `docs/plans/M9-script-speed.md` (Logan's answers in it). Waiting for Logan's go on the plan; then start at T1 (golden hashes and `pnpm sim bench`, before any speed change).
   2. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
   - Details and measurements: `docs/ideas.md`, "After Gate 6".
 - `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
