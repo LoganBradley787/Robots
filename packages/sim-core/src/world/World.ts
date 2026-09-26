@@ -77,6 +77,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'burntOut'; part: string };
 
 /** A burning decoy as a sensor sees it (M11): where it is, which piece holds it, and how it moves. */
+const NO_DECOYS: readonly SeenDecoy[] = [];
+
 interface SeenDecoy {
   robot: Robot;
   partId: string;
@@ -471,6 +473,7 @@ export class World {
    * too, unless its single core woke up, which starts fresh with its parts' auto controls.
    */
   private rebuildDirty(): void {
+    if (this.dirty.size > 0) this.decoyCache = undefined;
     for (const robot of [...this.robots]) {
       if (!this.dirty.has(robot)) continue;
       this.dirty.delete(robot);
@@ -952,8 +955,9 @@ export class World {
    *
    * M11: a burning decoy stands in for the robot it was part of when lit. When a sensor sees one, that robot is
    * reported at the decoy (its position and velocity; the robot's id, side, core, mass, and part count), whether or
-   * not the robot is also in view; of several, the one nearest the viewer. A piece that is only burning decoys is not
-   * listed as itself. Nothing here names a kind of robot: whatever steers by these contacts is fooled as a result.
+   * not the robot is also in view; of several, the one nearest the viewer. A decoy still on its robot is just one of its
+   * parts. A piece whose parts are all burning decoys for another robot is not listed as itself; a piece with anything
+   * else on it is (the shipped racks let each flare go alone). Nothing here names a kind of robot: whatever steers by these contacts is fooled as a result.
    */
   private contactsFor(robot: Robot, remember: boolean, decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
     const sensors = this.workingSensors(robot);
@@ -966,7 +970,7 @@ export class World {
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const from = partWorldPose(this, robot, coreId);
     const lit = this.burningDecoys();
-    const fooled = remember || decoysOut ? new Map<number, SeenDecoy>() : undefined;
+    const fooled = lit && (remember || decoysOut) ? new Map<number, SeenDecoy>() : undefined;
     const out: ScriptContact[] = [];
     for (const other of this.robots) {
       if (other === robot || other.groups.length === 0 || lit?.pieces.has(other.id)) continue;
@@ -974,7 +978,10 @@ export class World {
       let at: SeenDecoy | undefined;
       let by: string[] = [];
       let best = Infinity;
-      for (const d of lit?.of.get(other.id) ?? []) {
+      const decoys = lit?.of.get(other.id);
+      for (const d of decoys ?? NO_DECOYS) {
+        // One still on the robot it stands in for is just part of it (lit, not let go yet).
+        if (d.robot === other) continue;
         const dist = Math.hypot(d.pos.x - from.x, d.pos.y - from.y);
         if (dist >= best) continue;
         const b = sensors.filter((s) => sees(s, d.pos, terrain)).map((s) => s.id);
@@ -990,7 +997,9 @@ export class World {
       const pos = at ? at.pos : ref.pos;
       const side = !this.controllers.has(other.id) ? 'none' : other.team === robot.team ? 'friend' : 'enemy';
       if (at) fooled?.set(other.id, at);
-      out.push({ id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center: at ? at.pos : ref.center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(pos.x - from.x, pos.y - from.y), by });
+      // Seen at a decoy, its center keeps the same offset from its position as the robot's own.
+      const center = at ? { x: at.pos.x + ref.center.x - ref.pos.x, y: at.pos.y + ref.center.y - ref.pos.y } : ref.center;
+      out.push({ id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(pos.x - from.x, pos.y - from.y), by });
     }
     out.sort((a, b) => a.distance - b.distance || a.id - b.id);
     if (remember) {

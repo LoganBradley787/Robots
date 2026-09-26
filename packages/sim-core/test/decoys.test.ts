@@ -70,7 +70,7 @@ describe('decoys fool sensors (M11)', () => {
       function tick() {
         if (frame !== 40) return;
         var c = contacts[0];
-        log(contacts.length, c.id, c.side, c.core, c.parts, Math.round(c.mass * 10) / 10, c.pos.x.toFixed(3), c.pos.y.toFixed(3), c.vel.x > 3, c.center.x === c.pos.x);
+        log(contacts.length, c.id, c.side, c.core, c.parts, Math.round(c.mass * 10) / 10, c.pos.x.toFixed(3), c.pos.y.toFixed(3), c.vel.x > 3, Math.abs(c.center.x - c.pos.x) < 1);
         log(JSON.stringify(scan(c.id).map(function (p) { return [p.id, p.type]; })));
       }`;
     const me = w.spawnBlueprint({ ...RADAR, scripts: [{ id: 'look', source: src }] }, { x: 0, y: 100 });
@@ -159,6 +159,33 @@ describe('decoys fool sensors (M11)', () => {
     expect(w.sensorView(me.id).contacts).toMatchObject([{ id: mine.id, side: 'friend', decoy: true }]);
     expect(w.sensorView(me.id).contacts[0]?.x).toBeCloseTo(flare.x, 6);
     expect(w.sensorView(mine.id).contacts.map((c) => c.id)).toEqual([me.id]);
+    w.dispose();
+  });
+
+  it('a flare lit but still on its robot is just one of its parts', async () => {
+    const w = await world();
+    const me = w.spawnBlueprint(RADAR, { x: 0, y: 100 });
+    const target = w.spawnBlueprint({ format: 1, name: 'held', grid: ['C  F  Q>'], bindings: [LIGHT[0]] }, { x: 0, y: 130 }, { team: 1 });
+    light(w, target);
+    expect(w.partOutput(target.id, 'flare@2,0', 'burning')).toBe(1);
+    const seen = w.sensorView(me.id).contacts;
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.decoy).toBeUndefined();
+    expect(seen[0]?.x).toBeCloseTo(corePos(w, target).x, 6);
+    w.dispose();
+  });
+
+  it('a piece with a burning flare and anything else on it is seen as itself, beside the flare standing in for its robot', async () => {
+    const w = await world();
+    const me = w.spawnBlueprint(RADAR, { x: 0, y: 100 });
+    const target = w.spawnBlueprint({ ...RIGHT, grid: ['C  D>  F  Q>'] }, { x: 0, y: 130 }, { team: 1 });
+    light(w, target);
+    for (let i = 0; i < 10; i++) w.step();
+    const seen = w.sensorView(me.id).contacts;
+    expect(seen.map((c) => [c.side, c.decoy ?? false]).sort()).toEqual([
+      ['enemy', true],
+      ['none', false],
+    ]);
     w.dispose();
   });
 

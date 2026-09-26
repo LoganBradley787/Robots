@@ -34,7 +34,8 @@ function pop() {
   for (let k = 1; k <= 9; k++) {
     let any = false;
     for (const r of names) {
-      if (!(get(r + '.fgrip' + k, 'armed') > 0)) continue;
+      // A grip still holding an unlit flare (a flare shot off leaves its grip empty).
+      if (!(get(r + '.fgrip' + k, 'armed') > 0) || get(r + '.flare' + k, 'burning') !== 0) continue;
       set(r + '.flare' + k, 'ignite', 1);
       set(r + '.fgrip' + k, 'fire', 1);
       any = true;

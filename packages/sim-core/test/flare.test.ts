@@ -122,6 +122,19 @@ describe('flares (M11)', () => {
     expect(lit[1]).not.toBe(dark[1]);
   });
 
+  it('destroyed while burning, it is an ordinary part lost, not burnt out', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const car = w.spawnBlueprint(FLARE_CAR, { x: -100, y: 0.5 });
+    w.step(tap(car.id, 'v'));
+    const flare = car.parts.get('flare@0,1');
+    if (flare) flare.health = 0;
+    w.step(release(car.id, 'v'));
+    expect(car.parts.has('flare@0,1')).toBe(false);
+    expect(count(w, 'burntOut')).toBe(0);
+    expect(w.events.find((e) => e.kind === 'partDestroyed' && 'burntOut' in e)).toBeUndefined();
+    w.dispose();
+  });
+
   it('shot while unlit, it breaks like any part and never lights', async () => {
     const w = await World.create({ seed: 1 }, flat);
     const car = w.spawnBlueprint(FLARE_CAR, { x: -100, y: 0.5 });

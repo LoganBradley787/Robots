@@ -136,7 +136,9 @@ function tick() {
   const seen = pick();
   // Lost sight of what it was about to reach (M11): it passed out of the seeker's cone close by, or the robot is now
   // seen somewhere else (at a flare). It goes off, as a near miss.
-  if (state.close && (!seen || Math.hypot(seen.pos.x - state.close.x, seen.pos.y - state.close.y) > near)) boom();
+  // Only on the tick right after: a script switched off and on again later starts fresh.
+  const was = state.close && time - state.close.t <= 1.5 * dt ? state.close : undefined;
+  if (was && (!seen || Math.hypot(seen.pos.x - was.x, seen.pos.y - was.y) > near)) boom();
   state.close = undefined;
   // Armed (M10) once clear of its launcher, and only when it was launched at something (a message with a point) or
   // tracks an enemy: safe while it rides on a launcher and while it clears it, and a missile knocked loose by a hit
@@ -175,7 +177,7 @@ function tick() {
       const t = v2 > 0 ? clamp(-(rx * vx + ry * vy) / v2, 0, dt) : 0;
       const pass = Math.hypot(rx + vx * t, ry + vy * t);
       if (pass < proximity) boom();
-      if (pass < near && state.armed) state.close = { x: p.x, y: p.y };
+      if (pass < near && state.armed) state.close = { x: p.x, y: p.y, t: time };
     }
     // Reached the last point with nothing tracked (it moved, or was never there): fly on the way it is going and keep
     // looking. A robot on the ground there was hit on impact already.
