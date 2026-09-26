@@ -1,0 +1,17 @@
+{
+  "car": "ce0d0949",
+  "hopper": "aaed30b7",
+  "drone": "2ee12c90",
+  "longcar-bomb": "a56cac6d",
+  "launcher": "f36a663f",
+  "missile-drone": "8a395657",
+  "missile-drone-10prop": "59485a31",
+  "launcher-seeker": "239fb1a3",
+  "launcher-arc": "47d1bfc1",
+  "hunter-duel": "189c73fb",
+  "flying-silo-volley": "93ff64cc",
+  "silo-volley": "1059cb62",
+  "battle-2v2": "fe0dd417",
+  "big-launcher": "67ef6a03",
+  "drone-bombed": "4a92ebcc"
+}

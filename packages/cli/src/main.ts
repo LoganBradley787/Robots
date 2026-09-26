@@ -1,6 +1,6 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
 import { BLUEPRINT_DIR, DEFAULT_WORLD, readBlueprint, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
-import { formatReport, InvalidBlueprint, runSim, type Drop } from './commands/run';
+import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
 import { showBlueprint } from './commands/show';
@@ -12,7 +12,9 @@ import { formatParts, partRows } from './commands/parts';
 import { existsSync, renameSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { defaultRegistry, isRotation, orientRaw, type Rotation } from '@robots/sim-core';
-import { parseSpawnSuffixes, parseTeam } from './spawnSpec';
+import { parseTeam } from './spawnSpec';
+import { parseDrop } from './drops';
+import { bench, BENCH_SCENES, formatBench, type BenchScene } from './commands/bench';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
 
@@ -36,6 +38,11 @@ commands
                      Prints the result's json (notes go to stderr, so > file.json is clean). --save <name>
                      writes blueprints/<name>.json and its scripts as files; --save <path>.json writes them
                      there instead (a drafts folder). --force replaces an existing file
+  bench [scene] [--n <count>] [--seconds <n>] [--json]
+                     time ticks on this machine (M9): hover (missile-drone-10prop hovering, 1 to 100 of
+                     them, the default), big (one flying-silo), battle (enemy drones, team 1 against team 2,
+                     --n per side), debris (500 loose parts, no scripts). Prints ms per tick split into
+                     scripts and the rest, and each run's final hash
   mirror <bp> [--axis <half cells>] [--save <name>] [--force]
                      print the blueprint flipped left to right (x becomes axis - x; the default axis keeps it
                      in place). --save works as for place
@@ -82,18 +89,6 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, s
     }
   }
   return { positional, flags, drops };
-}
-
-/** `bomb@2:3,6`: blueprint bomb at 2 s, root at (3, 6); `enemy-drone@0:80,20:enemy:flip` also sets its team and facing (M8). */
-function parseDrop(raw: string): Drop {
-  const num = '-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)';
-  const m = new RegExp(`^([^@]+)@(${num}):(${num}),(${num})((?::[A-Za-z0-9]+)*)$`).exec(raw.trim());
-  if (!m) throw new Error(`--drop must look like bomb@2:3,6 (blueprint@seconds:x,y), with optional :enemy, :flip, :rot90 after it; got ${raw}`);
-  const [, name = '', t = '0', x = '0', y = '0', rest = ''] = m;
-  const spec = parseSpawnSuffixes(rest.split(':').filter((s) => s !== ''), `--drop ${name}`);
-  const loaded = readBlueprint(resolveBlueprint(name));
-  for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to ${name}`);
-  return { name, blueprint: orientRaw(loaded.raw, spec, defaultRegistry()), t: Number(t), at: { x: Number(x), y: Number(y) }, ...(spec.team !== 0 ? { team: spec.team } : {}) };
 }
 
 function numberFlag(flags: Map<string, string>, key: string, fallback: number): number {
@@ -148,6 +143,7 @@ async function main(): Promise<number> {
     return 0;
   }
   if (command === 'mirror') return mirror(positional, flags);
+  if (command === 'bench') return benchCommand(positional, flags);
   if (!['run', 'show', 'validate', 'determinism'].includes(command)) {
     console.log(USAGE);
     return 2;
@@ -219,6 +215,22 @@ async function main(): Promise<number> {
     }
     throw e;
   }
+}
+
+async function benchCommand(positional: string[], flags: Map<string, string>): Promise<number> {
+  const scene = positional[1] ?? 'hover';
+  if (!(BENCH_SCENES as readonly string[]).includes(scene)) {
+    console.error(`bench scene must be one of ${BENCH_SCENES.join(', ')}, got ${scene}`);
+    return 2;
+  }
+  const n = flags.has('n') ? numberFlag(flags, 'n', 1) : undefined;
+  if (n !== undefined && (!Number.isInteger(n) || n < 1)) {
+    console.error(`--n must be a whole number of at least 1, got ${n}`);
+    return 2;
+  }
+  const rows = await bench({ scene: scene as BenchScene, ...(n !== undefined ? { n } : {}), ...(flags.has('seconds') ? { seconds: numberFlag(flags, 'seconds', 5) } : {}) });
+  console.log(flags.has('json') ? rows.map((r) => JSON.stringify(r)).join('\n') : formatBench(rows));
+  return 0;
 }
 
 function place(positional: string[], flags: Map<string, string>): number {

@@ -99,3 +99,19 @@
 - **A value that differs in the last bit** between JSON and the block would change a hash. The block carries the exact bits the host has; JSON text round-trips exactly in JavaScript. The golden hashes are the check; if one differs, the parity test finds the tick and the value.
 - **A layout that goes stale** (a change to parts or present values that does not rebuild it) would hand a script wrong numbers. The parity test covers splits, decouplers, destroyed parts, and missiles waking; the layout also rebuilds whenever the count of numbers would differ.
 - **Stress 100 in the browser** may be slower than headless (drawing 100 drones, QuickJS in the browser build). If it misses 60 frames per second, the readout says where the time goes and that becomes a Gate 8 note, not a blocker.
+
+## As built
+
+### Bench before any change (T1, 2026-09-25, Logan's Mac, `pnpm sim bench`)
+| scene | n | avg ms | p95 | worst | scripts | rest | calls/tick |
+|---|---|---|---|---|---|---|---|
+| hover | 1 | 0.53 | 0.69 | 1.42 | 0.44 | 0.09 | 2 |
+| hover | 10 | 4.58 | 5.21 | 7.05 | 4.03 | 0.56 | 20 |
+| hover | 25 | 11.22 | 12.23 | 13.79 | 9.88 | 1.34 | 50 |
+| hover | 50 | 22.83 | 24.05 | 25.72 | 20.17 | 2.66 | 100 |
+| hover | 100 | 46.21 | 49.35 | 64.00 | 40.59 | 5.62 | 200 |
+| big (flying-silo) | 1 | 1.89 | 2.08 | 3.49 | 1.38 | 0.51 | 2 |
+| battle (6 vs 6, 20 s) | 6 | 7.27 | 8.69 | 18.52 | 5.50 | 1.77 | 15.7 |
+| debris | 500 | 0.83 | 1.78 | 2.95 | 0 | 0.83 | 0 |
+
+"scripts" is time inside the sandbox calls (including the host's `JSON.stringify`); "rest" is everything else, including `World.scriptInput`.
