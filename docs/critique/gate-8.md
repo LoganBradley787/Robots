@@ -32,3 +32,12 @@ In the browser scripts ran about 20 to 40 percent slower than headless: 50 drone
 - The Stress menu uses shipped blueprints by name (`missile-drone-10prop`, `enemy-drone`); if either is renamed it shows an error.
 
 ## Findings
+
+### 1. New things to fight, and warheads that need arming (Logan, 2026-09-25)
+- A drone bomb (small, chases its target and goes off on it), an enemy flying silo, an enemy launcher truck. Later a MASTER DRONE carrying seekers, a big missile, and two drone bombs.
+- Warheads should be safe until armed by a key or a script ("it should work for anything"), so one hit on a loaded drone no longer sets off all its missiles. Armed at start is a per-part setting.
+- Planned as M10: `docs/plans/M10-arming-and-enemies.md`.
+
+### 2. The memory fix task chip did not start (Logan: "Couldn't start the suggested task")
+- Planned instead in `docs/plans/script-memory-limit.md`, for a separate agent later.
+

@@ -12,7 +12,8 @@ Updated: 2026-09-25, by an Opus 5.5 session, end of M9
   - App: a perf readout in the debug HUD (with `\`), a Stress menu on the world toolbar (Hover 10 to 100, Battle 6 vs 6), `canPlace` fast with many robots.
 - Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE).
 - Next steps, in order (Logan's order, 2026-09-25):
-  1. Gate 8 punch list (Logan plays M9).
+  1. **M10, arming and new enemies**, planned in `docs/plans/M10-arming-and-enemies.md` from Logan's Gate 8 requests (warheads safe until armed by a key or script, a drone bomb, an enemy flying silo, an enemy launcher truck). Waiting for Logan's go.
+  - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
   2. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build, a Web Worker for the sim (flagged at Gate 8: at 100 drones the browser has little time left to draw). Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
   - Details and measurements: `docs/ideas.md`, "After Gate 6".
 - Wording note (2026-09-25, M8): writing the homing missile tripped Opus's safety classifier several times. Write in plain game terms (no real weapon names or tactics talk in code or docs), build in small steps. The Javelin is the `arc` option.
