@@ -8,10 +8,10 @@
   "missile-drone-10prop": "8d451f13",
   "launcher-seeker": "53325b3b",
   "launcher-arc": "e9266713",
-  "hunter-duel": "966e6620",
+  "hunter-duel": "58ab72c0",
   "flying-silo-volley": "a0b7eb4f",
-  "silo-volley": "08ec697d",
-  "battle-2v2": "050f0970",
+  "silo-volley": "69097d43",
+  "battle-2v2": "3a0b33c1",
   "big-launcher": "a8ce5589",
   "drone-bombed": "2f740861",
   "drone-bomb-vs-drone": "b15a31b8",
@@ -21,6 +21,6 @@
   "enemy-carrier-vs-hunter": "e5d0c1e0",
   "hunter-flares": "62c33645",
   "fab-drone": "4a883d1e",
-  "enemy-fab-drone-vs-cars": "17301a4c",
-  "bomb-fab-drones": "0a705332"
+  "enemy-fab-drone-vs-cars": "5e2d7aaa",
+  "bomb-fab-drones": "aecf3fdc"
 }

@@ -6,7 +6,8 @@ import { scriptHost } from '../src/scriptHost';
 /**
  * M9: on every script call in every golden scene, what the script actually holds (read back from inside the sandbox,
  * just before it runs) must be exactly what the old path gave it: `JSON.parse(JSON.stringify(input))` of the input the
- * world built before M9. Compared as JSON text, so key order counts too.
+ * world built before M9. Compared as JSON text (the sandbox's text re-printed by Node, so numbers print the same way), so
+ * key order counts too.
  */
 describe('scripts see what they saw before M9', () => {
   for (const scene of GOLDEN_SCENES) {
@@ -17,7 +18,10 @@ describe('scripts see what they saw before M9', () => {
       const mismatches: string[] = [];
       const check = (instance: ScriptInstance, when: string): void => {
         calls++;
-        const seen = instance.inspect?.() ?? '';
+        // Re-printed by Node: the sandbox (QuickJS) prints some doubles with more digits than Node does for the same
+        // value (-2^-24 as -5.9604644775390625e-8, Node -5.960464477539063e-8). Key order still counts.
+        const raw = instance.inspect?.() ?? '';
+        const seen = raw === '' ? raw : JSON.stringify(JSON.parse(raw));
         if (seen !== expected && mismatches.length < 3) mismatches.push(`${when}\n  saw:      ${seen.slice(0, 600)}\n  expected: ${expected.slice(0, 600)}`);
       };
       const host: ScriptHost = {

@@ -32,6 +32,8 @@ const turnLag = param('turnLag', 1, { min: 0, max: 3 }); // s its nose takes to 
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (other missiles) are ignored
 const acquire = param('acquire', 60, { min: 1, max: 1000 }); // m: a robot this close to the point is the one it follows
 const proximity = param('proximity', 2, { min: 0, max: 10 }); // m: goes off this close to a tracked robot (from its warhead)
+const passBy = param('passBy', 15, { min: 0, max: 50 }); // m it keeps over a friendly robot's core on its way (a drone may be 15 wide)
+const passMass = param('passMass', 25, { min: 0, max: 1000 }); // kg: friendly robots this heavy or more are flown over (drones, not other missiles)
 const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
 
@@ -200,6 +202,20 @@ function tick() {
       const ground = Math.abs(gx - self.pos.x);
       if (Math.atan2(self.pos.y - gy, ground) > dive || ground < stop) state.phase = 'down';
       else gy += state.height;
+    }
+    // Over friendly robots on the way (`passMass` or more: drones, not other missiles): its line is raised to pass
+    // `passBy` meters over any it would pass closer to. In a 5v5 the fab drones' missiles flipped over the top and flew
+    // back through the drones beside them (Logan).
+    const lx = gx - self.pos.x;
+    const ly = gy - self.pos.y;
+    const l2 = lx * lx + ly * ly;
+    for (const c of contacts) {
+      if (c.side !== 'friend' || c.mass < passMass || l2 < 1) continue;
+      const fx = c.pos.x - self.pos.x;
+      const fy = c.pos.y - self.pos.y;
+      const u = (fx * lx + fy * ly) / l2;
+      if (u <= 0 || u >= 1 || Math.abs(fx * ly - fy * lx) / Math.sqrt(l2) >= passBy) continue;
+      gy = Math.max(gy, self.pos.y + (fy + passBy) / Math.max(u, 0.2));
     }
     mark(gx, gy, state.phase);
     aim = Math.atan2(gy - self.pos.y, gx - self.pos.x);

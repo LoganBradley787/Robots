@@ -20,12 +20,14 @@ const lift = param('lift', 120, { min: 10, max: 1000 }); // N, one propeller's f
 const gyroTorque = param('gyroTorque', 40, { min: 0, max: 1000 }); // N m, the gyro's full torque (the gyro part)
 const lean = (param('lean', 50, { min: 0, max: 70 }) * Math.PI) / 180; // most it leans, degrees
 const steer = param('steer', 0.08, { min: 0.01, max: 0.5 }); // radians of lean per m/s it is off the sideways speed it wants
+const turnLift = param('turnLift', 0.15, { min: 0, max: 1 }); // most throttle it adds over what the height asks for, to turn
 const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of its turning or climbing power it plans braking on
 const speed = param('speed', 12, { min: 1, max: 40 }); // m/s, fastest it flies sideways to get somewhere
 const standoff = param('standoff', 50, { min: 5, max: 300 }); // m to the side of the robot it tracks
 const above = param('above', 12, { min: 0, max: 100 }); // m above it
 const ceiling = param('ceiling', 30, { min: 0, max: 500 }); // m above where it was deployed it never climbs past (two of these tracking each other would otherwise climb forever)
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots are missiles (dodged, not chased)
+const clearance = param('clearance', 20, { min: 0, max: 100 }); // m: a friendly robot this close to the line to the target makes it an arc shot
 const below = param('below', 10, { min: -100, max: 100 }); // m: a target more than this far below gets an arc shot, the rest a direct one
 const minRange = param('minRange', 25, { min: 0, max: 500 }); // m: closer than this it holds fire
 const maxRange = param('maxRange', 250, { min: 10, max: 1000 }); // m: further than this it holds fire
@@ -116,10 +118,13 @@ function fly(vx, height, vy) {
   const gyro = clamp(torque, -gyroTorque, gyroTorque);
   let base = throttle;
   let diff = 0;
+  // Turning comes first, but it may add at most `turnLift` to the throttle the height asked for: swinging side to side
+  // between targets with every propeller at half or more, the fab drones climbed past 300 m asking to come down.
   for (let i = 0; i < 4; i++) {
     diff = b.split !== 0 ? (torque - gyro - lift * base * b.sum) / (lift * b.split) : 0;
     const d = Math.abs(diff);
     base = d >= 0.5 ? 0.5 : clamp(throttle, d, 1 - d);
+    base = Math.min(base, Math.max(throttle + turnLift, Math.min(throttle, 1 - d)));
   }
   set('lprop', 'throttle', clamp(base - diff, 0, 1));
   set('rprop', 'throttle', clamp(base + diff, 0, 1));
@@ -148,10 +153,25 @@ function threat() {
   return worst;
 }
 
+/** A friendly robot (10 kg or more) within `clearance` meters of the line from it to `t`. */
+function friendInWay(t) {
+  const lx = t.pos.x - self.pos.x;
+  const ly = t.pos.y - self.pos.y;
+  const l2 = Math.max(1, lx * lx + ly * ly);
+  return contacts.some((c) => {
+    if (c.side !== 'friend' || c.mass < minMass) return false;
+    const fx = c.pos.x - self.pos.x;
+    const fy = c.pos.y - self.pos.y;
+    const u = (fx * lx + fy * ly) / l2;
+    return u > 0 && u < 1 && Math.abs(fx * ly - fy * lx) / Math.sqrt(l2) < clearance;
+  });
+}
+
 function fire(t) {
   if (!(get('bay', 'ready') > 0)) return;
-  // Over the top onto a target well below; straight in (from underneath, after the climb) at one level or above.
-  const arc = t.pos.y < self.pos.y - below ? 1 : 0;
+  // Over the top onto a target well below, or past a friendly robot near the line to it (in a 5v5 its missiles flew
+  // straight through the drones beside it); straight in (from underneath, after the climb) otherwise.
+  const arc = t.pos.y < self.pos.y - below || friendInWay(t) ? 1 : 0;
   // The held copy's scope is the bay's tag and its build count (`bay3` is the third).
   send('bay' + get('bay', 'built'), { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, arc });
   set('bay', 'release', 1);
@@ -218,9 +238,17 @@ function tick() {
     return;
   }
 
+  // Where it wants to be: beside and over what it tracks, or home.
+  let goal = state.home;
+  if (target) {
+    const side = self.pos.x >= target.pos.x ? 1 : -1;
+    goal = { x: target.pos.x + side * standoff, y: Math.min(target.pos.y + above, state.home.y + ceiling) };
+  }
+
   // Off the line (Logan): nothing it sees (friend, enemy, or wreckage) straight above or below it. Something above may
   // come down on it or into its bay (what it let go waits there with nothing in range; debris falls), and a robot below
-  // may send something straight up. It slides away sideways at full speed, holding its height.
+  // may send something straight up. It slides away sideways at full speed, heading for the height it wants but never
+  // toward the thing (held where the slide began, it stayed 60 m over its ceiling after dodging up).
   const line = contacts.find((c) => c.distance > 0.01 && Math.abs(c.pos.x - self.pos.x) < width && c.pos.y - self.pos.y < space && self.pos.y - c.pos.y < under);
   if (!line) {
     // Off it now: with nothing tracked it waits here, not back on the line (two deployed together shared a home).
@@ -232,16 +260,11 @@ function tick() {
     const dx = self.pos.x - line.pos.x;
     const away = Math.abs(dx) > 1 ? Math.sign(dx) : self.pos.y < line.pos.y ? 1 : -1;
     state.lineAway = away;
-    fly(away * speed, state.lineY);
+    fly(away * speed, line.pos.y > self.pos.y ? Math.min(goal.y, state.lineY) : Math.max(goal.y, state.lineY));
     mark(line.pos.x, line.pos.y, 'off the line');
     return;
   }
 
-  let goal = state.home;
-  if (target) {
-    const side = self.pos.x >= target.pos.x ? 1 : -1;
-    goal = { x: target.pos.x + side * standoff, y: Math.min(target.pos.y + above, state.home.y + ceiling) };
-  }
   const vx = clamp(0.5 * (goal.x - self.pos.x), -speed, speed);
   fly(vx, goal.y);
   mark(goal.x, goal.y, target ? 'hold' : 'home');

@@ -198,4 +198,34 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     expect(top).toBeLessThan(52);
     w.dispose();
   });
+
+  it('fab drones on both sides tracking each other stay under their ceiling (swinging between targets, they climbed past 300 m)', { timeout: 60_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const all = [
+      w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: 60, y: 20 }, { team: 1 }),
+      w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: 110, y: 28 }, { team: 1 }),
+      w.spawnBlueprint(blueprint('enemy-bomb-fab-drone'), { x: -60, y: 20 }),
+      w.spawnBlueprint(blueprint('enemy-bomb-fab-drone'), { x: -110, y: 28 }),
+    ];
+    let top = 0;
+    for (let t = 0; t < 30 * 60; t++) {
+      w.step();
+      for (const r of all) if (w.robots.includes(r) && r.groups[0]) top = Math.max(top, w.physics.state(r.groups[0].bodyId).y);
+    }
+    expect(top).toBeLessThan(100); // dodging a missile may take one up for a moment
+    // Where they hold: under the ceiling (30 over where each started), give or take.
+    for (const r of all) if (w.robots.includes(r) && r.primaryCoreId !== undefined && r.groups[0]) expect(w.physics.state(r.groups[0].bodyId).y).toBeLessThan(28 + 30 + 10);
+    w.dispose();
+  });
+
+  it('a missile it fires past a friendly drone between it and its target goes over it (Logan: they flew through their own)', { timeout: 60_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    w.spawnBlueprint(blueprint('enemy-fab-drone', { standoff: 200, minRange: 0 }), { x: 100, y: 25 }, { team: 1 });
+    const friend = w.spawnBlueprint(blueprint('enemy-fab-drone', { minRange: 2000 }), { x: 40, y: 25 }, { team: 1 });
+    const target = w.spawnBlueprint(blueprint('hunter-drone'), { x: -100, y: 25 });
+    for (let t = 0; t < 14 * 60; t++) w.step();
+    expect(ownLost(w, friend)).toBe(0);
+    expect(partsLost(w, target)).toBeGreaterThan(0);
+    w.dispose();
+  });
 });
