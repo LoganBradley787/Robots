@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, createQuickJsHost, setPartsAuto, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
+import { addTagToParts, createQuickJsHost, orientRaw, setPartsAuto, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
@@ -14,6 +14,8 @@ import { keyName } from './builder/bindings';
 import { enterWorld, toggleMode, type ModeState } from './app/modes';
 import { deployDecision } from './builder/deployFlow';
 import { WorldScreen } from './world/WorldScreen';
+import { BATTLE_GRID, HOVER_GRID } from './world/stress';
+import { timedHost } from './app/timedHost';
 import { createStore } from './ui/store';
 import type { AppState } from './ui/appState';
 import { App } from './ui/App';
@@ -34,8 +36,9 @@ async function boot(): Promise<void> {
   const textures = await loadTextures();
   const hud = new Hud(hudEl);
   // The script sandbox (QuickJS in WASM, the browser build of the same engine the CLI uses).
-  const scriptHost = await createQuickJsHost(quickjsBrowser);
-  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(flatJson), hud, scriptHost);
+  // Wrapped in a timer (M9) for the debug overlay's perf readout; the sim never sees the clock.
+  const { host: scriptHost, clock: scriptClock } = timedHost(await createQuickJsHost(quickjsBrowser));
+  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(flatJson), hud, scriptHost, scriptClock);
 
   const registry = defaultRegistry();
   const blank = blankBlueprint('untitled');
@@ -150,6 +153,32 @@ async function boot(): Promise<void> {
     },
     toggleUnlimitedEnergy: () => worldScreen.toggleUnlimitedEnergy(),
     toggleDeployTeam: () => worldScreen.toggleDeployTeam(),
+    stress: (kind, n) => {
+      // Shipped blueprints, loaded like the Blueprints palette does. Hover: every script on, so they hold their height.
+      // In the file form the world takes (as the deploy ghost passes it), facing as given.
+      const load = async (file: string, scriptsOn: boolean, flip = false): Promise<unknown> => {
+        const bp = await doc.loadForPlacing(file);
+        if (!bp) return undefined;
+        return orientRaw(toFileJson(scriptsOn ? { ...bp, scripts: (bp.scripts ?? []).map((sc) => ({ ...sc, enabled: true })) } : bp, registry, { inlineScripts: true }), { flip }, registry);
+      };
+      const go = async (): Promise<void> => {
+        let placed = 0;
+        if (kind === 'hover') {
+          const bp = await load('missile-drone-10prop.json', true);
+          if (!bp) return;
+          placed = worldScreen.stress(bp, 0, HOVER_GRID(n));
+        } else {
+          const left = await load('enemy-drone.json', false);
+          const right = await load('enemy-drone.json', false, true);
+          if (!left || !right) return;
+          // Team 1 on the left facing right, team 2 on the right flipped to face it.
+          placed = worldScreen.stress(left, 1, BATTLE_GRID(n), -75) + worldScreen.stress(right, 2, BATTLE_GRID(n), 75);
+          n *= 2;
+        }
+        if (placed < n) notify(store, `Stress: placed ${placed} of ${n}; the rest had no room around the middle of the screen`);
+      };
+      go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+    },
     clearDebris: () => worldScreen.clearDebris(),
     saveReplay: () => {
       const { replay, robot } = worldScreen.replay();

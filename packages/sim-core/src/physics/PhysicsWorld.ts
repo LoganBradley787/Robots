@@ -366,10 +366,27 @@ export class PhysicsWorld {
       pos: { x: s.x, y: s.y },
       shape: s.shape.shape === 'box' ? new RAPIER.Cuboid(shrink(s.shape.hx), shrink(s.shape.hy)) : new RAPIER.Ball(shrink(s.shape.radius)),
     }));
+    // The box around every probe: a collider whose bounding circle misses it cannot touch any probe, so the exact
+    // test (the slow part, with hundreds of robots about) runs only on colliders near the spot.
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const s of shapes) {
+      const hx = s.shape.shape === 'box' ? s.shape.hx : s.shape.radius;
+      const hy = s.shape.shape === 'box' ? s.shape.hy : s.shape.radius;
+      minX = Math.min(minX, s.x - hx);
+      minY = Math.min(minY, s.y - hy);
+      maxX = Math.max(maxX, s.x + hx);
+      maxY = Math.max(maxY, s.y + hy);
+    }
     let hit = false;
     this.world.forEachCollider((c) => {
       if (hit) return;
       const pos = c.translation();
+      const type = c.shapeType();
+      const reach = type === RAPIER.ShapeType.Ball ? c.radius() : type === RAPIER.ShapeType.Cuboid ? Math.hypot(c.halfExtents()?.x ?? Infinity, c.halfExtents()?.y ?? Infinity) : Infinity;
+      if (pos.x + reach < minX || pos.x - reach > maxX || pos.y + reach < minY || pos.y - reach > maxY) return;
       const rot = c.rotation();
       hit = probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0));
     });

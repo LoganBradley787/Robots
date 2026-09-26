@@ -116,6 +116,12 @@
 .world-toolbar .speed { min-width: 34px; text-align: center; font: 12px ui-monospace, Menlo, monospace; }
 #ui .world-toolbar button.on { border-color: var(--accent); color: var(--accent); }
 #ui .world-toolbar button.on.enemy { border-color: #e5645a; color: #e5645a; }
+.world-toolbar .stress { position: relative; }
+.world-toolbar .stress-menu {
+  position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;
+  background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px;
+}
+.world-toolbar .stress-row { display: flex; align-items: center; gap: 6px; }
 kbd { font: 10px ui-monospace, Menlo, monospace; padding: 0 4px; border: 1px solid #3a4f7d; border-radius: 3px; color: var(--muted); margin-left: 3px; }
 .refused { color: var(--warning); margin: 4px 0 8px; }
 

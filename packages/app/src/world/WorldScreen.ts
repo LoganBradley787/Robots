@@ -19,6 +19,9 @@ import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
 import { KeyboardSource } from '../control/KeyboardSource';
 import { canPossess, isClick, nextRobot } from '../control/possession';
+import { PerfMeter } from '../app/perfMeter';
+import type { ScriptClock } from '../app/timedHost';
+import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 
@@ -143,10 +146,31 @@ export class WorldScreen {
     );
   }
 
-  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[]): void }, scripts: ScriptHost): Promise<WorldScreen> {
+  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[]): void }, scripts: ScriptHost, clock?: ScriptClock): Promise<WorldScreen> {
     const screen = new WorldScreen(renderer, textures, file, await World.create({ seed: 1, scripts }, file), hud);
     screen.scriptHost = scripts;
+    screen.clock = clock;
     return screen;
+  }
+
+  /** Time spent in scripts (M9: the script host is wrapped in a timer), and the readout it feeds. */
+  private clock: ScriptClock | undefined;
+  private readonly perf = new PerfMeter();
+
+  /**
+   * Stress test (M9): drops copies of `raw` in rows around `centerX` (the middle of the screen by default), skipping
+   * spots that are taken or have no ground under them. Robots are placed like any deploy, so they are in the replay
+   * and Clear robots removes them. Returns how many were placed.
+   */
+  stress(raw: unknown, team: number, grid: StressGrid, offsetX = 0): number {
+    const placed = placeGrid({ x: this.cam.x + offsetX }, grid, (x) => surfaceAt(this.file, x), (at) => {
+      if (!this.world.canPlace(raw, at).ok) return false;
+      this.world.spawnBlueprint(raw, at, { team });
+      return true;
+    });
+    this.syncViews();
+    this.cam = setFollow(this.cam, false);
+    return placed.length;
   }
 
   /** Terrain only, no robots. Keeps the camera and time settings. */
@@ -407,11 +431,14 @@ export class WorldScreen {
     let ticks = time.takePendingSteps();
     if (time.paused) this.stepper.reset();
     else ticks += this.stepper.advance(ticker.deltaMS, time.timeScale);
+    const simStart = performance.now();
     for (let i = 0; i < ticks; i++) {
       // Keys are sampled once per tick: this frame's edges go into its first tick. While paused they wait.
       this.world.step(i === 0 ? this.keys.drain() : []);
       if (this.world.tick % 60 === 0) this.lastHash = this.world.hash();
     }
+    const viewStart = performance.now();
+    const scripts = this.clock?.take() ?? { ms: 0, calls: 0 };
 
     if (ticks > 0) this.syncViews();
     // A robot whose core was destroyed cannot be driven any more: let go of it (the world would drop the keys anyway).
@@ -516,9 +543,11 @@ export class WorldScreen {
       `${time.paused ? 'PAUSED' : 'running'}   x${time.timeScale}   zoom ${this.cam.zoom.toFixed(2)}   follow ${this.cam.follow ? 'on' : 'off'}`,
       robotLine,
       ...placingLines,
+      ...(this.debugVisible ? this.perf.lines(this.world.robots.length) : []),
       `hash ${this.lastHash}`,
       HELP,
     ]);
+    this.perf.add({ frameMs: ticker.deltaMS, ticks, simMs: viewStart - simStart, scriptMs: scripts.ms, scriptCalls: scripts.calls, viewMs: performance.now() - viewStart });
   }
 }
 

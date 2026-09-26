@@ -1,3 +1,4 @@
+import { useState } from 'preact/hooks';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
@@ -17,13 +18,20 @@ export interface WorldActions {
   saveReplay(): void;
   toggleUnlimitedEnergy(): void;
   toggleDeployTeam(): void;
+  /** M9: drops `n` hovering drones, or `n` enemy drones a side for a battle, around the middle of the screen. */
+  stress(kind: 'hover' | 'battle', n: number): void;
   toBuilder(): void;
 }
 
 /** Every world control as a button, with its key. Reset is only here, and it asks first. */
 export function WorldToolbar({ store, actions }: { store: Store<AppState>; actions: WorldActions }) {
   const v = useStore(store, (s) => s.world);
+  const [stressOpen, setStressOpen] = useState(false);
   if (!v) return null;
+  const stress = (kind: 'hover' | 'battle', n: number): void => {
+    setStressOpen(false);
+    actions.stress(kind, n);
+  };
   return (
     <div class="world-toolbar panel">
       <button onClick={actions.toBuilder} title="Tab">
@@ -66,6 +74,27 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
       <button onClick={actions.saveReplay} disabled={v.robots === 0} title="Save this run to replays/ so the headless runner can rerun it exactly">
         Save replay
       </button>
+      <span class="stress">
+        <button class={stressOpen ? 'on' : ''} onClick={() => setStressOpen(!stressOpen)} title="Drop a crowd of scripted robots to see how the sim copes. Turn on Debug for the numbers">
+          Stress
+        </button>
+        {stressOpen && (
+          <div class="stress-menu panel">
+            <div class="stress-row">
+              Hover:
+              {[10, 25, 50, 100].map((n) => (
+                <button key={n} onClick={() => stress('hover', n)}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <div class="stress-row">
+              Battle:
+              <button onClick={() => stress('battle', 6)}>6 vs 6</button>
+            </div>
+          </div>
+        )}
+      </span>
       <button onClick={actions.clearDebris} disabled={v.robots === 0} title="Remove every robot nobody can control: debris, robots that lost their core, bombs">
         Clear debris
       </button>
