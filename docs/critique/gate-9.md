@@ -12,6 +12,8 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 ## Extras after the gate opened
 - **Big drone (Logan):** `big-drone`, four big missiles on a booster-lifted drone (the flying silo's hover: W S A D, H toggles it; F launches the next big missile at a tracked enemy, spread across targets). `enemy-big-drone` is the same with an AI pilot: it holds 100 m off and 20 m up and fires one every 3 s. Each big missile's four heavy warheads go off together.
 
+- **Carrier (Logan):** `carrier`, six drone bombs on a booster-lifted deck. W S A D fly it (H toggles the hover), F lets one drone bomb go, G the rest. Each is told which enemy to go after, so they spread. `enemy-carrier` flies itself, sends one every 4 s, and lets the swarm go at anything within 70 m. Drone bombs now climb clear of whatever carried them and keep apart from each other.
+
 ## Flagged for your call
 - **The drone bomb is fast** (up to about 45 m/s; "as fast as it can while it can still slow down and hit a drone"). You only outrun it by flying flat out, since nothing has drag. `speed` is a param if it feels too hard.
 - **It cannot see the ground,** so it keeps 6 m over its target until close and comes in from above. Real terrain-following needs a ground-seeing part (in `ideas.md`).

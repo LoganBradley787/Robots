@@ -6,7 +6,7 @@ Updated: 2026-09-25, by an Opus 5.5 session, end of M10
 - What M10 shipped:
   - Warheads are safe until armed (`arming` in a part def; an `arm` input by key or script, for good; `"armed": true` starts one armed, the part menu's Armed at start). Unarmed, a warhead breaks without a blast, ignores hard hits and `detonate`. Every shipped missile arms itself when it is let go; `bomb` starts armed. A lit red light marks an armed warhead.
   - `drone-bomb` (chases the nearest enemy and goes off on it), `enemy-flying-silo`, `enemy-truck`, each deployable as Enemy.
-  - After the gate opened (Logan): `big-drone` (four big missiles on a booster-lifted drone, yours) and `enemy-big-drone` (the same, flying itself).
+  - After the gate opened (Logan): `big-drone` (four big missiles on a booster-lifted drone, yours) and `enemy-big-drone` (the same, flying itself); `carrier` (six drone bombs, F one, G all) and `enemy-carrier`.
 - M9 (before): scripts about 5 to 15 times cheaper; 100 hovering drones in about 13 ms per tick headless; `pnpm sim bench`; perf readout and Stress menu in the app.
 - Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE).
 - Next steps, in order:

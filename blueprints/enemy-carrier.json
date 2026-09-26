@@ -1,0 +1,608 @@
+{
+  "format": 1,
+  "name": "enemy-carrier",
+  "grid": [
+    ".   a   a   b   b   .   .   c   c   d   d   .   .   e   e   f   f   .   .   g   g   h   h   .   .   i   i   j   j   .   .   p56 p56 p57 p57 .",
+    "k   l   m   n   l   .   o   p   q   r   p   .   s   t   u   v   t   .   w   x   y   z   x   .   p26 p27 p28 p29 p27 .   p30 p58 p59 p60 p58 .",
+    "F   .   p31 p32 p33 p34 F   .   p35 p36 p37 p38 F   .   p39 p40 p41 p42 F   .   p43 p44 p45 p46 F   .   p47 p48 p49 p50 F   .   p61 p62 p63 p51",
+    "F   .   .   .   .   F   F   .   .   .   .   F   F   .   .   .   .   F   F   .   .   .   .   F   F   .   .   .   .   F   F   .   .   .   .   F",
+    "F   F   Z   F   F   p52 F   F   Z   F   F   p52 F   F   Z   F   p52 C   p53 p52 F   Z   F   F   p52 F   F   Z   F   F   p52 F   F   Z   F   F",
+    "p54 p54 p54 p54 p54 p54 .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   .   p55 p55 p55 p55 p55 p55"
+  ],
+  "legend": {
+    "a": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1",
+        "drone-bomb1.lprop"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1",
+        "drone-bomb1.rprop"
+      ],
+      "auto": false
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2",
+        "drone-bomb2.lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2",
+        "drone-bomb2.rprop"
+      ],
+      "auto": false
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3",
+        "drone-bomb3.lprop"
+      ],
+      "auto": false
+    },
+    "f": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3",
+        "drone-bomb3.rprop"
+      ],
+      "auto": false
+    },
+    "g": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4",
+        "drone-bomb4.lprop"
+      ],
+      "auto": false
+    },
+    "h": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4",
+        "drone-bomb4.rprop"
+      ],
+      "auto": false
+    },
+    "i": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5",
+        "drone-bomb5.lprop"
+      ],
+      "auto": false
+    },
+    "j": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5",
+        "drone-bomb5.rprop"
+      ],
+      "auto": false
+    },
+    "k": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip1"
+      ]
+    },
+    "l": {
+      "part": "frame",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1"
+      ]
+    },
+    "m": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1"
+      ]
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1",
+        "drone-bomb1.radar"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip2"
+      ]
+    },
+    "p": {
+      "part": "frame",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2"
+      ]
+    },
+    "q": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2"
+      ]
+    },
+    "r": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2",
+        "drone-bomb2.radar"
+      ]
+    },
+    "s": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip3"
+      ]
+    },
+    "t": {
+      "part": "frame",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3"
+      ]
+    },
+    "u": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3"
+      ]
+    },
+    "v": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3",
+        "drone-bomb3.radar"
+      ]
+    },
+    "w": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip4"
+      ]
+    },
+    "x": {
+      "part": "frame",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4"
+      ]
+    },
+    "y": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4"
+      ]
+    },
+    "z": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4",
+        "drone-bomb4.radar"
+      ]
+    },
+    "p26": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip5"
+      ]
+    },
+    "p27": {
+      "part": "frame",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5"
+      ]
+    },
+    "p28": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5"
+      ]
+    },
+    "p29": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5",
+        "drone-bomb5.radar"
+      ]
+    },
+    "p30": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip6"
+      ]
+    },
+    "p31": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1"
+      ],
+      "auto": false
+    },
+    "p32": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1",
+        "drone-bomb1.stab"
+      ],
+      "auto": false
+    },
+    "p33": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "drone-bomb1"
+      ]
+    },
+    "p34": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip1"
+      ]
+    },
+    "p35": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2"
+      ],
+      "auto": false
+    },
+    "p36": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2",
+        "drone-bomb2.stab"
+      ],
+      "auto": false
+    },
+    "p37": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "drone-bomb2"
+      ]
+    },
+    "p38": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip2"
+      ]
+    },
+    "p39": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3"
+      ],
+      "auto": false
+    },
+    "p40": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3",
+        "drone-bomb3.stab"
+      ],
+      "auto": false
+    },
+    "p41": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "drone-bomb3"
+      ]
+    },
+    "p42": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip3"
+      ]
+    },
+    "p43": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4"
+      ],
+      "auto": false
+    },
+    "p44": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4",
+        "drone-bomb4.stab"
+      ],
+      "auto": false
+    },
+    "p45": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "drone-bomb4"
+      ]
+    },
+    "p46": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip4"
+      ]
+    },
+    "p47": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5"
+      ],
+      "auto": false
+    },
+    "p48": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5",
+        "drone-bomb5.stab"
+      ],
+      "auto": false
+    },
+    "p49": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "drone-bomb5"
+      ]
+    },
+    "p50": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip5"
+      ]
+    },
+    "p51": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip6"
+      ]
+    },
+    "p52": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ],
+      "auto": false
+    },
+    "p53": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "p54": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "lboost"
+      ],
+      "auto": false
+    },
+    "p55": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "rboost"
+      ],
+      "auto": false
+    },
+    "p56": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6",
+        "drone-bomb6.lprop"
+      ],
+      "auto": false
+    },
+    "p57": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6",
+        "drone-bomb6.rprop"
+      ],
+      "auto": false
+    },
+    "p58": {
+      "part": "frame",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6"
+      ]
+    },
+    "p59": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6"
+      ]
+    },
+    "p60": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6",
+        "drone-bomb6.radar"
+      ]
+    },
+    "p61": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6"
+      ],
+      "auto": false
+    },
+    "p62": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6",
+        "drone-bomb6.stab"
+      ],
+      "auto": false
+    },
+    "p63": {
+      "part": "cell",
+      "rot": 0,
+      "tags": [
+        "drone-bomb6"
+      ]
+    }
+  },
+  "primaryCore": "core@17,1",
+  "cores": {
+    "core@2,4": {
+      "scope": "drone-bomb1",
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-carrier.drone-bomb1.pilot.js"
+          },
+          "params": {
+            "clearWidth": 22
+          }
+        }
+      ]
+    },
+    "core@8,4": {
+      "scope": "drone-bomb2",
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-carrier.drone-bomb2.pilot.js"
+          },
+          "params": {
+            "clearWidth": 22
+          }
+        }
+      ]
+    },
+    "core@14,4": {
+      "scope": "drone-bomb3",
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-carrier.drone-bomb3.pilot.js"
+          },
+          "params": {
+            "clearWidth": 22
+          }
+        }
+      ]
+    },
+    "core@20,4": {
+      "scope": "drone-bomb4",
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-carrier.drone-bomb4.pilot.js"
+          },
+          "params": {
+            "clearWidth": 22
+          }
+        }
+      ]
+    },
+    "core@26,4": {
+      "scope": "drone-bomb5",
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-carrier.drone-bomb5.pilot.js"
+          },
+          "params": {
+            "clearWidth": 22
+          }
+        }
+      ]
+    },
+    "core@32,4": {
+      "scope": "drone-bomb6",
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-carrier.drone-bomb6.pilot.js"
+          },
+          "params": {
+            "clearWidth": 22
+          }
+        }
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-carrier.pilot.js"
+      }
+    }
+  ]
+}

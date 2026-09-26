@@ -14,8 +14,9 @@
   "battle-2v2": "2ed819b2",
   "big-launcher": "a8ce5589",
   "drone-bombed": "2f740861",
-  "drone-bomb-vs-drone": "5d817e35",
+  "drone-bomb-vs-drone": "6f65b582",
   "truck-vs-car": "af29094c",
   "enemy-flying-silo-vs-hunter": "bcc67615",
-  "enemy-big-drone-vs-hunter": "7c5a4613"
+  "enemy-big-drone-vs-hunter": "7c5a4613",
+  "enemy-carrier-vs-hunter": "c041b9e5"
 }
