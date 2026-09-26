@@ -1,18 +1,17 @@
 # Status
 
-Updated: 2026-09-26, by an Opus 5.5 session, end of M11 (flares)
+Updated: 2026-09-26, by an Opus 5.5 session, end of M12 (fabricator bay)
 
-- Current milestone: **M11 (flares) done, stopped at Gate 10** for Logan to play. What to try: `docs/critique/gate-10.md`. Plan and As built: `docs/plans/M11-flares.md`. Gate 9 (M10) is still open for any findings Logan has not filed (`docs/critique/gate-9.md`).
-- What M11 shipped:
-  - A new part, `flare` (a decoy): its `ignite` input lights it for good, it burns 2 s, then is gone without a blast. While it burns, every sensor that sees it takes it for the robot it was part of when lit (contacts report that robot at the flare; `scan` returns the flare). The rule is on sensors, never on kinds of robots (Logan): missiles, drone bombs, launchers, and your own robots are fooled because they steer by contacts.
-  - Flare racks (three flares a side, each on its own grip) on `hunter-drone`, `big-drone`, `carrier` (V lets go of the next pair, burning) and on `enemy-drone`, `enemy-big-drone`, `enemy-flying-silo`, `enemy-carrier` (they pop a pair themselves when something light is about to pass within 8 m).
-  - Seeker guides (all 63 copies) go off measured from the warhead over the next tick, and on losing sight of what they were about to reach within 5 m (they flew straight through flares). The enemy carrier lets bombs go only when not climbing fast.
-  - A lit flare glows; the debug overlay rings contacts seen at a flare; the run report tells `lit` and `burnt out`.
-- M10 (before): warheads safe until armed; `drone-bomb`, `enemy-flying-silo`, `enemy-truck`; after Gate 9 opened, `big-drone`, `enemy-big-drone`, `carrier`, `enemy-carrier`.
-- Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE). 21 scenes since M11.
+- Current milestone: **M12 (fabricator bay) done, stopped at Gate 11** for Logan to play. What to try: `docs/critique/gate-11.md`. Plan and As built: `docs/plans/M12-fabricator-bay.md`. Gate 10 (M11, flares) findings are in `docs/critique/gate-10.md` (the 4x speed fix is in).
+- What M12 shipped:
+  - **Multi-cell parts finished:** a footprint can have a hollow, blasts reach every cell, sprites and builder ghosts span the footprint, and mirroring refuses a lopsided footprint.
+  - **The fabricator bay** (`fabbay`, a 3 by 6 U open at the top): it builds a copy of a blueprint (its recipe, carried in the robot's own file) inside itself out of energy, refills itself, holds the finished copy, and lets it go on its `release` input. A guided missile costs 872 J and 4.1 s. The builder's part menu picks what a bay makes; the app shows the build part by part.
+  - **`fab-drone`:** the hunter's airframe with one bay making guided missiles, four dense batteries, flares on V; hold F to fire each as it is built (about 20 on its batteries).
+- M11 (before): flares (a burning flare stands in for its robot to every sensor that sees it), racks on your drones (V) and on enemies (automatic); seeker guides go off on a near miss.
+- Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE). 22 scenes since M12.
 - Next steps, in order:
-  1. Gate 10 played (Logan's big battle, findings in `docs/critique/gate-10.md`; the 4x speed slowdown is fixed). **M12, the fabricator bay**, is planned in `docs/plans/M12-fabricator-bay.md`. Waiting for Logan's go.
-  2. Candidates after that (`ideas.md`): a bomber (flies over and drops bombs), a jammer, MASTER DRONE, debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
+  1. Logan plays Gate 11 and files findings in `docs/critique/gate-11.md`. Flagged there: cost and speed, one bay size, the small push out, no enemy bays yet.
+  2. Candidates after that (`ideas.md`): bigger bays (big missiles, drone bombs) and enemy bay robots, a bomber (flies over and drops bombs), a jammer, MASTER DRONE, debris cleanup, a ground-seeing part, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
   - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
   - Details and measurements: `docs/ideas.md`.
 - Wording note (2026-09-25, M8): writing the homing missile tripped Opus's safety classifier several times. Write in plain game terms (no real weapon names or tactics talk in code or docs), build in small steps. The Javelin is the `arc` option.
@@ -33,6 +32,8 @@ Updated: 2026-09-26, by an Opus 5.5 session, end of M11 (flares)
 
 ## Known issues
 - M10: replays recorded before M10 do not replay exactly (their warheads were live from the start); `pnpm sim replay` says MISMATCH.
+- M12: a copy with no motor stays in a bay pointing up and blocks the next build (the push out is 4 N s).
+- M12: `canPlace` probes each cell with 0.5 half extents (colliders are 0.49); unchanged, noted for multi-cell parts.
 - M11: flare racks stick out 2 cells a side and soak up side hits (a drone bomb homes on the nearest part it scans). Gate 10 question.
 - M11: a drone bomb (brakes at 7 m/s^2) overshoots a flare thrown toward it; flares against it work popped early, or with flying off.
 - M10: robots cannot see the ground: the drone bomb comes in from 6 m over its target, and the truck only knows a step by getting stuck on it.
@@ -56,6 +57,8 @@ Updated: 2026-09-26, by an Opus 5.5 session, end of M11 (flares)
 - M6: the CLI report's piece count misses pieces of a piece whose parent robot was later removed.
 
 ## Decisions since the plans (newest first)
+- M12: see `docs/plans/M12-fabricator-bay.md`, As built: the sprite box and the hollow come from the footprint (no def fields), the def field `fabricate` plus an early `fabricate` behavior, a bay names its copy `<tag><n>`, `placeBlueprint` got `scope` and `reservedIds`, `Controller.carryFrom`.
+- Gate 10 (after M11): the app gives the sim at most 10 ms per frame, so a heavy scene at 4x runs slower instead of dropping to 10 fps.
 - M11: see `docs/plans/M11-flares.md`, As built: flares mount by their base (`Q^ Qv Q< Q>`), lighting and burning live with arming in `World.armParts`, one `flares` script with `auto` for enemies, guides go off on a near miss, 2 s burn kept.
 - M10: see `docs/plans/M10-arming-and-enemies.md`, As built: golden scenes instead of new CI steps, the drone bomb measures from its warhead and closes at 30 m/s relative, the enemy flying silo waits 10 m up, the truck brakes by reversing.
 - M9: see `docs/plans/M9-script-speed.md`, As built: `inputToFrame` instead of `frameToInput`, part objects sealed with read-only fields (a TypeError under `'use strict'`), `get()` reads the parts as sent, team 2 draws blue, `canPlace` prefilter.
