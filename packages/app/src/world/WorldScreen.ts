@@ -15,6 +15,7 @@ import { SpawnGhost } from './SpawnGhost';
 import { snapDrop } from '../builder/deployFlow';
 import { applyCamera } from '../render/cameraView';
 import { FixedStepper } from '../app/FixedStepper';
+import { runWithin, SIM_BUDGET_MS } from '../app/tickBudget';
 import { TimeControls } from '../app/TimeControls';
 import type { KeyActions } from '../app/keys';
 import { KeyboardSource } from '../control/KeyboardSource';
@@ -432,13 +433,17 @@ export class WorldScreen {
     if (time.paused) this.stepper.reset();
     else ticks += this.stepper.advance(ticker.deltaMS, time.timeScale);
     let simMs = 0;
-    for (let i = 0; i < ticks; i++) {
+    // At most SIM_BUDGET_MS of sim per frame: a scene too heavy for the speed asked runs slower instead of dragging
+    // the frame rate down (Gate 10: 4x in a big battle fell to 10 fps).
+    const ran = runWithin(ticks, SIM_BUDGET_MS, () => performance.now(), (i) => {
       // Keys are sampled once per tick: this frame's edges go into its first tick. While paused they wait.
       const t = performance.now();
       this.world.step(i === 0 ? this.keys.drain() : []);
       simMs += performance.now() - t;
       if (this.world.tick % 60 === 0) this.lastHash = this.world.hash();
-    }
+    });
+    // Ticks it had no room for are dropped: the stepper already counted their time as spent.
+    ticks = ran;
     const viewStart = performance.now();
     const scripts = this.clock?.take() ?? { ms: 0, calls: 0 };
 
