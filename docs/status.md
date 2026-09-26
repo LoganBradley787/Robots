@@ -1,6 +1,6 @@
 # Status
 
-Updated: 2026-09-25, by an Opus 5.5 session, end of M10
+Updated: 2026-09-26, by an Opus 5.5 session, end of M10 plus Gate 9 extras (big drone, carrier); M11 planned
 
 - Current milestone: **M10 (arming and new enemies) done, stopped at Gate 9** for Logan to play. What to try: `docs/critique/gate-9.md`. Plan and As built: `docs/plans/M10-arming-and-enemies.md`. Gate 8 (M9, script speed) findings went into M10 (`docs/critique/gate-8.md`).
 - What M10 shipped:
@@ -14,6 +14,7 @@ Updated: 2026-09-25, by an Opus 5.5 session, end of M10
   2. Candidates after that: MASTER DRONE and drone bomb carriers (`ideas.md`, After Gate 8), fabricator bay (missiles that do not run out), debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
   - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
   - Details and measurements: `docs/ideas.md`.
+- Unpushed (push rule): the big drone, the carrier, and the M11 plan commits sit on `main` after the `m10` tag; push with M11's gate or when Logan asks.
 - Wording note (2026-09-25, M8): writing the homing missile tripped Opus's safety classifier several times. Write in plain game terms (no real weapon names or tactics talk in code or docs), build in small steps. The Javelin is the `arc` option.
 - `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
 - Lessons from builds are in the playbook (Traps, and the Sensors section); keep adding there.

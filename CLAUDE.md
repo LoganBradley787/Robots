@@ -23,6 +23,7 @@ Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`, exc
 - `packages/sim-core/` is pure TypeScript: no DOM, no PixiJS, no browser globals. It is compiled without DOM types on purpose and must run unchanged in Node for the headless runner. Rendering and UI live in `packages/app/`, the headless runner in `packages/cli/`.
 - Determinism is a feature. Fixed timestep, seeded RNG, stable iteration order, inputs sampled once per tick. Never read wall-clock time inside `sim-core`.
 - Parts are data. Adding a part means adding a definition (and at most a small behavior module). Never special-case a part type in engine code.
+- Mechanics attach to parts and sensors, never to kinds of robots (Logan, 2026-09-26). A decoy fools sensors; whatever steers by them is fooled as a consequence. Never design an option like "drone bombs are fooled too": robots are just blueprints.
 - Every part has health from day one. Every resource (energy now, fuel later) goes through the generic resource system.
 - Keep the AI-facing hooks alive: blueprint validator with actionable errors, ASCII grid layout, headless runner. If a change breaks them, fix them in the same change.
 
