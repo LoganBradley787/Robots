@@ -39,10 +39,28 @@ function wrap(a) {
   return a;
 }
 
+/**
+ * Which way the nose points: from the motors (their middle, for a missile with two side by side) to the missile's
+ * center of mass. Not to the core: on a missile two cells wide the core sits off the middle line.
+ */
 function nose() {
-  const motor = parts.find((p) => p.type === 'thruster' || p.type === 'booster');
-  if (!motor) return self.angle;
-  return Math.atan2(self.pos.y - motor.pos.y, self.pos.x - motor.pos.x);
+  let n = 0;
+  let mx = 0;
+  let my = 0;
+  let m = 0;
+  let cx = 0;
+  let cy = 0;
+  for (const p of parts) {
+    m += p.mass;
+    cx += p.mass * p.pos.x;
+    cy += p.mass * p.pos.y;
+    if (p.type !== 'thruster' && p.type !== 'booster') continue;
+    n++;
+    mx += p.pos.x;
+    my += p.pos.y;
+  }
+  if (n === 0 || m <= 0) return self.angle;
+  return Math.atan2(cy / m - my / n, cx / m - mx / n);
 }
 
 /** How hard the missile is to turn: each part's mass times its squared distance from the center of mass, plus its own box. */

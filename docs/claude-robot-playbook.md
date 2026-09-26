@@ -151,6 +151,7 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 - `missile-up`: `S X C g M` standing nose up, arc on, for drones.
 - `hunter-drone`: 14 propellers, a radar under the core, four `missile-up`s on top. Hover as `missile-drone-10prop` (W S A D), F launches the next missile at the nearest enemy (left outer, right outer, left inner, right inner).
 - `enemy-drone`: the same airframe flown by `enemy-drone.pilot.js`, no keys. Deploy it as an enemy (`:enemy`): it holds a spot 50 m beside and 12 m above you, launches every 3 s once it has tracked you for 1.5 s, and dodges.
+- `big-missile` + `big-launcher` (Logan): a missile two cells wide, nose up: seeker, 2 x 2 heavy warheads, core and battery, two heavy gyros, two boosters (17 kg, 800 N, 400 N m, 17 s of burn). The cart grips it from both sides and F launches it at the nearest enemy the cart's radar tracks; it arcs up about 60 m and comes down. On a missile two cells wide the guide takes its heading from the motors to the center of mass (the core is off the middle line).
 - `longcar`, `bomb`, `wall`: targets and drop tests (`--drop wall@0:-80,5.5` puts a wall 20 m in front of a robot at x -100).
 
 ## Traps (learned the hard way)
