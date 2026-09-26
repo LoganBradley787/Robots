@@ -78,3 +78,25 @@
 - Build a car of bombs, give it an arm key, drive it into something, arm, detonate.
 - Deploy a drone bomb as Enemy and run from it; then shoot one down.
 - Fight the enemy flying silo and the enemy truck.
+
+## As built (2026-09-25)
+
+### What shipped
+- **T1+T2 (one commit, so the tree stayed green):** arming as data (`arming` in a def; `arm` input, `armed` output, `PartInstance.armed` in the hash; unarmed parts break without a blast, their fuze is off, the warhead ignores `detonate`); `armed: true` in blueprints (validator `BAD_ARMED`, kept by the file form, grid form, place, mirror, orient, and `setPartsArmed`); an `armed` world event in the run report; `pnpm sim show` marks parts armed at start. Every shipped guide (49 files) arms its warheads in `setup()`; `bomb`, `showcase`, and `weird-thing` start theirs armed. Golden hashes rewritten once, on purpose.
+- **T3:** the part menu's "Armed at start" switch; `armedFrame` sprites (a lit red light; an unarmed warhead shows a dark socket there) in the builder, the deploy ghost, and the world.
+- **T4:** `drone-bomb` and its pilot. **T5:** `enemy-flying-silo`. **T6:** `enemy-truck`. Each with done-when tests.
+- **T7:** three new golden scenes (drone bomb against a hovering drone, the truck against a car, the enemy flying silo against a hunter drone), docs, the memory limit plan (`docs/plans/script-memory-limit.md`, not started), the review.
+
+### Changes from the plan (Claude's call unless noted)
+- **No new CI steps:** the three new golden scenes run in CI with every `pnpm test` and check the same thing (a run ends in exactly the recorded state), without extra Actions minutes.
+- **The drone bomb closes at up to 30 m/s relative to its target** (param `speed`), braking-limited, so it reaches 20 to 45 m/s over the ground. A drone can only escape it by fleeing flat out (with no drag, a drone holding a lean keeps speeding up, past 80 m/s); a short dash does not escape. Measured from its warhead, not its core: measured from the core it sat on a car without going off.
+- **The drone bomb targets only robots of 10 kg or more** (param `minMass`), like the enemy drone, so it does not chase missiles. It is 12 kg itself, so an enemy drone treats it as a robot to shoot at, not a missile to dodge.
+- **The enemy flying silo waits 10 m above where it was deployed** with nothing tracked (param `idle`); going back to its launch height it settled on a box and stayed there.
+- **The truck's arc choice is by height above it** (param `high`, 8 m): ground targets get the arc, drones above it a straight shot.
+- **The truck brakes by asking for the other direction:** a wheel at speed 0 coasts.
+
+### Measurements
+- Drone bomb: hits a parked car 60 m away at 4.8 s (4 parts off), a drone hovering 20 m up at 4.3 s (3 propellers off); catches a hunter drone after a 1 s dash at 4.3 s.
+- Enemy flying silo: its first missile hits a parked car 100 m away at 5.0 s; it takes a hovering hunter drone apart within 20 s; about 420 J/s in flight (roughly 70 s of flight on 28 kJ).
+- Enemy truck: stops 149 m from a car 250 m away after about 20 s and kills its core with the first missile.
+- A hit on a loaded drone now makes one blast (the hit), not one per missile: a bomb dropped on a parked `missile-drone-10prop` makes 1 explosion (was 3).

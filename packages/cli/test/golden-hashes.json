@@ -13,5 +13,8 @@
   "silo-volley": "fa3b08c1",
   "battle-2v2": "fe56be87",
   "big-launcher": "a8ce5589",
-  "drone-bombed": "2f740861"
+  "drone-bombed": "2f740861",
+  "drone-bomb-vs-drone": "5d817e35",
+  "truck-vs-car": "af29094c",
+  "enemy-flying-silo-vs-hunter": "c755427d"
 }

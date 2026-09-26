@@ -96,8 +96,8 @@ Plan: `docs/plans/M6-destruction.md`. Where this section and the draft above dif
 - Possession, render, energy, and replays already worked per robot, and a missile that flies off becomes something you can click and watch.
 
 ### The damage phase (`World.damagePhase`, after the physics step)
-1. Impact fuzes: a part with `impact` breaks when its body's velocity changed by more than `impact.speed` in the step, gravity aside. Rapier reports no contact forces for contacts on multibody links (a bomb bouncing off a car roof went unnoticed), so the fuze reads the velocity change. Bodies just rebuilt or pushed by a blast are ignored for a step or two (their velocity jumps for other reasons).
-2. Parts at 0 health are removed (robots in order, parts in blueprint order); a part with `onDestroyed.explode` queues a blast at its cell.
+1. Impact fuzes: a part with `impact` (and, if it needs arming, armed: M10) breaks when its body's velocity changed by more than `impact.speed` in the step, gravity aside. Rapier reports no contact forces for contacts on multibody links (a bomb bouncing off a car roof went unnoticed), so the fuze reads the velocity change. Bodies just rebuilt or pushed by a blast are ignored for a step or two (their velocity jumps for other reasons).
+2. Parts at 0 health are removed (robots in order, parts in blueprint order); a part with `onDestroyed.explode` queues a blast at its cell, unless it needs arming and is not armed (M10: it breaks like any part).
 3. Every changed robot is rebuilt (`assembly/rebuild.ts`): all its bodies are removed and recreated from its live parts, piece by piece.
 4. Blasts (at most 100 per tick, the rest wait and are hashed) damage and push parts; anything they destroy loops back to step 2.
 5. Kicks and pushes are applied as forces for the next step.

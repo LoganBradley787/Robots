@@ -57,6 +57,12 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - What is left, if it is ever needed: the scripts' own work is now most of it (QuickJS interprets, no JIT); behaviors (thruster and gyro forces) are next at about 16 percent. The browser runs scripts about 20 to 40 percent slower than Node.
 - **Web Worker** (still an idea): the sim on its own thread, so drawing never waits for a slow tick. When a tick costs close to a whole frame the fixed step catches up in bursts of several ticks per frame and the frame rate drops, though the sim keeps real time.
 
+### After Gate 8 (Logan, 2026-09-25)
+- **MASTER DRONE:** four seeker missiles, a big missile, and two drone bombs on one big drone. The drone bomb already sleeps while carried and arms when let go; a carrier needs grips for it and a fire script that hands it its target (it finds its own with its radar, so a plain release works too).
+- **Drone bomb carriers:** an enemy drone that carries two drone bombs and drops them on you.
+- **Terrain for drone bombs:** "navigating choppy terrain" needs a part that sees the ground (a downward range finder or a ground scanner); today the drone bomb keeps 6 m over its target until close.
+- **The enemy flying silo's energy:** about 70 s of flight. More dense batteries, or a landing and waiting mode, if fights run longer.
+
 ### Missiles that turn like real ones (Logan, Gate 7)
 - Logan: a real missile goes straight and turns fast because fins push on the air; here there is no lift or drag and the thruster has no gimbal, so a missile turns only by swinging its nose with a gyro and pointing its push. Gate 7 added a heavy gyro (200 N m) for missiles. Later, worth trying: air drag and lift (a fin part), or a thruster that can swivel a little.
 

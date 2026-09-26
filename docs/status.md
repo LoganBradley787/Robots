@@ -1,21 +1,18 @@
 # Status
 
-Updated: 2026-09-25, by an Opus 5.5 session, end of M9
+Updated: 2026-09-25, by an Opus 5.5 session, end of M10
 
-- Current milestone: **M9 (script speed) done, stopped at Gate 8** for Logan to play. What to try: `docs/critique/gate-8.md`. Plan and As built (numbers before and after every task, every change from the plan, the review fixes): `docs/plans/M9-script-speed.md`.
-- What M9 shipped:
-  - Scripts get their robot's layout once and the moving numbers as one binary block each tick (`sim-core/src/script/frame.ts`); part objects are kept between ticks, sealed, with read-only fields. What a script sees is unchanged, bit for bit.
-  - Host side: `World.robotById`, each body's state read once per tick for all its parts, a part-to-chunk map per robot version.
-  - 100 hovering drones: 46.2 to about 13 to 15 ms per tick headless (it varies with how busy the Mac is); one drone 0.53 to 0.17 ms. A script call costs about 20 us before its own work (was about 180).
-  - Proof nothing changed: golden hashes for 15 scenes (`packages/cli/test/golden.test.ts`, recorded before any change) and a parity test comparing what every script sees on every call against the old JSON path (`packages/cli/test/parity.test.ts`).
-  - `pnpm sim bench [hover|big|battle|debris] [--n N]` (local only, not in CI).
-  - App: a perf readout in the debug HUD (with `\`), a Stress menu on the world toolbar (Hover 10 to 100, Battle 6 vs 6), `canPlace` fast with many robots.
+- Current milestone: **M10 (arming and new enemies) done, stopped at Gate 9** for Logan to play. What to try: `docs/critique/gate-9.md`. Plan and As built: `docs/plans/M10-arming-and-enemies.md`. Gate 8 (M9, script speed) findings went into M10 (`docs/critique/gate-8.md`).
+- What M10 shipped:
+  - Warheads are safe until armed (`arming` in a part def; an `arm` input by key or script, for good; `"armed": true` starts one armed, the part menu's Armed at start). Unarmed, a warhead breaks without a blast, ignores hard hits and `detonate`. Every shipped missile arms itself when it is let go; `bomb` starts armed. A lit red light marks an armed warhead.
+  - `drone-bomb` (chases the nearest enemy and goes off on it), `enemy-flying-silo`, `enemy-truck`, each deployable as Enemy.
+- M9 (before): scripts about 5 to 15 times cheaper; 100 hovering drones in about 13 ms per tick headless; `pnpm sim bench`; perf readout and Stress menu in the app.
 - Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE).
-- Next steps, in order (Logan's order, 2026-09-25):
-  1. **M10, arming and new enemies**, planned in `docs/plans/M10-arming-and-enemies.md` from Logan's Gate 8 requests (warheads safe until armed by a key or script, a drone bomb, an enemy flying silo, an enemy launcher truck). Waiting for Logan's go.
+- Next steps, in order:
+  1. Gate 9 punch list (Logan plays M10).
+  2. Candidates after that: MASTER DRONE and drone bomb carriers (`ideas.md`, After Gate 8), fabricator bay (missiles that do not run out), debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
   - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
-  2. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build, a Web Worker for the sim (flagged at Gate 8: at 100 drones the browser has little time left to draw). Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
-  - Details and measurements: `docs/ideas.md`, "After Gate 6".
+  - Details and measurements: `docs/ideas.md`.
 - Wording note (2026-09-25, M8): writing the homing missile tripped Opus's safety classifier several times. Write in plain game terms (no real weapon names or tactics talk in code or docs), build in small steps. The Javelin is the `arc` option.
 - `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
 - Lessons from builds are in the playbook (Traps, and the Sensors section); keep adding there.
@@ -53,6 +50,7 @@ Updated: 2026-09-25, by an Opus 5.5 session, end of M9
 - M6: the CLI report's piece count misses pieces of a piece whose parent robot was later removed.
 
 ## Decisions since the plans (newest first)
+- M10: see `docs/plans/M10-arming-and-enemies.md`, As built: golden scenes instead of new CI steps, the drone bomb measures from its warhead and closes at 30 m/s relative, the enemy flying silo waits 10 m up, the truck brakes by reversing.
 - M9: see `docs/plans/M9-script-speed.md`, As built: `inputToFrame` instead of `frameToInput`, part objects sealed with read-only fields (a TypeError under `'use strict'`), `get()` reads the parts as sent, team 2 draws blue, `canPlace` prefilter.
 - M8: see `docs/plans/M8-sensors-and-homing.md`, As built: launchers loft 12 degrees before firing, arcing missiles hold 30 m/s and turn down early, drone missiles stand nose up, 14-propeller drone airframe, dodging picks the widest gap and only drops with room, hovers tell left from right by position.
 - M6: see `docs/plans/M6-destruction.md`, As built: warhead damage 120 and push 40 up and out, velocity-change fuze, rotator 300 N m, decouplers act first, part boxes 0.49 m, helper bodies for Rapier multibody angles, the largest piece keeps the id when the core is gone.
