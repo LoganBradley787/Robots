@@ -1,5 +1,6 @@
 import type { ScriptSpec } from '../blueprint/types';
-import type { ScriptError, ScriptHost, ScriptInput, ScriptInstance, ScriptMark, ScriptResult, ScriptServices, ScriptWrite } from './types';
+import type { ScriptFrame } from './frame';
+import type { ScriptError, ScriptHost, ScriptInstance, ScriptMark, ScriptResult, ScriptServices, ScriptWrite } from './types';
 
 /** One script on one robot: its source, whether it runs, and why it stopped if it crashed. */
 export interface ScriptSlot {
@@ -64,10 +65,10 @@ export class ScriptRunner {
   }
 
   /** Runs every enabled script for this tick. `input` is built only when a script needs it. */
-  tick(input: () => ScriptInput, services?: ScriptServices): ScriptTickOutput {
+  tick(input: () => ScriptFrame, services?: ScriptServices): ScriptTickOutput {
     const out: ScriptTickOutput = { writes: [], marks: [], ran: false, logs: [], crashes: this.pending };
     this.pending = [];
-    let built: ScriptInput | undefined;
+    let built: ScriptFrame | undefined;
     for (const slot of this.slots) {
       if (!slot.enabled || !slot.instance) continue;
       built ??= input();

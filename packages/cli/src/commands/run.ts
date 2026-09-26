@@ -1,7 +1,7 @@
 import { scriptHost } from '../scriptHost';
 import { plotPaths } from '../report/plot';
 import { Tracer, type PieceReport, type TraceEvent } from '../report/trace';
-import { DriveTracker, keysScriptsRead, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type Robot, type RobotSample, type WorldFile } from '@robots/sim-core';
+import { DriveTracker, keysScriptsRead, type World as SimWorld, formatIssues, sampleRobot, timelineInputs, validateBlueprint, World, type DriveMetrics, type Issue, type KeyPress, type Robot, type RobotSample, type WorldFile, type WorldOptions } from '@robots/sim-core';
 
 export interface RunOptions {
   seconds: number;
@@ -17,6 +17,8 @@ export interface RunOptions {
   drops?: readonly Drop[];
   /** The robot's team (M8); 0 when absent. */
   team?: number;
+  /** Tests (M9): a script host in place of the default, and the world's `scriptProbe`. */
+  world?: Pick<WorldOptions, 'scripts' | 'scriptProbe'>;
 }
 
 /** A blueprint spawned at `t` seconds with its root part at `at`. */
@@ -70,7 +72,7 @@ export class InvalidBlueprint extends Error {
 
 /** Validates, spawns, and steps the blueprint, sampling the robot once per `sampleEverySeconds`. */
 export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptions): Promise<RunReport> {
-  const world = await World.create({ seed: opts.seed, scripts: await scriptHost() }, file);
+  const world = await World.create({ seed: opts.seed, scripts: await scriptHost(), ...opts.world }, file);
   try {
     const v = validateBlueprint(blueprint, world.registry);
     if (!v.ok) throw new InvalidBlueprint(v.issues);

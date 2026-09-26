@@ -2,13 +2,17 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import variant from '@jitl/quickjs-wasmfile-release-sync';
 import { createQuickJsHost } from '../src/script/quickjs';
 import type { ScriptHost, ScriptInput } from '../src/script/types';
+import { inputToFrame, type ScriptFrame } from '../src/script/frame';
 
 let host: ScriptHost;
 beforeAll(async () => {
   host = await createQuickJsHost(variant);
 });
 
-const input = (over: Partial<ScriptInput> = {}): ScriptInput => ({
+let layouts = 0;
+/** A plain input as the frame the world would send (M9); a new layout id each call, so each sends its layout. */
+const input = (over: Partial<ScriptInput> = {}): ScriptFrame => inputToFrame(plain(over), ++layouts);
+const plain = (over: Partial<ScriptInput> = {}): ScriptInput => ({
   frame: 1,
   dt: 1 / 60,
   time: 1 / 60,

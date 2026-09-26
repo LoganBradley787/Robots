@@ -1,7 +1,8 @@
 import { DefaultIntrinsics, newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSHandle, type QuickJSRuntime, type QuickJSSyncVariant } from 'quickjs-emscripten-core';
 import { Prng } from '../rng/Prng';
+import type { ScriptFrame } from './frame';
 import { PRELUDE } from './prelude';
-import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInput, type ScriptInstance, type ScriptLimits, type ScriptMark, type ScriptResult, type ScriptServices, type ScriptWrite } from './types';
+import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInstance, type ScriptLimits, type ScriptMark, type ScriptResult, type ScriptServices, type ScriptWrite } from './types';
 
 /** Global code (the user's top level, and `param()` calls) gets a few ticks' worth of budget. */
 const COMPILE_BUDGET_TICKS = 4;
@@ -64,7 +65,7 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
           handles.push(h);
           return h;
         };
-        const entries = { setup: fn('setup'), tick: fn('tick'), specs: fn('specs'), hasTick: fn('hasTick') };
+        const entries = { layout: fn('layout'), setup: fn('setup'), tick: fn('tick'), specs: fn('specs'), hasTick: fn('hasTick'), inspect: fn('inspect') };
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
         const user = run(c, meter, () => c.evalCode(source, opts.name), true);
         if (!user.ok) return fail(user.error);
@@ -144,10 +145,12 @@ class QuickJsInstance implements ScriptInstance {
   private readonly ctx: QuickJSContext;
   private readonly meter: Meter;
   private readonly limits: ScriptLimits;
-  private readonly entries: { setup: QuickJSHandle; tick: QuickJSHandle };
+  private readonly entries: Entries;
   private readonly handles: QuickJSHandle[];
   private readonly services: { current?: ScriptServices };
   private disposed = false;
+  /** The layout this script last read (M9); a frame with another id sends its layout first. */
+  private layoutId: number | undefined;
 
   constructor(
     runtime: QuickJSRuntime,
@@ -155,7 +158,7 @@ class QuickJsInstance implements ScriptInstance {
     meter: Meter,
     limits: ScriptLimits,
     params: Record<string, ParamSpec>,
-    entries: { setup: QuickJSHandle; tick: QuickJSHandle },
+    entries: Entries,
     handles: QuickJSHandle[],
     services: { current?: ScriptServices },
   ) {
@@ -169,12 +172,20 @@ class QuickJsInstance implements ScriptInstance {
     this.handles = handles;
   }
 
-  setup(input: ScriptInput, services?: ScriptServices): ScriptResult {
-    return this.call(this.entries.setup, input, services);
+  setup(frame: ScriptFrame, services?: ScriptServices): ScriptResult {
+    return this.call(this.entries.setup, frame, services);
   }
 
-  tick(input: ScriptInput, services?: ScriptServices): ScriptResult {
-    return this.call(this.entries.tick, input, services);
+  tick(frame: ScriptFrame, services?: ScriptServices): ScriptResult {
+    return this.call(this.entries.tick, frame, services);
+  }
+
+  /** What the script saw on its last call, as JSON in the order `ScriptInput` has (the parity test). */
+  inspect(): string {
+    if (this.disposed) return '';
+    this.meter.arm(this.limits.budgetPerTick);
+    const r = run(this.ctx, this.meter, () => this.ctx.callFunction(this.entries.inspect, this.ctx.undefined));
+    return r.ok ? r.text : '';
   }
 
   dispose(): void {
@@ -185,21 +196,39 @@ class QuickJsInstance implements ScriptInstance {
     safely(() => this.runtime.dispose());
   }
 
-  private call(entry: QuickJSHandle, input: ScriptInput, services?: ScriptServices): ScriptResult {
+  private call(entry: QuickJSHandle, frame: ScriptFrame, services?: ScriptServices): ScriptResult {
     if (this.disposed) return { ok: false, error: { kind: 'throw', message: 'script was stopped' } };
     const ctx = this.ctx;
     if (services) this.services.current = services;
     else delete this.services.current;
     try {
       this.meter.arm(this.limits.budgetPerTick);
-      const arg = ctx.newString(JSON.stringify(input));
-      const r = run(ctx, this.meter, () => ctx.callFunction(entry, ctx.undefined, arg));
-      arg.dispose();
+      if (frame.layout.id !== this.layoutId) {
+        const text = ctx.newString(frame.layout.json);
+        const r = run(ctx, this.meter, () => ctx.callFunction(this.entries.layout, ctx.undefined, text));
+        text.dispose();
+        if (!r.ok) return r;
+        this.layoutId = frame.layout.id;
+      }
+      const n = frame.numbers;
+      // Copied into the sandbox's own memory: exactly the numbers' bytes, even when they are a view of a bigger buffer.
+      const buf = ctx.newArrayBuffer(n.byteOffset === 0 && n.byteLength === n.buffer.byteLength ? n.buffer : n.slice().buffer);
+      const extras = ctx.newString(frame.extras);
+      const r = run(ctx, this.meter, () => ctx.callFunction(entry, ctx.undefined, buf, extras));
+      buf.dispose();
+      extras.dispose();
       return r.ok ? readResult(r.text) : r;
     } catch (e) {
       return { ok: false, error: { kind: 'throw', message: e instanceof Error ? e.message : String(e) } };
     }
   }
+}
+
+interface Entries {
+  layout: QuickJSHandle;
+  setup: QuickJSHandle;
+  tick: QuickJSHandle;
+  inspect: QuickJSHandle;
 }
 
 /** Limits on what one tick may hand back, whatever the script did to its own globals. */

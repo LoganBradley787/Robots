@@ -1,0 +1,96 @@
+import type { ScriptInput } from './types';
+
+/**
+ * How a tick's input crosses into a script (M9). Parsing JSON text into part objects inside the sandbox was most of
+ * a script's cost, so the input is split in three:
+ * - the layout (JSON): each part's id, type, tags, mass, and the names of its `in` and `out` values, in order. It
+ *   changes only when the robot does, and a script is sent it only when its `id` differs from the last one it saw;
+ * - the numbers (one Float64Array): everything that moves, in a fixed order (`HEADER`, `SELF`, then per part its
+ *   position, angle, `in` values, and `out` values);
+ * - the extras (JSON, or '' when all are empty): keys, contacts, and inbox.
+ * A script sees exactly what `JSON.parse(JSON.stringify(input))` would give: `-0` arrives as `0` (the writer turns it
+ * into `0`) and a number that is not finite as `null` (the `finite` slot tells the sandbox to check).
+ */
+export interface ScriptLayout {
+  /** Unique per world and layout: a script re-reads the layout only when this changes. */
+  id: number;
+  json: string;
+}
+
+export interface ScriptFrame {
+  layout: ScriptLayout;
+  numbers: Float64Array;
+  extras: string;
+}
+
+/** One part in a layout. `in` and `out` are the names present this tick, in the order the script sees them. */
+export interface LayoutPart {
+  id: string;
+  type: string;
+  tags: readonly string[];
+  mass: number;
+  in: readonly string[];
+  out: readonly string[];
+}
+
+/** Slots at the start of the numbers: 1 when every number is finite, then frame, dt, time. */
+export const HEADER = 4;
+/** Then `self`: pos x, y, vel x, y, angle, angVel, mass, energy stored, capacity. */
+export const SELF = 9;
+/** Then per part: pos x, y, angle, then its `in` values, then its `out` values. */
+export const PART_FIXED = 3;
+
+export function layoutJson(parts: readonly LayoutPart[]): string {
+  return JSON.stringify(parts.map((p) => [p.id, p.type, p.tags, p.mass, p.in, p.out]));
+}
+
+/** How many numbers a layout needs. */
+export function numberCount(parts: readonly LayoutPart[]): number {
+  let n = HEADER + SELF;
+  for (const p of parts) n += PART_FIXED + p.in.length + p.out.length;
+  return n;
+}
+
+/** Writes `v` at `k` (`-0` as `0`, as JSON would) and returns whether it is finite. */
+export function put(numbers: Float64Array, k: number, v: number): boolean {
+  numbers[k] = v === 0 ? 0 : v;
+  return v - v === 0;
+}
+
+/** Writes the header and `self`; returns whether every number was finite. */
+export function putHead(numbers: Float64Array, input: Pick<ScriptInput, 'frame' | 'dt' | 'time' | 'self'>): boolean {
+  const s = input.self;
+  let ok = put(numbers, 1, input.frame);
+  ok = put(numbers, 2, input.dt) && ok;
+  ok = put(numbers, 3, input.time) && ok;
+  let k = HEADER;
+  for (const v of [s.pos.x, s.pos.y, s.vel.x, s.vel.y, s.angle, s.angVel, s.mass, s.energy.stored, s.energy.capacity]) ok = put(numbers, k++, v) && ok;
+  return ok;
+}
+
+/** Keys, contacts, and inbox as JSON, or '' when all three are empty (the usual case). */
+export function extrasJson(input: Pick<ScriptInput, 'keys' | 'contacts' | 'inbox'>): string {
+  const k = input.keys;
+  if (k.down.length === 0 && k.pressed.length === 0 && k.released.length === 0 && input.contacts.length === 0 && input.inbox.length === 0) return '';
+  return JSON.stringify([k, input.contacts, input.inbox]);
+}
+
+/**
+ * A plain `ScriptInput` as a frame, with a layout read off its parts. For tests and callers that build input by
+ * hand; the world builds frames directly and keeps its layouts between ticks.
+ */
+export function inputToFrame(input: ScriptInput, layoutId: number): ScriptFrame {
+  const parts: LayoutPart[] = input.parts.map((p) => ({ id: p.id, type: p.type, tags: p.tags, mass: p.mass, in: Object.keys(p.in), out: Object.keys(p.out) }));
+  const numbers = new Float64Array(numberCount(parts));
+  let ok = putHead(numbers, input);
+  let k = HEADER + SELF;
+  for (const p of input.parts) {
+    ok = put(numbers, k++, p.pos.x) && ok;
+    ok = put(numbers, k++, p.pos.y) && ok;
+    ok = put(numbers, k++, p.angle) && ok;
+    for (const v of Object.values(p.in)) ok = put(numbers, k++, v) && ok;
+    for (const v of Object.values(p.out)) ok = put(numbers, k++, v) && ok;
+  }
+  numbers[0] = ok ? 1 : 0;
+  return { layout: { id: layoutId, json: layoutJson(parts) }, numbers, extras: extrasJson(input) };
+}

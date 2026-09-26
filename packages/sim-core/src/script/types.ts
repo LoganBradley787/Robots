@@ -1,3 +1,5 @@
+import type { ScriptFrame } from './frame';
+
 /** Why a script stopped. Uniform across backends, so the UI, replays, and reports never learn which one ran it. */
 export interface ScriptError {
   kind: 'budget' | 'memory' | 'stack' | 'throw' | 'compile';
@@ -88,7 +90,10 @@ export interface ScriptServices {
   send(to: string, json: string): boolean;
 }
 
-/** What a script sees on a tick. Plain data; nothing from the host leaks in. */
+/**
+ * What a script sees on a tick. Plain data; nothing from the host leaks in. Since M9 it crosses into the sandbox as a
+ * `ScriptFrame` (`frame.ts`); this is the shape the script ends up with.
+ */
 export interface ScriptInput {
   frame: number;
   dt: number;
@@ -115,10 +120,12 @@ export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[]; ma
 export interface ScriptInstance {
   /** Params the script declared with `param()`, with the values it got. */
   readonly params: Readonly<Record<string, ParamSpec>>;
-  /** Clears `state` and runs `setup()` if the script defines it. */
-  setup(input: ScriptInput, services?: ScriptServices): ScriptResult;
+  /** Clears `state` and runs `setup()` if the script defines it. The frame is what it sees (M9, `frame.ts`). */
+  setup(frame: ScriptFrame, services?: ScriptServices): ScriptResult;
   /** Runs `tick()`. Synchronous by contract, so the sim stays a plain loop in browser and Node. */
-  tick(input: ScriptInput, services?: ScriptServices): ScriptResult;
+  tick(frame: ScriptFrame, services?: ScriptServices): ScriptResult;
+  /** What the script saw on its last call, as `ScriptInput` JSON (tests only; a backend may leave it out). */
+  inspect?(): string;
   dispose(): void;
 }
 

@@ -115,3 +115,22 @@
 | debris | 500 | 0.83 | 1.78 | 2.95 | 0 | 0.83 | 0 |
 
 "scripts" is time inside the sandbox calls (including the host's `JSON.stringify`); "rest" is everything else, including `World.scriptInput`.
+
+### After T2 (layout once, numbers as a block)
+| scene | n | avg ms | p95 | worst | scripts | rest | calls/tick |
+|---|---|---|---|---|---|---|---|
+| hover | 1 | 0.18 | 0.22 | 0.42 | 0.10 | 0.07 | 2 |
+| hover | 10 | 1.29 | 1.44 | 1.65 | 0.85 | 0.45 | 20 |
+| hover | 25 | 3.15 | 3.43 | 4.56 | 2.08 | 1.07 | 50 |
+| hover | 50 | 6.41 | 7.00 | 8.55 | 4.22 | 2.18 | 100 |
+| hover | 100 | 13.74 | 14.79 | 16.13 | 9.08 | 4.66 | 200 |
+| big (flying-silo) | 1 | 0.78 | 0.97 | 1.92 | 0.30 | 0.49 | 2 |
+| battle (6 vs 6, 20 s) | 6 | 4.38 | 5.90 | 10.94 | 2.52 | 1.87 | 15.7 |
+
+- Every bench hash and all 15 golden hashes are the same as before T2. The parity test found no difference on any script call in any golden scene (it does fail when the prelude is broken on purpose: an angle off by 1e-9).
+- One call on the 38-part drone: an empty `tick()` costs about 19 us (was about 180); the hover script's own work is about 40 us more, now the biggest part of a drone's script time.
+- Changes from the plan:
+  - `inputToFrame` (a plain input as a frame, for tests and hand-built input) instead of `frameToInput`; the parity test reads the sandbox's own view (`inspect`), so the reverse was not needed.
+  - Part fields other than the numbers (`id`, `type`, `tags`, `pos`, `mass`, `in`, `out`) are read-only properties, set once per layout: a script's `p.pos = ...` is ignored rather than leaving the refill writing into an object the script no longer sees. Putting them back every tick instead cost about 4 us per call.
+  - The sandbox fills parts in one tight loop when every number is finite (the usual case) and checks each number only when one is not (about 5 us saved).
+  - The world's `scriptProbe` option (tests only) hands the parity test the old input for each robot.

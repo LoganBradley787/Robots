@@ -1,6 +1,6 @@
 import { defaultRegistry, orientRaw, parseKeyTimeline, parseWorldFile } from '@robots/sim-core';
 import { DEFAULT_WORLD, readBlueprint, readJson, resolveBlueprint } from './blueprintFiles';
-import { runSim, type RunReport } from './commands/run';
+import { runSim, type RunOptions, type RunReport } from './commands/run';
 import { parseDrop } from './drops';
 
 /** A `pnpm sim run` written as data: the blueprint, where and how it is deployed, its keys, and what else drops in. */
@@ -41,7 +41,7 @@ export const GOLDEN_SCENES: readonly Scene[] = [
 ];
 
 /** Runs a scene on the default world, as `pnpm sim run` would. */
-export async function runScene(s: Scene): Promise<RunReport> {
+export async function runScene(s: Scene, world?: RunOptions['world']): Promise<RunReport> {
   const file = parseWorldFile(readJson(DEFAULT_WORLD));
   const loaded = readBlueprint(resolveBlueprint(s.bp));
   const blueprint = orientRaw(loaded.raw, { flip: s.flip === true }, defaultRegistry());
@@ -52,5 +52,6 @@ export async function runScene(s: Scene): Promise<RunReport> {
     ...(s.keys ? { keys: parseKeyTimeline(s.keys) } : {}),
     ...(s.team ? { team: s.team } : {}),
     ...(s.drops ? { drops: s.drops.map(parseDrop) } : {}),
+    ...(world ? { world } : {}),
   });
 }

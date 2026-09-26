@@ -16,7 +16,7 @@ export const PRELUDE = String.raw`
   var writes = [];
   var logs = [];
   var specs = {};
-  var input = null;
+  var keyState = { down: [], pressed: [], released: [] };
   var scans = 0;
   var sends = 0;
   var finite = isFinite;
@@ -85,22 +85,21 @@ export const PRELUDE = String.raw`
     }
     if (writes.length < 1000) writes[writes.length] = [String(target), String(channel), value];
   };
-  function matches(p, target) {
-    return p.type === target || p.tags.indexOf(target) >= 0;
+  function matches(r, target) {
+    return r.type === target || r.tags.indexOf(target) >= 0;
   }
   globalThis.get = function (target, channel) {
-    var ps = input ? input.parts : [];
-    for (var i = 0; i < ps.length; i++) {
-      var p = ps[i];
-      if (matches(p, target) && hasOwn.call(p.in, channel)) return p.in[channel];
-      if (matches(p, target) && hasOwn.call(p.out, channel)) return p.out[channel];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      if (matches(r, target) && hasOwn.call(r.inO, channel)) return r.inO[channel];
+      if (matches(r, target) && hasOwn.call(r.outO, channel)) return r.outO[channel];
     }
     return undefined;
   };
   globalThis.keys = {
-    down: function (k) { return input.keys.down.indexOf(String(k)) >= 0; },
-    pressed: function (k) { return input.keys.pressed.indexOf(String(k)) >= 0; },
-    released: function (k) { return input.keys.released.indexOf(String(k)) >= 0; }
+    down: function (k) { return keyState.down.indexOf(String(k)) >= 0; },
+    pressed: function (k) { return keyState.pressed.indexOf(String(k)) >= 0; },
+    released: function (k) { return keyState.released.indexOf(String(k)) >= 0; }
   };
   globalThis.log = function () {
     if (logs.length >= 5) return;
@@ -116,15 +115,86 @@ export const PRELUDE = String.raw`
   globalThis.clamp = function (v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; };
   globalThis.lerp = function (a, b, t) { return a + (b - a) * t; };
   globalThis.sign = function (v) { return v > 0 ? 1 : v < 0 ? -1 : 0; };
-  function load(json) {
-    input = parse(json);
-    globalThis.frame = input.frame;
-    globalThis.dt = input.dt;
-    globalThis.time = input.time;
-    globalThis.self = input.self;
-    globalThis.parts = input.parts;
-    globalThis.contacts = input.contacts || [];
-    globalThis.inbox = input.inbox || [];
+  // M9: the part objects, built once per layout and refilled from the numbers every tick. Private, so get() and
+  // the refill never depend on what a script did to its own parts array or objects.
+  var rows = [];
+  var freeze = Object.freeze;
+  var defineProperty = Object.defineProperty;
+  var fixed = ['id', 'type', 'tags', 'pos', 'mass', 'in', 'out'];
+  function setLayout(json) {
+    var list = parse(json);
+    rows = [];
+    for (var i = 0; i < list.length; i++) {
+      var l = list[i];
+      var inO = {};
+      var outO = {};
+      for (var j = 0; j < l[4].length; j++) inO[l[4][j]] = 0;
+      for (var j = 0; j < l[5].length; j++) outO[l[5][j]] = 0;
+      var r = { pos: { x: 0, y: 0 }, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
+      var o = { id: l[0], type: r.type, tags: r.tags, pos: r.pos, angle: 0, mass: l[3], in: inO, out: outO };
+      // Only the numbers change from tick to tick; the rest cannot be replaced, so the refill always reaches them.
+      for (var j = 0; j < fixed.length; j++) defineProperty(o, fixed[j], { writable: false, configurable: false });
+      r.o = o;
+      rows[i] = r;
+    }
+  }
+  function load(buf, extras) {
+    var f = new Float64Array(buf);
+    // Every number finite (the usual case), or check each and hand over null as JSON would.
+    var ok = f[0] === 1;
+    var v;
+    var k = 1;
+    v = f[k++]; globalThis.frame = ok || v - v === 0 ? v : null;
+    v = f[k++]; globalThis.dt = ok || v - v === 0 ? v : null;
+    v = f[k++]; globalThis.time = ok || v - v === 0 ? v : null;
+    var n = [];
+    for (var i = 0; i < 9; i++) { v = f[k++]; n[i] = ok || v - v === 0 ? v : null; }
+    globalThis.self = { pos: { x: n[0], y: n[1] }, vel: { x: n[2], y: n[3] }, angle: n[4], angVel: n[5], mass: n[6], energy: { stored: n[7], capacity: n[8] } };
+    var list = [];
+    if (ok) {
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var o = r.o;
+        var pos = r.pos;
+        pos.x = f[k++];
+        pos.y = f[k++];
+        o.angle = f[k++];
+        var names = r.inN;
+        var target = r.inO;
+        for (var j = 0; j < names.length; j++) target[names[j]] = f[k++];
+        names = r.outN;
+        target = r.outO;
+        for (var j = 0; j < names.length; j++) target[names[j]] = f[k++];
+        list[i] = o;
+      }
+    } else {
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i];
+        var o = r.o;
+        var pos = r.pos;
+        v = f[k++]; pos.x = v - v === 0 ? v : null;
+        v = f[k++]; pos.y = v - v === 0 ? v : null;
+        v = f[k++]; o.angle = v - v === 0 ? v : null;
+        var names = r.inN;
+        var target = r.inO;
+        for (var j = 0; j < names.length; j++) { v = f[k++]; target[names[j]] = v - v === 0 ? v : null; }
+        names = r.outN;
+        target = r.outO;
+        for (var j = 0; j < names.length; j++) { v = f[k++]; target[names[j]] = v - v === 0 ? v : null; }
+        list[i] = o;
+      }
+    }
+    globalThis.parts = list;
+    if (extras === '') {
+      keyState = { down: [], pressed: [], released: [] };
+      globalThis.contacts = [];
+      globalThis.inbox = [];
+    } else {
+      var e = parse(extras);
+      keyState = e[0];
+      globalThis.contacts = e[1];
+      globalThis.inbox = e[2];
+    }
     scans = 0;
     sends = 0;
     nanWarned = false;
@@ -136,18 +206,23 @@ export const PRELUDE = String.raw`
     return stringify({ writes: writes, logs: logs, marks: marks });
   }
   return {
-    setup: function (json) {
-      load(json);
+    layout: function (json) { setLayout(json); return ''; },
+    setup: function (buf, extras) {
+      load(buf, extras);
       globalThis.state = {};
       if (typeof globalThis.setup === 'function') globalThis.setup();
       return result();
     },
-    tick: function (json) {
-      load(json);
+    tick: function (buf, extras) {
+      load(buf, extras);
       if (typeof globalThis.tick === 'function') globalThis.tick();
       return result();
     },
     specs: function () { return stringify(specs); },
+    // Host only (the parity test): what the script sees, as one JSON text in the order the old input had.
+    inspect: function () {
+      return stringify({ frame: globalThis.frame, dt: globalThis.dt, time: globalThis.time, self: globalThis.self, parts: globalThis.parts, keys: keyState, contacts: globalThis.contacts, inbox: globalThis.inbox });
+    },
     hasTick: function () { return typeof globalThis.tick === 'function' ? 'true' : 'false'; }
   };
 })(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null)

@@ -11,6 +11,7 @@ import { drainContainers, grantFactor, poolTotals, type Container } from '../res
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
+import { extrasJson, HEADER, layoutJson, numberCount, put, putHead, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
@@ -100,6 +101,20 @@ export interface WorldOptions {
   scripts?: ScriptHost;
   dt?: number;
   gravityY?: number;
+  /**
+   * Tests only (M9 parity): called before a robot's scripts run with the input the old JSON path would have built,
+   * so a test can compare it with what the scripts actually see. Costs a full old-style input per call.
+   */
+  scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
+}
+
+/** A robot's script layout (M9, `script/frame.ts`), kept until the robot changes. */
+interface ScriptFeed {
+  /** `Robot.version` and the core the scripts run on. */
+  key: string;
+  layout: ScriptLayout;
+  parts: { id: string; part: PartInstance; in: readonly string[]; out: readonly string[] }[];
+  numbers: Float64Array;
 }
 
 export class World {
@@ -124,6 +139,9 @@ export class World {
   /** Events so far, oldest first. Readers keep their own cursor. */
   readonly events: WorldEvent[] = [];
   private readonly scriptHost: ScriptHost | undefined;
+  private readonly scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
+  private readonly feeds = new WeakMap<Robot, ScriptFeed>();
+  private layouts = 0;
   /** Scripts per robot, on robots with a core. */
   private readonly runners = new Map<number, ScriptRunner>();
   /** Recent `log()` lines from scripts, oldest first (at most LOG_KEEP). */
@@ -182,6 +200,7 @@ export class World {
     this.dt = opts.dt ?? 1 / 60;
     this.seed = opts.seed;
     this.scriptHost = opts.scripts;
+    if (opts.scriptProbe) this.scriptProbe = opts.scriptProbe;
     this.rng = new Prng(opts.seed);
     this.gravityY = opts.gravityY ?? -9.81;
     this.physics = new PhysicsWorld(this.gravityY, this.dt);
@@ -541,7 +560,8 @@ export class World {
       if (!controller || !robot) continue;
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
       const services: ScriptServices = { scan: (id) => this.scan(robot, id), send: (to, json) => this.send(robot, to, json) };
-      const out = runner.tick(() => this.scriptInput(robot, controller.keyState()), services);
+      if (this.scriptProbe) this.scriptProbe(robotId, () => this.scriptInput(robot, controller.keyState()));
+      const out = runner.tick(() => this.scriptFrame(robot, controller.keyState()), services);
       if (out.ran) {
         // Its scripts have seen the messages sent before this tick; this tick's own sends stay for next tick.
         const core = robot.parts.get(robot.primaryCoreId ?? '');
@@ -577,7 +597,99 @@ export class World {
     this.runners.set(robot.id, new ScriptRunner(scripts, this.scriptHost, seed));
   }
 
-  /** What a robot's scripts see this tick (`04`, Script API): exact data about its core and its parts. */
+  /**
+   * What a robot's scripts see this tick (M9: as a frame, `script/frame.ts`). The layout is rebuilt when the robot
+   * changes (`version`, its core) or when the values present on a part differ from the layout's; otherwise only the
+   * numbers are written, into the same buffer as last tick.
+   */
+  private scriptFrame(robot: Robot, keys: ScriptInput['keys']): ScriptFrame {
+    const coreId = robot.primaryCoreId ?? robot.rootId;
+    const key = `${robot.version}:${coreId}`;
+    let feed = this.feeds.get(robot);
+    if (!feed || feed.key !== key || !this.fillFeed(robot, feed)) {
+      feed = this.buildFeed(robot, key);
+      if (!this.fillFeed(robot, feed)) throw new Error(`script layout of ${robot.name} did not match right after it was built`);
+    }
+    const coreBody = robot.groups[robot.parts.get(coreId)?.group ?? 0]?.bodyId ?? 0;
+    const core = partWorldPose(this, robot, coreId);
+    const s = this.physics.state(coreBody);
+    let mass = 0;
+    for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
+    const energy = this.energy(robot.id);
+    const n = feed.numbers;
+    const head = putHead(n, {
+      frame: this.tickCount,
+      dt: this.dt,
+      time: this.tickCount * this.dt,
+      self: { pos: { x: core.x, y: core.y }, vel: { x: s.vx, y: s.vy }, angle: s.angle, angVel: s.w, mass, energy: { stored: energy?.stored ?? 0, capacity: energy?.capacity ?? 0 } },
+    });
+    n[0] = head && n[0] === 1 ? 1 : 0;
+    const inbox = (robot.parts.get(coreId)?.inbox ?? []).filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown }));
+    return { layout: feed.layout, numbers: n, extras: extrasJson({ keys, contacts: this.contactsFor(robot, true), inbox }) };
+  }
+
+  /** A new layout for the robot's controlled chunk, with the values present on each part right now. */
+  private buildFeed(robot: Robot, key: string): ScriptFeed {
+    const coreId = robot.primaryCoreId ?? robot.rootId;
+    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+    const chans = this.channels.get(robot.id);
+    const scope = coreControls(robot)?.scope;
+    const parts: ScriptFeed['parts'] = [];
+    const layout: LayoutPart[] = [];
+    for (const id of chunk?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      if (!p) continue;
+      const ins = [...(chans?.get(id)?.keys() ?? [])];
+      const outs = p.def.outputs.map((o) => o.name).filter((name) => this.partOutput(robot.id, id, name) !== undefined);
+      parts.push({ id, part: p, in: ins, out: outs });
+      layout.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: p.def.mass, in: ins, out: outs });
+    }
+    const feed: ScriptFeed = { key, layout: { id: ++this.layouts, json: layoutJson(layout) }, parts, numbers: new Float64Array(numberCount(layout)) };
+    this.feeds.set(robot, feed);
+    return feed;
+  }
+
+  /**
+   * Writes every part's numbers into the feed; false when the robot no longer matches its layout (a part gone, or a
+   * value that appeared or went away), so the caller rebuilds it. Sets slot 0 to whether all part numbers are finite.
+   */
+  private fillFeed(robot: Robot, feed: ScriptFeed): boolean {
+    const chans = this.channels.get(robot.id);
+    const n = feed.numbers;
+    let ok = true;
+    let k = HEADER + SELF;
+    for (const fp of feed.parts) {
+      if (robot.parts.get(fp.id) !== fp.part) return false;
+      const pose = partWorldPose(this, robot, fp.id);
+      ok = put(n, k++, pose.x) && ok;
+      ok = put(n, k++, pose.y) && ok;
+      ok = put(n, k++, pose.angle) && ok;
+      const values = chans?.get(fp.id);
+      if ((values?.size ?? 0) !== fp.in.length) return false;
+      let j = 0;
+      for (const [name, v] of values ?? []) {
+        if (fp.in[j++] !== name) return false;
+        ok = put(n, k++, v) && ok;
+      }
+      j = 0;
+      for (const o of fp.part.def.outputs) {
+        const v = this.partOutput(robot.id, fp.id, o.name);
+        const listed = fp.out[j] === o.name;
+        if ((v !== undefined) !== listed) return false;
+        if (v === undefined) continue;
+        j++;
+        ok = put(n, k++, v) && ok;
+      }
+      if (j !== fp.out.length) return false;
+    }
+    n[0] = ok ? 1 : 0;
+    return true;
+  }
+
+  /**
+   * The input as the scripts saw it before M9 (`04`, Script API): exact data about the core and its parts. Kept as the
+   * reference the parity test compares `scriptFrame` against (`scriptProbe`); the world no longer runs it.
+   */
   private scriptInput(robot: Robot, keys: ScriptInput['keys']): ScriptInput {
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const core = partWorldPose(this, robot, coreId);
