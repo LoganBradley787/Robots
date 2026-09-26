@@ -36,6 +36,14 @@ export interface PartInstance {
   burn?: number;
   /** M11: the robot a lit decoy stands in for: the one it was part of when it was lit. */
   decoyOf?: number;
+  /** M12: for a part with grips (a fabricator bay), whether its grips hold what touches them. Undefined for others. */
+  holding?: boolean;
+  /**
+   * M12: a fabricator bay's build: ticks of work done on the item it is making (reset when the item is finished), and
+   * how many it has finished so far (names each item's scope). Undefined for other parts.
+   */
+  progress?: number;
+  built?: number;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** Index of the body group that owns this part. */

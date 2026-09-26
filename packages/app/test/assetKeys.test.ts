@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultRegistry } from '@robots/sim-core';
+import { defaultRegistry, footprintBox } from '@robots/sim-core';
 import { FX_ANIMATIONS, TERRAIN, TEXTURE_PX_PER_CELL } from '../src/render/assetKeys';
 import partsSheet from '../public/assets/sheets/parts.json';
 import fxSheet from '../public/assets/sheets/fx.json';
@@ -51,14 +51,16 @@ describe('asset keys', () => {
     for (const alias of Object.values(TERRAIN)) expect(aliases).toContain(alias);
   });
 
-  it('every frame is one cell and inside its sheet', () => {
+  it("every frame covers its part's footprint box (one cell for most) and is inside its sheet", () => {
+    const boxes = new Map(defaultRegistry().list().map((d) => [d.sprite.frame, footprintBox(d)]));
     for (const sheet of [parts, fx]) {
       for (const [name, { frame, sourceSize }] of Object.entries(sheet.frames)) {
+        const box = boxes.get(name) ?? { w: 1, h: 1 };
         expect([frame.w, frame.h, sourceSize.w, sourceSize.h], name).toEqual([
-          TEXTURE_PX_PER_CELL,
-          TEXTURE_PX_PER_CELL,
-          TEXTURE_PX_PER_CELL,
-          TEXTURE_PX_PER_CELL,
+          TEXTURE_PX_PER_CELL * box.w,
+          TEXTURE_PX_PER_CELL * box.h,
+          TEXTURE_PX_PER_CELL * box.w,
+          TEXTURE_PX_PER_CELL * box.h,
         ]);
         expect(frame.x, name).toBeGreaterThanOrEqual(0);
         expect(frame.y, name).toBeGreaterThanOrEqual(0);

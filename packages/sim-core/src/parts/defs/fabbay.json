@@ -1,0 +1,33 @@
+{
+  "id": "fabbay",
+  "name": "Fabricator bay",
+  "footprint": [
+    { "x": 0, "y": 0, "faces": ["S"], "grips": ["N"] },
+    { "x": -1, "y": 0, "faces": ["S", "W"] },
+    { "x": 1, "y": 0, "faces": ["S", "E"] },
+    { "x": -1, "y": 1, "faces": ["W"], "grips": ["E"] },
+    { "x": -1, "y": 2, "faces": ["W"], "grips": ["E"] },
+    { "x": -1, "y": 3, "faces": ["W"], "grips": ["E"] },
+    { "x": -1, "y": 4, "faces": ["W"], "grips": ["E"] },
+    { "x": -1, "y": 5, "faces": ["W", "N"], "grips": ["E"] },
+    { "x": 1, "y": 1, "faces": ["E"], "grips": ["W"] },
+    { "x": 1, "y": 2, "faces": ["E"], "grips": ["W"] },
+    { "x": 1, "y": 3, "faces": ["E"], "grips": ["W"] },
+    { "x": 1, "y": 4, "faces": ["E"], "grips": ["W"] },
+    { "x": 1, "y": 5, "faces": ["E", "N"], "grips": ["W"] }
+  ],
+  "mass": 13,
+  "health": 150,
+  "symmetry": 4,
+  "inputs": [{ "name": "release", "min": 0, "max": 1, "default": 0 }],
+  "outputs": [
+    { "name": "ready", "min": 0, "max": 1, "default": 0 },
+    { "name": "progress", "min": 0, "max": 1, "default": 0 },
+    { "name": "built", "min": 0, "max": 1000000, "default": 0 }
+  ],
+  "powerDraw": 400,
+  "acts": "N",
+  "behavior": "fabricate",
+  "fabricate": { "joulesPerKg": 40, "secondsPerKg": 0.6, "separation": 4 },
+  "sprite": { "frame": "part.fabbay" }
+}

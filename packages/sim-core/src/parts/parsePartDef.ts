@@ -64,7 +64,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'fabricate', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -208,6 +208,14 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (!def.inputs.some((c) => c.name === 'ignite')) r.fail('decoy', 'a decoy must have an "ignite" input');
     if (!def.outputs.some((c) => c.name === 'burning')) r.fail('decoy', 'a decoy must have a "burning" output');
     def.decoy = { burn: r.positive(d, 'burn', 'decoy') };
+  }
+  if (o.fabricate !== undefined) {
+    const f = r.obj(o.fabricate, 'fabricate', ['joulesPerKg', 'secondsPerKg', 'separation']);
+    if (!def.footprint.some((c) => (c.grips ?? []).length > 0)) r.fail('fabricate', 'a fabricator needs grips to hold what it builds');
+    if (def.acts === undefined) r.fail('fabricate', 'a fabricator needs "acts" (the way it lets things go)');
+    if (!def.inputs.some((c) => c.name === 'release')) r.fail('fabricate', 'a fabricator must have a "release" input');
+    for (const out of ['ready', 'progress', 'built']) if (!def.outputs.some((c) => c.name === out)) r.fail('fabricate', `a fabricator must have a "${out}" output`);
+    def.fabricate = { joulesPerKg: r.positive(f, 'joulesPerKg', 'fabricate'), secondsPerKg: r.positive(f, 'secondsPerKg', 'fabricate'), separation: r.positive(f, 'separation', 'fabricate') };
   }
   if (o.defaultTags !== undefined) {
     def.defaultTags = r.arr(o, 'defaultTags', '').map((t, i) => {

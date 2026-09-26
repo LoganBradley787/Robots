@@ -459,6 +459,26 @@
         "w": 64,
         "h": 64
       }
+    },
+    "part.fabbay": {
+      "frame": {
+        "x": 3,
+        "y": 343,
+        "w": 192,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 384
+      }
     }
   },
   "meta": {
@@ -466,7 +486,7 @@
     "format": "RGBA8888",
     "size": {
       "w": 342,
-      "h": 342
+      "h": 730
     },
     "scale": "1"
   }

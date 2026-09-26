@@ -37,6 +37,12 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
     if (def.resource) inst.stored = def.resource.capacity;
     // M10: a part that needs arming starts safe unless the blueprint starts it armed.
     if (def.arming === true) inst.armed = p.armed === true;
+    // M12: a fabricator starts empty.
+    if (def.fabricate) {
+      inst.holding = false;
+      inst.progress = 0;
+      inst.built = 0;
+    }
     parts.set(p.id, inst);
   }
   // Spawned upright: every body at angle 0, each at its origin cell.

@@ -172,3 +172,17 @@ describe('Controller.restrict (M6)', () => {
     expect([...c.values().keys()]).toEqual(['w1']);
   });
 });
+
+describe('carryFrom (M12)', () => {
+  it('keeps held keys and toggles on the same bindings, wherever they moved', () => {
+    const parts = [{ id: 'w', part: 'wheel', tags: ['wheel'], inputs: [{ name: 'speed', min: -1, max: 1, default: 0 }] }];
+    const toggle = { key: 't', mode: 'toggle' as const, target: 'wheel', channel: 'speed', value: 1 };
+    const old = new Controller([toggle], parts);
+    old.apply(['t', 'd'], []);
+    old.endTick();
+    const grown = new Controller([{ key: 'x', mode: 'toggle', target: 'wheel', channel: 'speed', value: -1 }, toggle], parts);
+    grown.carryFrom(old);
+    expect(grown.state()).toEqual({ held: ['d', 't'], toggles: [1] });
+    expect(grown.values().get('w')?.get('speed')).toBe(1);
+  });
+});

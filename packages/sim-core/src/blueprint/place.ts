@@ -10,6 +10,10 @@ export interface PlaceOptions {
   rot?: Rotation;
   /** Flip the source left to right (across its root part's column) before turning it. */
   mirror?: boolean;
+  /** M12: the copy's scope, instead of the next free `<name><n>` (a fabricator bay names what it builds). */
+  scope?: string;
+  /** M12: ids the copy's parts must not take, besides the target's (parts of the robot that are gone). */
+  reservedIds?: ReadonlySet<string>;
 }
 
 export type PlaceResult = { ok: true; blueprint: Blueprint; scope?: string; warnings: string[] } | { ok: false; error: string };
@@ -41,7 +45,7 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
   const unmirrored = opts.mirror ? mirrorProblem(source, registry) : undefined;
   if (unmirrored) return { ok: false, error: unmirrored };
   // Where each source part goes.
-  const taken = new Set(target.parts.map((p) => p.id));
+  const taken = new Set([...target.parts.map((p) => p.id), ...(opts.reservedIds ?? [])]);
   const newId = new Map<string, string>();
   const moved: PlacedPart[] = source.parts.map((p) => {
     let dx = p.x - anchor.x;
@@ -61,6 +65,7 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
     const out: PlacedPart = { id, part, x, y, rot: ((r + rot) % 360) as Rotation, tags: p.tags.filter((t) => t !== p.id) };
     if (p.auto === false || source.autoControls === false) out.auto = false;
     if (p.armed === true) out.armed = true;
+    if (p.makes !== undefined) out.makes = p.makes;
     return out;
   });
 
@@ -101,10 +106,11 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
     }
     const cores = (source.cores ?? []).map((c) => ({ ...c, core: newId.get(c.core) ?? c.core, bindings: c.bindings.map(rename), scripts: c.scripts.map(copyScript) }));
     if (cores.length > 0) out.cores = [...(target.cores ?? []), ...cores];
+    withRecipes(out, target, source);
     return { ok: true, blueprint: out, warnings };
   }
 
-  const scope = freeScope(target, source.name);
+  const scope = opts.scope ?? freeScope(target, source.name);
   const parts = moved.map((p) => ({ ...p, tags: [scope, ...p.tags.map((t) => `${scope}.${t}`), p.id] }));
   const cores: CoreControls[] = [];
   if (anchorIsCore) {
@@ -120,7 +126,14 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
   // robot's own core so it stays the pilot.
   if (out.primaryCore === undefined) out.primaryCore = rootPartId(target, registry) as string;
   if (cores.length > 0) out.cores = [...(target.cores ?? []), ...cores];
+  withRecipes(out, target, source);
   return { ok: true, blueprint: out, scope, warnings };
+}
+
+/** The copy's recipes (M12) come along, unless the target has one by that name already. */
+function withRecipes(out: Blueprint, target: Blueprint, source: Blueprint): void {
+  const extra = (source.recipes ?? []).filter((r) => !(target.recipes ?? []).some((t) => t.name === r.name));
+  if (extra.length > 0) out.recipes = [...(target.recipes ?? []), ...extra];
 }
 
 /** `missile1`, or the next number no tag or core scope of the target uses yet. */

@@ -71,8 +71,11 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
   }
   const cut = new Map<string, readonly Face[]>();
   for (const p of all.values()) if (p.cut && p.cut.length > 0) cut.set(p.id, p.cut);
+  // Parts holding with their grips (M12: a fabricator bay with a finished item in it).
+  const holding = new Set<string>();
+  for (const p of all.values()) if (p.holding === true) holding.add(p.id);
   const whole: Blueprint = { ...robot.blueprint, parts: live };
-  const pieces = assemble(whole, registry, undefined, cut).chunks.map((c) => c.partIds);
+  const pieces = assemble(whole, registry, undefined, cut, holding).chunks.map((c) => c.partIds);
 
   const active = robot.primaryCoreId !== undefined && all.has(robot.primaryCoreId) ? robot.primaryCoreId : undefined;
   let keep = active === undefined ? -1 : pieces.findIndex((ids) => ids.includes(active));
@@ -85,7 +88,7 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
     const pieceParts = live.filter((p) => ids.includes(p.id));
     const cores = pieceParts.filter((p) => isCore(p, registry));
     const rootId = active !== undefined && ids.includes(active) ? active : (cores[0]?.id ?? (pieceParts[0]?.id as string));
-    const plan = assemble({ ...whole, parts: pieceParts }, registry, rootId, cut);
+    const plan = assemble({ ...whole, parts: pieceParts }, registry, rootId, cut, holding);
     const parts = new Map<string, PartInstance>();
     for (const p of pieceParts) parts.set(p.id, all.get(p.id) as PartInstance);
     const groups = buildBodies(physics, parts, plan, (g) => worldPose.get(g.originId) as { x: number; y: number; angle: number });

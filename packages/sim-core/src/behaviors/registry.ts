@@ -8,6 +8,7 @@ import { decoupler } from './decoupler';
 import { warhead } from './warhead';
 import { rotator } from './rotator';
 import { sensor } from './sensor';
+import { fabricate } from './fabricate';
 
 export interface BehaviorContext {
   physics: PhysicsWorld;
@@ -24,6 +25,12 @@ export interface BehaviorContext {
    * each along the face. The robot splits in the damage phase after the physics step (`03`).
    */
   detach(face: Face, impulse: number): void;
+  /** M12, fabricators: what the part's recipe costs (seconds of build, joules), or undefined when it makes nothing. */
+  job(): { seconds: number; joules: number } | undefined;
+  /** M12: the build is done; the world adds the copy to the robot if the hollow is clear, else it tries next tick. */
+  finish(): void;
+  /** M12: lets go of the copy the part holds, pushing it out along the part's `acts`. */
+  release(): void;
 }
 
 export interface Behavior {
@@ -62,4 +69,5 @@ export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior
   ['warhead', warhead],
   ['rotator', rotator],
   ['sensor', sensor],
+  ['fabricate', fabricate],
 ]);

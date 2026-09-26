@@ -5,6 +5,8 @@ import { FACES, rotateFace } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Face } from '../parts/types';
 import { expandBlueprint } from './expand';
+import { toFileJson } from './serialize';
+import { recipePlacement } from '../fabricate/recipe';
 import type { Binding, Blueprint, Issue, PlacedPart, ScriptSpec } from './types';
 
 export interface ValidationResult {
@@ -169,8 +171,37 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
     if (s.file !== undefined && files.has(s.file)) err('BAD_SCRIPT', `two scripts use the file '${s.file}'; give each its own`);
     if (s.file !== undefined) files.add(s.file);
   }
+  checkRecipes(blueprint, registry, err, warn);
   const ok = !issues.some((i) => i.severity === 'error');
   return { blueprint, plan, issues, ok };
+}
+
+/**
+ * M12: every recipe is a valid blueprint on its own, and every part with `makes` is a fabricator whose recipe exists
+ * and fits its hollow (`recipePlacement`).
+ */
+function checkRecipes(bp: Blueprint, registry: PartRegistry, err: Report, warn: Report): void {
+  const names = (bp.recipes ?? []).map((r) => r.name);
+  for (const r of bp.recipes ?? []) {
+    const v = validateBlueprint(toFileJson(r.blueprint, registry, { inlineScripts: true }), registry);
+    for (const i of v.issues) (i.severity === 'error' ? err : warn)(i.code, `recipe ${r.name}: ${i.message}`, { path: `recipes.${r.name}` });
+  }
+  for (const p of bp.parts) {
+    if (p.makes === undefined) continue;
+    const at = { partId: p.id, cell: { x: p.x, y: p.y } };
+    if (!registry.get(p.part).fabricate) {
+      const makers = registry.ids().filter((id) => registry.get(id).fabricate !== undefined);
+      err('BAD_MAKES', `${p.id} makes '${p.makes}', but a ${p.part} builds nothing (parts that do: ${makers.join(', ') || 'none'}); remove "makes"`, at);
+      continue;
+    }
+    const recipe = bp.recipes?.find((r) => r.name === p.makes);
+    if (!recipe) {
+      err('BAD_MAKES', `${p.id} makes '${p.makes}', which is not one of the blueprint's recipes (${names.join(', ') || 'none'})`, at);
+      continue;
+    }
+    const place = recipePlacement(p, recipe.blueprint, registry);
+    if (!place.ok) err('BAD_RECIPE', `${p.id}: ${place.error}`, at);
+  }
 }
 
 function facesOf(p: PlacedPart, registry: PartRegistry): Face[] {

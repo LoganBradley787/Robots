@@ -10,6 +10,8 @@ interface Writer {
   value: number;
   /** Parts with the target and the channel, resolved once. */
   partIds: string[];
+  /** What the binding is, to find the same one in a rebuilt controller (M12). */
+  sig: string;
 }
 
 interface Channel {
@@ -55,7 +57,7 @@ export class Controller {
       const channel = b.channel;
       const target = b.target;
       const partIds = parts.filter((p) => matchesTarget(p, target) && p.inputs.some((c) => c.name === channel)).map((p) => p.id);
-      this.writers.push({ index, key: b.key, mode: b.mode, channel, value: b.value, partIds });
+      this.writers.push({ index, key: b.key, mode: b.mode, channel, value: b.value, partIds, sig: `${b.key}|${b.mode}|${target}|${channel}|${b.value}` });
     });
     this.keys = keys;
   }
@@ -145,6 +147,23 @@ export class Controller {
     for (const w of this.writers) w.partIds = w.partIds.filter((id) => partIds.has(id));
     // A key whose parts all broke off leaves the keys bar.
     this.keys = this.keys.filter((k) => this.scriptKeys.has(k) || this.writers.some((w) => w.key === k && w.partIds.length > 0));
+  }
+
+  /**
+   * Takes over another controller's held keys and toggles (M12): a robot that grew parts (a fabricator bay finishing
+   * an item) gets a new controller for its new bindings, and keys held or toggled on stay so. A toggle carries to the
+   * same binding (key, mode, target, channel, value), wherever it now is in the list.
+   */
+  carryFrom(old: Controller): void {
+    for (const k of old.held) this.held.add(k);
+    const used = new Set<number>();
+    for (const i of [...old.toggles].sort((a, b) => a - b)) {
+      const sig = old.writers.find((w) => w.index === i)?.sig;
+      const w = this.writers.find((x) => x.sig === sig && x.mode === 'toggle' && !used.has(x.index));
+      if (!w) continue;
+      used.add(w.index);
+      this.toggles.add(w.index);
+    }
   }
 
   /** Ends the tick: pulses and taps last exactly one tick. */

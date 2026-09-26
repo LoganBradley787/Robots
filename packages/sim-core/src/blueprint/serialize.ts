@@ -27,6 +27,7 @@ export function toFileJson(bp: Blueprint, registry: PartRegistry, opts: { inline
       if (tags.length > 0) e.tags = tags;
       if (p.auto === false) e.auto = false;
       if (p.armed === true) e.armed = true;
+      if (p.makes !== undefined) e.makes = p.makes;
       return e;
     });
   }
@@ -53,6 +54,11 @@ export function toFileJson(bp: Blueprint, registry: PartRegistry, opts: { inline
       Object.defineProperty(cores, c.core, { value: e, enumerable: true, writable: true, configurable: true });
     }
     out.cores = cores;
+  }
+  if (bp.recipes && bp.recipes.length > 0) {
+    const recipes: Record<string, unknown> = {};
+    for (const r of bp.recipes) Object.defineProperty(recipes, r.name, { value: toFileJson(r.blueprint, registry, opts), enumerable: true, writable: true, configurable: true });
+    out.recipes = recipes;
   }
   return out;
 }

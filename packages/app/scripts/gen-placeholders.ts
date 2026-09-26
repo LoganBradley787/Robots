@@ -509,6 +509,38 @@ function drawFlare(lit = false): Canvas {
   return cv;
 }
 
+/**
+ * Fabricator bay (M12): a U three cells wide and six tall, open at the top. Armored walls in dark steel with a
+ * yellow and black band at the mouth, a lit strip down the inside of each wall, and a machine bed at the bottom.
+ */
+function drawFabBay(): Canvas {
+  const cv = new Canvas(3 * CELL, 6 * CELL);
+  const W = CELL;
+  const H = 6 * CELL;
+  const steel = hex('#4b525c');
+  const edge = hex('#262a30');
+  // Walls and the floor.
+  plate(cv, 0, 0, W, H, steel, edge, 3);
+  plate(cv, 2 * W, 0, 3 * W, H, steel, edge, 3);
+  plate(cv, 0, H - W, 3 * W, H, hex('#3c424b'), edge, 3);
+  // The hollow: dark, with a faint grid of the build.
+  cv.fill(rect(W, 0, 2 * W, H - W), hex('#12151a'));
+  for (let y = W; y < H - W; y += W) cv.fill(rect(W + 4, y - 1, 2 * W - 4, y + 1), hex('#2a3f4a'));
+  // Grip strips inside each wall, lit cyan.
+  cv.fill(rect(W - 8, 10, W - 3, H - W - 6), hex('#1d6f86'));
+  cv.fill(rect(2 * W + 3, 10, 2 * W + 8, H - W - 6), hex('#1d6f86'));
+  cv.fill(rect(W - 7, 12, W - 5, H - W - 8), CYAN, 0.8);
+  cv.fill(rect(2 * W + 5, 12, 2 * W + 7, H - W - 8), CYAN, 0.8);
+  // Hazard bands at the mouth.
+  hazard(cv, rect(3, 3, W - 3, 16));
+  hazard(cv, rect(2 * W + 3, 3, 3 * W - 3, 16));
+  // Machine bed: a press head over the floor and rivets.
+  cv.fill(rect(W + 8, H - W + 6, 2 * W - 8, H - W + 20), hex('#8a9099'));
+  bevel(cv, W + 8, H - W + 6, 2 * W - 8, H - W + 20, 1.5, 0.3, 0.3);
+  for (const [x, y] of [[12, H - 12], [3 * W - 12, H - 12], [12, 30], [3 * W - 12, 30], [W / 2, H / 2], [2.5 * W, H / 2]] as const) rivet(cv, x, y, 3);
+  return cv;
+}
+
 /** Seeker (M8): a dark housing with a glass eye on the top (N) edge, the way it looks, and a green lens glow. */
 function drawSeeker(): Canvas {
   const cv = new Canvas(CELL, CELL);
@@ -788,31 +820,44 @@ interface SheetFrame {
 
 /** Grid atlas: every frame gets 1 px of edge extrusion and 2 px of transparent padding between neighbors. */
 function packSheet(frames: NamedFrame[], image: string, animations?: Record<string, string[]>): { png: Buffer; json: string } {
-  const cols = Math.ceil(Math.sqrt(frames.length));
-  const rows = Math.ceil(frames.length / cols);
+  // One-cell frames in a square grid, as before; bigger ones (M12: multi-cell parts) in a row underneath.
+  const small = frames.filter((f) => f.canvas.w === CELL && f.canvas.h === CELL);
+  const big = frames.filter((f) => !small.includes(f));
+  const cols = Math.max(1, Math.ceil(Math.sqrt(small.length)));
+  const rows = Math.ceil(small.length / cols);
   const slot = CELL + 2 * EXTRUDE + PAD;
-  const w = PAD + cols * slot;
-  const h = PAD + rows * slot;
+  const at = new Map<NamedFrame, { x: number; y: number }>();
+  small.forEach((f, i) => at.set(f, { x: PAD + (i % cols) * slot + EXTRUDE, y: PAD + Math.floor(i / cols) * slot + EXTRUDE }));
+  let x = PAD;
+  const top = PAD + rows * slot;
+  let bigH = 0;
+  for (const f of big) {
+    at.set(f, { x: x + EXTRUDE, y: top + EXTRUDE });
+    x += f.canvas.w + 2 * EXTRUDE + PAD;
+    bigH = Math.max(bigH, f.canvas.h + 2 * EXTRUDE + PAD);
+  }
+  const w = Math.max(PAD + cols * slot, x);
+  const h = top + bigH;
   const sheet = new Canvas(w, h);
   const out: Record<string, SheetFrame> = {};
-  frames.forEach(({ name, canvas }, i) => {
-    const fx = PAD + (i % cols) * slot + EXTRUDE;
-    const fy = PAD + Math.floor(i / cols) * slot + EXTRUDE;
-    for (let y = -EXTRUDE; y < CELL + EXTRUDE; y++) {
-      for (let x = -EXTRUDE; x < CELL + EXTRUDE; x++) {
-        const sx = Math.max(0, Math.min(CELL - 1, x));
-        const sy = Math.max(0, Math.min(CELL - 1, y));
-        sheet.set(fx + x, fy + y, canvas.get(sx, sy));
+  for (const f of frames) {
+    const { name, canvas } = f;
+    const p = at.get(f) as { x: number; y: number };
+    for (let y = -EXTRUDE; y < canvas.h + EXTRUDE; y++) {
+      for (let x2 = -EXTRUDE; x2 < canvas.w + EXTRUDE; x2++) {
+        const sx = Math.max(0, Math.min(canvas.w - 1, x2));
+        const sy = Math.max(0, Math.min(canvas.h - 1, y));
+        sheet.set(p.x + x2, p.y + y, canvas.get(sx, sy));
       }
     }
     out[name] = {
-      frame: { x: fx, y: fy, w: CELL, h: CELL },
+      frame: { x: p.x, y: p.y, w: canvas.w, h: canvas.h },
       rotated: false,
       trimmed: false,
-      spriteSourceSize: { x: 0, y: 0, w: CELL, h: CELL },
-      sourceSize: { w: CELL, h: CELL },
+      spriteSourceSize: { x: 0, y: 0, w: canvas.w, h: canvas.h },
+      sourceSize: { w: canvas.w, h: canvas.h },
     };
-  });
+  }
   const json: Record<string, unknown> = { frames: out };
   if (animations) json.animations = animations;
   json.meta = { image, format: 'RGBA8888', size: { w, h }, scale: '1' };
@@ -862,6 +907,7 @@ function main(): void {
     { name: 'part.radar', canvas: drawRadar() },
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
+    { name: 'part.fabbay', canvas: drawFabBay() },
   ];
   const partsSheet = packSheet(parts, 'parts.png');
   write('sheets/parts.png', partsSheet.png);

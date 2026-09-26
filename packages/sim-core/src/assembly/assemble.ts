@@ -40,11 +40,13 @@ export interface AssemblyPlan {
 export type CutFaces = ReadonlyMap<string, readonly Face[]>;
 
 /** Occupied world cells of a part: its footprint rotated by its rotation, plus its position. */
-export function partCells(part: PlacedPart, registry: PartRegistry): { cell: Cell; faces: Face[] }[] {
+export function partCells(part: PlacedPart, registry: PartRegistry, holding = false): { cell: Cell; faces: Face[] }[] {
   const def = registry.get(part.part);
   return def.footprint.map((fc) => {
     const off = rotateCell(fc, part.rot);
-    return { cell: { x: part.x + off.x, y: part.y + off.y }, faces: fc.faces.map((f) => rotateFace(f, part.rot)) };
+    // A holding part's grips (M12) attach like faces.
+    const faces = holding && fc.grips ? [...fc.faces, ...fc.grips] : fc.faces;
+    return { cell: { x: part.x + off.x, y: part.y + off.y }, faces: faces.map((f) => rotateFace(f, part.rot)) };
   });
 }
 
@@ -60,14 +62,15 @@ export function rootPartId(bp: Blueprint, registry: PartRegistry): string | unde
 /**
  * Pure assembly: attachment graph, chunks (connected sets), and body groups (joint parts are their own body).
  * Assumes a blueprint without overlaps or unknown parts; the validator checks those first.
- * All iteration is in blueprint order so the result, and the physics built from it, is deterministic.
+ * All iteration is in blueprint order so the result, and the physics built from it, is deterministic. `cut` faces no
+ * longer attach (fired decouplers); parts in `holding` (M12) attach through their grips as well as their faces.
  */
-export function assemble(bp: Blueprint, registry: PartRegistry, rootId: string | undefined = rootPartId(bp, registry), cut?: CutFaces): AssemblyPlan {
+export function assemble(bp: Blueprint, registry: PartRegistry, rootId: string | undefined = rootPartId(bp, registry), cut?: CutFaces, holding?: ReadonlySet<string>): AssemblyPlan {
   const order = new Map(bp.parts.map((p, i) => [p.id, i]));
   const byCell = new Map<string, { id: string; faces: Face[] }>();
   const cellsOf = (p: PlacedPart): { cell: Cell; faces: Face[] }[] => {
     const gone = cut?.get(p.id);
-    const cells = partCells(p, registry);
+    const cells = partCells(p, registry, holding?.has(p.id) === true);
     return gone === undefined ? cells : cells.map((c) => ({ cell: c.cell, faces: c.faces.filter((f) => !gone.includes(f)) }));
   };
   for (const p of bp.parts) {

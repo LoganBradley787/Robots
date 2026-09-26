@@ -115,6 +115,17 @@ export interface DecoySpec {
   burn: number;
 }
 
+/**
+ * A fabricator (M12): it builds copies of a blueprint (the part's `makes`) inside its hollow, out of its robot's
+ * energy: `joulesPerKg` of the copy's mass plus what its containers hold, over `secondsPerKg` of its mass. Its grips
+ * hold the finished copy until its `release` input lets it go, pushed out along `acts` with `separation` N s.
+ */
+export interface FabricateSpec {
+  joulesPerKg: number;
+  secondsPerKg: number;
+  separation: number;
+}
+
 export interface PartDef {
   id: string;
   name: string;
@@ -146,6 +157,8 @@ export interface PartDef {
   sensor?: SensorSpec;
   /** M11: the part is a decoy (a flare). It needs an `ignite` input and a `burning` output. */
   decoy?: DecoySpec;
+  /** M12: the part builds things (a fabricator bay). It needs grips, `acts`, a `release` input, and `ready`, `progress`, and `built` outputs. */
+  fabricate?: FabricateSpec;
   sprite: SpriteSpec;
   defaultTags?: string[];
 }

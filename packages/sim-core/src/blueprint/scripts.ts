@@ -35,12 +35,22 @@ export function resolveScripts(raw: unknown, read: (file: string) => string | un
     }
     out.cores = cores;
   }
+  // Recipes (M12) are whole blueprints with scripts of their own.
+  if (typeof o.recipes === 'object' && o.recipes !== null && !Array.isArray(o.recipes)) {
+    const recipes: Record<string, unknown> = {};
+    for (const [name, r] of Object.entries(o.recipes as Record<string, unknown>)) {
+      const done = resolveScripts(r, read);
+      missing.push(...done.missing);
+      Object.defineProperty(recipes, name, { value: done.raw, enumerable: true, writable: true, configurable: true });
+    }
+    out.recipes = recipes;
+  }
   return { raw: out, missing };
 }
 
-/** Every script of a blueprint: the primary core's, then each other core's (M7). */
+/** Every script of a blueprint: the primary core's, then each other core's (M7), then its recipes' (M12). */
 export function allScripts(bp: Blueprint): ScriptSpec[] {
-  return [...bp.scripts, ...(bp.cores ?? []).flatMap((c) => c.scripts)];
+  return [...bp.scripts, ...(bp.cores ?? []).flatMap((c) => c.scripts), ...(bp.recipes ?? []).flatMap((r) => allScripts(r.blueprint))];
 }
 
 /** The `.js` files a blueprint's scripts are saved to, with their text. Scripts not loaded yet are skipped. */
@@ -85,6 +95,7 @@ export function dropForeignScriptFiles(bp: Blueprint, blueprintFile?: string): B
   };
   const out: Blueprint = { ...bp, scripts: bp.scripts.map(fix) };
   if (bp.cores) out.cores = bp.cores.map((c) => ({ ...c, scripts: c.scripts.map(fix) }));
+  if (bp.recipes) out.recipes = bp.recipes.map((r) => ({ ...r, blueprint: dropForeignScriptFiles(r.blueprint, blueprintFile) }));
   return out;
 }
 
@@ -101,6 +112,9 @@ export function assignScriptFiles(bp: Blueprint, blueprintFile: string, onlyMiss
     return { ...s, file };
   };
   const scripts = bp.scripts.map((s) => assign(s));
-  if (!bp.cores || bp.cores.length === 0) return { ...bp, scripts };
-  return { ...bp, scripts, cores: bp.cores.map((c) => ({ ...c, scripts: c.scripts.map((s) => assign(s, c)) })) };
+  const out: Blueprint = { ...bp, scripts };
+  if (bp.cores && bp.cores.length > 0) out.cores = bp.cores.map((c) => ({ ...c, scripts: c.scripts.map((s) => assign(s, c)) }));
+  // A recipe's scripts (M12) are filed under the recipe: `fab-drone.missile-up.guide.js`.
+  if (bp.recipes) out.recipes = bp.recipes.map((r) => ({ ...r, blueprint: assignScriptFiles(r.blueprint, `${blueprintFile.replace(/\.json$/, '')}.${fileWord(r.name) || 'recipe'}.json`, onlyMissing) }));
+  return out;
 }

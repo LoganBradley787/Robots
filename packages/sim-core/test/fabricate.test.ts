@@ -1,0 +1,181 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import variant from '@jitl/quickjs-wasmfile-release-sync';
+import { readFileSync } from 'node:fs';
+import flatJson from '../../../worlds/flat.json';
+import { createQuickJsHost } from '../src/script/quickjs';
+import type { ScriptHost } from '../src/script/types';
+import { parseWorldFile } from '../src/world/WorldFile';
+import { World, type WorldEvent } from '../src/world/World';
+import { resolveScripts } from '../src/blueprint/scripts';
+import { validateBlueprint } from '../src/blueprint/validate';
+import { toFileJson } from '../src/blueprint/serialize';
+import { defaultRegistry } from '../src/parts/registry';
+import { hollowCells, recipeStats } from '../src/fabricate/recipe';
+import { buildReplay, runReplay } from '../src/replay/replayFile';
+
+const flat = parseWorldFile(flatJson);
+const registry = defaultRegistry();
+let host: ScriptHost;
+beforeAll(async () => {
+  host = await createQuickJsHost(variant);
+});
+const bpFile = (file: string): string => readFileSync(new URL(`../../../blueprints/${file}`, import.meta.url), 'utf8');
+const missileUp = resolveScripts(JSON.parse(bpFile('missile-up.json')), bpFile).raw;
+/** A ground base with a bay making `missile-up` on top: R lets go of what it holds. */
+const bayBot = (recipe: unknown = missileUp, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+  format: 1,
+  name: 'bay-bot',
+  parts: [
+    { part: 'core', x: 0, y: 0 },
+    { part: 'densebattery', x: -1, y: 0 },
+    { part: 'densebattery', x: 1, y: 0 },
+    { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item' },
+  ],
+  recipes: { item: recipe },
+  bindings: [{ key: 'r', mode: 'pulse', target: 'bay', channel: 'release', value: 1 }],
+  ...extra,
+});
+const events = (w: World, kind: WorldEvent['kind']): WorldEvent[] => w.events.filter((e) => e.kind === kind);
+const tap = (robot: number, key: string) => [{ robot, pressed: [key], released: [] }];
+const lift = (robot: number, key: string) => [{ robot, pressed: [], released: [key] }];
+const BUILD_S = 0.6 * 6.8;
+
+describe('fabricator bay: the part and recipes (M12)', () => {
+  it('the bay: a 3 by 6 U whose five-cell hollow fits a missile-up; the costs come from the recipe', () => {
+    const bay = registry.get('fabbay');
+    expect(bay.fabricate).toEqual({ joulesPerKg: 40, secondsPerKg: 0.6, separation: 4 });
+    expect(hollowCells(bay)).toEqual([1, 2, 3, 4, 5].map((y) => ({ x: 0, y })));
+    const v = validateBlueprint(missileUp, registry);
+    expect(recipeStats(v.blueprint!, registry)).toEqual({ mass: 6.8, stored: 600 });
+  });
+
+  it('validates: makes needs a fabricator and a recipe, and the recipe must be valid and fit', () => {
+    expect(validateBlueprint(bayBot(), registry).ok).toBe(true);
+    const codes = (raw: unknown): string[] => validateBlueprint(raw, registry).issues.filter((i) => i.severity === 'error').map((i) => i.code);
+    expect(codes({ ...bayBot(), recipes: undefined })).toContain('BAD_MAKES');
+    const onFrame = bayBot();
+    (onFrame.parts as Record<string, unknown>[]).push({ part: 'frame', x: 2, y: 0, makes: 'item' });
+    expect(codes(onFrame)).toContain('BAD_MAKES');
+    expect(codes(bayBot({ format: 1, name: 'wide', grid: ['C  F'] }))).toContain('BAD_RECIPE');
+    expect(validateBlueprint(bayBot({ format: 1, name: 'wide', grid: ['C  F'] }), registry).issues.find((i) => i.code === 'BAD_RECIPE')?.message).toMatch(/does not fit a fabbay's hollow \(1 wide, 5 tall/);
+    expect(codes(bayBot({ format: 1, name: 'broken', grid: ['C  .  F'] }))).toContain('UNATTACHED');
+    expect(codes({ ...bayBot(), recipes: { item: { ...(missileUp as object), recipes: {} } } })).toContain('BAD_RECIPE');
+  });
+
+  it('saves and reloads with its recipe and what the bay makes', () => {
+    const v = validateBlueprint(bayBot(), registry);
+    const file = toFileJson(v.blueprint!, registry, { inlineScripts: true });
+    expect(Object.keys(file.recipes as object)).toEqual(['item']);
+    const again = validateBlueprint(file, registry);
+    expect(again.ok).toBe(true);
+    expect(again.blueprint?.parts.find((p) => p.part === 'fabbay')?.makes).toBe('item');
+  });
+});
+
+describe('fabricator bay: building and letting go (M12)', () => {
+  it('builds a missile-up in about 4.1 s out of 872 J, held in the bay with its core asleep', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(bayBot(), { x: -100, y: 0.5 });
+    const before = w.energy(r.id)?.stored ?? 0;
+    let at = -1;
+    for (let t = 0; t < 400 && at < 0; t++) {
+      w.step();
+      if (events(w, 'built').length > 0) at = t;
+    }
+    expect(at / 60).toBeCloseTo(BUILD_S, 1);
+    expect(events(w, 'built')).toMatchObject([{ robot: r.id, part: 'fabbay@0,1', recipe: 'item', scope: 'bay1' }]);
+    expect(w.partOutput(r.id, 'fabbay@0,1', 'ready')).toBe(1);
+    expect(w.partOutput(r.id, 'fabbay@0,1', 'built')).toBe(1);
+    const core = [...r.parts.values()].find((p) => p.def.id === 'core' && p.tags.includes('bay1'));
+    expect(core).toBeDefined();
+    // One robot still: the bay holds it. Energy: the 872 J it cost, and the new core's full 600 J joined the pool.
+    expect(w.robots).toHaveLength(1);
+    expect(w.energy(r.id)?.stored).toBeCloseTo(before - 872 + 600, 0);
+    w.dispose();
+  });
+
+  it('released, it slides out, wakes, and flies on its own; the bay builds the next once its hollow is clear', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(bayBot(), { x: -100, y: 0.5 });
+    for (let t = 0; t < 260; t++) w.step();
+    w.step(tap(r.id, 'r'));
+    w.step(lift(r.id, 'r'));
+    expect(events(w, 'released')).toMatchObject([{ robot: r.id, scope: 'bay1' }]);
+    const woke = events(w, 'coreWoke');
+    expect(woke).toHaveLength(1);
+    const missile = w.robots.find((x) => x.id === woke[0]?.robot);
+    expect(w.scripts(missile?.id ?? 0).map((s) => s.id)).toEqual(['guide']);
+    for (let t = 0; t < 120; t++) w.step();
+    const s = w.physics.state(missile?.groups[0]?.bodyId ?? 0);
+    expect(s.y).toBeGreaterThan(10);
+    // The next one: another 4.1 s after the first left.
+    for (let t = 0; t < 180; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(2);
+    expect(events(w, 'built')[1]).toMatchObject({ scope: 'bay2' });
+    w.dispose();
+  });
+
+  it('a finished item that never leaves blocks the next', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    // A frame has no motor: let go, it just sits in the hollow.
+    const r = w.spawnBlueprint(bayBot({ format: 1, name: 'lump', grid: ['F'] }), { x: -100, y: 0.5 });
+    for (let t = 0; t < 60; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(1);
+    w.step(tap(r.id, 'r'));
+    w.step(lift(r.id, 'r'));
+    for (let t = 0; t < 300; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(1);
+    expect(w.partOutput(r.id, 'fabbay@0,1', 'progress')).toBe(1);
+    expect(w.partOutput(r.id, 'fabbay@0,1', 'ready')).toBe(0);
+    w.dispose();
+  });
+
+  it('without enough energy it builds as far as the energy goes and waits', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const poor = bayBot();
+    poor.parts = [{ part: 'core', x: 0, y: 0 }, { part: 'frame', x: -1, y: 0 }, { part: 'frame', x: 1, y: 0 }, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item' }];
+    const r = w.spawnBlueprint(poor, { x: -100, y: 0.5 });
+    for (let t = 0; t < 600; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(0);
+    expect(w.partOutput(r.id, 'fabbay@0,1', 'progress')).toBeCloseTo(600 / 872, 2);
+    w.dispose();
+  });
+
+  it('a bay destroyed mid-build builds nothing', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(bayBot(), { x: -100, y: 0.5 });
+    for (let t = 0; t < 120; t++) w.step();
+    const bay = r.parts.get('fabbay@0,1');
+    if (bay) bay.health = 0;
+    for (let t = 0; t < 300; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(0);
+    w.dispose();
+  });
+
+  it('keeps held keys and toggles on across a build', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(bayBot(missileUp, { bindings: [{ key: 'r', mode: 'pulse', target: 'bay', channel: 'release', value: 1 }, { key: 't', mode: 'toggle', target: 'bay', channel: 'release', value: 0 }] }), { x: -100, y: 0.5 });
+    w.step([{ robot: r.id, pressed: ['t', 'w'], released: [] }]);
+    for (let t = 0; t < 260; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(1);
+    expect(w.controller(r.id)?.state()).toEqual({ held: ['t', 'w'], toggles: [1] });
+    w.dispose();
+  });
+
+  it('a run with builds and a launch replays exactly; the bay is in the hash', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(bayBot(), { x: -100, y: 0.5 });
+    const hashes: string[] = [];
+    for (let t = 0; t < 400; t++) {
+      w.step(t === 260 ? tap(r.id, 'r') : t === 261 ? lift(r.id, 'r') : []);
+      if (t === 100 || t === 101) hashes.push(w.hash());
+    }
+    expect(hashes[0]).not.toBe(hashes[1]);
+    const replay = JSON.parse(JSON.stringify(buildReplay(w)));
+    const again = await runReplay(replay, undefined, host);
+    expect(again.matches).toBe(true);
+    expect(again.hash).toBe(w.hash());
+    again.world.dispose();
+    w.dispose();
+  });
+});

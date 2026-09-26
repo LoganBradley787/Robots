@@ -1,9 +1,9 @@
 import { isRotation } from '../parts/faces';
 import type { Rotation } from '../parts/types';
 import { DEFAULT_LEGEND } from './legend';
-import type { Binding, BindingMode, Blueprint, CoreControls, Issue, LegendEntry, PlacedPart, ScriptSpec } from './types';
+import type { Binding, BindingMode, Blueprint, CoreControls, Issue, LegendEntry, PlacedPart, Recipe, ScriptSpec } from './types';
 
-const TOP_KEYS = ['format', 'name', 'grid', 'legend', 'parts', 'bindings', 'scripts', 'primaryCore', 'corePriority', 'autoControls', 'cores'];
+const TOP_KEYS = ['format', 'name', 'grid', 'legend', 'parts', 'bindings', 'scripts', 'primaryCore', 'corePriority', 'autoControls', 'cores', 'recipes'];
 const MODES: readonly BindingMode[] = ['hold', 'toggle', 'pulse', 'script'];
 
 type Obj = Record<string, unknown>;
@@ -75,6 +75,7 @@ export function expandBlueprint(raw: unknown): { blueprint?: Blueprint; issues: 
   const bindings = readBindings(raw.bindings, err);
   const scripts = readScripts(raw.scripts, err);
   const cores = readCores(raw.cores, err);
+  const recipes = readRecipes(raw.recipes, err);
   if (issues.length > 0) return { issues };
 
   const blueprint: Blueprint = { format: 1, name: raw.name as string, parts, bindings, scripts, continuations };
@@ -82,7 +83,32 @@ export function expandBlueprint(raw: unknown): { blueprint?: Blueprint; issues: 
   if (raw.corePriority !== undefined) blueprint.corePriority = raw.corePriority as string[];
   if (raw.autoControls === false) blueprint.autoControls = false;
   if (cores.length > 0) blueprint.cores = cores;
+  if (recipes.length > 0) blueprint.recipes = recipes;
   return { blueprint, issues };
+}
+
+/**
+ * `recipes` (M12): an object of name to a whole blueprint, what the robot's fabricator bays make. Each is expanded like
+ * any blueprint; its issues come back under `recipes.<name>`. A recipe has no recipes of its own.
+ */
+function readRecipes(raw: unknown, err: Err): Recipe[] {
+  if (raw === undefined) return [];
+  if (!isObj(raw)) {
+    err('BAD_FORMAT', 'recipes must be an object of name to blueprint', { path: 'recipes' });
+    return [];
+  }
+  const out: Recipe[] = [];
+  for (const [name, r] of Object.entries(raw)) {
+    const path = `recipes.${name}`;
+    if (isObj(r) && r.recipes !== undefined) {
+      err('BAD_RECIPE', `${path} has recipes of its own; a recipe cannot (make the bay's blueprint carry them)`, { path });
+      continue;
+    }
+    const e = expandBlueprint(r);
+    for (const i of e.issues) err(i.code, `${path}: ${i.message}`, { path: i.path === undefined ? path : `${path}.${i.path}` });
+    if (e.blueprint) out.push({ name, blueprint: e.blueprint });
+  }
+  return out;
 }
 
 type Err = (code: string, message: string, extra?: Partial<Issue>) => void;
@@ -109,13 +135,17 @@ function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
       err('UNSUPPORTED', `${path} names a blueprint; blueprints are not referenced, they are copied in (\`pnpm sim place\` or the builder's Blueprints palette)`, { path });
       continue;
     }
-    const extra = unknownKeys(entry, ['part', 'rot', 'tags', 'auto', 'armed']);
+    const extra = unknownKeys(entry, ['part', 'rot', 'tags', 'auto', 'armed', 'makes']);
     if (extra.length > 0) {
-      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected part, rot, tags, auto, armed)`, { path });
+      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected part, rot, tags, auto, armed, makes)`, { path });
       continue;
     }
     if (entry.auto !== undefined && typeof entry.auto !== 'boolean') {
       err('BAD_FORMAT', `${path}.auto must be true or false`, { path: `${path}.auto` });
+      continue;
+    }
+    if (entry.makes !== undefined && !isNonEmptyString(entry.makes)) {
+      err('BAD_FORMAT', `${path}.makes must be the name of a recipe`, { path: `${path}.makes` });
       continue;
     }
     if (entry.armed !== undefined && typeof entry.armed !== 'boolean') {
@@ -139,6 +169,7 @@ function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
     if (entry.tags !== undefined) e.tags = entry.tags;
     if (entry.auto === false) e.auto = false;
     if (entry.armed === true) e.armed = true;
+    if (entry.makes !== undefined) e.makes = entry.makes as string;
     legend.set(token, e);
   }
   return legend;
@@ -169,6 +200,7 @@ function expandGrid(raw: Obj, parts: PlacedPart[], continuations: { x: number; y
       const placed: PlacedPart = { id, part: entry.part, x, y, rot: entry.rot ?? 0, tags: mergeTags(entry.tags, [id]) };
       if (entry.auto === false) placed.auto = false;
       if (entry.armed === true) placed.armed = true;
+      if (entry.makes !== undefined) placed.makes = entry.makes;
       parts.push(placed);
     });
   });
@@ -185,13 +217,14 @@ function expandParts(raw: unknown, parts: PlacedPart[], err: Err): void {
       err('BAD_FORMAT', `${path} must be an object`, { path });
       return;
     }
-    const extra = unknownKeys(p, ['id', 'part', 'x', 'y', 'rot', 'tags', 'auto', 'armed']);
+    const extra = unknownKeys(p, ['id', 'part', 'x', 'y', 'rot', 'tags', 'auto', 'armed', 'makes']);
     if (extra.length > 0) {
-      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected id, part, x, y, rot, tags, auto, armed)`, { path });
+      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected id, part, x, y, rot, tags, auto, armed, makes)`, { path });
       return;
     }
     if (p.auto !== undefined && typeof p.auto !== 'boolean') return err('BAD_FORMAT', `${path}.auto must be true or false`, { path: `${path}.auto` });
     if (p.armed !== undefined && typeof p.armed !== 'boolean') return err('BAD_FORMAT', `${path}.armed must be true or false`, { path: `${path}.armed` });
+    if (p.makes !== undefined && !isNonEmptyString(p.makes)) return err('BAD_FORMAT', `${path}.makes must be the name of a recipe`, { path: `${path}.makes` });
     if (!isNonEmptyString(p.part)) return err('BAD_FORMAT', `${path}.part must be a part name`, { path: `${path}.part` });
     if (!Number.isInteger(p.x) || !Number.isInteger(p.y)) {
       return err('BAD_FORMAT', `${path}.x and .y must be integers`, { path });
@@ -209,6 +242,7 @@ function expandParts(raw: unknown, parts: PlacedPart[], err: Err): void {
     const placed: PlacedPart = { id, part: p.part, x, y, rot: (p.rot as Rotation | undefined) ?? 0, tags: mergeTags(p.tags as string[] | undefined, [id]) };
     if (p.auto === false) placed.auto = false;
     if (p.armed === true) placed.armed = true;
+    if (p.makes !== undefined) placed.makes = p.makes as string;
     parts.push(placed);
   });
 }

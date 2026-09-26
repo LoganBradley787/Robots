@@ -18,6 +18,8 @@ export interface LegendEntry {
   auto?: false;
   /** M10: `true` starts a part that needs arming (`arming` in its def) armed. Absent means unarmed. */
   armed?: true;
+  /** M12: what a fabricator bay makes: the name of one of the blueprint's `recipes`. */
+  makes?: string;
 }
 
 export interface PlacedPart {
@@ -31,6 +33,17 @@ export interface PlacedPart {
   auto?: false;
   /** M10: `true` starts a part that needs arming (`arming` in its def) armed. Absent means unarmed. */
   armed?: true;
+  /** M12: what a fabricator bay makes: the name of one of the blueprint's `recipes`. */
+  makes?: string;
+}
+
+/**
+ * M12: a blueprint a fabricator bay builds copies of, carried whole in the robot's blueprint (Logan: a bay makes any
+ * blueprint), so saves and replays need nothing else.
+ */
+export interface Recipe {
+  name: string;
+  blueprint: Blueprint;
 }
 
 export type BindingMode = 'hold' | 'toggle' | 'pulse' | 'script';
@@ -88,4 +101,6 @@ export interface Blueprint {
   cores?: CoreControls[];
   /** Grid cells written as `=`, checked against multi-cell footprints by the validator. */
   continuations: { x: number; y: number }[];
+  /** M12: blueprints its fabricator bays make (`makes`), in file order. Absent when there are none. */
+  recipes?: Recipe[];
 }
