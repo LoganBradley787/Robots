@@ -1,20 +1,20 @@
 # Status
 
-Updated: 2026-09-26, by an Opus 5.5 session, end of M10 plus Gate 9 extras (big drone, carrier); M11 planned
+Updated: 2026-09-26, by an Opus 5.5 session, end of M11 (flares)
 
-- Current milestone: **M10 (arming and new enemies) done, stopped at Gate 9** for Logan to play. What to try: `docs/critique/gate-9.md`. Plan and As built: `docs/plans/M10-arming-and-enemies.md`. Gate 8 (M9, script speed) findings went into M10 (`docs/critique/gate-8.md`).
-- What M10 shipped:
-  - Warheads are safe until armed (`arming` in a part def; an `arm` input by key or script, for good; `"armed": true` starts one armed, the part menu's Armed at start). Unarmed, a warhead breaks without a blast, ignores hard hits and `detonate`. Every shipped missile arms itself when it is let go; `bomb` starts armed. A lit red light marks an armed warhead.
-  - `drone-bomb` (chases the nearest enemy and goes off on it), `enemy-flying-silo`, `enemy-truck`, each deployable as Enemy.
-  - After the gate opened (Logan): `big-drone` (four big missiles on a booster-lifted drone, yours) and `enemy-big-drone` (the same, flying itself); `carrier` (six drone bombs, F one, G all) and `enemy-carrier`.
-- M9 (before): scripts about 5 to 15 times cheaper; 100 hovering drones in about 13 ms per tick headless; `pnpm sim bench`; perf readout and Stress menu in the app.
-- Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE).
+- Current milestone: **M11 (flares) done, stopped at Gate 10** for Logan to play. What to try: `docs/critique/gate-10.md`. Plan and As built: `docs/plans/M11-flares.md`. Gate 9 (M10) is still open for any findings Logan has not filed (`docs/critique/gate-9.md`).
+- What M11 shipped:
+  - A new part, `flare` (a decoy): its `ignite` input lights it for good, it burns 2 s, then is gone without a blast. While it burns, every sensor that sees it takes it for the robot it was part of when lit (contacts report that robot at the flare; `scan` returns the flare). The rule is on sensors, never on kinds of robots (Logan): missiles, drone bombs, launchers, and your own robots are fooled because they steer by contacts.
+  - Flare racks (three flares a side, each on its own grip) on `hunter-drone`, `big-drone`, `carrier` (V lets go of the next pair, burning) and on `enemy-drone`, `enemy-big-drone`, `enemy-flying-silo`, `enemy-carrier` (they pop a pair themselves when something light is about to pass within 8 m).
+  - Seeker guides (all 63 copies) go off measured from the warhead over the next tick, and on losing sight of what they were about to reach within 5 m (they flew straight through flares). The enemy carrier lets bombs go only when not climbing fast.
+  - A lit flare glows; the debug overlay rings contacts seen at a flare; the run report tells `lit` and `burnt out`.
+- M10 (before): warheads safe until armed; `drone-bomb`, `enemy-flying-silo`, `enemy-truck`; after Gate 9 opened, `big-drone`, `enemy-big-drone`, `carrier`, `enemy-carrier`.
+- Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE). 21 scenes since M11.
 - Next steps, in order:
-  1. Gate 9 extras done (big drone, carrier); Logan's Gate 9 play feedback: the meta is all missiles, so **M11, flares**, is planned in `docs/plans/M11-flares.md` (a burning flare stands in for its robot to every sensor that sees it). Waiting for Logan's go.
-  2. Candidates after that: MASTER DRONE and drone bomb carriers (`ideas.md`, After Gate 8), fabricator bay (missiles that do not run out), debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
+  1. Logan plays Gate 10 and files findings in `docs/critique/gate-10.md`. Flagged there: the 2 s burn, enemies flaring very well, racks acting as side armor.
+  2. Candidates after that (`ideas.md`): a bomber (flies over and drops bombs), a jammer, MASTER DRONE, fabricator bay (missiles that do not run out), debris cleanup, a ground-seeing part, multi-cell parts, GitHub Pages static build, a Web Worker for the sim. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, the rotator holding its angle under load, a native port bake-off.
   - The script memory limit fix is planned in `docs/plans/script-memory-limit.md` for a separate agent; not started (Logan).
   - Details and measurements: `docs/ideas.md`.
-- Unpushed (push rule): the big drone, the carrier, and the M11 plan commits sit on `main` after the `m10` tag; push with M11's gate or when Logan asks.
 - Wording note (2026-09-25, M8): writing the homing missile tripped Opus's safety classifier several times. Write in plain game terms (no real weapon names or tactics talk in code or docs), build in small steps. The Javelin is the `arc` option.
 - `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
 - Lessons from builds are in the playbook (Traps, and the Sensors section); keep adding there.
@@ -33,6 +33,8 @@ Updated: 2026-09-26, by an Opus 5.5 session, end of M10 plus Gate 9 extras (big 
 
 ## Known issues
 - M10: replays recorded before M10 do not replay exactly (their warheads were live from the start); `pnpm sim replay` says MISMATCH.
+- M11: flare racks stick out 2 cells a side and soak up side hits (a drone bomb homes on the nearest part it scans). Gate 10 question.
+- M11: a drone bomb (brakes at 7 m/s^2) overshoots a flare thrown toward it; flares against it work popped early, or with flying off.
 - M10: robots cannot see the ground: the drone bomb comes in from 6 m over its target, and the truck only knows a step by getting stuck on it.
 - M9 review: a script's memory limit does not cap many small allocations (a script keeping 40,000 small arrays grew the process by 356 MB); it only catches big ones. Older than M9.
 - M9: Stress drones run out of energy after tens of seconds unless Unlimited energy is on.
@@ -54,6 +56,7 @@ Updated: 2026-09-26, by an Opus 5.5 session, end of M10 plus Gate 9 extras (big 
 - M6: the CLI report's piece count misses pieces of a piece whose parent robot was later removed.
 
 ## Decisions since the plans (newest first)
+- M11: see `docs/plans/M11-flares.md`, As built: flares mount by their base (`Q^ Qv Q< Q>`), lighting and burning live with arming in `World.armParts`, one `flares` script with `auto` for enemies, guides go off on a near miss, 2 s burn kept.
 - M10: see `docs/plans/M10-arming-and-enemies.md`, As built: golden scenes instead of new CI steps, the drone bomb measures from its warhead and closes at 30 m/s relative, the enemy flying silo waits 10 m up, the truck brakes by reversing.
 - M9: see `docs/plans/M9-script-speed.md`, As built: `inputToFrame` instead of `frameToInput`, part objects sealed with read-only fields (a TypeError under `'use strict'`), `get()` reads the parts as sent, team 2 draws blue, `canPlace` prefilter.
 - M8: see `docs/plans/M8-sensors-and-homing.md`, As built: launchers loft 12 degrees before firing, arcing missiles hold 30 m/s and turn down early, drone missiles stand nose up, 14-propeller drone airframe, dodging picks the widest gap and only drops with room, hovers tell left from right by position.
