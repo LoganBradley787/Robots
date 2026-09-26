@@ -179,3 +179,17 @@ describe('fabricator bay: building and letting go (M12)', () => {
     w.dispose();
   });
 });
+
+describe('setPartsMakes (M12)', () => {
+  it('sets what bays make, adds or replaces the recipe, and drops recipes nothing makes', async () => {
+    const { setPartsMakes } = await import('../src/blueprint/edit');
+    const bp = validateBlueprint(bayBot(), registry).blueprint!;
+    const frame = validateBlueprint({ format: 1, name: 'lump', grid: ['F'] }, registry).blueprint!;
+    const lump = setPartsMakes(bp, ['fabbay@0,1'], { name: 'lump', blueprint: frame });
+    expect(lump.parts.find((p) => p.id === 'fabbay@0,1')?.makes).toBe('lump');
+    expect(lump.recipes?.map((r) => r.name)).toEqual(['lump']);
+    const none = setPartsMakes(lump, ['fabbay@0,1'], undefined);
+    expect(none.parts.find((p) => p.id === 'fabbay@0,1')?.makes).toBeUndefined();
+    expect(none.recipes).toBeUndefined();
+  });
+});
