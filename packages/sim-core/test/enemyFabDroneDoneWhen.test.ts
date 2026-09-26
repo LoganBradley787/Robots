@@ -159,4 +159,20 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     expect(ownLost(w, a) + ownLost(w, b)).toBe(0);
     w.dispose();
   });
+
+  it('the enemy bomb fab drone lets a finished drone bomb go the moment it tracks a target, even crippled and askew (Logan)', { timeout: 30_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const d = w.spawnBlueprint(blueprint('enemy-bomb-fab-drone'), { x: -60, y: 20 }, { team: 1 });
+    for (let t = 0; t < 12 * 60; t++) {
+      // Its outer left propellers shot away at 10 s: it sags and tilts, a drone bomb held and nothing to send it at yet.
+      if (t === 600) for (const [id, p] of d.parts) if (p.def.id === 'propeller' && p.tags.includes('lprop') && Number(id.split('@')[1]?.split(',')[0]) < 5) p.health = 0;
+      w.step();
+    }
+    expect(of(w, d, 'built')).toHaveLength(1);
+    expect(of(w, d, 'released')).toHaveLength(0);
+    w.spawnBlueprint(blueprint('car'), { x: -160, y: 1.45 });
+    for (let t = 0; t < 6; t++) w.step();
+    expect(of(w, d, 'released')).toHaveLength(1);
+    w.dispose();
+  });
 });

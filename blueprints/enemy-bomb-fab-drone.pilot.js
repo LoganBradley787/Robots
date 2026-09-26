@@ -29,7 +29,7 @@ const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robo
 const below = param('below', 10, { min: -100, max: 100 }); // m: a target more than this far below gets an arc shot, the rest a direct one
 const minRange = param('minRange', 25, { min: 0, max: 500 }); // m: closer than this it holds fire
 const maxRange = param('maxRange', 250, { min: 10, max: 1000 }); // m: further than this it holds fire
-const level = (param('level', 15, { min: 1, max: 90 }) * Math.PI) / 180; // launches only within this many degrees of level
+const level = (param('level', 15, { min: 1, max: 90 }) * Math.PI) / 180; // fires only within this many degrees of level (a missile leaves the way the bay points; a drone bomb climbs straight up whatever the tilt)
 const reload = param('reload', 3, { min: 0.5, max: 60 }); // s between launches
 const jitter = param('jitter', 1, { min: 0, max: 10 }); // up to this many seconds more, at random (seeded), so two drones do not fire in step
 const hold = param('hold', 1, { min: 0, max: 10 }); // s it stays where it let one go, so it leaves the bay cleanly (dodging still comes first)
@@ -165,6 +165,14 @@ function tick() {
   else if (state.trackedSince === undefined) state.trackedSince = time;
 
   const danger = dodge > 0.5 ? threat() : undefined;
+  // Fire whenever it can, whatever else it is doing, except in a dodge (sliding at once shoves what it let go against
+  // the bay's wall). It used to fire only while flying to its spot, and sat on a finished drone bomb while dodging,
+  // sliding off the line, or knocked askew (Logan).
+  if (target && !danger && time >= state.dodgeUntil) {
+    const range = Math.hypot(target.pos.x - self.pos.x, target.pos.y - self.pos.y);
+    const ready = time - state.lastShot >= reload + state.wait && time - state.trackedSince >= settle + state.wait && Math.abs(self.angle) < level;
+    if (range >= minRange && range <= maxRange && ready) fire(target);
+  }
   if (danger) {
     // Where it can get before the missile passes, each way: climbing and sinking start at once, moving sideways waits
     // for the lean (about half as far). Down only with room below: it cannot see the ground, so it goes by the robot
@@ -229,9 +237,6 @@ function tick() {
   if (target) {
     const side = self.pos.x >= target.pos.x ? 1 : -1;
     goal = { x: target.pos.x + side * standoff, y: Math.min(target.pos.y + above, state.home.y + ceiling) };
-    const range = Math.hypot(target.pos.x - self.pos.x, target.pos.y - self.pos.y);
-    const ready = time - state.lastShot >= reload + state.wait && time - state.trackedSince >= settle + state.wait && Math.abs(self.angle) < level;
-    if (range >= minRange && range <= maxRange && ready) fire(target);
   }
   const vx = clamp(0.5 * (goal.x - self.pos.x), -speed, speed);
   fly(vx, goal.y);

@@ -8,7 +8,7 @@ export interface CameraState {
   follow: boolean;
 }
 
-export const ZOOM_MIN = 0.25;
+export const ZOOM_MIN = 0.05; // about 1200 m across a 1900 px window (Logan: watch a whole battle)
 export const ZOOM_MAX = 8;
 
 export function createCamera(x: number, y: number): CameraState {
