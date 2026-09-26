@@ -75,7 +75,7 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
         Save replay
       </button>
       <span class="stress">
-        <button class={stressOpen ? 'on' : ''} onClick={() => setStressOpen(!stressOpen)} title="Drop a crowd of scripted robots to see how the sim copes. Turn on Debug for the numbers">
+        <button class={stressOpen ? 'on' : ''} onClick={() => setStressOpen(!stressOpen)} title="Drop a crowd of scripted robots to see how the sim copes. Turn on Debug for the numbers, and Unlimited energy so the drones do not run dry and fall">
           Stress
         </button>
         {stressOpen && (

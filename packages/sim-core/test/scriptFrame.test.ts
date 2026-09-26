@@ -3,6 +3,10 @@ import variant from '@jitl/quickjs-wasmfile-release-sync';
 import { createQuickJsHost } from '../src/script/quickjs';
 import { extrasJson, HEADER, inputToFrame, put, SELF, type ScriptFrame } from '../src/script/frame';
 import type { ScriptHost, ScriptInput } from '../src/script/types';
+import { ScriptRunner } from '../src/script/runner';
+import flatJson from '../../../worlds/flat.json';
+import { parseWorldFile } from '../src/world/WorldFile';
+import { World } from '../src/world/World';
 
 let host: ScriptHost;
 beforeAll(async () => {
@@ -127,5 +131,62 @@ describe('script frames (M9)', () => {
     const f = inputToFrame(base({ keys: { down: ['a'], pressed: [], released: [] }, contacts: [{ id: 4, side: 'enemy', core: true, pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, center: { x: 0, y: 0 }, mass: 1, parts: 1, distance: 1, by: ['radar'] }], inbox: [{ from: 'core@0,0', tick: 2, data: { n: 5 } }] }), 1);
     const r = s.tick(f);
     expect(r.ok && r.writes.map((w) => w.value)).toEqual([1, 1, 5]);
+  });
+
+  it('keys a script adds to a part do not last; the part objects cannot grow', () => {
+    const s = compile(`
+      function tick() {
+        var p = parts[1];
+        if (frame === 1) { p.in.boost = 7; p.extra = 1; p.pos.z = 1; delete p.angle; return; }
+        set('x', 'a', p.in.boost === undefined && p.extra === undefined && p.pos.z === undefined ? 1 : 0);
+        set('x', 'b', get('props', 'boost') === undefined ? 1 : 0);
+        set('x', 'c', Object.keys(p).join(',') === 'id,type,tags,pos,angle,mass,in,out' ? 1 : 0);
+      }`);
+    const f1 = inputToFrame(base({ frame: 1 }), 1);
+    s.setup(f1);
+    s.tick(f1);
+    const r = s.tick({ ...inputToFrame(base({ frame: 2 }), 1), layout: f1.layout });
+    expect(r.ok && r.writes.map((w) => w.value)).toEqual([1, 1, 1]);
+  });
+
+  it('setters a script puts on Object.prototype or Array.prototype never see the refill (as with JSON input)', () => {
+    const s = compile(`
+      Object.defineProperty(Object.prototype, 'throttle', { set: function () {}, get: function () { return 99; }, configurable: true });
+      function tick() { set('x', 'a', parts[1].in.throttle); set('x', 'b', get('props', 'throttle')); }`);
+    const r = s.tick(inputToFrame(base(), 1));
+    expect(r.ok && r.writes.map((w) => w.value)).toEqual([0.3, 0.3]);
+    // An index setter on arrays breaks the script's own output (as it did before M9), but the refill still runs.
+    const a = compile(`
+      Object.defineProperty(Array.prototype, '0', { set: function () {}, get: function () { return undefined; }, configurable: true });
+      function tick() { if (parts.length !== 2 || parts[1].type !== 'propeller') throw new Error('refill broken'); }`);
+    expect(a.tick(inputToFrame(base(), 1))).toMatchObject({ ok: true });
+  });
+
+  it('a script turned off and on again (a new instance) is sent the layout again', () => {
+    const src = `function tick() { set('x', 'n', parts.length); }`;
+    const runner = new ScriptRunner([{ id: 'a', enabled: true, params: {}, source: src }], host, () => 1);
+    const frame = inputToFrame(base(), 1);
+    expect(runner.tick(() => frame).writes.map((w) => w.value)).toEqual([2]);
+    runner.toggle('a');
+    runner.toggle('a');
+    expect(runner.tick(() => frame).writes.map((w) => w.value)).toEqual([2]);
+    runner.dispose();
+  });
+
+  it('the world rebuilds a layout when the values present on a part change, without the robot changing', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, parseWorldFile(flatJson));
+    const bp = { format: 1, name: 'probe', grid: ['C P'], scripts: [{ id: 'a', source: "function tick() { set('x', 'y', 1); }" }] };
+    const robot = w.spawnBlueprint(bp, { x: -100, y: 1.5 });
+    w.step();
+    const internals = w as unknown as { scriptFrame(r: typeof robot, k: ScriptInput['keys']): ScriptFrame; channels: Map<number, Map<string, Map<string, number>>> };
+    const keys = { down: [], pressed: [], released: [] };
+    const before = internals.scriptFrame(robot, keys);
+    expect(internals.scriptFrame(robot, keys).layout.id).toBe(before.layout.id);
+    const prop = [...(internals.channels.get(robot.id)?.keys() ?? [])].find((id) => id.startsWith('propeller'));
+    internals.channels.get(robot.id)?.get(prop ?? '')?.set('extra', 0.5);
+    const after = internals.scriptFrame(robot, keys);
+    expect(after.layout.id).not.toBe(before.layout.id);
+    expect(after.layout.json).toContain('"extra"');
+    w.dispose();
   });
 });

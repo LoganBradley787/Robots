@@ -1,23 +1,23 @@
 # Status
 
-Updated: 2026-09-25, by an Opus 5.5 session, M9 planned
+Updated: 2026-09-25, by an Opus 5.5 session, end of M9
 
-- Current milestone: **M8 (sensors, teams, homing) done, stopped at Gate 7** for Logan to play. What to try: `docs/critique/gate-7.md`. Plan and As built (every change from the plan and why): `docs/plans/M8-sensors-and-homing.md`.
-- What M8 shipped:
-  - Teams (a number per robot, picked at deploy with the world toolbar's Deploy as: Yours / Enemy, sticky); only your own robots can be taken over; enemies tinted red.
-  - Deploy flip (`F`) and quarter turns (`R`) while placing, sticky; CLI `--team`, `--flip`, `--rot`, and drop suffixes `:enemy :flip :rot90`.
-  - `seeker` and `radar` parts; scripts get `contacts`, `scan(id)`, `send(to, data)`, `inbox`, `mark(x, y)`. Debug overlay draws cones, contact lines, and marks; the run report shows sight, sends, marks, and time per tick.
-  - Homing: `missile-seeker` + `launcher-seeker`, `missile-arc` + `launcher-arc` (climbs and comes down on the target), `missile-up` (stands on drones).
-  - `hunter-drone` (yours: F launches at the nearest enemy) and `enemy-drone` (flies itself: tracks, launches, dodges).
-  - Fast hover fix for a load that swings off center.
-- Gate 7 closed (2026-09-25, Logan: "I'm happy with everything we got"). After the review fixes it added the `booster`, `heavywarhead`, `heavygyro`, and `densebattery` parts, a rebuilt seeker guide (climb clear, arc or straight per shot), `big-missile` and `big-launcher`, `silo`, and a hover for Logan's `flying-silo`. See `docs/critique/gate-7.md`.
-- Wording note (2026-09-25): writing the homing missile tripped Opus's safety classifier several times. Logan and Claude agreed to write in plain game terms (no real weapon names or tactics talk in code or docs), to build in small steps, and to switch models for that part if it keeps happening. The Javelin is the `arc` option.
-- Next steps, in order (Logan's order, 2026-09-25; script speed separately so a break is easy to trace):
-  1. Next: **M9, script speed**, planned in `docs/plans/M9-script-speed.md` (Logan's answers in it). Waiting for Logan's go on the plan; then start at T1 (golden hashes and `pnpm sim bench`, before any speed change).
-  2. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build. Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
+- Current milestone: **M9 (script speed) done, stopped at Gate 8** for Logan to play. What to try: `docs/critique/gate-8.md`. Plan and As built (numbers before and after every task, every change from the plan, the review fixes): `docs/plans/M9-script-speed.md`.
+- What M9 shipped:
+  - Scripts get their robot's layout once and the moving numbers as one binary block each tick (`sim-core/src/script/frame.ts`); part objects are kept between ticks, sealed, with read-only fields. What a script sees is unchanged, bit for bit.
+  - Host side: `World.robotById`, each body's state read once per tick for all its parts, a part-to-chunk map per robot version.
+  - 100 hovering drones: 46.2 to about 13 to 15 ms per tick headless (it varies with how busy the Mac is); one drone 0.53 to 0.17 ms. A script call costs about 20 us before its own work (was about 180).
+  - Proof nothing changed: golden hashes for 15 scenes (`packages/cli/test/golden.test.ts`, recorded before any change) and a parity test comparing what every script sees on every call against the old JSON path (`packages/cli/test/parity.test.ts`).
+  - `pnpm sim bench [hover|big|battle|debris] [--n N]` (local only, not in CI).
+  - App: a perf readout in the debug HUD (with `\`), a Stress menu on the world toolbar (Hover 10 to 100, Battle 6 vs 6), `canPlace` fast with many robots.
+- Golden hashes: any change that should not change the sim must keep them; one that changes it on purpose runs `UPDATE_GOLDEN=1 pnpm test` and says why (START-HERE).
+- Next steps, in order (Logan's order, 2026-09-25):
+  1. Gate 8 punch list (Logan plays M9).
+  2. Candidates after that: fabricator bay (missiles that do not run out), debris cleanup, multi-cell parts, GitHub Pages static build, a Web Worker for the sim (flagged at Gate 8: at 100 drones the browser has little time left to draw). Later: radio part, impact damage, air drag, wheel suspension, propeller spin-up time, a ground-seeing scanner part, the rotator holding its angle under load, a native port bake-off.
   - Details and measurements: `docs/ideas.md`, "After Gate 6".
+- Wording note (2026-09-25, M8): writing the homing missile tripped Opus's safety classifier several times. Write in plain game terms (no real weapon names or tactics talk in code or docs), build in small steps. The Javelin is the `arc` option.
 - `blueprints/battery-drone*` (untracked) is Logan's; he keeps it on the old hover by choice.
-- Lessons from builds are in the playbook (Traps, and the new Sensors section); keep adding there.
+- Lessons from builds are in the playbook (Traps, and the Sensors section); keep adding there.
 
 ## How Logan works (read before asking anything)
 - Build a whole milestone without stopping, then stop at its gate for Logan to play. Do not stop after small tasks to ask "continue?".
@@ -32,6 +32,8 @@ Updated: 2026-09-25, by an Opus 5.5 session, M9 planned
 - Undo and redo across drags; mirror mode placed flipped thrusters; box select and tagging; the ghost refuses the ground, the underground, and existing robots.
 
 ## Known issues
+- M9 review: a script's memory limit does not cap many small allocations (a script keeping 40,000 small arrays grew the process by 356 MB); it only catches big ones. Older than M9.
+- M9: Stress drones run out of energy after tens of seconds unless Unlimited energy is on.
 - M8: an attached missile shares its robot's energy pool while attached, so a hovering drone drains its missiles (about 60 percent left after 40 s).
 - M8: scripts cannot see the ground (no scanner part yet); the enemy drone only dodges downward with room above the robot it tracks.
 - M7: the stock `missile-drone` tilts up to about 8 degrees after its first shot while its hover learns the new balance (settles in about 3 s). `missile-drone-10prop`, `hunter-drone`, and `enemy-drone` compute their balance from `parts` and hold level.
@@ -50,6 +52,7 @@ Updated: 2026-09-25, by an Opus 5.5 session, M9 planned
 - M6: the CLI report's piece count misses pieces of a piece whose parent robot was later removed.
 
 ## Decisions since the plans (newest first)
+- M9: see `docs/plans/M9-script-speed.md`, As built: `inputToFrame` instead of `frameToInput`, part objects sealed with read-only fields (a TypeError under `'use strict'`), `get()` reads the parts as sent, team 2 draws blue, `canPlace` prefilter.
 - M8: see `docs/plans/M8-sensors-and-homing.md`, As built: launchers loft 12 degrees before firing, arcing missiles hold 30 m/s and turn down early, drone missiles stand nose up, 14-propeller drone airframe, dodging picks the widest gap and only drops with room, hovers tell left from right by position.
 - M6: see `docs/plans/M6-destruction.md`, As built: warhead damage 120 and push 40 up and out, velocity-change fuze, rotator 300 N m, decouplers act first, part boxes 0.49 m, helper bodies for Rapier multibody angles, the largest piece keeps the id when the core is gone.
 - M3 review fixes: key edges keep their order within a tick (release then re-press stays held; two toggle taps flip twice); part menu Rotate turns the menu's parts, not the held part; validator refuses binding keys that can never fire (`BAD_KEY`) and part ids equal to a part type (`BAD_ID`); CLI warns on timeline keys a robot does not have; a Cmd chord releases the robot's keys (macOS drops those keyups); mirror keeps `auto: false`.

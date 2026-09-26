@@ -4,10 +4,10 @@
  * captured before any user code runs. The expression's value is the host's entry object, which the host keeps a
  * handle to, so reassigning globals (`__tick = 5`, `JSON.stringify = ...`) can only break the script itself.
  * `Math.random` becomes a seeded sfc32 and cannot be redefined; `Date` is not created (no Date intrinsic).
- * `__seed` and `__params` are defined by the host just before this runs and are read once here.
+ * `__seed`, `__params`, and `__inspect` are defined by the host just before this runs and are read once here.
  */
 export const PRELUDE = String.raw`
-(function (seed, given, hostScan, hostSend) {
+(function (seed, given, hostScan, hostSend, inspecting) {
   delete globalThis.__scan;
   delete globalThis.__send;
   var stringify = JSON.stringify;
@@ -17,6 +17,7 @@ export const PRELUDE = String.raw`
   var logs = [];
   var specs = {};
   var keyState = { down: [], pressed: [], released: [] };
+  var seen = '';
   var scans = 0;
   var sends = 0;
   var finite = isFinite;
@@ -117,29 +118,48 @@ export const PRELUDE = String.raw`
   globalThis.sign = function (v) { return v > 0 ? 1 : v < 0 ? -1 : 0; };
   // M9: the part objects, built once per layout and refilled from the numbers every tick. Private, so get() and
   // the refill never depend on what a script did to its own parts array or objects.
+  // Captured before any user code, like parse and stringify. Every object and array below is made by parse or a
+  // literal, and filled only through properties it already has, so a setter a script puts on Object.prototype or
+  // Array.prototype never sees the refill (as with the old JSON input).
   var rows = [];
+  var nulls = '[]';
+  var F64 = Float64Array;
   var freeze = Object.freeze;
+  var seal = Object.seal;
   var defineProperty = Object.defineProperty;
   var fixed = ['id', 'type', 'tags', 'pos', 'mass', 'in', 'out'];
+  /** '{"a":0,"b":0}' for the names, so parse makes the object with its keys in order. */
+  function zeros(names) {
+    var text = '{';
+    for (var j = 0; j < names.length; j++) text += (j > 0 ? ',' : '') + stringify(names[j]) + ':0';
+    return text + '}';
+  }
   function setLayout(json) {
     var list = parse(json);
-    rows = [];
+    nulls = '[';
+    for (var i = 0; i < list.length; i++) nulls += i > 0 ? ',null' : 'null';
+    nulls += ']';
+    rows = parse(nulls);
     for (var i = 0; i < list.length; i++) {
       var l = list[i];
-      var inO = {};
-      var outO = {};
-      for (var j = 0; j < l[4].length; j++) inO[l[4][j]] = 0;
-      for (var j = 0; j < l[5].length; j++) outO[l[5][j]] = 0;
-      var r = { pos: { x: 0, y: 0 }, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
-      var o = { id: l[0], type: r.type, tags: r.tags, pos: r.pos, angle: 0, mass: l[3], in: inO, out: outO };
-      // Only the numbers change from tick to tick; the rest cannot be replaced, so the refill always reaches them.
+      var inO = parse(zeros(l[4]));
+      var outO = parse(zeros(l[5]));
+      var pos = { x: 0, y: 0 };
+      var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
+      var o = { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO };
+      // Only the numbers change from tick to tick: nothing can be replaced, added, or deleted, so the refill always
+      // reaches what the script sees and a script's own writes last one tick at most.
       for (var j = 0; j < fixed.length; j++) defineProperty(o, fixed[j], { writable: false, configurable: false });
+      seal(o);
+      seal(pos);
+      seal(inO);
+      seal(outO);
       r.o = o;
       rows[i] = r;
     }
   }
   function load(buf, extras) {
-    var f = new Float64Array(buf);
+    var f = new F64(buf);
     // Every number finite (the usual case), or check each and hand over null as JSON would.
     var ok = f[0] === 1;
     var v;
@@ -147,10 +167,17 @@ export const PRELUDE = String.raw`
     v = f[k++]; globalThis.frame = ok || v - v === 0 ? v : null;
     v = f[k++]; globalThis.dt = ok || v - v === 0 ? v : null;
     v = f[k++]; globalThis.time = ok || v - v === 0 ? v : null;
-    var n = [];
-    for (var i = 0; i < 9; i++) { v = f[k++]; n[i] = ok || v - v === 0 ? v : null; }
-    globalThis.self = { pos: { x: n[0], y: n[1] }, vel: { x: n[2], y: n[3] }, angle: n[4], angVel: n[5], mass: n[6], energy: { stored: n[7], capacity: n[8] } };
-    var list = [];
+    v = f[k++]; var px = ok || v - v === 0 ? v : null;
+    v = f[k++]; var py = ok || v - v === 0 ? v : null;
+    v = f[k++]; var vx = ok || v - v === 0 ? v : null;
+    v = f[k++]; var vy = ok || v - v === 0 ? v : null;
+    v = f[k++]; var angle = ok || v - v === 0 ? v : null;
+    v = f[k++]; var angVel = ok || v - v === 0 ? v : null;
+    v = f[k++]; var mass = ok || v - v === 0 ? v : null;
+    v = f[k++]; var stored = ok || v - v === 0 ? v : null;
+    v = f[k++]; var capacity = ok || v - v === 0 ? v : null;
+    globalThis.self = { pos: { x: px, y: py }, vel: { x: vx, y: vy }, angle: angle, angVel: angVel, mass: mass, energy: { stored: stored, capacity: capacity } };
+    var list = parse(nulls);
     if (ok) {
       for (var i = 0; i < rows.length; i++) {
         var r = rows[i];
@@ -201,6 +228,8 @@ export const PRELUDE = String.raw`
     marks = [];
     writes = [];
     logs = [];
+    // Tests only (the parity test compiles with inspect on): what the script sees, before it runs.
+    if (inspecting) seen = stringify({ frame: globalThis.frame, dt: globalThis.dt, time: globalThis.time, self: globalThis.self, parts: globalThis.parts, keys: keyState, contacts: globalThis.contacts, inbox: globalThis.inbox });
   }
   function result() {
     return stringify({ writes: writes, logs: logs, marks: marks });
@@ -219,11 +248,10 @@ export const PRELUDE = String.raw`
       return result();
     },
     specs: function () { return stringify(specs); },
-    // Host only (the parity test): what the script sees, as one JSON text in the order the old input had.
-    inspect: function () {
-      return stringify({ frame: globalThis.frame, dt: globalThis.dt, time: globalThis.time, self: globalThis.self, parts: globalThis.parts, keys: keyState, contacts: globalThis.contacts, inbox: globalThis.inbox });
-    },
+    // Host only (the parity test): what the script saw on its last call, taken before it ran, as one JSON text in
+    // the order the old input had. Empty unless compiled with inspect on.
+    inspect: function () { return seen; },
     hasTick: function () { return typeof globalThis.tick === 'function' ? 'true' : 'false'; }
   };
-})(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null)
+})(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null, __inspect === true)
 `;

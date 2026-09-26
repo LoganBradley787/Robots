@@ -50,7 +50,7 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         });
         c.setProp(c.global, '__send', send);
         send.dispose();
-        const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})};\n${PRELUDE}`;
+        const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})}; var __inspect = ${opts.inspect === true};\n${PRELUDE}`;
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
         const pre = c.evalCode(setup, 'prelude.js');
         if (pre.error) {

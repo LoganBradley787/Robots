@@ -161,16 +161,18 @@ async function boot(): Promise<void> {
         if (!bp) return undefined;
         return orientRaw(toFileJson(scriptsOn ? { ...bp, scripts: (bp.scripts ?? []).map((sc) => ({ ...sc, enabled: true })) } : bp, registry, { inlineScripts: true }), { flip }, registry);
       };
+      // Clear robots while the blueprints load makes a new world: drop the stress test rather than fill that one.
+      const world = worldScreen.world;
       const go = async (): Promise<void> => {
         let placed = 0;
         if (kind === 'hover') {
           const bp = await load('missile-drone-10prop.json', true);
-          if (!bp) return;
+          if (!bp || worldScreen.world !== world) return;
           placed = worldScreen.stress(bp, 0, HOVER_GRID(n));
         } else {
           const left = await load('enemy-drone.json', false);
           const right = await load('enemy-drone.json', false, true);
-          if (!left || !right) return;
+          if (!left || !right || worldScreen.world !== world) return;
           // Team 1 on the left facing right, team 2 on the right flipped to face it.
           placed = worldScreen.stress(left, 1, BATTLE_GRID(n), -75) + worldScreen.stress(right, 2, BATTLE_GRID(n), 75);
           n *= 2;

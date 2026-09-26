@@ -431,10 +431,12 @@ export class WorldScreen {
     let ticks = time.takePendingSteps();
     if (time.paused) this.stepper.reset();
     else ticks += this.stepper.advance(ticker.deltaMS, time.timeScale);
-    const simStart = performance.now();
+    let simMs = 0;
     for (let i = 0; i < ticks; i++) {
       // Keys are sampled once per tick: this frame's edges go into its first tick. While paused they wait.
+      const t = performance.now();
       this.world.step(i === 0 ? this.keys.drain() : []);
+      simMs += performance.now() - t;
       if (this.world.tick % 60 === 0) this.lastHash = this.world.hash();
     }
     const viewStart = performance.now();
@@ -447,7 +449,7 @@ export class WorldScreen {
     for (const [id, v] of this.views) {
       // A part that needs energy only looks busy (flame, spinning blades) while its robot has some to give.
       const powered = this.world.unlimitedEnergy || (this.world.energy(id)?.stored ?? 0) > 0;
-      const robot = this.world.robots.find((r) => r.id === id);
+      const robot = this.world.robotById(id);
       v.sync(this.world.physics, alpha, (partId, channel) =>
         !powered && (robot?.parts.get(partId)?.def.powerDraw ?? 0) > 0 ? 0 : this.world.channelValue(id, partId, channel),
       );
@@ -547,7 +549,7 @@ export class WorldScreen {
       `hash ${this.lastHash}`,
       HELP,
     ]);
-    this.perf.add({ frameMs: ticker.deltaMS, ticks, simMs: viewStart - simStart, scriptMs: scripts.ms, scriptCalls: scripts.calls, viewMs: performance.now() - viewStart });
+    this.perf.add({ frameMs: ticker.deltaMS, ticks, simMs, scriptMs: scripts.ms, scriptCalls: scripts.calls, viewMs: performance.now() - viewStart });
   }
 }
 

@@ -38,7 +38,7 @@
    - **Layout** (JSON text): each part's id, type, tags, mass, and the names of its `in` and `out` values, in order. Sent to a script only when it changes. It changes when the robot is rebuilt (`Robot.version`), when its primary core changes, or when the set of present values changes; the host keeps a small layout record per robot and a layout number that goes up whenever it is rebuilt, and each script instance remembers the last layout number it was given.
    - **Numbers** (one `Float64Array`, built once per robot per tick into a buffer kept between ticks): `frame`, `dt`, `time`, `self` (position, velocity, angle, spin, mass, energy stored and capacity), then per part in layout order `pos.x`, `pos.y`, `angle`, then its `in` values, then its `out` values.
    - **Extras** (JSON text, or empty when all are empty): `keys`, `contacts`, `inbox`. Usually empty for a hovering drone; small when not.
-   - JSON's quirks from decision 1 are applied when the numbers are written (the host turns `-0` into `0`; a value that is not finite is marked in the layout as `null` for that tick, which changes the layout, which is rare and correct).
+   - JSON's quirks from decision 1 are applied when the numbers are written (the host turns `-0` into `0`; as built, the block's first slot says whether every number is finite, and when one is not the sandbox checks each and hands over `null`).
 4. **The world only knows `ScriptHost` and `ScriptInstance`.** Their `setup` and `tick` take a `ScriptFrame` (`{ layout: { id, json }, numbers, extras }`) instead of a `ScriptInput`. `ScriptInput` stays as the documented shape of what the script sees, and a `frameToInput` helper (used by tests and by any future backend) turns a frame back into it.
 5. **Proof that nothing changed: golden hashes (T1) and a parity test (T2).**
    - T1, before any change, records the final state hash of about 15 scenes into `packages/cli/test/golden-hashes.json`: the 10 CI determinism scenes, plus `flying-silo` hovering, `silo` firing a volley at two enemy drones, a 6 against 6 enemy drone battle (teams 1 and 2), `big-launcher` firing, and a drone losing parts to a bomb (splits and a missile waking mid-run). A cli test runs them all and compares. `UPDATE_GOLDEN=1 pnpm test` rewrites the file (for later milestones that change the sim on purpose; the commit says why).
@@ -102,6 +102,14 @@
 
 ## As built
 
+### What shipped
+- **T1:** golden hashes for 15 scenes (`packages/cli/src/scenes.ts`, `test/golden.test.ts`, recorded before any change) and `pnpm sim bench` (hover, big, battle, debris) with a timed script host.
+- **T2:** scripts get a layout once and the moving numbers as one binary block (`script/frame.ts`); part objects are kept between ticks with read-only fields; the parity test checks every script call in the golden scenes against the old JSON path.
+- **T3:** `World.robotById` and an id map on every per-tick path; the frame fill reads each body once, the pool once, and keeps the mass with the layout; a part-to-chunk map replaces a quadratic scan in behaviors.
+- **T4:** the perf readout in the debug HUD and the Stress menu (Hover 10 to 100, Battle 6 vs 6); `canPlace` skips far colliders (placing 100 drones: 102 ms).
+- **T5:** docs (`04`, the playbook, START-HERE, `ideas.md`), `docs/critique/gate-8.md`, the Opus review.
+- **Result:** 100 hovering drones 46.2 to 12.6 ms per tick headless; every golden hash and bench hash the same as before M9.
+
 ### Bench before any change (T1, 2026-09-25, Logan's Mac, `pnpm sim bench`)
 | scene | n | avg ms | p95 | worst | scripts | rest | calls/tick |
 |---|---|---|---|---|---|---|---|
@@ -134,6 +142,16 @@
   - Part fields other than the numbers (`id`, `type`, `tags`, `pos`, `mass`, `in`, `out`) are read-only properties, set once per layout: a script's `p.pos = ...` is ignored rather than leaving the refill writing into an object the script no longer sees. Putting them back every tick instead cost about 4 us per call.
   - The sandbox fills parts in one tight loop when every number is finite (the usual case) and checks each number only when one is not (about 5 us saved).
   - The world's `scriptProbe` option (tests only) hands the parity test the old input for each robot.
+
+### Review fixes (Opus review of the whole M9 diff, 2026-09-25)
+- The review found no correctness or determinism bug (it checked every way a layout could go stale, the cached mass, the floating point order, the id and chunk caches, the layout id per instance, and the `canPlace` prefilter against an unfiltered copy over 34,146 spots). Fixed from its findings:
+  - Part objects, their `pos`, `in`, and `out` are sealed: a key a script adds no longer lasts into the next tick (it did, unlike the old JSON input).
+  - Every object and array the refill writes into is made by `parse` or a literal and filled only through keys it already has, and `Float64Array` is captured before user code, so setters a script puts on `Object.prototype` or `Array.prototype` no longer see the refill (as with the old JSON input).
+  - Accepted exceptions, now in `04` and the playbook: a write to a read-only part field is a TypeError under `'use strict'`; `tags` is frozen; `get()` reads the parts as sent, whatever a script does to its own `parts` array (before, sorting `parts` changed which part `get()` found first; no script does that).
+  - The parity test is independent of T3: its reference input uses verbatim copies of the pre-M9 `energy`, `partOutput`, and `chunkIndex`, and it reads what the script saw before it ran (`inspect` compile option), not after.
+  - New tests: the world rebuilding a layout when a part's values change without the robot changing; a script turned off and on getting the layout again; sealed parts; prototype setters.
+  - App: the view sync looks robots up by id; the readout's sim time counts only steps (not the hash every second); a Stress click followed by Clear robots no longer fills the new world.
+- Left for later: the per-script memory limit does not cap many small allocations (pre-M9, found by the review: a script keeping 40,000 small arrays grew the process by 356 MB). A separate task. Stress drones run out of energy after tens of seconds unless Unlimited energy is on (the Stress button says so).
 
 ### After T3 (host-side plumbing)
 | scene | n | avg ms | p95 | worst | scripts | rest | calls/tick |

@@ -752,7 +752,7 @@ export class World {
     const s = this.physics.state(coreBody);
     let mass = 0;
     for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
-    const energy = this.energy(robot.id);
+    const energy = referenceEnergy(robot);
     const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const chans = this.channels.get(robot.id);
     const scope = coreControls(robot)?.scope;
@@ -763,7 +763,7 @@ export class World {
       const pose = partWorldPose(this, robot, id);
       const out: Record<string, number> = {};
       for (const o of p.def.outputs) {
-        const v = this.partOutput(robot.id, id, o.name);
+        const v = referenceOutput(robot, p, id, o.name);
         if (v !== undefined) out[o.name] = v;
       }
       parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: p.def.mass, in: Object.fromEntries(chans?.get(id) ?? []), out });
@@ -1192,6 +1192,32 @@ function controllerFor(robot: Robot, registry: PartRegistry): Controller | undef
   const { autoControls: _parent, ...rest } = pieceBp;
   const auto = own.autoControls === false ? [] : autoBindings(rest, registry);
   return new Controller([...auto, ...own.bindings], parts);
+}
+
+/**
+ * `energy` and `partOutput` as they were before M9, kept verbatim for the parity test's reference input
+ * (`scriptInput`), so a mistake in the faster versions cannot hide on both sides of the comparison.
+ */
+function referenceChunkIndex(robot: Robot, partId: string): number {
+  return Math.max(0, robot.chunks.findIndex((c) => c.partIds.includes(partId)));
+}
+
+function referenceEnergy(robot: Robot): { stored: number; capacity: number } {
+  const core = robot.primaryCoreId;
+  const chunk = core === undefined ? 0 : referenceChunkIndex(robot, core);
+  return poolTotals(poolContainers(robot, chunk));
+}
+
+function referenceOutput(robot: Robot, part: PartInstance, partId: string, name: string): number | undefined {
+  if (!part.def.outputs.some((o) => o.name === name)) return undefined;
+  const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name);
+  if (own !== undefined) return own;
+  if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
+  if (name === 'energy' || name === 'energyCapacity') {
+    const pool = poolTotals(poolContainers(robot, referenceChunkIndex(robot, partId)));
+    return name === 'energy' ? pool.stored : pool.capacity;
+  }
+  return undefined;
 }
 
 /** Each robot's part-to-chunk map, rebuilt when the robot is (its `version` changes). */

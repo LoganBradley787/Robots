@@ -4,9 +4,9 @@ import { GOLDEN_SCENES, runScene } from '../src/scenes';
 import { scriptHost } from '../src/scriptHost';
 
 /**
- * M9: on every script call in every golden scene, what the script actually holds (read back from inside the sandbox)
- * must be exactly what the old path gave it: `JSON.parse(JSON.stringify(input))` of the input the world built before
- * M9. Compared as JSON text, so key order counts too.
+ * M9: on every script call in every golden scene, what the script actually holds (read back from inside the sandbox,
+ * just before it runs) must be exactly what the old path gave it: `JSON.parse(JSON.stringify(input))` of the input the
+ * world built before M9. Compared as JSON text, so key order counts too.
  */
 describe('scripts see what they saw before M9', () => {
   for (const scene of GOLDEN_SCENES) {
@@ -22,7 +22,7 @@ describe('scripts see what they saw before M9', () => {
       };
       const host: ScriptHost = {
         compile(source, opts) {
-          const r = inner.compile(source, opts);
+          const r = inner.compile(source, { ...opts, inspect: true });
           if (!r.ok) return r;
           const i = r.instance;
           return {

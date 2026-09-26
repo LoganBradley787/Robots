@@ -124,7 +124,7 @@ export interface ScriptInstance {
   setup(frame: ScriptFrame, services?: ScriptServices): ScriptResult;
   /** Runs `tick()`. Synchronous by contract, so the sim stays a plain loop in browser and Node. */
   tick(frame: ScriptFrame, services?: ScriptServices): ScriptResult;
-  /** What the script saw on its last call, as `ScriptInput` JSON (tests only; a backend may leave it out). */
+  /** What the script saw on its last call, before it ran, as `ScriptInput` JSON (compiled with `inspect`; tests only). */
   inspect?(): string;
   dispose(): void;
 }
@@ -137,6 +137,8 @@ export interface CompileOptions {
   /** Values for `param()`, by name. Missing ones use the script's default. */
   params?: Readonly<Record<string, number>>;
   limits?: ScriptLimits;
+  /** Tests only (M9 parity): keep what the script sees on each call for `inspect()`. Costs a JSON text per call. */
+  inspect?: boolean;
 }
 
 export type CompileResult = { ok: true; instance: ScriptInstance } | { ok: false; error: ScriptError };
