@@ -40,7 +40,7 @@ describe('layoutRobot', () => {
       'cup.json',
     );
     const w = await World.create({ seed: 1 }, parseWorldFile(flatJson), new PartRegistry([...defaultRegistry().list(), cup]));
-    const r = w.spawnBlueprint({ format: 1, name: 't', parts: [{ part: 'core', x: 0, y: -1 }, { part: 'cup', x: 0, y: 0, rot: 90 }] }, { x: 0, y: 5 });
+    const r = w.spawnBlueprint({ format: 1, name: 't', parts: [{ part: 'core', x: 1, y: 0 }, { part: 'cup', x: 0, y: 0, rot: 90 }] }, { x: 0, y: 5 });
     const s = layoutRobot(r).flatMap((b) => b.sprites).find((x) => x.partId === 'cup@0,0');
     // Its box is 3 by 2 centered half a cell above its origin; turned a quarter, that center is half a cell left.
     expect(s).toMatchObject({ w: 3, h: 2 });
