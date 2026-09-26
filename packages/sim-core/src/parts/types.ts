@@ -6,6 +6,11 @@ export interface FootprintCell {
   y: number;
   /** Faces that accept attachment at rotation 0. */
   faces: Face[];
+  /**
+   * M12: faces that hold whatever touches them only while the part is holding (`PartInstance.holding`): a fabricator
+   * bay's inner faces grip what it built, and let go of it all at once. Not also listed in `faces`.
+   */
+  grips?: Face[];
 }
 
 export interface ChannelDef {

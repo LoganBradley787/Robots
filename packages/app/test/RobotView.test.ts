@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { World, parseWorldFile } from '@robots/sim-core';
+import { PartRegistry, World, defaultRegistry, parseWorldFile, parsePartDef } from '@robots/sim-core';
 import carJson from '../../../blueprints/car.json';
 import flatJson from '../../../worlds/flat.json';
 import { layoutRobot } from '../src/render/robotLayout';
@@ -15,11 +15,36 @@ describe('layoutRobot', () => {
     const main = bodies[2];
     expect(main?.sprites.filter((s) => s.kind === 'part')).toHaveLength(6);
     expect(main?.sprites.filter((s) => s.kind === 'mount')).toEqual([
-      { kind: 'mount', partId: 'wheel@0,0', frame: 'part.wheel.mount', x: -2, y: -1, rotation: 0 },
-      { kind: 'mount', partId: 'wheel@5,0', frame: 'part.wheel.mount', x: 3, y: -1, rotation: 0 },
+      { kind: 'mount', partId: 'wheel@0,0', frame: 'part.wheel.mount', x: -2, y: -1, rotation: 0, w: 1, h: 1 },
+      { kind: 'mount', partId: 'wheel@5,0', frame: 'part.wheel.mount', x: 3, y: -1, rotation: 0, w: 1, h: 1 },
     ]);
     expect(main?.sprites.find((s) => s.partId === 'frame@0,1')).toMatchObject({ x: -2, y: 0 });
-    expect(bodies[0]?.sprites).toEqual([{ kind: 'part', partId: 'wheel@0,0', frame: 'part.wheel', x: 0, y: 0, rotation: 0 }]);
+    expect(bodies[0]?.sprites).toEqual([{ kind: 'part', partId: 'wheel@0,0', frame: 'part.wheel', x: 0, y: 0, rotation: 0, w: 1, h: 1 }]);
+    w.dispose();
+  });
+
+  it('draws a multi-cell part over its whole footprint, turned with it (M12)', async () => {
+    const cup = parsePartDef(
+      {
+        id: 'cup',
+        name: 'Cup',
+        footprint: [{ x: 0, y: 0, faces: ['S'] }, { x: -1, y: 0, faces: ['W'] }, { x: 1, y: 0, faces: ['E'] }, { x: -1, y: 1, faces: ['W'] }, { x: 1, y: 1, faces: ['E'] }],
+        mass: 5,
+        health: 50,
+        symmetry: 4,
+        inputs: [],
+        outputs: [],
+        powerDraw: 0,
+        sprite: { frame: 'part.cup' },
+      },
+      'cup.json',
+    );
+    const w = await World.create({ seed: 1 }, parseWorldFile(flatJson), new PartRegistry([...defaultRegistry().list(), cup]));
+    const r = w.spawnBlueprint({ format: 1, name: 't', parts: [{ part: 'core', x: 0, y: -1 }, { part: 'cup', x: 0, y: 0, rot: 90 }] }, { x: 0, y: 5 });
+    const s = layoutRobot(r).flatMap((b) => b.sprites).find((x) => x.partId === 'cup@0,0');
+    // Its box is 3 by 2 centered half a cell above its origin; turned a quarter, that center is half a cell left.
+    expect(s).toMatchObject({ w: 3, h: 2 });
+    expect((s?.x ?? 0) - (r.parts.get('cup@0,0')?.localX ?? 0)).toBeCloseTo(-0.5, 12);
     w.dispose();
   });
 

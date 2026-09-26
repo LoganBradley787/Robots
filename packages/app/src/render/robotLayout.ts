@@ -1,4 +1,4 @@
-import { faceDir, rotateFace, rotationRadians, type BodyId, type Robot } from '@robots/sim-core';
+import { faceDir, footprintBox, rotateCell, rotateFace, rotationRadians, type BodyId, type Robot } from '@robots/sim-core';
 
 export interface SpriteLayout {
   /** `mount` sprites belong to a joint part but are drawn on its parent body (the wheel's axle bracket). */
@@ -9,6 +9,9 @@ export interface SpriteLayout {
   x: number;
   y: number;
   rotation: number;
+  /** Size in cells before rotation: a multi-cell part's sprite spans its footprint (M12). 1 by 1 for the rest. */
+  w: number;
+  h: number;
   /** Looping fx animation that replaces the frame while the part acts (propeller spin). */
   animation?: string;
   /**
@@ -35,7 +38,10 @@ export function layoutRobot(robot: Robot): BodyLayout[] {
     for (const id of g.partIds) {
       const p = robot.parts.get(id);
       if (!p) continue;
-      const sprite: SpriteLayout = { kind: 'part', partId: id, frame: p.def.sprite.frame, x: p.localX, y: p.localY, rotation: rotationRadians(p.rot) };
+      // A multi-cell part's sprite is centered on its footprint's box, turned with the part.
+      const box = footprintBox(p.def);
+      const off = rotateCell({ x: box.cx, y: box.cy }, p.rot);
+      const sprite: SpriteLayout = { kind: 'part', partId: id, frame: p.def.sprite.frame, x: p.localX + off.x, y: p.localY + off.y, rotation: rotationRadians(p.rot), w: box.w, h: box.h };
       const channel = p.def.inputs[0]?.name;
       if (channel !== undefined && (p.def.sprite.animation !== undefined || p.def.sprite.overlay !== undefined)) sprite.channel = channel;
       if (p.def.sprite.animation !== undefined) sprite.animation = p.def.sprite.animation;
@@ -51,7 +57,7 @@ export function layoutRobot(robot: Robot): BodyLayout[] {
     const p = j ? robot.parts.get(j.partId) : undefined;
     const parent = j ? bodies[j.parentGroup] : undefined;
     if (!j || !p || !parent || p.def.sprite.mountFrame === undefined) continue;
-    parent.sprites.push({ kind: 'mount', partId: p.id, frame: p.def.sprite.mountFrame, x: j.anchorParentX, y: j.anchorParentY, rotation: rotationRadians(p.rot) });
+    parent.sprites.push({ kind: 'mount', partId: p.id, frame: p.def.sprite.mountFrame, x: j.anchorParentX, y: j.anchorParentY, rotation: rotationRadians(p.rot), w: 1, h: 1 });
   }
   const jointFirst = (b: BodyLayout): number => (robot.groups[b.group]?.joint ? 0 : 1);
   return [...bodies].sort((a, b) => jointFirst(a) - jointFirst(b) || a.group - b.group);

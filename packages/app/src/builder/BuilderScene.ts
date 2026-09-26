@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import { mirrorRotation, mirrorX, partAt, rotationRadians, type Blueprint, type PartRegistry, type Rotation } from '@robots/sim-core';
+import { footprintBox, mirrorable, mirrorRotation, partCells, rotateCell, mirrorX, partAt, rotationRadians, type Blueprint, type PartRegistry, type Rotation } from '@robots/sim-core';
 import { applyCamera } from '../render/cameraView';
 import { createCamera, screenToWorld, type CameraState } from '../render/camera';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from '../render/units';
@@ -60,12 +60,14 @@ export class BuilderScene {
     return g;
   }
 
-  private sprite(name: string, x: number, y: number, rot: Rotation, alpha = 1): Sprite {
+  private sprite(name: string, x: number, y: number, rot: Rotation, alpha = 1, box = { cx: 0, cy: 0, w: 1, h: 1 }): Sprite {
     const s = new Sprite(this.texture(name));
     s.anchor.set(0.5);
-    s.width = PIXELS_PER_METER;
-    s.height = PIXELS_PER_METER;
-    const p = toScreen({ x, y });
+    // A multi-cell part (M12) spans its footprint's box, turned with it.
+    s.width = PIXELS_PER_METER * box.w;
+    s.height = PIXELS_PER_METER * box.h;
+    const off = rotateCell({ x: box.cx, y: box.cy }, rot);
+    const p = toScreen({ x: x + off.x, y: y + off.y });
     s.position.set(p.x, p.y);
     s.rotation = toScreenAngle(rotationRadians(rot));
     s.alpha = alpha;
@@ -74,9 +76,10 @@ export class BuilderScene {
 
   private addPart(into: Container, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, alpha = 1, armed = false): void {
     if (!registry.has(part)) return;
-    const spec = registry.get(part).sprite;
+    const def = registry.get(part);
+    const spec = def.sprite;
     // A part set to start armed (M10) shows its armed frame.
-    into.addChild(this.sprite(armed && spec.armedFrame ? spec.armedFrame : spec.frame, x, y, rot, alpha));
+    into.addChild(this.sprite(armed && spec.armedFrame ? spec.armedFrame : spec.frame, x, y, rot, alpha, footprintBox(def)));
     if (spec.mountFrame) into.addChild(this.sprite(spec.mountFrame, x, y, rot, alpha));
   }
 
@@ -99,12 +102,16 @@ export class BuilderScene {
     if (!held || !h || editor.gesture?.kind === 'erase') return;
     const spots: Array<{ x: number; rot: Rotation }> = [{ x: h.x, rot: held.rot }];
     const mx = mirrorX(h.x, editor.mirror.axisHalfCells);
-    if (editor.mirror.on && mx !== h.x) spots.push({ x: mx, rot: mirrorRotation(held.rot) });
+    if (editor.mirror.on && mx !== h.x && mirrorable(registry.get(held.part))) spots.push({ x: mx, rot: mirrorRotation(held.rot) });
     for (const s of spots) {
       const before = this.ghost.children.length;
       this.addPart(this.ghost, registry, held.part, s.x, h.y, s.rot, 0.55);
-      const other = partAt(bp, registry, s.x, h.y);
-      const replaces = other !== undefined && (other.part !== held.part || other.rot !== s.rot);
+      // Red when it would replace another part in any of its cells (M12: a multi-cell part covers several).
+      const cells = partCells({ id: '', part: held.part, x: s.x, y: h.y, rot: s.rot, tags: [] }, registry).map((c) => c.cell);
+      const replaces = cells.some((c) => {
+        const other = partAt(bp, registry, c.x, c.y);
+        return other !== undefined && !(other.part === held.part && other.rot === s.rot && other.x === s.x && other.y === h.y);
+      });
       if (replaces) for (const c of this.ghost.children.slice(before)) (c as Sprite).tint = 0xff7a7a;
     }
   }
@@ -122,7 +129,8 @@ export class BuilderScene {
     if (o.errorCells.length > 0) g.stroke({ color: 0xff4d4d, width: 2 });
     for (const id of o.selection) {
       const p = bp.parts.find((q) => q.id === id);
-      if (p) cellRect(p, 0.01);
+      // Every cell of a multi-cell part (M12).
+      if (p) for (const c of registry.has(p.part) ? partCells(p, registry) : [{ cell: p }]) cellRect(c.cell, 0.01);
     }
     if (o.selection.length > 0) g.stroke({ color: 0x6fd3ff, width: 2 });
     if (o.box) {
@@ -138,7 +146,11 @@ export class BuilderScene {
     if (editor.eraser && editor.hover) {
       // The eraser shows the cells it would clear (both sides in mirror mode).
       const mx = mirrorX(editor.hover.x, editor.mirror.axisHalfCells);
-      for (const x of editor.mirror.on && mx !== editor.hover.x ? [editor.hover.x, mx] : [editor.hover.x]) cellRect({ x, y: editor.hover.y }, 0.02);
+      for (const x of editor.mirror.on && mx !== editor.hover.x ? [editor.hover.x, mx] : [editor.hover.x]) {
+        // The whole part under the cursor, every cell of it (M12).
+        const hit = partAt(bp, registry, x, editor.hover.y);
+        for (const c of hit && registry.has(hit.part) ? partCells(hit, registry) : [{ cell: { x, y: editor.hover.y } }]) cellRect(c.cell, 0.02);
+      }
       g.fill({ color: 0xff4d4d, alpha: 0.18 }).stroke({ color: 0xff7a7a, width: 2 });
     }
     if (editor.mirror.on) {

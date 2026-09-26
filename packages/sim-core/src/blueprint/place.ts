@@ -3,7 +3,7 @@ import { rotateCell } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import { mirrorRotation } from './mirror';
+import { mirrorProblem, mirrorRotation } from './mirror';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from './types';
 
 export interface PlaceOptions {
@@ -38,6 +38,8 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
   const unloaded = [...source.scripts, ...(source.cores ?? []).flatMap((c) => c.scripts)].find((s) => typeof s.source !== 'string');
   if (unloaded) return { ok: false, error: `${source.name}: script '${unloaded.id}' was not loaded from its file` };
 
+  const unmirrored = opts.mirror ? mirrorProblem(source, registry) : undefined;
+  if (unmirrored) return { ok: false, error: unmirrored };
   // Where each source part goes.
   const taken = new Set(target.parts.map((p) => p.id));
   const newId = new Map<string, string>();

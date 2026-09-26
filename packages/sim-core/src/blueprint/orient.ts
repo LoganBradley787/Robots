@@ -3,7 +3,7 @@ import { rotateCell } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import { mirrorRotation } from './mirror';
+import { mirrorProblem, mirrorRotation } from './mirror';
 import { toFileJson } from './serialize';
 import { validateBlueprint } from './validate';
 import type { Binding, Blueprint } from './types';
@@ -25,6 +25,8 @@ export interface Orientation {
 export function orientBlueprint(bp: Blueprint, o: Orientation, registry: PartRegistry): Blueprint {
   const rot: Rotation = o.rot ?? 0;
   if (!o.flip && rot === 0) return bp;
+  const problem = o.flip ? mirrorProblem(bp, registry) : undefined;
+  if (problem) throw new Error(problem);
   const rootId = rootPartId(bp, registry);
   const root = bp.parts.find((p) => p.id === rootId);
   if (!root) return bp;

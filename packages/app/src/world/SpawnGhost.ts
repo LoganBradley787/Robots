@@ -1,5 +1,5 @@
 import { Container, Sprite, type Texture } from 'pixi.js';
-import { expandBlueprint, rootPartId, rotationRadians, type PartRegistry } from '@robots/sim-core';
+import { expandBlueprint, footprintBox, rootPartId, rotateCell, rotationRadians, type PartRegistry } from '@robots/sim-core';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from '../render/units';
 
 const OK_TINT = 0x9dffb0;
@@ -19,14 +19,18 @@ export class SpawnGhost {
     const root = bp?.parts.find((p) => p.id === rootId);
     for (const p of bp?.parts ?? []) {
       if (!root || !registry.has(p.part)) continue;
-      const spec = registry.get(p.part).sprite;
+      const def = registry.get(p.part);
+      const spec = def.sprite;
       for (const f of [p.armed === true && spec.armedFrame ? spec.armedFrame : spec.frame, spec.mountFrame]) {
         if (!f) continue;
         const s = new Sprite(frame(f));
+        // A multi-cell part (M12) spans its footprint's box; a mount frame is one cell.
+        const box = f === spec.mountFrame ? { cx: 0, cy: 0, w: 1, h: 1 } : footprintBox(def);
+        const off = rotateCell({ x: box.cx, y: box.cy }, p.rot);
         s.anchor.set(0.5);
-        s.width = PIXELS_PER_METER;
-        s.height = PIXELS_PER_METER;
-        const pos = toScreen({ x: p.x - root.x, y: p.y - root.y });
+        s.width = PIXELS_PER_METER * box.w;
+        s.height = PIXELS_PER_METER * box.h;
+        const pos = toScreen({ x: p.x - root.x + off.x, y: p.y - root.y + off.y });
         s.position.set(pos.x, pos.y);
         s.rotation = toScreenAngle(rotationRadians(p.rot));
         this.root.addChild(s);

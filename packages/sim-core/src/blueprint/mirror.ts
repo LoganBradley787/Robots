@@ -1,4 +1,6 @@
 import type { Rotation } from '../parts/types';
+import type { PartRegistry } from '../parts/registry';
+import { mirrorable } from '../parts/footprint';
 import { partId } from './expand';
 import type { Binding, Blueprint } from './types';
 
@@ -10,6 +12,15 @@ import type { Binding, Blueprint } from './types';
  */
 export function mirrorRotation(rot: Rotation): Rotation {
   return ((360 - rot) % 360) as Rotation;
+}
+
+/**
+ * Why the blueprint cannot be mirrored, or undefined when it can (M12): a part whose footprint is not symmetric about
+ * its own column has no mirrored twin among the parts (`mirrorable`).
+ */
+export function mirrorProblem(bp: Pick<Blueprint, 'parts'>, registry: PartRegistry): string | undefined {
+  const bad = bp.parts.find((p) => registry.has(p.part) && !mirrorable(registry.get(p.part)));
+  return bad ? `${bad.id} (${bad.part}) cannot be mirrored: its footprint is not symmetric about its own column` : undefined;
 }
 
 export function mirrorX(x: number, axisHalfCells: number): number {

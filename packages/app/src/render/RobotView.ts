@@ -1,5 +1,5 @@
 import { AnimatedSprite, Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import type { BodyId, PhysicsWorld, Robot } from '@robots/sim-core';
+import { footprintBox, type BodyId, type PhysicsWorld, type Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { layoutRobot } from './robotLayout';
 import { damageTint } from './damageTint';
@@ -54,8 +54,8 @@ export class RobotView {
           sprite = new Sprite(frame(s.frame));
         }
         sprite.anchor.set(0.5);
-        sprite.width = PIXELS_PER_METER;
-        sprite.height = PIXELS_PER_METER;
+        sprite.width = PIXELS_PER_METER * s.w;
+        sprite.height = PIXELS_PER_METER * s.h;
         const p = toScreen(s);
         sprite.position.set(p.x, p.y);
         sprite.rotation = toScreenAngle(s.rotation);
@@ -111,8 +111,8 @@ export class RobotView {
       if (p.lit && part && on !== p.on) {
         p.on = on;
         p.sprite.texture = (on ? p.lit : p.plain) ?? p.sprite.texture;
-        p.sprite.width = PIXELS_PER_METER;
-        p.sprite.height = PIXELS_PER_METER;
+        p.sprite.width = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def).w);
+        p.sprite.height = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def).h);
       }
       if (!part || part.health === p.health) continue;
       p.health = part.health;

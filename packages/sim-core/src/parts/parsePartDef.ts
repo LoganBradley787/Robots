@@ -95,12 +95,22 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
 
   const footprint: FootprintCell[] = r.arr(o, 'footprint', '').map((c, i) => {
     const path = `footprint[${i}]`;
-    const co = r.obj(c, path, ['x', 'y', 'faces']);
+    const co = r.obj(c, path, ['x', 'y', 'faces', 'grips']);
     const x = r.num(co, 'x', path);
     const y = r.num(co, 'y', path);
     if (!Number.isInteger(x) || !Number.isInteger(y)) r.fail(path, 'x and y must be integers');
-    return { x, y, faces: faces(r, r.req(co, 'faces', path), `${path}.faces`) };
+    const cell: FootprintCell = { x, y, faces: faces(r, r.req(co, 'faces', path), `${path}.faces`) };
+    if (co.grips !== undefined) {
+      cell.grips = faces(r, co.grips, `${path}.grips`);
+      if (cell.grips.some((f) => cell.faces.includes(f))) r.fail(`${path}.grips`, 'a face is either a face or a grip, not both');
+    }
+    return cell;
   });
+  const seen = new Set<string>();
+  for (const c of footprint) {
+    if (seen.has(`${c.x},${c.y}`)) r.fail('footprint', `cell (${c.x}, ${c.y}) is listed twice`);
+    seen.add(`${c.x},${c.y}`);
+  }
   if (footprint.length === 0) r.fail('footprint', 'must have at least one cell');
   if (footprint[0]?.x !== 0 || footprint[0]?.y !== 0) r.fail('footprint[0]', 'must be the origin cell (0, 0)');
 

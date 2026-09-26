@@ -76,6 +76,16 @@ export type WorldEvent =
   /** M11: a decoy burnt out; it is destroyed this tick without a blast. */
   | { tick: number; robot: number; kind: 'burntOut'; part: string };
 
+/** The world center of each footprint cell of a part, from its origin cell's pose (M12, multi-cell parts). */
+function footprintPoses(origin: { x: number; y: number; angle: number }, part: PartInstance): BlastCell[] {
+  const c = Math.cos(origin.angle);
+  const s = Math.sin(origin.angle);
+  return part.def.footprint.map((fc) => {
+    const o = rotateCell(fc, part.rot);
+    return { x: origin.x + c * o.x - s * o.y, y: origin.y + s * o.x + c * o.y, angle: origin.angle };
+  });
+}
+
 /** A burning decoy as a sensor sees it (M11): where it is, which piece holds it, and how it moves. */
 const NO_DECOYS: readonly SeenDecoy[] = [];
 
@@ -548,24 +558,41 @@ export class World {
     const reach = Math.max(b.spec.radius, b.spec.pushRadius) + 1;
     const targets: PartInstance[] = [];
     const cells: BlastCell[] = [];
+    // Which target each cell belongs to: a multi-cell part (M12) has a cell for each footprint cell.
+    const owners: number[] = [];
     for (const robot of this.robots) {
       for (const part of robot.parts.values()) {
         // Destroyed by an earlier blast in this batch: gone, so it neither takes damage nor covers anything.
         if (part.health <= 0) continue;
         const pose = partWorldPose(this, robot, part.id);
-        const dx = pose.x - b.x;
-        const dy = pose.y - b.y;
-        if (dx * dx + dy * dy > reach * reach) continue;
+        const own = part.def.footprint.length === 1 ? [pose] : footprintPoses(pose, part);
+        const near = own.filter((c) => (c.x - b.x) ** 2 + (c.y - b.y) ** 2 <= reach * reach);
+        if (near.length === 0) continue;
+        for (const c of near) {
+          cells.push(c);
+          owners.push(targets.length);
+        }
         targets.push(part);
-        cells.push(pose);
       }
     }
     const fx = blastEffects({ x: b.x, y: b.y }, b.spec, cells, this.physics.terrainBoxes());
+    // A part takes the damage of its worst hit cell, and the push of all its cells together.
+    const damage = targets.map(() => 0);
+    const push = targets.map(() => ({ jx: 0, jy: 0 }));
+    owners.forEach((t, i) => {
+      damage[t] = Math.max(damage[t] ?? 0, fx.damage[i] ?? 0);
+      const p = fx.push[i];
+      const into = push[t];
+      if (p && into) {
+        into.jx += p.jx;
+        into.jy += p.jy;
+      }
+    });
     targets.forEach((part, i) => {
-      const damage = fx.damage[i] ?? 0;
-      const push = fx.push[i];
-      if (damage > 0) part.health -= damage;
-      if (push && (push.jx !== 0 || push.jy !== 0)) this.pendingPushes.push({ part, jx: push.jx, jy: push.jy });
+      const d = damage[i] ?? 0;
+      const p = push[i];
+      if (d > 0) part.health -= d;
+      if (p && (p.jx !== 0 || p.jy !== 0)) this.pendingPushes.push({ part, jx: p.jx, jy: p.jy });
     });
     this.events.push({ tick: this.tickCount, robot: b.robot, kind: 'explosion', x: b.x, y: b.y, radius: b.spec.radius });
   }
