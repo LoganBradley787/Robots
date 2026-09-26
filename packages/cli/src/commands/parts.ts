@@ -57,12 +57,14 @@ function details(d: PartDef): string[] {
     }
   }
   const boom = d.onDestroyed?.explode;
-  if (boom) out.push(`explodes when destroyed: ${boom.damage} damage at the center falling to 0 at ${boom.radius} m (halved by each part or box in the way), push ${boom.push} N s per cell out to ${boom.pushRadius} m`);
+  const once = d.arming ? ' once armed' : '';
+  if (d.arming) out.push('needs arming: safe until its arm input goes above 0.5 (a key or a script), then armed for good; unarmed it breaks without a blast, ignores hard hits and detonate; "armed": true in a blueprint starts it armed');
+  if (boom) out.push(`explodes when destroyed${once}: ${boom.damage} damage at the center falling to 0 at ${boom.radius} m (halved by each part or box in the way), push ${boom.push} N s per cell out to ${boom.pushRadius} m`);
   if (d.sensor) {
     const cone = d.sensor.cone >= 360 ? 'all around' : `in a ${d.sensor.cone} degree cone toward its ${d.acts ?? 'N'} face`;
     out.push(`sensor: sees robots ${cone} out to ${d.sensor.range} m (terrain blocks it, robots do not); scripts read them in contacts and scan(id); on 0 switches it off`);
   }
-  if (d.impact) out.push(`breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
+  if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
   return out;
 }
 

@@ -76,7 +76,7 @@ function body() {
 function fly(vx, height) {
   const g = 9.81;
   const props = parts.filter((p) => p.tags.includes('lboost') || p.tags.includes('rboost')).length;
-  const up = props * lift * Math.max(0.3, Math.cos(self.angle));
+  const up = Math.max(1, props * lift * Math.max(0.3, Math.cos(self.angle)));
   const rise = Math.max(0.5, up / self.mass - g);
   const err = height - self.pos.y;
   const stop = err > 0 ? g : rise;

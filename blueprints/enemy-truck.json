@@ -249,7 +249,7 @@
             "gyroTorque": 200
           },
           "source": {
-            "file": "silo.missile-up1.guide.js"
+            "file": "enemy-truck.missile-up1.guide.js"
           }
         }
       ]
@@ -290,7 +290,7 @@
             "gyroTorque": 200
           },
           "source": {
-            "file": "silo.missile-up2.guide.js"
+            "file": "enemy-truck.missile-up2.guide.js"
           }
         }
       ]
@@ -331,7 +331,7 @@
             "gyroTorque": 200
           },
           "source": {
-            "file": "silo.missile-up3.guide.js"
+            "file": "enemy-truck.missile-up3.guide.js"
           }
         }
       ]
@@ -372,7 +372,7 @@
             "gyroTorque": 200
           },
           "source": {
-            "file": "silo.missile-up4.guide.js"
+            "file": "enemy-truck.missile-up4.guide.js"
           }
         }
       ]

@@ -494,8 +494,8 @@ export class WorldScreen {
       if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
       if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
       if (ev?.kind === 'decoupled') this.effects.spark(ev.x, ev.y);
-      // A part that explodes gets the blast instead of a puff.
-      if (ev?.kind === 'partDestroyed' && !this.world.registry.get(ev.partType).onDestroyed?.explode) this.effects.breakPuff(ev.x, ev.y);
+      // A part that explodes gets the blast instead of a puff (an unarmed warhead just breaks: M10).
+      if (ev?.kind === 'partDestroyed' && !ev.exploded) this.effects.breakPuff(ev.x, ev.y);
       if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
       // Only your own: an enemy's missiles wake too, and you cannot take them over.
       if (ev?.kind === 'coreWoke' && who && who.team === 0) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);

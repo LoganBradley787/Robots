@@ -25,8 +25,9 @@ function partsLost(w: World, r: Robot): number {
 describe('M10 enemy flying silo, done when', () => {
   it('flies to its spot beside a parked car of yours, launches at it, and hits it', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
-    const car = w.spawnBlueprint(blueprint('car'), { x: -100, y: 1.45 });
-    const silo = w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: 0, y: 0.5 }, { team: 1 });
+    const car = w.spawnBlueprint(blueprint('car'), { x: -200, y: 1.45 });
+    // In open ground, where the app lets it be placed (at x 0 it would sit in the boxes).
+    const silo = w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: -100, y: 1.5 }, { team: 1 });
     let highest = 0;
     for (let t = 0; t < 12 * 60; t++) {
       w.step();
@@ -40,8 +41,8 @@ describe('M10 enemy flying silo, done when', () => {
 
   it('fights a hunter drone and takes it apart without losing its own core', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
-    const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -150, y: 15 });
-    const silo = w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: 0, y: 0.5 }, { team: 1 });
+    const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -250, y: 15 });
+    const silo = w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: -100, y: 1.5 }, { team: 1 });
     for (let t = 0; t < 20 * 60; t++) w.step();
     expect(w.canControl(silo.id)).toBe(true);
     expect(w.canControl(hunter.id)).toBe(false);

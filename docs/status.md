@@ -30,6 +30,8 @@ Updated: 2026-09-25, by an Opus 5.5 session, end of M10
 - Undo and redo across drags; mirror mode placed flipped thrusters; box select and tagging; the ghost refuses the ground, the underground, and existing robots.
 
 ## Known issues
+- M10: replays recorded before M10 do not replay exactly (their warheads were live from the start); `pnpm sim replay` says MISMATCH.
+- M10: robots cannot see the ground: the drone bomb comes in from 6 m over its target, and the truck only knows a step by getting stuck on it.
 - M9 review: a script's memory limit does not cap many small allocations (a script keeping 40,000 small arrays grew the process by 356 MB); it only catches big ones. Older than M9.
 - M9: Stress drones run out of energy after tens of seconds unless Unlimited energy is on.
 - M8: an attached missile shares its robot's energy pool while attached, so a hovering drone drains its missiles (about 60 percent left after 40 s).

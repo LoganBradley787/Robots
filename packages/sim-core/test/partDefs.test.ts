@@ -93,6 +93,19 @@ describe('parsePartDef', () => {
     expect(() => parsePartDef(noMass, 'thing.json')).toThrow('thing.json: mass is required');
   });
 
+  it('arming (M10): needs an arm input and an armed output, and a boolean; the sprite may name an armedFrame', () => {
+    const arm = { name: 'arm', min: 0, max: 1, default: 0 };
+    const armed = { name: 'armed', min: 0, max: 1, default: 0 };
+    const ok = parsePartDef({ ...minimal, inputs: [arm], outputs: [armed], arming: true, sprite: { frame: 'part.x', armedFrame: 'part.x.armed' } }, 'thing.json');
+    expect(ok.arming).toBe(true);
+    expect(ok.sprite.armedFrame).toBe('part.x.armed');
+    expect(parsePartDef({ ...minimal, arming: false }, 'thing.json').arming).toBeUndefined();
+    expect(() => parsePartDef({ ...minimal, outputs: [armed], arming: true }, 'thing.json')).toThrow('must have an "arm" input');
+    expect(() => parsePartDef({ ...minimal, inputs: [arm], arming: true }, 'thing.json')).toThrow('must have an "armed" output');
+    expect(() => parsePartDef({ ...minimal, arming: 'yes' }, 'thing.json')).toThrow('arming must be true or false');
+    expect(defaultRegistry().list().filter((d) => d.arming === true).map((d) => d.id).sort()).toEqual(['heavywarhead', 'warhead']);
+  });
+
   it('rejects unknown keys', () => {
     expect(() => parsePartDef({ ...minimal, weight: 3 }, 'thing.json')).toThrow('thing.json: weight is not a known field');
   });

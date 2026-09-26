@@ -26,6 +26,7 @@ describe('asset keys', () => {
     for (const def of defaultRegistry().list()) {
       expect(parts.frames, `${def.id} sprite.frame`).toHaveProperty([def.sprite.frame]);
       if (def.sprite.mountFrame !== undefined) expect(parts.frames, `${def.id} sprite.mountFrame`).toHaveProperty([def.sprite.mountFrame]);
+      if (def.sprite.armedFrame !== undefined) expect(parts.frames, `${def.id} sprite.armedFrame`).toHaveProperty([def.sprite.armedFrame]);
     }
   });
 

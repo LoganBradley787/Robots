@@ -60,6 +60,15 @@ describe('arming (M10)', () => {
     w.dispose();
   });
 
+  it('arm and detonate on the same tick go off', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const car = w.spawnBlueprint(BOMB_CAR, { x: -100, y: 0.5 });
+    w.step([{ robot: car.id, pressed: ['x', 'z'], released: [] }]);
+    for (let i = 0; i < 5; i++) w.step();
+    expect(count(w, 'explosion')).toBe(1);
+    w.dispose();
+  });
+
   it('a script arms it with set()', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const car = w.spawnBlueprint({ ...BOMB_CAR, scripts: [{ id: 'a', source: "function setup() { set('warhead', 'arm', 1); } function tick() {}" }] }, { x: -100, y: 0.5 });
@@ -162,6 +171,6 @@ describe('arming (M10)', () => {
     expect(placed.ok ? armedIds(placed.blueprint) : [placed.error]).toHaveLength(2);
     const off = setPartsArmed(bp, ['warhead@1,0'], false);
     expect(armedIds(off)).toEqual(['warhead@2,0']);
-    expect(armedIds(setPartsArmed(off, ['warhead@1,0'], true))).toEqual(['warhead@2,0', 'warhead@1,0'].sort());
+    expect(armedIds(setPartsArmed(off, ['warhead@1,0'], true))).toEqual(['warhead@1,0', 'warhead@2,0']);
   });
 });

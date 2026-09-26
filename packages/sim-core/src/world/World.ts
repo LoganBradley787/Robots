@@ -53,8 +53,8 @@ export type WorldEvent =
       chunk: number;
     }
   | { tick: number; robot: number; kind: 'scriptCrashed'; script: string; error: ScriptError }
-  /** A part reached 0 health and is gone. `x`, `y` is where its cell was. */
-  | { tick: number; robot: number; kind: 'partDestroyed'; part: string; partType: string; x: number; y: number }
+  /** A part reached 0 health and is gone. `x`, `y` is where its cell was; `exploded` when it set off a blast (M10). */
+  | { tick: number; robot: number; kind: 'partDestroyed'; part: string; partType: string; x: number; y: number; exploded: boolean }
   /** A blast went off (`robot` owned the part that exploded). */
   | { tick: number; robot: number; kind: 'explosion'; x: number; y: number; radius: number }
   /** A robot broke apart: it keeps one piece, the others are new robots. */
@@ -412,9 +412,9 @@ export class World {
         const pose = partWorldPose(this, robot, part.id);
         robot.parts.delete(part.id);
         this.dirty.add(robot);
-        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y });
         // An unarmed part that needs arming breaks like any other part (M10).
         const explode = part.armed === false ? undefined : part.def.onDestroyed?.explode;
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y, exploded: explode !== undefined });
         if (explode) this.queuedBlasts.push({ robot: robot.id, x: pose.x, y: pose.y, spec: explode });
       }
     }

@@ -3,7 +3,8 @@
 // - Drive: toward the nearest robot on the other side its radar tracks until it is `range` meters away sideways, then
 //   it stops (the wheels brake by asking for the speed it has, the other way). Closer than `tooClose`, it backs off.
 //   With nothing tracked it stays put. It cannot see the ground: it only knows it by its own tilt, and stops driving
-//   past `tip` degrees.
+//   past `tip` degrees; stuck against something (asking to move and not moving for `stuckTime` s), it stops driving
+//   for 5 s, then tries again.
 // - Fire: stopped and nearly level, `settle` seconds after it first tracks something, one missile every `reload`
 //   seconds (plus a seeded bit of `jitter`) at the tracked robot sent the fewest so far (nearest first). Over the top
 //   onto a ground target, straight in (from underneath, after the climb) at one more than `high` meters above it.
@@ -11,6 +12,7 @@
 const speed = param('speed', 6, { min: 0.5, max: 20 }); // m/s, fastest it drives
 const range = param('range', 150, { min: 20, max: 500 }); // m sideways from its target where it stops to fire
 const tooClose = param('tooClose', 40, { min: 0, max: 200 }); // m: closer than this it backs off
+const stuckTime = param('stuckTime', 2, { min: 0.5, max: 20 }); // s of driving without moving before it gives up for a while
 const tip = (param('tip', 30, { min: 5, max: 80 }) * Math.PI) / 180; // degrees of tilt where it stops driving
 const wheelTop = param('wheelTop', 22.5, { min: 1, max: 100 }); // m/s at wheel speed 1 (the wheel's 50 rad/s at 0.45 m)
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (missiles) are not tracked or shot at
@@ -66,6 +68,12 @@ function tick() {
   }
   const tipped = Math.abs(self.angle) > tip;
   if (tipped) want = 0;
+  // Pushing against a step or a box it cannot see: after `stuckTime` s of asking to move and barely moving, it stops
+  // driving for a while (it can fire from there) and then tries again.
+  if (Math.abs(want) > 1 && Math.abs(self.vel.x) < 0.2) state.stuckFor = (state.stuckFor || 0) + dt;
+  else state.stuckFor = 0;
+  if (state.stuckFor > stuckTime) state.restUntil = time + 5;
+  if (time < (state.restUntil || -1)) want = 0;
   // Wheel speed 1 turns the wheels at `wheelTop`; ask for a bit more or less than the speed wanted to get there (and
   // to brake: the wheels only hold back when asked to turn the other way).
   set('wheels', 'speed', tipped ? 0 : clamp(want / wheelTop + 0.3 * (want - self.vel.x), -1, 1));

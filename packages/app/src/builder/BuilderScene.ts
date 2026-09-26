@@ -92,7 +92,7 @@ export class BuilderScene {
     if (editor.stamp && h) {
       // A held blueprint: every part it would add, red where a click would be refused (an overlap).
       const g = stampGhost(bp, editor.stamp, h, editor.mirror, registry);
-      for (const p of g.parts) this.addPart(this.ghost, registry, p.part, p.x, p.y, p.rot, 0.55);
+      for (const p of g.parts) this.addPart(this.ghost, registry, p.part, p.x, p.y, p.rot, 0.55, p.armed === true);
       if (!g.ok) for (const c of this.ghost.children) (c as Sprite).tint = 0xff7a7a;
       return;
     }

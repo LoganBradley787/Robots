@@ -72,13 +72,38 @@ describe('M10 drone bomb, done when', () => {
     expect(caught.lost).toBeGreaterThan(0);
   });
 
-  it('with nothing to chase it hovers where it was deployed; its warhead is armed', async () => {
+  it('two drone bombs on different sides meet and both go off (they used to climb forever, each keeping above the other)', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const a = w.spawnBlueprint(blueprint('drone-bomb'), { x: -100, y: 5 });
+    const b = w.spawnBlueprint(blueprint('drone-bomb'), { x: -40, y: 5 }, { team: 1 });
+    let highest = 0;
+    for (let t = 0; t < 10 * 60; t++) {
+      w.step();
+      // Until they meet: after the blasts their pieces fly anywhere.
+      if (blasts(w, a) + blasts(w, b) === 0) for (const r of [a, b]) if (r.groups[0]) highest = Math.max(highest, w.physics.state(r.groups[0].bodyId).y);
+    }
+    expect(blasts(w, a) + blasts(w, b)).toBe(2);
+    expect(highest).toBeLessThan(5 + 40 + 5);
+    w.dispose();
+  });
+
+  it('goes off when its side touches a big robot, not only its warhead', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const silo = w.spawnBlueprint(blueprint('flying-silo'), { x: -40, y: 0.5 }, { team: 1 });
+    const bomb = w.spawnBlueprint(blueprint('drone-bomb'), { x: -100, y: 5 });
+    run(w, 8 * 60);
+    expect(blasts(w, bomb)).toBe(1);
+    expect(partsLost(w, silo)).toBeGreaterThan(0);
+    w.dispose();
+  });
+
+  it('with nothing to chase it hovers where it was deployed, its warhead safe until it has a target', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const bomb = w.spawnBlueprint(blueprint('drone-bomb'), { x: -100, y: 5 });
     run(w, 5 * 60);
     const s = w.physics.state(bomb.groups[0]?.bodyId as number);
     expect(Math.hypot(s.x - -98.5, s.y - 5)).toBeLessThan(2);
-    expect(w.partOutput(bomb.id, 'heavywarhead@1,0', 'armed')).toBe(1);
+    expect(w.partOutput(bomb.id, 'heavywarhead@1,0', 'armed')).toBe(0);
     w.dispose();
   });
 

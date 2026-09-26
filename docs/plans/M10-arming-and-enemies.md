@@ -100,3 +100,18 @@
 - Enemy flying silo: its first missile hits a parked car 100 m away at 5.0 s; it takes a hovering hunter drone apart within 20 s; about 420 J/s in flight (roughly 70 s of flight on 28 kJ).
 - Enemy truck: stops 149 m from a car 250 m away after about 20 s and kills its core with the first missile.
 - A hit on a loaded drone now makes one blast (the hit), not one per missile: a bomb dropped on a parked `missile-drone-10prop` makes 1 explosion (was 3).
+
+### Logan's play test and the review fixes (2026-09-25)
+- **Logan: the drone bomb "just gently pushes stuff and never explodes."** Two causes, the first also found by the Opus review:
+  - It braked its closing speed to nearly 0 at the target, too gentle for its fuze (5 m/s), and only went off when its warhead (underneath) was within 1.5 m of a target part, so meeting a target side on it pushed it along. Now it never closes slower than 3 m/s (`ram`), comes down on its target from 6 m above so the warhead meets it first, and goes off after touching with its side for 0.4 s (`stuck`) too. Going off side on at once was tried and rejected: the blast mostly hit its own parts (a blast is halved by each part in the way).
+  - Two drone bombs on opposite sides each kept 6 m over the other and climbed forever (472 m after 20 s). Now it never climbs more than 40 m (`ceiling`) over where it started, and caps its climb speed to what it can stop from by then.
+  - Checked in the browser (verify server): an Enemy drone bomb flew to a car and went off. Headless it hits every shipped robot tried (cars, the truck, both silos, the flying silo, hovering and moving drones, another drone bomb).
+- **Review fixes:**
+  - The drone bomb arms the first time it has a target (was: when awake). One left waiting ran its battery flat after 66 s, dropped onto its armed warhead, and went off.
+  - The seeker guide (55 copies) arms once clear of its launcher, and only if it was launched at something (a message with a point) or tracks an enemy. A missile knocked loose by a hit used to arm, fly blind, and go off on its own carrier. The older key-fired guides still arm on release.
+  - An unarmed warhead that breaks now shows the break puff in the app (the `partDestroyed` event says whether it exploded; the app used to skip the puff for any part that could explode).
+  - The enemy flying silo scenes and tests spawn at x -100, y 1.5, where the app lets it be placed; at x 0, y 0.5 it sat in the boxes.
+  - `enemy-truck` points at its own guide files (it used the silo's). It stops driving for 5 s after 2 s of asking to move and not moving (it used to push against the ramp for good).
+  - `pnpm sim show` marks armed parts in parts-list blueprints too; `pnpm sim parts` says the blast and fuze need arming; the builder's stamp ghost shows armed warheads lit; divide-by-zero guards when every propeller or booster is gone.
+  - New tests: the def parser's arming rules, `armedFrame` present in the sprite sheet, arm and detonate on the same tick, two drone bombs meeting, a side hit on a big robot.
+- Golden hashes rewritten for the scenes these change on purpose (hunter duel, silo volley, 2 v 2 battle, the drone bomb and flying silo scenes). They still end with real fights (4 to 11 blasts each).

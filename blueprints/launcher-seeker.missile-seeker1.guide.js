@@ -87,9 +87,6 @@ function boom() {
 }
 
 function setup() {
-  // Armed when its core wakes (M10): safe while it rides on a launcher, live once it is let go.
-  set('warhead', 'arm', 1);
-  set('heavywarhead', 'arm', 1);
   state.start = time;
   state.origin = { x: self.pos.x, y: self.pos.y };
   state.aim = nose();
@@ -101,6 +98,7 @@ function setup() {
     const d = m.data;
     if (!d || typeof d.x !== 'number' || typeof d.y !== 'number') continue;
     state.point = { x: d.x, y: d.y };
+    state.launched = true;
     state.vel = { x: typeof d.vx === 'number' ? d.vx : 0, y: typeof d.vy === 'number' ? d.vy : 0 };
     if (typeof d.id === 'number') state.id = d.id;
     // The launcher may choose the path for this shot: `arc: 1` over the top, `arc: 0` straight in.
@@ -129,6 +127,14 @@ function tick() {
   if (time - state.start > fuse) boom();
 
   const seen = pick();
+  // Armed (M10) once clear of its launcher, and only when it was launched at something (a message with a point) or
+  // tracks an enemy: safe while it rides on a launcher and while it clears it, and a missile knocked loose by a hit
+  // (no message) stays a dud unless it finds a target.
+  if (!state.armed && (state.launched || seen) && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
+    set('warhead', 'arm', 1);
+    set('heavywarhead', 'arm', 1);
+    state.armed = true;
+  }
   if (seen) {
     state.point = { x: seen.pos.x, y: seen.pos.y };
     state.vel = { x: seen.vel.x, y: seen.vel.y };

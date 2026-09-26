@@ -14,7 +14,7 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   if (g) lines.push('grid:', ...g.grid.map((r) => `  ${r}`));
   else {
     lines.push('parts (not expressible as a grid):');
-    for (const p of bp.parts) lines.push(`  ${p.id}: ${p.part} at (${p.x}, ${p.y}) rot ${p.rot} tags ${p.tags.join(', ')}`);
+    for (const p of bp.parts) lines.push(`  ${p.id}: ${p.part} at (${p.x}, ${p.y}) rot ${p.rot} tags ${p.tags.join(', ')}${p.auto === false ? ', auto controls off' : ''}${p.armed === true ? ', armed at start' : ''}`);
   }
   const legend = Object.entries(g?.legend ?? {});
   if (legend.length > 0) {
