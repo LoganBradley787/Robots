@@ -173,6 +173,9 @@ export class Tracer {
         case 'released':
           push(e.robot, 'released', `${e.part} let go of ${e.scope}`);
           break;
+        case 'buildBlocked':
+          push(e.robot, 'buildBlocked', `${e.part} cannot build: ${e.why}`);
+          break;
         case 'coreLost':
           push(e.robot, 'coreLost', 'lost its core: nobody controls it now, its inputs stay as they were');
           break;

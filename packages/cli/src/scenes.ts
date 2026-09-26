@@ -46,6 +46,10 @@ export const GOLDEN_SCENES: readonly Scene[] = [
   { name: 'enemy-flying-silo-vs-hunter', bp: 'enemy-flying-silo', x: -100, y: 1.5, seconds: 20, team: 1, drops: ['hunter-drone@0:-250,15'] },
   // M12: the fabricator bay builds missiles while it fires them at a row of cars.
   { name: 'fab-drone', bp: 'fab-drone', x: -100, y: 15, seconds: 16, keys: 'f:1-16', drops: ['car@0:-200,1.45:enemy', 'car@0:-230,1.45:enemy'] },
+  // After M12: the enemy fab drone firing what it builds at parked cars, and a drone-bomb fabricator (F held) against
+  // the enemy one.
+  { name: 'enemy-fab-drone-vs-cars', bp: 'enemy-fab-drone', x: -60, y: 20, team: 1, seconds: 16, drops: ['car@0:-150,1.45', 'car@0:-175,1.45'] },
+  { name: 'bomb-fab-drones', bp: 'bomb-fab-drone', x: -100, y: 15, seconds: 18, keys: 'f:1-18', drops: ['enemy-bomb-fab-drone@0:-190,25:enemy:flip'] },
   // M11: flares. The hunter pops a pair three times while the enemy flying silo fires at it (hunter-duel and the enemy
   // scenes above have the enemies popping their own).
   { name: 'hunter-flares', bp: 'hunter-drone', x: -250, y: 15, seconds: 12, keys: 'v:3.8, v:6, v:8.5', drops: ['enemy-flying-silo@0:-100,1.5:enemy'] },
