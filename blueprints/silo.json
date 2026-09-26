@@ -1,0 +1,1052 @@
+{
+  "format": 1,
+  "name": "silo",
+  "grid": [
+    ".   a   .   b   .   .   c   .   d   .   .   e   .   f   .   .   g   .   h   .   .   i   .   j   .   .   k   .   p68 .",
+    ".   l   .   m   .   .   n   .   o   .   .   p   .   q   .   .   r   .   s   .   .   t   .   u   .   .   v   .   p69 .",
+    ".   w   .   x   .   .   y   .   z   .   .   p26 .   p27 .   .   p28 .   p29 .   .   p30 .   p31 .   .   p32 .   p70 .",
+    ".   p33 .   p34 .   .   p35 .   p36 .   .   p37 .   p38 .   .   p39 .   p40 .   .   p41 .   p42 .   .   p43 .   p71 .",
+    "p44 p45 .   p46 p47 p48 p49 .   p50 p51 p52 p53 .   p54 p55 p56 p57 .   p58 p59 p60 p61 .   p62 p63 p64 p65 .   p72 p66",
+    "F   F   F   F   F   F   F   F   F   F   F   F   B   F   C   p67 F   B   F   F   F   F   F   F   F   F   F   F   F   F"
+  ],
+  "legend": {
+    "a": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ]
+    },
+    "b": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ]
+    },
+    "c": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ]
+    },
+    "d": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ]
+    },
+    "e": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up5"
+      ]
+    },
+    "f": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up6"
+      ]
+    },
+    "g": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up7"
+      ]
+    },
+    "h": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up8"
+      ]
+    },
+    "i": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up9"
+      ]
+    },
+    "j": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up10"
+      ]
+    },
+    "k": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up11"
+      ]
+    },
+    "l": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ]
+    },
+    "m": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ]
+    },
+    "n": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ]
+    },
+    "o": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ]
+    },
+    "p": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up5"
+      ]
+    },
+    "q": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up6"
+      ]
+    },
+    "r": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up7"
+      ]
+    },
+    "s": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up8"
+      ]
+    },
+    "t": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up9"
+      ]
+    },
+    "u": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up10"
+      ]
+    },
+    "v": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up11"
+      ]
+    },
+    "w": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ]
+    },
+    "x": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ]
+    },
+    "y": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ]
+    },
+    "z": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ]
+    },
+    "p26": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up5"
+      ]
+    },
+    "p27": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up6"
+      ]
+    },
+    "p28": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up7"
+      ]
+    },
+    "p29": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up8"
+      ]
+    },
+    "p30": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up9"
+      ]
+    },
+    "p31": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up10"
+      ]
+    },
+    "p32": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up11"
+      ]
+    },
+    "p33": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ],
+      "auto": false
+    },
+    "p34": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ],
+      "auto": false
+    },
+    "p35": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ],
+      "auto": false
+    },
+    "p36": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ],
+      "auto": false
+    },
+    "p37": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up5"
+      ],
+      "auto": false
+    },
+    "p38": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up6"
+      ],
+      "auto": false
+    },
+    "p39": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up7"
+      ],
+      "auto": false
+    },
+    "p40": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up8"
+      ],
+      "auto": false
+    },
+    "p41": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up9"
+      ],
+      "auto": false
+    },
+    "p42": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up10"
+      ],
+      "auto": false
+    },
+    "p43": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up11"
+      ],
+      "auto": false
+    },
+    "p44": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip1"
+      ]
+    },
+    "p45": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up1"
+      ],
+      "auto": false
+    },
+    "p46": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ],
+      "auto": false
+    },
+    "p47": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip2"
+      ]
+    },
+    "p48": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip3"
+      ]
+    },
+    "p49": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ],
+      "auto": false
+    },
+    "p50": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ],
+      "auto": false
+    },
+    "p51": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip4"
+      ]
+    },
+    "p52": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip5"
+      ]
+    },
+    "p53": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up5"
+      ],
+      "auto": false
+    },
+    "p54": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up6"
+      ],
+      "auto": false
+    },
+    "p55": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip6"
+      ]
+    },
+    "p56": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip7"
+      ]
+    },
+    "p57": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up7"
+      ],
+      "auto": false
+    },
+    "p58": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up8"
+      ],
+      "auto": false
+    },
+    "p59": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip8"
+      ]
+    },
+    "p60": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip9"
+      ]
+    },
+    "p61": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up9"
+      ],
+      "auto": false
+    },
+    "p62": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up10"
+      ],
+      "auto": false
+    },
+    "p63": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip10"
+      ]
+    },
+    "p64": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip11"
+      ]
+    },
+    "p65": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up11"
+      ],
+      "auto": false
+    },
+    "p66": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip12"
+      ]
+    },
+    "p67": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "p68": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "missile-up12"
+      ]
+    },
+    "p69": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "missile-up12"
+      ]
+    },
+    "p70": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up12"
+      ]
+    },
+    "p71": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up12"
+      ],
+      "auto": false
+    },
+    "p72": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up12"
+      ],
+      "auto": false
+    }
+  },
+  "primaryCore": "core@14,0",
+  "scripts": [
+    {
+      "id": "fire",
+      "source": {
+        "file": "silo.fire.js"
+      }
+    }
+  ],
+  "cores": {
+    "core@1,3": {
+      "scope": "missile-up1",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up1.guide.js"
+          }
+        }
+      ]
+    },
+    "core@3,3": {
+      "scope": "missile-up2",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up2.guide.js"
+          }
+        }
+      ]
+    },
+    "core@6,3": {
+      "scope": "missile-up3",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up3.guide.js"
+          }
+        }
+      ]
+    },
+    "core@8,3": {
+      "scope": "missile-up4",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up4.guide.js"
+          }
+        }
+      ]
+    },
+    "core@11,3": {
+      "scope": "missile-up5",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up5.guide.js"
+          }
+        }
+      ]
+    },
+    "core@13,3": {
+      "scope": "missile-up6",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up6.guide.js"
+          }
+        }
+      ]
+    },
+    "core@16,3": {
+      "scope": "missile-up7",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up7.guide.js"
+          }
+        }
+      ]
+    },
+    "core@18,3": {
+      "scope": "missile-up8",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up8.guide.js"
+          }
+        }
+      ]
+    },
+    "core@21,3": {
+      "scope": "missile-up9",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up9.guide.js"
+          }
+        }
+      ]
+    },
+    "core@23,3": {
+      "scope": "missile-up10",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up10.guide.js"
+          }
+        }
+      ]
+    },
+    "core@26,3": {
+      "scope": "missile-up11",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up11.guide.js"
+          }
+        }
+      ]
+    },
+    "core@28,3": {
+      "scope": "missile-up12",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 6,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "silo.missile-up12.guide.js"
+          }
+        }
+      ]
+    }
+  }
+}
