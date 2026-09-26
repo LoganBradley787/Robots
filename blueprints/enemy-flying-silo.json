@@ -756,271 +756,271 @@
       "part": "booster",
       "x": 0,
       "y": -1,
-      "auto": false,
       "tags": [
         "lboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 1,
       "y": -1,
-      "auto": false,
       "tags": [
         "lboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 29,
       "y": -1,
-      "auto": false,
       "tags": [
         "rboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 28,
       "y": -1,
-      "auto": false,
       "tags": [
         "rboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 27,
       "y": -1,
-      "auto": false,
       "tags": [
         "rboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 26,
       "y": -1,
-      "auto": false,
       "tags": [
         "rboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 2,
       "y": -1,
-      "auto": false,
       "tags": [
         "lboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 3,
       "y": -1,
-      "auto": false,
       "tags": [
         "lboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 14,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 4,
       "y": -1,
-      "auto": false,
       "tags": [
         "lboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 5,
       "y": -1,
-      "auto": false,
       "tags": [
         "lboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 24,
       "y": -1,
-      "auto": false,
       "tags": [
         "rboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "booster",
       "x": 25,
       "y": -1,
-      "auto": false,
       "tags": [
         "rboost"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 13,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 12,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 11,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 10,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 9,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 8,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 7,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 6,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 15,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 16,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 17,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 18,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 19,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 22,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 23,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 21,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "heavygyro",
       "x": 20,
       "y": -1,
-      "auto": false,
       "tags": [
         "stab"
-      ]
+      ],
+      "auto": false
     },
     {
       "part": "frame",
@@ -1036,6 +1036,126 @@
       "part": "frame",
       "x": 22,
       "y": 0
+    },
+    {
+      "part": "flare",
+      "x": -2,
+      "y": 1,
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    {
+      "part": "decoupler",
+      "x": -1,
+      "y": 1,
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    {
+      "part": "flare",
+      "x": -2,
+      "y": 0,
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    {
+      "part": "decoupler",
+      "x": -1,
+      "y": 0,
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    {
+      "part": "flare",
+      "x": -2,
+      "y": -1,
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    {
+      "part": "decoupler",
+      "x": -1,
+      "y": -1,
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    {
+      "part": "flare",
+      "x": 31,
+      "y": 1,
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    {
+      "part": "decoupler",
+      "x": 30,
+      "y": 1,
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    {
+      "part": "flare",
+      "x": 31,
+      "y": 0,
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    {
+      "part": "decoupler",
+      "x": 30,
+      "y": 0,
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    {
+      "part": "flare",
+      "x": 31,
+      "y": -1,
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    {
+      "part": "decoupler",
+      "x": 30,
+      "y": -1,
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
     }
   ],
   "primaryCore": "core@14,0",
@@ -1044,6 +1164,15 @@
       "id": "pilot",
       "source": {
         "file": "enemy-flying-silo.pilot.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-flying-silo.flares.js"
+      },
+      "params": {
+        "auto": 1
       }
     }
   ],

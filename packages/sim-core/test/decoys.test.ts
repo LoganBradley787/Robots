@@ -21,11 +21,11 @@ const LIGHT = [
   { key: 'v', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 },
 ];
 /** Lets a burning flare go to the right on V. */
-const RIGHT = { format: 1, name: 'right', grid: ['C  D>  Q'], bindings: LIGHT };
+const RIGHT = { format: 1, name: 'right', grid: ['C  D>  Q>'], bindings: LIGHT };
 /** Lets a burning flare go each way on V. */
-const BOTH = { format: 1, name: 'both', grid: ['Q  D<  C  D>  Q'], bindings: LIGHT };
+const BOTH = { format: 1, name: 'both', grid: ['Q<  D<  C  D>  Q>'], bindings: LIGHT };
 /** Lets a burning flare go straight down on V. */
-const DOWN = { format: 1, name: 'down', grid: ['C', 'Dv', 'Q'], bindings: LIGHT };
+const DOWN = { format: 1, name: 'down', grid: ['C', 'Dv', 'Qv'], bindings: LIGHT };
 const BURN_TICKS = 120;
 
 async function world(): Promise<World> {
@@ -152,7 +152,7 @@ describe('decoys fool sensors (M11)', () => {
   it('every sensor is fooled, a friend’s too; a robot never sees itself, nor its own flare', async () => {
     const w = await world();
     const me = w.spawnBlueprint(RADAR, { x: 0, y: 100 });
-    const mine = w.spawnBlueprint({ ...RIGHT, grid: ['C  O  D>  Q'] }, { x: 0, y: 130 });
+    const mine = w.spawnBlueprint({ ...RIGHT, grid: ['C  O  D>  Q>'] }, { x: 0, y: 130 });
     light(w, mine);
     for (let i = 0; i < 30; i++) w.step();
     const flare = where(w, 'flare@3,0', mine.id);

@@ -1,13 +1,14 @@
 {
   "id": "flare",
   "name": "Flare",
-  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "footprint": [{ "x": 0, "y": 0, "faces": ["S"] }],
   "mass": 0.2,
   "health": 5,
   "symmetry": 4,
   "inputs": [{ "name": "ignite", "min": 0, "max": 1, "default": 0 }],
   "outputs": [{ "name": "burning", "min": 0, "max": 1, "default": 0 }],
   "powerDraw": 0,
+  "acts": "N",
   "decoy": { "burn": 2 },
   "sprite": { "frame": "part.flare", "litFrame": "part.flare.lit" }
 }

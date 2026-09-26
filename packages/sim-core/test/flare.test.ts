@@ -14,18 +14,18 @@ beforeAll(async () => {
 const count = (w: World, kind: WorldEvent['kind']): number => w.events.filter((e) => e.kind === kind).length;
 const tap = (robot: number, key: string) => [{ robot, pressed: [key], released: [] }];
 const release = (robot: number, key: string) => [{ robot, pressed: [], released: [key] }];
-/** A car with a flare on top: V lights it (a pulse). */
+/** A core with a flare standing on it: V lights it (a pulse). */
 const FLARE_CAR = {
   format: 1,
   name: 'flare-car',
-  grid: ['Q', 'C'],
+  grid: ['Q^', 'C'],
   bindings: [{ key: 'v', mode: 'pulse', target: 'flare', channel: 'ignite', value: 1 }],
 };
 /** A flare on a decoupler that lets go to the right: V lights it and lets it go on the same tick. */
 const RACK = {
   format: 1,
   name: 'rack',
-  grid: ['C  D>  Q'],
+  grid: ['C  D>  Q>'],
   bindings: [
     { key: 'v', mode: 'pulse', target: 'flare', channel: 'ignite', value: 1 },
     { key: 'v', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 },

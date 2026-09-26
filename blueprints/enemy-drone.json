@@ -2,14 +2,14 @@
   "format": 1,
   "name": "enemy-drone",
   "grid": [
-    ".   a   .   b   .   .   .   c   .   x   .",
-    ".   d   .   e   .   .   .   f   .   y   .",
-    ".   g   .   h   .   .   .   i   .   z   .",
-    ".   j   .   k   .   .   .   l   .   p26 .",
-    "m   n   .   o   p   .   q   r   .   p27 s",
-    "F   t   t   t   F   u   F   v   v   v   F",
-    "F   F   F   F   B   C   B   F   F   F   F",
-    "F   t   t   t   t   w   v   v   v   v   F"
+    ".   .   .   a   .   b   .   .   .   c   .   d   .   .   .",
+    ".   .   .   e   .   f   .   .   .   g   .   h   .   .   .",
+    ".   .   .   i   .   j   .   .   .   k   .   l   .   .   .",
+    ".   .   .   m   .   n   .   .   .   o   .   p   .   .   .",
+    ".   .   q   r   .   s   t   .   u   v   .   w   x   .   .",
+    "y   z   F   p26 p26 p26 F   p27 F   p28 p28 p28 F   p35 p34",
+    "p29 p30 F   F   F   F   B   C   B   F   F   F   F   p37 p36",
+    "p31 p32 F   p26 p26 p26 p26 p33 p28 p28 p28 p28 F   p39 p38"
   ],
   "legend": {
     "a": {
@@ -34,48 +34,69 @@
       ]
     },
     "d": {
-      "part": "heavywarhead",
+      "part": "seeker",
       "rot": 0,
       "tags": [
-        "missile-up1"
+        "missile-up4"
       ]
     },
     "e": {
       "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "missile-up2"
+        "missile-up1"
       ]
     },
     "f": {
       "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "missile-up3"
+        "missile-up2"
       ]
     },
     "g": {
-      "part": "core",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "missile-up1"
+        "missile-up3"
       ]
     },
     "h": {
-      "part": "core",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "missile-up2"
+        "missile-up4"
       ]
     },
     "i": {
       "part": "core",
       "rot": 0,
       "tags": [
-        "missile-up3"
+        "missile-up1"
       ]
     },
     "j": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up2"
+      ]
+    },
+    "k": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up3"
+      ]
+    },
+    "l": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ]
+    },
+    "m": {
       "part": "heavygyro",
       "rot": 0,
       "tags": [
@@ -83,7 +104,7 @@
       ],
       "auto": false
     },
-    "k": {
+    "n": {
       "part": "heavygyro",
       "rot": 0,
       "tags": [
@@ -91,7 +112,7 @@
       ],
       "auto": false
     },
-    "l": {
+    "o": {
       "part": "heavygyro",
       "rot": 0,
       "tags": [
@@ -99,14 +120,22 @@
       ],
       "auto": false
     },
-    "m": {
+    "p": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ],
+      "auto": false
+    },
+    "q": {
       "part": "decoupler",
       "rot": 270,
       "tags": [
         "grip1"
       ]
     },
-    "n": {
+    "r": {
       "part": "booster",
       "rot": 0,
       "tags": [
@@ -114,7 +143,7 @@
       ],
       "auto": false
     },
-    "o": {
+    "s": {
       "part": "booster",
       "rot": 0,
       "tags": [
@@ -122,21 +151,21 @@
       ],
       "auto": false
     },
-    "p": {
+    "t": {
       "part": "decoupler",
       "rot": 90,
       "tags": [
         "grip2"
       ]
     },
-    "q": {
+    "u": {
       "part": "decoupler",
       "rot": 270,
       "tags": [
         "grip3"
       ]
     },
-    "r": {
+    "v": {
       "part": "booster",
       "rot": 0,
       "tags": [
@@ -144,14 +173,38 @@
       ],
       "auto": false
     },
-    "s": {
+    "w": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "missile-up4"
+      ],
+      "auto": false
+    },
+    "x": {
       "part": "decoupler",
       "rot": 90,
       "tags": [
         "grip4"
       ]
     },
-    "t": {
+    "y": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "z": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "p26": {
       "part": "propeller",
       "rot": 0,
       "tags": [
@@ -159,14 +212,14 @@
       ],
       "auto": false
     },
-    "u": {
+    "p27": {
       "part": "gyro",
       "rot": 0,
       "tags": [
         "stab"
       ]
     },
-    "v": {
+    "p28": {
       "part": "propeller",
       "rot": 0,
       "tags": [
@@ -174,63 +227,114 @@
       ],
       "auto": false
     },
-    "w": {
+    "p29": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "p30": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "p31": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "p32": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "p33": {
       "part": "radar",
       "rot": 0,
       "tags": [
         "radar"
       ]
     },
-    "x": {
-      "part": "seeker",
-      "rot": 0,
+    "p34": {
+      "part": "flare",
+      "rot": 270,
       "tags": [
-        "missile-up4"
+        "flare-rack2",
+        "flare-rack2.flare1"
       ]
     },
-    "y": {
-      "part": "heavywarhead",
-      "rot": 0,
+    "p35": {
+      "part": "decoupler",
+      "rot": 270,
       "tags": [
-        "missile-up4"
+        "flare-rack2",
+        "flare-rack2.fgrip1"
       ]
     },
-    "z": {
-      "part": "core",
-      "rot": 0,
+    "p36": {
+      "part": "flare",
+      "rot": 270,
       "tags": [
-        "missile-up4"
+        "flare-rack2",
+        "flare-rack2.flare2"
       ]
     },
-    "p26": {
-      "part": "heavygyro",
-      "rot": 0,
+    "p37": {
+      "part": "decoupler",
+      "rot": 270,
       "tags": [
-        "missile-up4"
-      ],
-      "auto": false
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
     },
-    "p27": {
-      "part": "booster",
-      "rot": 0,
+    "p38": {
+      "part": "flare",
+      "rot": 270,
       "tags": [
-        "missile-up4"
-      ],
-      "auto": false
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "p39": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
     }
   },
-  "primaryCore": "core@5,1",
-  "bindings": [],
+  "primaryCore": "core@7,1",
   "scripts": [
     {
       "id": "pilot",
       "source": {
         "file": "enemy-drone.pilot.js"
       }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-drone.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
     }
   ],
   "cores": {
-    "core@1,5": {
+    "core@3,5": {
       "scope": "missile-up1",
       "bindings": [
         {
@@ -271,7 +375,7 @@
         }
       ]
     },
-    "core@3,5": {
+    "core@5,5": {
       "scope": "missile-up2",
       "bindings": [
         {
@@ -312,7 +416,7 @@
         }
       ]
     },
-    "core@7,5": {
+    "core@9,5": {
       "scope": "missile-up3",
       "bindings": [
         {
@@ -353,7 +457,7 @@
         }
       ]
     },
-    "core@9,5": {
+    "core@11,5": {
       "scope": "missile-up4",
       "bindings": [
         {

@@ -2,14 +2,14 @@
   "format": 1,
   "name": "big-drone",
   "grid": [
-    ".   a   .   .   .   b   .   .   .   c   .   .   .   p30 .   .",
-    ".   d   d   .   .   e   e   .   .   f   f   .   .   p31 p31 .",
-    ".   d   d   .   .   e   e   .   .   f   f   .   .   p31 p31 .",
-    ".   g   h   .   .   i   j   .   .   k   l   .   .   p32 p33 .",
-    ".   m   m   .   .   n   n   .   .   o   o   .   .   p34 p34 .",
-    "p   q   q   r   s   t   t   u   v   w   w   x   y   p35 p35 z",
-    "F   Z   p26 F   F   Z   p26 C   p27 p26 Z   F   F   p26 Z   F",
-    "p28 p28 p28 p28 .   .   p28 .   .   p29 .   .   p29 p29 p29 p29"
+    ".   .   .   a   .   .   .   b   .   .   .   c   .   .   .   d   .   .   .   .",
+    ".   .   .   e   e   .   .   f   f   .   .   g   g   .   .   h   h   .   .   .",
+    ".   .   .   e   e   .   .   f   f   .   .   g   g   .   .   h   h   .   .   .",
+    ".   .   .   i   j   .   .   k   l   .   .   m   n   .   .   o   p   .   .   .",
+    ".   .   .   q   q   .   .   r   r   .   .   s   s   .   .   t   t   .   .   .",
+    "u   v   w   x   x   y   z   p26 p26 p27 p28 p29 p29 p30 p31 p32 p32 p33 p43 p42",
+    "p34 p35 F   Z   p36 F   F   Z   p36 C   p37 p36 Z   F   F   p36 Z   F   p45 p44",
+    "p38 p39 p40 p40 p40 p40 .   .   p40 .   .   p41 .   .   p41 p41 p41 p41 p47 p46"
   ],
   "legend": {
     "a": {
@@ -34,101 +34,98 @@
       ]
     },
     "d": {
-      "part": "heavywarhead",
+      "part": "seeker",
       "rot": 0,
       "tags": [
-        "big-missile1"
+        "big-missile4"
       ]
     },
     "e": {
       "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "big-missile2"
+        "big-missile1"
       ]
     },
     "f": {
       "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "big-missile3"
+        "big-missile2"
       ]
     },
     "g": {
-      "part": "core",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "big-missile1"
+        "big-missile3"
       ]
     },
     "h": {
-      "part": "battery",
+      "part": "heavywarhead",
       "rot": 0,
       "tags": [
-        "big-missile1"
+        "big-missile4"
       ]
     },
     "i": {
       "part": "core",
       "rot": 0,
       "tags": [
-        "big-missile2"
+        "big-missile1"
       ]
     },
     "j": {
       "part": "battery",
       "rot": 0,
       "tags": [
-        "big-missile2"
+        "big-missile1"
       ]
     },
     "k": {
       "part": "core",
       "rot": 0,
       "tags": [
-        "big-missile3"
+        "big-missile2"
       ]
     },
     "l": {
       "part": "battery",
       "rot": 0,
       "tags": [
-        "big-missile3"
+        "big-missile2"
       ]
     },
     "m": {
-      "part": "heavygyro",
-      "rot": 0,
-      "tags": [
-        "big-missile1"
-      ],
-      "auto": false
-    },
-    "n": {
-      "part": "heavygyro",
-      "rot": 0,
-      "tags": [
-        "big-missile2"
-      ],
-      "auto": false
-    },
-    "o": {
-      "part": "heavygyro",
+      "part": "core",
       "rot": 0,
       "tags": [
         "big-missile3"
-      ],
-      "auto": false
+      ]
+    },
+    "n": {
+      "part": "battery",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ]
+    },
+    "o": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ]
     },
     "p": {
-      "part": "decoupler",
-      "rot": 270,
+      "part": "battery",
+      "rot": 0,
       "tags": [
-        "grip1"
+        "big-missile4"
       ]
     },
     "q": {
-      "part": "booster",
+      "part": "heavygyro",
       "rot": 0,
       "tags": [
         "big-missile1"
@@ -136,20 +133,75 @@
       "auto": false
     },
     "r": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "big-missile2"
+      ],
+      "auto": false
+    },
+    "s": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ],
+      "auto": false
+    },
+    "t": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ],
+      "auto": false
+    },
+    "u": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "v": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "w": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip1"
+      ]
+    },
+    "x": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "big-missile1"
+      ],
+      "auto": false
+    },
+    "y": {
       "part": "decoupler",
       "rot": 90,
       "tags": [
         "grip1"
       ]
     },
-    "s": {
+    "z": {
       "part": "decoupler",
       "rot": 270,
       "tags": [
         "grip2"
       ]
     },
-    "t": {
+    "p26": {
       "part": "booster",
       "rot": 0,
       "tags": [
@@ -157,21 +209,21 @@
       ],
       "auto": false
     },
-    "u": {
+    "p27": {
       "part": "decoupler",
       "rot": 90,
       "tags": [
         "grip2"
       ]
     },
-    "v": {
+    "p28": {
       "part": "decoupler",
       "rot": 270,
       "tags": [
         "grip3"
       ]
     },
-    "w": {
+    "p29": {
       "part": "booster",
       "rot": 0,
       "tags": [
@@ -179,28 +231,52 @@
       ],
       "auto": false
     },
-    "x": {
+    "p30": {
       "part": "decoupler",
       "rot": 90,
       "tags": [
         "grip3"
       ]
     },
-    "y": {
+    "p31": {
       "part": "decoupler",
       "rot": 270,
       "tags": [
         "grip4"
       ]
     },
-    "z": {
+    "p32": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ],
+      "auto": false
+    },
+    "p33": {
       "part": "decoupler",
       "rot": 90,
       "tags": [
         "grip4"
       ]
     },
-    "p26": {
+    "p34": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "p35": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "p36": {
       "part": "heavygyro",
       "rot": 0,
       "tags": [
@@ -208,14 +284,30 @@
       ],
       "auto": false
     },
-    "p27": {
+    "p37": {
       "part": "radar",
       "rot": 0,
       "tags": [
         "radar"
       ]
     },
-    "p28": {
+    "p38": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "p39": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "p40": {
       "part": "booster",
       "rot": 0,
       "tags": [
@@ -223,7 +315,7 @@
       ],
       "auto": false
     },
-    "p29": {
+    "p41": {
       "part": "booster",
       "rot": 0,
       "tags": [
@@ -231,54 +323,90 @@
       ],
       "auto": false
     },
-    "p30": {
-      "part": "seeker",
-      "rot": 0,
+    "p42": {
+      "part": "flare",
+      "rot": 270,
       "tags": [
-        "big-missile4"
+        "flare-rack2",
+        "flare-rack2.flare1"
       ]
     },
-    "p31": {
-      "part": "heavywarhead",
-      "rot": 0,
+    "p43": {
+      "part": "decoupler",
+      "rot": 270,
       "tags": [
-        "big-missile4"
+        "flare-rack2",
+        "flare-rack2.fgrip1"
       ]
     },
-    "p32": {
-      "part": "core",
-      "rot": 0,
+    "p44": {
+      "part": "flare",
+      "rot": 270,
       "tags": [
-        "big-missile4"
+        "flare-rack2",
+        "flare-rack2.flare2"
       ]
     },
-    "p33": {
-      "part": "battery",
-      "rot": 0,
+    "p45": {
+      "part": "decoupler",
+      "rot": 270,
       "tags": [
-        "big-missile4"
+        "flare-rack2",
+        "flare-rack2.fgrip2"
       ]
     },
-    "p34": {
-      "part": "heavygyro",
-      "rot": 0,
+    "p46": {
+      "part": "flare",
+      "rot": 270,
       "tags": [
-        "big-missile4"
-      ],
-      "auto": false
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
     },
-    "p35": {
-      "part": "booster",
-      "rot": 0,
+    "p47": {
+      "part": "decoupler",
+      "rot": 270,
       "tags": [
-        "big-missile4"
-      ],
-      "auto": false
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
     }
   },
-  "primaryCore": "core@7,1",
+  "primaryCore": "core@9,1",
+  "bindings": [
+    {
+      "key": "h",
+      "mode": "script",
+      "script": "hover"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "hover",
+      "params": {
+        "lift": 400,
+        "gyroTorque": 800,
+        "lean": 30
+      },
+      "source": {
+        "file": "big-drone.hover.js"
+      }
+    },
+    {
+      "id": "fire",
+      "source": {
+        "file": "big-drone.fire.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "big-drone.flares.js"
+      }
+    }
+  ],
   "cores": {
-    "core@1,4": {
+    "core@3,4": {
       "scope": "big-missile1",
       "bindings": [
         {
@@ -319,7 +447,7 @@
         }
       ]
     },
-    "core@5,4": {
+    "core@7,4": {
       "scope": "big-missile2",
       "bindings": [
         {
@@ -360,7 +488,7 @@
         }
       ]
     },
-    "core@9,4": {
+    "core@11,4": {
       "scope": "big-missile3",
       "bindings": [
         {
@@ -401,7 +529,7 @@
         }
       ]
     },
-    "core@13,4": {
+    "core@15,4": {
       "scope": "big-missile4",
       "bindings": [
         {
@@ -442,31 +570,5 @@
         }
       ]
     }
-  },
-  "scripts": [
-    {
-      "id": "hover",
-      "params": {
-        "lift": 400,
-        "gyroTorque": 800,
-        "lean": 30
-      },
-      "source": {
-        "file": "big-drone.hover.js"
-      }
-    },
-    {
-      "id": "fire",
-      "source": {
-        "file": "big-drone.fire.js"
-      }
-    }
-  ],
-  "bindings": [
-    {
-      "key": "h",
-      "mode": "script",
-      "script": "hover"
-    }
-  ]
+  }
 }

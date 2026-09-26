@@ -31,7 +31,8 @@ const dive = param('dive', 45, { min: 10, max: 89 }) * (Math.PI / 180); // when 
 const turnLag = param('turnLag', 1, { min: 0, max: 3 }); // s its nose takes to swing round into the dive
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (other missiles) are ignored
 const acquire = param('acquire', 60, { min: 1, max: 1000 }); // m: a robot this close to the point is the one it follows
-const proximity = param('proximity', 2, { min: 0, max: 10 }); // m: goes off this close to a tracked robot
+const proximity = param('proximity', 2, { min: 0, max: 10 }); // m: goes off this close to a tracked robot (from its warhead)
+const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
 
 function wrap(a) {
@@ -78,6 +79,12 @@ function turnInertia() {
   let i = 0;
   for (const p of parts) i += p.mass * ((p.pos.x - mx / m) ** 2 + (p.pos.y - my / m) ** 2 + 1 / 6);
   return Math.max(0.1, i);
+}
+
+/** Where its blast would be: its warhead (in the nose), else its core. */
+function warheadAt() {
+  for (const p of parts) if (p.type === 'warhead' || p.type === 'heavywarhead') return p.pos;
+  return self.pos;
 }
 
 /** Sets off the warhead, whichever kind it carries. */
@@ -127,6 +134,10 @@ function tick() {
   if (time - state.start > fuse) boom();
 
   const seen = pick();
+  // Lost sight of what it was about to reach (M11): it passed out of the seeker's cone close by, or the robot is now
+  // seen somewhere else (at a flare). It goes off, as a near miss.
+  if (state.close && (!seen || Math.hypot(seen.pos.x - state.close.x, seen.pos.y - state.close.y) > near)) boom();
+  state.close = undefined;
   // Armed (M10) once clear of its launcher, and only when it was launched at something (a message with a point) or
   // tracks an enemy: safe while it rides on a launcher and while it clears it, and a missile knocked loose by a hit
   // (no message) stays a dud unless it finds a target.
@@ -151,8 +162,21 @@ function tick() {
     const dx = p.x - self.pos.x;
     const dy = p.y - self.pos.y;
     const dist = Math.hypot(dx, dy);
-    // Close enough to the tracked robot, or to the point when nothing is tracked.
-    if (seen && dist < proximity) boom();
+    // Close enough to the tracked robot (M11): measured from the warhead, and counting where it will be by the next
+    // tick. The nose reaches something light (a flare) first and would push straight through it, and at 100 m/s it
+    // covers 2 m a tick, past the point before it looks again.
+    if (seen) {
+      const w = warheadAt();
+      const rx = p.x - w.x;
+      const ry = p.y - w.y;
+      const vx = seen.vel.x - self.vel.x;
+      const vy = seen.vel.y - self.vel.y;
+      const v2 = vx * vx + vy * vy;
+      const t = v2 > 0 ? clamp(-(rx * vx + ry * vy) / v2, 0, dt) : 0;
+      const pass = Math.hypot(rx + vx * t, ry + vy * t);
+      if (pass < proximity) boom();
+      if (pass < near && state.armed) state.close = { x: p.x, y: p.y };
+    }
     // Reached the last point with nothing tracked (it moved, or was never there): fly on the way it is going and keep
     // looking. A robot on the ground there was hit on impact already.
     if (!seen && dist < arrive) {

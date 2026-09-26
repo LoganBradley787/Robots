@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "flare-rack",
+  "grid": [
+    "a  b",
+    "c  d",
+    "e  f"
+  ],
+  "legend": {
+    "a": { "part": "flare", "rot": 90, "tags": ["flare1"] },
+    "b": { "part": "decoupler", "rot": 90, "tags": ["fgrip1"] },
+    "c": { "part": "flare", "rot": 90, "tags": ["flare2"] },
+    "d": { "part": "decoupler", "rot": 90, "tags": ["fgrip2"] },
+    "e": { "part": "flare", "rot": 90, "tags": ["flare3"] },
+    "f": { "part": "decoupler", "rot": 90, "tags": ["fgrip3"] }
+  }
+}

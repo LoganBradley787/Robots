@@ -45,7 +45,8 @@ describe('M10 enemy flying silo, done when', () => {
     const silo = w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: -100, y: 1.5 }, { team: 1 });
     for (let t = 0; t < 20 * 60; t++) w.step();
     expect(w.canControl(silo.id)).toBe(true);
-    expect(w.canControl(hunter.id)).toBe(false);
+    // M11: the hunter's flare racks shield its sides, so its core can outlast 20 s; a third of its parts are gone.
+    expect(partsLost(w, hunter)).toBeGreaterThanOrEqual(25);
     w.dispose();
   });
 });

@@ -5,7 +5,8 @@
 //   side it is already on) and `above` meters higher, never more than `ceiling` over where it was deployed. With
 //   nothing tracked it waits `idle` meters above where it was deployed.
 // - Release: `settle` seconds after it first tracks something, one drone bomb every `reload` seconds (plus a seeded
-//   bit of `jitter`), while it is nearly level and in range, told to go after the tracked robot sent the fewest so far
+//   bit of `jitter`), while it is nearly level, not climbing or sinking fast (M11: rising, it flew up into the
+//   drone bomb it had just let go), and in range, told to go after the tracked robot sent the fewest so far
 //   (nearest first), so they spread over several targets. An enemy closer than `swarm` meters gets every drone bomb
 //   left at once. It does not dodge: it is big and slow.
 // Flying is the flying silo's hover (time-optimal leaning on its boosters, balance from its parts, height braking just
@@ -28,6 +29,7 @@ const swarm = param('swarm', 70, { min: 0, max: 500 }); // m: an enemy this clos
 const minRange = param('minRange', 0, { min: 0, max: 500 }); // m: closer than this it holds fire
 const maxRange = param('maxRange', 300, { min: 10, max: 1000 }); // m: further than this it holds fire
 const level = (param('level', 15, { min: 1, max: 90 }) * Math.PI) / 180; // launches only within this many degrees of level
+const riseMax = param('rise', 2, { min: 0, max: 30 }); // m/s: lets go only while climbing or sinking slower than this
 const reload = param('reload', 4, { min: 0.2, max: 60 }); // s between launches
 const jitter = param('jitter', 0.5, { min: 0, max: 10 }); // up to this many seconds more, at random (seeded)
 const settle = param('settle', 1.5, { min: 0, max: 30 }); // s it holds fire after it first tracks a robot
@@ -138,8 +140,9 @@ function tick() {
   if (target) {
     const side = self.pos.x >= target.pos.x ? 1 : -1;
     goal = { x: target.pos.x + side * standoff, y: Math.min(target.pos.y + above, state.home.y - idle + ceiling) };
-    const ready = time - state.lastShot >= reload + state.wait && time - state.trackedSince >= settle && Math.abs(self.angle) < level;
-    if (target.distance < swarm && time - state.trackedSince >= settle) fire(true);
+    const steady = Math.abs(self.vel.y) < riseMax;
+    const ready = time - state.lastShot >= reload + state.wait && time - state.trackedSince >= settle && Math.abs(self.angle) < level && steady;
+    if (target.distance < swarm && time - state.trackedSince >= settle && steady) fire(true);
     else if (ready) fire(false);
   }
   const vx = clamp(0.3 * (goal.x - self.pos.x), -speed, speed);

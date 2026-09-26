@@ -17,7 +17,7 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'heavywarhead')).toMatchObject({ key: '/', legend: ['H'] });
     expect(rows.find((r) => r.id === 'heavygyro')).toMatchObject({ key: '', legend: ['Y'] }); // no builder key left: picked from the palette
     expect(rows.find((r) => r.id === 'densebattery')).toMatchObject({ key: '', legend: ['Z'] });
-    expect(rows.find((r) => r.id === 'flare')).toMatchObject({ key: '', legend: ['Q'], mass: 0.2, health: 5 });
+    expect(rows.find((r) => r.id === 'flare')).toMatchObject({ key: '', legend: ['Q^', 'Q<', 'Qv', 'Q>'], mass: 0.2, faces: ['S'], health: 5 });
   });
 
   it('describes what each part does from its definition', () => {
