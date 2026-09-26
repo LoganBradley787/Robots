@@ -4,17 +4,20 @@ import { toScreen } from './units';
 /** What one robot's sensors see, as `World.sensorView` gives it, plus its scripts' marks (M8). */
 export interface SensorOverlay {
   sensors: readonly { x: number; y: number; facing: number; cone: number; range: number }[];
-  contacts: readonly { side: 'enemy' | 'friend' | 'none'; x: number; y: number }[];
+  /** `decoy`: seen at a burning flare standing in for the robot (M11). */
+  contacts: readonly { side: 'enemy' | 'friend' | 'none'; x: number; y: number; decoy?: boolean }[];
   from: { x: number; y: number };
   marks: readonly { x: number; y: number }[];
 }
 
 const SIDE_COLOR = { enemy: 0xff5a5a, friend: 0x5aa8ff, none: 0x9a9a9a } as const;
 const SENSOR_COLOR = 0x3dff8b;
+const DECOY_COLOR = 0xffb13b;
 
 /**
  * The sensor layer of the debug overlay (M8): each working sensor's cone and range (faint), a line from the robot to
- * each robot it sees (red enemy, blue friend, grey debris), and its scripts' marks as small crosses.
+ * each robot it sees (red enemy, blue friend, grey debris), and its scripts' marks as small crosses. A robot seen at
+ * a flare (M11) gets its line drawn to the flare, ending in an orange ring: that sensor is fooled.
  */
 export function drawSensors(g: Graphics, overlays: readonly SensorOverlay[]): void {
   for (const o of overlays) {
@@ -39,6 +42,7 @@ export function drawSensors(g: Graphics, overlays: readonly SensorOverlay[]): vo
     for (const t of o.contacts) {
       const p = toScreen(t);
       g.moveTo(from.x, from.y).lineTo(p.x, p.y).stroke({ color: SIDE_COLOR[t.side], alpha: 0.7, pixelLine: true });
+      if (t.decoy === true) g.circle(p.x, p.y, 14).stroke({ color: DECOY_COLOR, width: 2, alpha: 0.9 });
     }
     for (const m of o.marks) {
       const p = toScreen(m);

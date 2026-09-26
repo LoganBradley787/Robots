@@ -251,7 +251,8 @@ export function destructionOf(world: SimWorld, robotId: number): RunReport['dest
   // Pieces come after the robot they broke from, so one pass in order finds pieces of pieces.
   for (const r of world.robots) if (r.brokeFrom !== undefined && family.has(r.brokeFrom)) family.add(r.id);
   return {
-    destroyed: world.events.flatMap((e) => (e.kind === 'partDestroyed' ? [e.part] : [])),
+    // A flare burning out (M11) is not a part lost.
+    destroyed: world.events.flatMap((e) => (e.kind === 'partDestroyed' && e.burntOut !== true ? [e.part] : [])),
     explosions: world.events.filter((e) => e.kind === 'explosion').length,
     pieces: world.robots.filter((r) => family.has(r.id)).length,
   };

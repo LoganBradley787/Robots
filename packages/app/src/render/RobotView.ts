@@ -1,4 +1,4 @@
-import { AnimatedSprite, Container, Sprite, type Texture } from 'pixi.js';
+import { AnimatedSprite, Container, Graphics, Sprite, type Texture } from 'pixi.js';
 import type { BodyId, PhysicsWorld, Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { layoutRobot } from './robotLayout';
@@ -30,6 +30,9 @@ export class RobotView {
   private readonly effects: Effect[] = [];
   /** Part sprites with the health they were last tinted for, and the lit look (M10 armed, M11 burning) they last showed. */
   private readonly parts: { partId: string; sprite: Sprite; health: number; plain?: Texture; lit?: Texture; on?: boolean }[] = [];
+  /** A glow over each flare (M11), shown while it burns and flickering. */
+  private readonly glows: { partId: string; glow: Graphics }[] = [];
+  private frames = 0;
 
   constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations) {
     this.robot = robot;
@@ -62,6 +65,15 @@ export class RobotView {
           const litName = def?.arming === true ? def.sprite.armedFrame : def?.decoy !== undefined ? def.sprite.litFrame : undefined;
           const lit = litName !== undefined && !s.animation ? frame(litName) : undefined;
           this.parts.push({ partId: s.partId, sprite, health: Number.NaN, ...(lit ? { plain: sprite.texture, lit } : {}) });
+        }
+        if (s.kind === 'part' && def?.decoy !== undefined) {
+          const glow = new Graphics();
+          for (const [r, color, alpha] of [[1.6, 0xff8a2a, 0.12], [1.0, 0xffc04a, 0.22], [0.5, 0xfff2c0, 0.5]] as const) glow.circle(0, 0, r * PIXELS_PER_METER).fill({ color, alpha });
+          glow.blendMode = 'add';
+          glow.position.set(p.x, p.y);
+          glow.visible = false;
+          flames.addChild(glow);
+          this.glows.push({ partId: s.partId, glow });
         }
         if (s.overlay && animations && s.channel) {
           const flame = new AnimatedSprite(animations(s.overlay.name));
@@ -105,6 +117,12 @@ export class RobotView {
       if (!part || part.health === p.health) continue;
       p.health = part.health;
       p.sprite.tint = multiplyTint(damageTint(part.health / part.def.health), teamTint(this.robot.team));
+    }
+    this.frames++;
+    for (const g of this.glows) {
+      const part = this.robot.parts.get(g.partId);
+      g.glow.visible = (part?.burn ?? 0) > 0;
+      if (g.glow.visible) g.glow.alpha = 0.75 + 0.25 * Math.sin(this.frames * 0.9 + g.glow.x);
     }
     for (const e of this.effects) {
       const t = Math.max(0, Math.min(1, (value?.(e.partId, e.channel) ?? 0) / e.max));

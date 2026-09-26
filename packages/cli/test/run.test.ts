@@ -86,6 +86,22 @@ describe('run report: events, pieces, and the path plot (M7)', () => {
     return toFileJson(r.blueprint, defaultRegistry(), { inlineScripts: true });
   };
 
+  it('tells a flare lit, standing in for its robot, and burnt out, not as a part lost (M11)', async () => {
+    const rack = {
+      format: 1,
+      name: 'rack',
+      grid: ['C  D>  Q>', 'W  W  .'],
+      bindings: [
+        { key: 'v', mode: 'pulse', target: 'flare', channel: 'ignite', value: 1 },
+        { key: 'v', mode: 'pulse', target: 'decoupler', channel: 'fire', value: 1 },
+      ],
+    };
+    const r = await runSim(flat, rack, { seconds: 3, seed: 1, at: { x: -30, y: 2 }, keys: [{ key: 'v', down: 0.5, up: 0.5 }] });
+    const told = r.events.filter((e) => e.kind === 'lit' || e.kind === 'burntOut' || e.kind === 'destroyed').map((e) => `${e.robot} ${e.text}`);
+    expect(told).toEqual(['A flare@2,1 lit: while it burns, sensors that see it take it for A', 'B flare@2,1 burnt out']);
+    expect(r.destruction.destroyed).toEqual([]);
+  });
+
   it('lists what happened in order, with a letter per robot', async () => {
     const r = await runSim(flat, railed(), { seconds: 2, seed: 1, at: { x: -30, y: 2 }, keys: [{ key: 'f', down: 1, up: 1 }] });
     const kinds = r.events.map((e) => `${e.robot} ${e.kind}`);

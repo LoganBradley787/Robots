@@ -124,6 +124,8 @@ export class Tracer {
       if (e.kind !== 'partDestroyed') destroyed = undefined;
       switch (e.kind) {
         case 'partDestroyed': {
+          // A flare burning out is told by its burntOut event (M11), not as a part lost.
+          if (e.burntOut === true) break;
           const mark = this.letter(e.robot);
           if (!destroyed || destroyed.ev.robot !== mark) {
             destroyed = { ev: { t: tickTime, robot: mark, kind: 'destroyed', text: '' }, parts: [] };
@@ -158,6 +160,12 @@ export class Tracer {
         }
         case 'armed':
           push(e.robot, 'armed', `${e.part} armed`);
+          break;
+        case 'lit':
+          push(e.robot, 'lit', `${e.part} lit: while it burns, sensors that see it take it for ${this.letter(e.of)}`);
+          break;
+        case 'burntOut':
+          push(e.robot, 'burntOut', `${e.part} burnt out`);
           break;
         case 'coreLost':
           push(e.robot, 'coreLost', 'lost its core: nobody controls it now, its inputs stay as they were');
