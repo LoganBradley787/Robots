@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "drone-bomb",
+  "grid": [
+    "L  L  R  R",
+    "F  C  O  F",
+    ".  H  G  E"
+  ],
+  "legend": {
+    "L": { "part": "propeller", "tags": ["lprop"], "auto": false },
+    "R": { "part": "propeller", "tags": ["rprop"], "auto": false },
+    "O": { "part": "radar", "tags": ["radar"] },
+    "H": { "part": "heavywarhead", "auto": false },
+    "G": { "part": "gyro", "tags": ["stab"], "auto": false }
+  },
+  "scripts": [{ "id": "pilot", "source": { "file": "drone-bomb.pilot.js" } }]
+}
