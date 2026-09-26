@@ -58,10 +58,17 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | booster | 1.5 | 25 | N E W | throttle [0, 1] | | Gate 7 (Logan: missiles were big and slow). A thruster for missiles: 400 N, 60 energy per second (a core's 600 is 10 s at full). Legend `K^ Kv K< K>`, key `'`. |
 | heavywarhead | 1.5 | 20 | N E S W | detonate (pulse) | | Gate 7. 250 damage falling to 0 at 4 m, push 50 out to 6 m; same fuze as the warhead. Legend `H`, key `/`. Bombs keep the warhead. |
 | heavygyro | 1.5 | 30 | N E S W | spin [-1, 1], damp [0, 1] | | Gate 7. 200 N m (the gyro is 40), 15 energy per second. A 6 kg missile swings its nose round in about half a second instead of over two. Legend `Y`, no builder key. The gyro stays 40 so the tuned drone hovers are unchanged. |
+| flare | 0.2 | 5 | S (its base) | ignite (lights it for good) | burning | M11. A decoy (see Decoys): burns 2 s once lit, then is gone without a blast; while it burns, sensors take it for its robot. Legend `Q^ Qv Q< Q>` (the way it points), no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
 Wheel and propeller shorthand tokens in the default legend cover the common rotations (see below), so authors rarely write rotation numbers.
+
+### Decoys (M11, as built)
+A def with `decoy: { burn }` (seconds) is a decoy; it needs an `ignite` input and a `burning` output (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `flare`.
+- Its `ignite` input above 0.5 lights it for good, attached or not, before behaviors run: a grip let go on the same tick lets it go burning. It records the robot it was part of (`decoyOf`) and burns `burn` seconds counted in ticks (`PartInstance.burn`, both in the state hash), then is destroyed without a blast (`partDestroyed` with `burntOut: true`, after a `burntOut` event).
+- While it burns, every sensor that sees it takes it for that robot (the rule is in `04`, contacts). A flare attaches only by its base (its S face at rotation 0), so flares stacked in a rack do not hold each other on.
+- The sprite's `litFrame` is drawn while it burns; the app adds a glow.
 
 ### Sensor parts (M8, as built)
 A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) is a sensor, facing its `acts` face. The engine reads the field; no part type is special-cased. A `sensor` behavior draws power while the `on` input is above 0.5; switched off or unpowered, it sees nothing.
