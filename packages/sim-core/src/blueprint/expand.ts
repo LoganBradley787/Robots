@@ -109,13 +109,17 @@ function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
       err('UNSUPPORTED', `${path} names a blueprint; blueprints are not referenced, they are copied in (\`pnpm sim place\` or the builder's Blueprints palette)`, { path });
       continue;
     }
-    const extra = unknownKeys(entry, ['part', 'rot', 'tags', 'auto']);
+    const extra = unknownKeys(entry, ['part', 'rot', 'tags', 'auto', 'armed']);
     if (extra.length > 0) {
-      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected part, rot, tags, auto)`, { path });
+      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected part, rot, tags, auto, armed)`, { path });
       continue;
     }
     if (entry.auto !== undefined && typeof entry.auto !== 'boolean') {
       err('BAD_FORMAT', `${path}.auto must be true or false`, { path: `${path}.auto` });
+      continue;
+    }
+    if (entry.armed !== undefined && typeof entry.armed !== 'boolean') {
+      err('BAD_FORMAT', `${path}.armed must be true or false`, { path: `${path}.armed` });
       continue;
     }
     if (!isNonEmptyString(entry.part)) {
@@ -134,6 +138,7 @@ function readLegend(raw: unknown, err: Err): Map<string, LegendEntry> {
     if (entry.rot !== undefined) e.rot = entry.rot;
     if (entry.tags !== undefined) e.tags = entry.tags;
     if (entry.auto === false) e.auto = false;
+    if (entry.armed === true) e.armed = true;
     legend.set(token, e);
   }
   return legend;
@@ -163,6 +168,7 @@ function expandGrid(raw: Obj, parts: PlacedPart[], continuations: { x: number; y
       const id = partId(entry.part, x, y);
       const placed: PlacedPart = { id, part: entry.part, x, y, rot: entry.rot ?? 0, tags: mergeTags(entry.tags, [id]) };
       if (entry.auto === false) placed.auto = false;
+      if (entry.armed === true) placed.armed = true;
       parts.push(placed);
     });
   });
@@ -179,12 +185,13 @@ function expandParts(raw: unknown, parts: PlacedPart[], err: Err): void {
       err('BAD_FORMAT', `${path} must be an object`, { path });
       return;
     }
-    const extra = unknownKeys(p, ['id', 'part', 'x', 'y', 'rot', 'tags', 'auto']);
+    const extra = unknownKeys(p, ['id', 'part', 'x', 'y', 'rot', 'tags', 'auto', 'armed']);
     if (extra.length > 0) {
-      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected id, part, x, y, rot, tags, auto)`, { path });
+      err('BAD_FORMAT', `${path} has unknown field '${extra[0]}' (expected id, part, x, y, rot, tags, auto, armed)`, { path });
       return;
     }
     if (p.auto !== undefined && typeof p.auto !== 'boolean') return err('BAD_FORMAT', `${path}.auto must be true or false`, { path: `${path}.auto` });
+    if (p.armed !== undefined && typeof p.armed !== 'boolean') return err('BAD_FORMAT', `${path}.armed must be true or false`, { path: `${path}.armed` });
     if (!isNonEmptyString(p.part)) return err('BAD_FORMAT', `${path}.part must be a part name`, { path: `${path}.part` });
     if (!Number.isInteger(p.x) || !Number.isInteger(p.y)) {
       return err('BAD_FORMAT', `${path}.x and .y must be integers`, { path });
@@ -201,6 +208,7 @@ function expandParts(raw: unknown, parts: PlacedPart[], err: Err): void {
     const id = (p.id as string | undefined) ?? partId(p.part, x, y);
     const placed: PlacedPart = { id, part: p.part, x, y, rot: (p.rot as Rotation | undefined) ?? 0, tags: mergeTags(p.tags as string[] | undefined, [id]) };
     if (p.auto === false) placed.auto = false;
+    if (p.armed === true) placed.armed = true;
     parts.push(placed);
   });
 }

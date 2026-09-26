@@ -26,6 +26,7 @@ export function toFileJson(bp: Blueprint, registry: PartRegistry, opts: { inline
       const tags = p.tags.filter((t) => t !== p.id);
       if (tags.length > 0) e.tags = tags;
       if (p.auto === false) e.auto = false;
+      if (p.armed === true) e.armed = true;
       return e;
     });
   }

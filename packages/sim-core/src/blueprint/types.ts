@@ -16,6 +16,8 @@ export interface LegendEntry {
   tags?: string[];
   /** `false` opts the part out of auto controls (`11`). Absent means on. */
   auto?: false;
+  /** M10: `true` starts a part that needs arming (`arming` in its def) armed. Absent means unarmed. */
+  armed?: true;
 }
 
 export interface PlacedPart {
@@ -27,6 +29,8 @@ export interface PlacedPart {
   tags: string[];
   /** `false` opts the part out of auto controls (`11`). Absent means on. */
   auto?: false;
+  /** M10: `true` starts a part that needs arming (`arming` in its def) armed. Absent means unarmed. */
+  armed?: true;
 }
 
 export type BindingMode = 'hold' | 'toggle' | 'pulse' | 'script';

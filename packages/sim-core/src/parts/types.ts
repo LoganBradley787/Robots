@@ -50,6 +50,8 @@ export interface SpriteSpec {
   animation?: string;
   /** Overlay animation in the fx sheet shown while the part acts (thruster flame). */
   overlay?: string;
+  /** M10: drawn instead of `frame` while the part is armed (a part with `arming`). */
+  armedFrame?: string;
 }
 
 export interface ResourceSpec {
@@ -120,6 +122,12 @@ export interface PartDef {
   resource?: ResourceSpec;
   onDestroyed?: { explode?: ExplodeSpec };
   impact?: ImpactSpec;
+  /**
+   * M10: the part is safe until armed. It needs an `arm` input (above 0.5 arms it for good) and an `armed` output.
+   * Unarmed, `onDestroyed.explode` and `impact` do not apply, and its behavior may ignore its triggers (a warhead's
+   * `detonate`). A blueprint can start it armed (`armed: true`).
+   */
+  arming?: boolean;
   sensor?: SensorSpec;
   sprite: SpriteSpec;
   defaultTags?: string[];

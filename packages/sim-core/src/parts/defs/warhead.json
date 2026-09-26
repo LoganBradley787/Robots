@@ -5,11 +5,15 @@
   "mass": 1,
   "health": 20,
   "symmetry": 4,
-  "inputs": [{ "name": "detonate", "min": 0, "max": 1, "default": 0 }],
-  "outputs": [],
+  "inputs": [
+    { "name": "detonate", "min": 0, "max": 1, "default": 0 },
+    { "name": "arm", "min": 0, "max": 1, "default": 0 }
+  ],
+  "outputs": [{ "name": "armed", "min": 0, "max": 1, "default": 0 }],
   "powerDraw": 0,
   "behavior": "warhead",
   "onDestroyed": { "explode": { "radius": 3, "damage": 120, "pushRadius": 5, "push": 40, "lift": 1.5 } },
   "impact": { "speed": 5 },
-  "sprite": { "frame": "part.warhead" }
+  "arming": true,
+  "sprite": { "frame": "part.warhead", "armedFrame": "part.warhead.armed" }
 }

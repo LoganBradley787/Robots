@@ -104,37 +104,44 @@
     {
       "part": "warhead",
       "x": 2,
-      "y": -1
+      "y": -1,
+      "armed": true
     },
     {
       "part": "warhead",
       "x": 1,
-      "y": -1
+      "y": -1,
+      "armed": true
     },
     {
       "part": "warhead",
       "x": 0,
-      "y": -1
+      "y": -1,
+      "armed": true
     },
     {
       "part": "warhead",
       "x": 0,
-      "y": 0
+      "y": 0,
+      "armed": true
     },
     {
       "part": "warhead",
       "x": -1,
-      "y": 0
+      "y": 0,
+      "armed": true
     },
     {
       "part": "warhead",
       "x": -3,
-      "y": 3
+      "y": 3,
+      "armed": true
     },
     {
       "part": "warhead",
       "x": 7,
-      "y": 5
+      "y": 5,
+      "armed": true
     },
     {
       "part": "frame",

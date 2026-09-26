@@ -58,6 +58,7 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
     newId.set(p.id, id);
     const out: PlacedPart = { id, part, x, y, rot: ((r + rot) % 360) as Rotation, tags: p.tags.filter((t) => t !== p.id) };
     if (p.auto === false || source.autoControls === false) out.auto = false;
+    if (p.armed === true) out.armed = true;
     return out;
   });
 

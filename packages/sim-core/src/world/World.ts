@@ -68,7 +68,9 @@ export type WorldEvent =
   /** A robot is gone: all its parts were destroyed, or Clear debris took it. */
   | { tick: number; robot: number; kind: 'removed' }
   /** A script sent a message to an attached core (M8); `data` is its JSON text. */
-  | { tick: number; robot: number; kind: 'sent'; to: string; data: string };
+  | { tick: number; robot: number; kind: 'sent'; to: string; data: string }
+  /** M10: a part that needs arming was armed by its `arm` input (a key or a script). */
+  | { tick: number; robot: number; kind: 'armed'; part: string };
 
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
@@ -301,6 +303,7 @@ export class World {
     for (const input of accepted) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
     this.runScripts();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
+    this.armParts();
     // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
     this.runBehaviors(true);
     if (this.dirty.size > 0) this.rebuildDirty();
@@ -310,6 +313,21 @@ export class World {
     this.damagePhase();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
+  }
+
+  /**
+   * M10: a part that needs arming (`arming` in its def) is armed for good once its `arm` input is above 0.5, before
+   * behaviors run, so arming and `detonate` on the same tick go off.
+   */
+  private armParts(): void {
+    for (const robot of this.robots) {
+      const chans = this.channels.get(robot.id);
+      for (const part of robot.parts.values()) {
+        if (part.armed !== false || (chans?.get(part.id)?.get('arm') ?? 0) <= 0.5) continue;
+        part.armed = true;
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'armed', part: part.id });
+      }
+    }
   }
 
   /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
@@ -374,7 +392,8 @@ export class World {
     for (const robot of this.robots) {
       for (const part of robot.parts.values()) {
         const group = robot.groups[part.group];
-        if (!part.def.impact || !group || this.unsettled.has(group.bodyId)) continue;
+        // A part that needs arming has its fuze off until it is armed (M10).
+        if (!part.def.impact || !group || this.unsettled.has(group.bodyId) || part.armed === false) continue;
         const s = this.physics.state(group.bodyId);
         const p = this.physics.prevState(group.bodyId);
         const dvx = s.vx - p.vx;
@@ -394,7 +413,8 @@ export class World {
         robot.parts.delete(part.id);
         this.dirty.add(robot);
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y });
-        const explode = part.def.onDestroyed?.explode;
+        // An unarmed part that needs arming breaks like any other part (M10).
+        const explode = part.armed === false ? undefined : part.def.onDestroyed?.explode;
         if (explode) this.queuedBlasts.push({ robot: robot.id, x: pose.x, y: pose.y, spec: explode });
       }
     }
@@ -738,6 +758,7 @@ export class World {
     if (own !== undefined) return own;
     if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
     if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
+    if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     return undefined;
   }
 
@@ -1083,6 +1104,8 @@ export class World {
         h.addF64(part.aim ?? 0);
         // A sensor's power last tick decides what its scripts see next (M8). Other parts add nothing.
         if (part.sensing !== undefined) h.addInt(part.sensing ? 1 : 0);
+        // Whether a part that needs arming is armed (M10). Other parts add nothing.
+        if (part.armed !== undefined) h.addInt(part.armed ? 2 : 3);
         // Messages waiting for a core (M8) shape what its scripts do.
         for (const m of part.inbox ?? []) {
           h.addString(m.from);
@@ -1217,6 +1240,7 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
     const pool = poolTotals(poolContainers(robot, referenceChunkIndex(robot, partId)));
     return name === 'energy' ? pool.stored : pool.capacity;
   }
+  if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
   return undefined;
 }
 

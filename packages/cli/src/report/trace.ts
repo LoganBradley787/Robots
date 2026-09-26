@@ -156,6 +156,9 @@ export class Tracer {
           push(e.robot, 'woke', `woke: ${robot ? coreLabel(robot) : 'its core'} runs its own controls; keys ${keys.join(', ') || 'none'}; scripts ${scripts.join(', ') || 'none'}${inbox}`);
           break;
         }
+        case 'armed':
+          push(e.robot, 'armed', `${e.part} armed`);
+          break;
         case 'coreLost':
           push(e.robot, 'coreLost', 'lost its core: nobody controls it now, its inputs stay as they were');
           break;

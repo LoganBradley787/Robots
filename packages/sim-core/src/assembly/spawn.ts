@@ -35,6 +35,8 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
     const def = registry.get(p.part);
     const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: 0, localX: 0, localY: 0 };
     if (def.resource) inst.stored = def.resource.capacity;
+    // M10: a part that needs arming starts safe unless the blueprint starts it armed.
+    if (def.arming === true) inst.armed = p.armed === true;
     parts.set(p.id, inst);
   }
   // Spawned upright: every body at angle 0, each at its origin cell.

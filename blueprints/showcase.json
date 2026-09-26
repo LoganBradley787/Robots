@@ -9,6 +9,7 @@
   ],
   "legend": {
     "P": { "part": "propeller", "tags": ["props"] },
-    "W": { "part": "wheel", "tags": ["wheels"] }
+    "W": { "part": "wheel", "tags": ["wheels"] },
+    "X": { "part": "warhead", "armed": true }
   }
 }

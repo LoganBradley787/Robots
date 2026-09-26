@@ -28,7 +28,7 @@ export function mirrorBlueprint(bp: Blueprint, axisHalfCells: number): Blueprint
     const id = partId(p.part, x, p.y);
     newId.set(p.id, id);
     const explicit = p.tags.filter((t) => t !== p.id);
-    return { id, part: p.part, x, y: p.y, rot: mirrorRotation(p.rot), tags: [...explicit, id], ...(p.auto === false ? { auto: false as const } : {}) };
+    return { id, part: p.part, x, y: p.y, rot: mirrorRotation(p.rot), tags: [...explicit, id], ...(p.auto === false ? { auto: false as const } : {}), ...(p.armed === true ? { armed: true as const } : {}) };
   });
   const rename = (id: string): string => newId.get(id) ?? id;
   const renameBindings = (bs: readonly Binding[]): Binding[] => bs.map((b) => (b.target !== undefined && newId.has(b.target) ? { ...b, target: rename(b.target) } : b));

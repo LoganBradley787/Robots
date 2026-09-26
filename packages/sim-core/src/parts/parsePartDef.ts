@@ -64,7 +64,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'sensor', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -178,6 +178,14 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const io = r.obj(o.impact, 'impact', ['speed']);
     def.impact = { speed: r.positive(io, 'speed', 'impact') };
   }
+  if (o.arming !== undefined) {
+    if (o.arming !== true && o.arming !== false) r.fail('arming', 'must be true or false');
+    if (o.arming === true) {
+      if (!def.inputs.some((c) => c.name === 'arm')) r.fail('arming', 'a part that needs arming must have an "arm" input');
+      if (!def.outputs.some((c) => c.name === 'armed')) r.fail('arming', 'a part that needs arming must have an "armed" output');
+      def.arming = true;
+    }
+  }
   if (o.sensor !== undefined) {
     const so = r.obj(o.sensor, 'sensor', ['cone', 'range']);
     const cone = r.positive(so, 'cone', 'sensor');
@@ -195,11 +203,12 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
 }
 
 function sprite(r: Reader, v: unknown): SpriteSpec {
-  const so = r.obj(v, 'sprite', ['frame', 'mountFrame', 'animation', 'overlay']);
+  const so = r.obj(v, 'sprite', ['frame', 'mountFrame', 'animation', 'overlay', 'armedFrame']);
   const s: SpriteSpec = { frame: r.str(so, 'frame', 'sprite') };
   if (so.mountFrame !== undefined) s.mountFrame = r.str(so, 'mountFrame', 'sprite');
   if (so.animation !== undefined) s.animation = r.str(so, 'animation', 'sprite');
   if (so.overlay !== undefined) s.overlay = r.str(so, 'overlay', 'sprite');
+  if (so.armedFrame !== undefined) s.armedFrame = r.str(so, 'armedFrame', 'sprite');
   return s;
 }
 

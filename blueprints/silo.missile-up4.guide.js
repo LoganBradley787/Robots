@@ -87,6 +87,9 @@ function boom() {
 }
 
 function setup() {
+  // Armed when its core wakes (M10): safe while it rides on a launcher, live once it is let go.
+  set('warhead', 'arm', 1);
+  set('heavywarhead', 'arm', 1);
   state.start = time;
   state.origin = { x: self.pos.x, y: self.pos.y };
   state.aim = nose();

@@ -4,7 +4,9 @@ import { parseWorldFile } from '../src/world/WorldFile';
 import { World, type WorldEvent } from '../src/world/World';
 
 const flat = parseWorldFile(flatJson);
-const BOMB = { format: 1, name: 'bomb', grid: ['X'] };
+/** A live bomb: since M10 a warhead needs arming, and a stock bomb starts armed. */
+const ARMED = { X: { part: 'warhead', armed: true } };
+const BOMB = { format: 1, name: 'bomb', grid: ['X'], legend: ARMED };
 
 const kinds = (w: World, kind: WorldEvent['kind']): WorldEvent[] => w.events.filter((e) => e.kind === kind);
 const destroyed = (w: World): string[] => w.events.flatMap((e) => (e.kind === 'partDestroyed' ? [e.part] : []));
@@ -24,7 +26,7 @@ describe('warheads (M6)', () => {
     const ram = async (speed: number): Promise<number> => {
       const wall = parseWorldFile({ name: 'wall', ground: { width: 50, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [{ x: 6, y: 20, w: 1, h: 10 }] });
       const w = await World.create({ seed: 1, gravityY: 0 }, wall);
-      const r = w.spawnBlueprint({ format: 1, name: 'ram', grid: ['F  F  C  X'] }, { x: 0, y: 20 });
+      const r = w.spawnBlueprint({ format: 1, name: 'ram', grid: ['F  F  C  X'], legend: ARMED }, { x: 0, y: 20 });
       w.physics.kick(r.groups[0]?.bodyId as number, speed, 0, 0);
       for (let i = 0; i < 180; i++) w.step();
       const n = kinds(w, 'explosion').length;
@@ -42,7 +44,7 @@ describe('warheads (M6)', () => {
         format: 1,
         name: 'chain',
         grid: ['C  F  F  F  F  X  X'],
-        legend: { X: { part: 'warhead' } },
+        legend: ARMED,
         bindings: [{ key: 'x', mode: 'pulse', target: 'warhead@5,0', channel: 'detonate', value: 1 }],
       },
       { x: -100, y: 0.5 },
@@ -58,7 +60,7 @@ describe('warheads (M6)', () => {
   it('a bomb hole: frames within 1.5 m break, frames beyond survive damaged, the rest splits off', async () => {
     const w = await World.create({ seed: 1 }, flat);
     const row = w.spawnBlueprint(
-      { format: 1, name: 'row', grid: ['C  F  F  F  X  F  F  F'], bindings: [{ key: 'x', mode: 'pulse', target: 'warhead', channel: 'detonate', value: 1 }] },
+      { format: 1, name: 'row', grid: ['C  F  F  F  X  F  F  F'], legend: ARMED, bindings: [{ key: 'x', mode: 'pulse', target: 'warhead', channel: 'detonate', value: 1 }] },
       { x: -100, y: 0.5 },
     );
     w.step([{ robot: row.id, pressed: ['x'], released: [] }]);

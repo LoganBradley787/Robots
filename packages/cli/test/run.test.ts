@@ -26,7 +26,7 @@ describe('runSim', () => {
 
   it('drops a bomb on the robot and reports what broke (M6)', async () => {
     const longcar = { format: 1, name: 'longcar', grid: ['C  F  F  F  B  F', 'W  .  .  .  .  W'] };
-    const bomb = { format: 1, name: 'bomb', grid: ['X'] };
+    const bomb = { format: 1, name: 'bomb', grid: ['X'], legend: { X: { part: 'warhead', armed: true } } };
     const r = await runSim(flat, longcar, { seconds: 6, seed: 1, at: { x: -100, y: 1.5 }, keys: [{ key: 'd', down: 0, up: 6 }], drops: [{ name: 'bomb', blueprint: bomb, t: 2, at: { x: -77, y: 4.95 } }] });
     expect(r.destruction.explosions).toBe(1);
     expect(r.destruction.destroyed).toContain('warhead@0,0');

@@ -4,14 +4,14 @@
   "drone": "2ee12c90",
   "longcar-bomb": "a56cac6d",
   "launcher": "f36a663f",
-  "missile-drone": "8a395657",
-  "missile-drone-10prop": "59485a31",
-  "launcher-seeker": "239fb1a3",
+  "missile-drone": "fa3b4917",
+  "missile-drone-10prop": "8d451f13",
+  "launcher-seeker": "53325b3b",
   "launcher-arc": "47d1bfc1",
-  "hunter-duel": "189c73fb",
-  "flying-silo-volley": "93ff64cc",
-  "silo-volley": "1059cb62",
-  "battle-2v2": "fe0dd417",
-  "big-launcher": "67ef6a03",
-  "drone-bombed": "4a92ebcc"
+  "hunter-duel": "b717218f",
+  "flying-silo-volley": "8f614077",
+  "silo-volley": "fa3b08c1",
+  "battle-2v2": "fe56be87",
+  "big-launcher": "a8ce5589",
+  "drone-bombed": "2f740861"
 }

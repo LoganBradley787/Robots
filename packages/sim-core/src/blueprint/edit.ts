@@ -108,6 +108,21 @@ export function setPartsAuto(bp: Blueprint, ids: readonly string[], on: boolean)
   };
 }
 
+/** M10: starts the given parts armed or unarmed. Unarmed is stored as the field being absent. */
+export function setPartsArmed(bp: Blueprint, ids: readonly string[], on: boolean): Blueprint {
+  return {
+    ...bp,
+    parts: bp.parts.map((p) => {
+      if (!ids.includes(p.id) || (p.armed === true) === on) return p;
+      if (!on) {
+        const { armed: _armed, ...rest } = p;
+        return rest;
+      }
+      return { ...p, armed: true };
+    }),
+  };
+}
+
 /** Turns auto controls on or off for the whole blueprint. */
 export function setAutoControls(bp: Blueprint, on: boolean): Blueprint {
   if ((bp.autoControls !== false) === on) return bp;

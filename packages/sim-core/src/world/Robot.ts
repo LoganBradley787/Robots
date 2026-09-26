@@ -23,6 +23,12 @@ export interface PartInstance {
    * then they are gone. A dormant core keeps them until it wakes. `data` is the JSON text.
    */
   inbox?: { from: string; tick: number; data: string }[];
+  /**
+   * M10: for a part whose def has `arming`, whether it is armed (set by the blueprint's `armed`, or for good once its
+   * `arm` input goes above 0.5). Undefined for other parts. Unarmed, it does not explode, its fuze is off, and a
+   * warhead ignores `detonate`.
+   */
+  armed?: boolean;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** Index of the body group that owns this part. */

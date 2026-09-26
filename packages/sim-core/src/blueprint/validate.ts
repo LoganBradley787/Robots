@@ -86,6 +86,12 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
   for (const c of src.continuations) {
     if (!occupied.has(`${c.x},${c.y}`)) err('BAD_CONTINUATION', `'=' at (${c.x}, ${c.y}) does not continue a multi-cell part`, { cell: c });
   }
+  // M10: only a part that needs arming can start armed.
+  for (const p of src.parts) {
+    if (p.armed !== true || registry.get(p.part).arming === true) continue;
+    const armable = registry.ids().filter((id) => registry.get(id).arming === true);
+    err('BAD_ARMED', `${p.id} is marked armed, but a ${p.part} is never armed (parts that need arming: ${armable.join(', ') || 'none'}); remove "armed"`, { partId: p.id, cell: { x: p.x, y: p.y } });
+  }
   if (issues.length > 0) return { issues, ok: false };
 
   // Def default tags join the blueprint's tags.
