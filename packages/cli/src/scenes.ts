@@ -41,6 +41,7 @@ export const GOLDEN_SCENES: readonly Scene[] = [
   // M10: the new enemies, and arming (a hit on a loaded drone sets off only what hit it).
   { name: 'drone-bomb-vs-drone', bp: 'drone-bomb', x: -100, y: 3, seconds: 8, team: 1, drops: ['missile-drone-10prop@0:-30,20'] },
   { name: 'truck-vs-car', bp: 'enemy-truck', x: -100, y: 1.45, seconds: 26, team: 1, drops: ['car@0:-350,1.45'] },
+  { name: 'enemy-big-drone-vs-hunter', bp: 'enemy-big-drone', x: -100, y: 1.55, seconds: 20, team: 1, drops: ['hunter-drone@0:-250,15'] },
   { name: 'enemy-flying-silo-vs-hunter', bp: 'enemy-flying-silo', x: -100, y: 1.5, seconds: 20, team: 1, drops: ['hunter-drone@0:-250,15'] },
 ];
 

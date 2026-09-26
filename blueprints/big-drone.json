@@ -1,0 +1,472 @@
+{
+  "format": 1,
+  "name": "big-drone",
+  "grid": [
+    ".   a   .   .   .   b   .   .   .   c   .   .   .   p30 .   .",
+    ".   d   d   .   .   e   e   .   .   f   f   .   .   p31 p31 .",
+    ".   d   d   .   .   e   e   .   .   f   f   .   .   p31 p31 .",
+    ".   g   h   .   .   i   j   .   .   k   l   .   .   p32 p33 .",
+    ".   m   m   .   .   n   n   .   .   o   o   .   .   p34 p34 .",
+    "p   q   q   r   s   t   t   u   v   w   w   x   y   p35 p35 z",
+    "F   Z   p26 F   F   Z   p26 C   p27 p26 Z   F   F   p26 Z   F",
+    "p28 p28 p28 p28 .   .   p28 .   .   p29 .   .   p29 p29 p29 p29"
+  ],
+  "legend": {
+    "a": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "big-missile1"
+      ]
+    },
+    "b": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "big-missile2"
+      ]
+    },
+    "c": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ]
+    },
+    "d": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "big-missile1"
+      ]
+    },
+    "e": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "big-missile2"
+      ]
+    },
+    "f": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ]
+    },
+    "g": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "big-missile1"
+      ]
+    },
+    "h": {
+      "part": "battery",
+      "rot": 0,
+      "tags": [
+        "big-missile1"
+      ]
+    },
+    "i": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "big-missile2"
+      ]
+    },
+    "j": {
+      "part": "battery",
+      "rot": 0,
+      "tags": [
+        "big-missile2"
+      ]
+    },
+    "k": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ]
+    },
+    "l": {
+      "part": "battery",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ]
+    },
+    "m": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "big-missile1"
+      ],
+      "auto": false
+    },
+    "n": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "big-missile2"
+      ],
+      "auto": false
+    },
+    "o": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ],
+      "auto": false
+    },
+    "p": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip1"
+      ]
+    },
+    "q": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "big-missile1"
+      ],
+      "auto": false
+    },
+    "r": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip1"
+      ]
+    },
+    "s": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip2"
+      ]
+    },
+    "t": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "big-missile2"
+      ],
+      "auto": false
+    },
+    "u": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip2"
+      ]
+    },
+    "v": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip3"
+      ]
+    },
+    "w": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "big-missile3"
+      ],
+      "auto": false
+    },
+    "x": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip3"
+      ]
+    },
+    "y": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "grip4"
+      ]
+    },
+    "z": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "grip4"
+      ]
+    },
+    "p26": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ],
+      "auto": false
+    },
+    "p27": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "p28": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "lboost"
+      ],
+      "auto": false
+    },
+    "p29": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "rboost"
+      ],
+      "auto": false
+    },
+    "p30": {
+      "part": "seeker",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ]
+    },
+    "p31": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ]
+    },
+    "p32": {
+      "part": "core",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ]
+    },
+    "p33": {
+      "part": "battery",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ]
+    },
+    "p34": {
+      "part": "heavygyro",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ],
+      "auto": false
+    },
+    "p35": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "big-missile4"
+      ],
+      "auto": false
+    }
+  },
+  "primaryCore": "core@7,1",
+  "cores": {
+    "core@1,4": {
+      "scope": "big-missile1",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 8,
+            "thrust": 800,
+            "gyroTorque": 400
+          },
+          "source": {
+            "file": "big-drone.big-missile1.guide.js"
+          }
+        }
+      ]
+    },
+    "core@5,4": {
+      "scope": "big-missile2",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 8,
+            "thrust": 800,
+            "gyroTorque": 400
+          },
+          "source": {
+            "file": "big-drone.big-missile2.guide.js"
+          }
+        }
+      ]
+    },
+    "core@9,4": {
+      "scope": "big-missile3",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 8,
+            "thrust": 800,
+            "gyroTorque": 400
+          },
+          "source": {
+            "file": "big-drone.big-missile3.guide.js"
+          }
+        }
+      ]
+    },
+    "core@13,4": {
+      "scope": "big-missile4",
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 8,
+            "thrust": 800,
+            "gyroTorque": 400
+          },
+          "source": {
+            "file": "big-drone.big-missile4.guide.js"
+          }
+        }
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "hover",
+      "params": {
+        "lift": 400,
+        "gyroTorque": 800,
+        "lean": 30
+      },
+      "source": {
+        "file": "big-drone.hover.js"
+      }
+    },
+    {
+      "id": "fire",
+      "source": {
+        "file": "big-drone.fire.js"
+      }
+    }
+  ],
+  "bindings": [
+    {
+      "key": "h",
+      "mode": "script",
+      "script": "hover"
+    }
+  ]
+}

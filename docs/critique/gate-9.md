@@ -9,6 +9,9 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 4. **Enemy flying silo.** Deploy `enemy-flying-silo` as Enemy on the ground in open space (left of the boxes), then something of yours 100 m or more away. It climbs, holds 80 m off and 20 m up, and fires every 1.5 s.
 5. **Enemy truck.** Deploy `enemy-truck` as Enemy, then a car of yours in open ground (left of the boxes: ground robots cannot see through them). It drives until 150 m away, stops, and fires arcs.
 
+## Extras after the gate opened
+- **Big drone (Logan):** `big-drone`, four big missiles on a booster-lifted drone (the flying silo's hover: W S A D, H toggles it; F launches the next big missile at a tracked enemy, spread across targets). `enemy-big-drone` is the same with an AI pilot: it holds 100 m off and 20 m up and fires one every 3 s. Each big missile's four heavy warheads go off together.
+
 ## Flagged for your call
 - **The drone bomb is fast** (up to about 45 m/s; "as fast as it can while it can still slow down and hit a drone"). You only outrun it by flying flat out, since nothing has drag. `speed` is a param if it feels too hard.
 - **It cannot see the ground,** so it keeps 6 m over its target until close and comes in from above. Real terrain-following needs a ground-seeing part (in `ideas.md`).
