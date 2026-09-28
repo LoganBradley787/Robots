@@ -191,7 +191,10 @@
       "source": {
         "file": "enemy-fab-gun-drone.pilot.js"
       },
-      "params": {}
+      "params": {
+        "standoff": 200,
+        "maxRange": 600
+      }
     },
     {
       "id": "turrets",

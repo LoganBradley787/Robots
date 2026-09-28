@@ -278,7 +278,9 @@ function tick() {
         const dy = self.pos.y - target.pos.y;
         state.crossOver = Math.abs(dy) > 2 ? dy > 0 : here < 0;
       }
-      goal = { x: goal.x, y: state.crossOver ? Math.max(self.pos.y, target.pos.y + cross) : target.pos.y - cross };
+      // Over: `cross` above it, never past its ceiling plus `cross` (the goal once followed its own height, and a drone
+      // chasing one that kept its distance ratcheted up past 200 m and flew off the edge of the world).
+      goal = { x: goal.x, y: state.crossOver ? Math.min(target.pos.y + cross, state.home.y + ceiling + cross) : target.pos.y - cross };
     } else state.crossOver = undefined;
   } else state.crossOver = undefined;
 

@@ -1,6 +1,6 @@
 {
   "name": "flat",
-  "ground": { "width": 1000, "thickness": 2 },
+  "ground": { "width": 4000, "thickness": 2 },
   "spawn": { "x": 0, "y": 6 },
   "boxes": [
     { "x": 8, "y": 1, "w": 2, "h": 2 },

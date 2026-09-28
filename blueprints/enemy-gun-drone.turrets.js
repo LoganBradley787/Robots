@@ -37,6 +37,8 @@ const damage = param('damage', 5, { min: 0.1, max: 1000 }); // a shell's damage 
 const size = param('size', 1, { min: 0.1, max: 10 }); // m off the aim point that still counts as on target
 const tight = param('tight', 0.012, { min: 0.001, max: 0.5 }); // radians: on target at the least this close
 // What breaking each kind of part is worth: disarm it, blow it up, kill or blind it, then ground it.
+// Share of a shell's damage each kind of part takes (the parts' `shellDamage`: frames are armor against guns).
+const SHELL = { frame: 0.25 };
 const WORTH = { gun: 10, heavywarhead: 12, warhead: 10, core: 8, radar: 6, rotator: 4, booster: 4, propeller: 4, thruster: 3, fabbay: 5, seeker: 3, battery: 2, densebattery: 2, heavygyro: 2, gyro: 2, wheel: 2, cell: 1, decoupler: 1, flare: 0.5, frame: 0.5 };
 const g = 9.81;
 const SIGHT = { nothing: 0, own: 1, friend: 2, enemy: 3, none: 4, terrain: 5 };
@@ -103,7 +105,8 @@ function bestPart(target, from) {
   const list = scanned(target.id);
   if (!list || list.length === 0) return undefined;
   // Best first by what each could score with nothing in front of it; stop once none left can beat the best.
-  const order = list.map((p) => ({ p, bound: (WORTH[p.type] ?? 1) / Math.ceil(p.health / damage) }));
+  const shells = (p) => Math.ceil(p.health / (damage * (SHELL[p.type] ?? 1)));
+  const order = list.map((p) => ({ p, bound: (WORTH[p.type] ?? 1) / shells(p) }));
   order.sort((a, b) => b.bound - a.bound);
   let best;
   for (const { p, bound } of order) {
@@ -115,16 +118,16 @@ function bestPart(target, from) {
     if (d < 0.1) continue;
     const ux = rx / d;
     const uy = ry / d;
-    let shells = Math.ceil(p.health / damage);
+    let cost = shells(p);
     for (const q of list) {
       if (q === p) continue;
       const qx = q.pos.x - from.x;
       const qy = q.pos.y - from.y;
       const along = qx * ux + qy * uy;
       if (along <= 0 || along >= d - 0.3) continue;
-      if (Math.abs(qx * uy - qy * ux) < 0.6) shells += Math.ceil(q.health / damage);
+      if (Math.abs(qx * uy - qy * ux) < 0.6) cost += shells(q);
     }
-    const score = worth / shells;
+    const score = worth / cost;
     if (!best || score > best.score) best = { id: p.id, score };
   }
   return best && best.id;

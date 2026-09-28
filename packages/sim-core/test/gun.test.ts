@@ -57,19 +57,23 @@ describe('guns (M13)', () => {
     w2.dispose();
   });
 
-  it('a shell takes 5 off the first part it hits; a frame block goes after 12 hits', async () => {
+  it('a shell takes 5 off the first part it hits, a quarter of that off a frame: a frame block goes after 48 hits', async () => {
     const w = await World.create({ seed: 1 }, flat);
     const car = w.spawnBlueprint(GUN_CAR, { x: -100, y: 0.5 });
     // A coreless blueprint is placed by its first part, the top of the post.
     const post = w.spawnBlueprint(POST, { x: -80, y: 2.5 });
+    const target = w.spawnBlueprint(ENEMY_CAR, { x: -100, y: 60.5 }, { team: 1 });
+    const upper = w.spawnBlueprint(GUN_CAR, { x: -120, y: 60.5 });
     for (let i = 0; i < 20; i++) w.step();
-    w.step(hold(car.id, 'f'));
+    w.step([...hold(car.id, 'f'), ...hold(upper.id, 'f')]);
     for (let i = 0; i < 40; i++) w.step();
-    const hits = w.events.filter((e) => e.kind === 'shellHit');
-    expect(hits.length).toBeGreaterThanOrEqual(6);
-    expect(hits[0]).toMatchObject({ robot: post.id, part: 'frame@0,0', partType: 'frame', by: car.id, damage: 5 });
-    expect(post.parts.get('frame@0,0')?.health).toBe(60 - 5 * hits.length);
-    for (let i = 0; i < 60; i++) w.step();
+    const onFrame = w.events.filter((e) => e.kind === 'shellHit' && e.robot === post.id && e.part === 'frame@0,0');
+    expect(onFrame.length).toBeGreaterThanOrEqual(6);
+    expect(onFrame[0]).toMatchObject({ partType: 'frame', by: car.id, damage: 1.25 });
+    expect(post.parts.get('frame@0,0')?.health).toBe(60 - 1.25 * onFrame.length);
+    const onCore = w.events.filter((e) => e.kind === 'shellHit' && e.robot === target.id);
+    expect(onCore[0]).toMatchObject({ partType: 'core', damage: 5 });
+    for (let i = 0; i < 480; i++) w.step();
     expect(post.parts.has('frame@0,0')).toBe(false);
     w.dispose();
   });
@@ -118,7 +122,7 @@ describe('guns (M13)', () => {
     }
   });
 
-  it('an armed warhead shot 4 times explodes; an unarmed one just breaks', async () => {
+  it('an armed warhead goes off at the first shell (its impact fuze); an unarmed one breaks after 4', async () => {
     for (const armed of [true, false]) {
       const w = await World.create({ seed: 1 }, flat);
       const car = w.spawnBlueprint(GUN_CAR, { x: -100, y: 0.5 });
@@ -126,7 +130,7 @@ describe('guns (M13)', () => {
       w.step(hold(car.id, 'f'));
       for (let i = 0; i < 40; i++) w.step();
       const hits = w.events.filter((e) => e.kind === 'shellHit');
-      expect(hits.length).toBe(4);
+      expect(hits.length).toBe(armed ? 1 : 4);
       expect(w.events.filter((e) => e.kind === 'partDestroyed')).toMatchObject([{ partType: 'warhead', exploded: armed }]);
       expect(w.events.filter((e) => e.kind === 'explosion').length).toBe(armed ? 1 : 0);
       w.dispose();

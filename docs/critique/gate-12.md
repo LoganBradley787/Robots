@@ -48,3 +48,11 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - Tried before any bigger change: shells spread up to 0.5 degrees (center weighted, deterministic), and radar range doubled to 1000 m.
 - Measured, 600 m apart, 60 s: the enemy fab drone now beats the enemy gun drone (2 parts lost against 24; it fires from outside gun range); the many-gun drone still beats the fab drone and the fab gun drone; the enemy flying silo beats the gun drone. Missile shootdowns in the done-when tests still hold (4 or more hits, nothing lost). The 2v2 friendly fire check now allows a stray shell in twenty.
 
+### 4. Third play (Logan, 2026-09-28)
+- Fab gun drone against many-gun drone: the fab drone closed into gun range before firing (it fired within 250 m and held 50 m off), lost its gun, and crashed; tilted, it would not launch. A second one got a missile through and took the many-gun drone's core ("close enough to a win").
+- Gun drone duel: they shot each other's guns off, crossed over, and one won. A many-gun drone then shredded the winner.
+- Heavy armor as a target: the gun drone circled for an angle at its wheels and chipped it apart in seconds. "Guns might be a little too powerful": a gun should not cut through a metal frame fast, and an armed warhead should go off at one shot.
+- Changed (Logan's picks): frames take a quarter of a shell's damage (`shellDamage` on parts, blasts unchanged); an armed warhead's impact fuze goes off at a shell hit; every fab drone (missiles, drone bombs, and the fab gun drone) holds 200 m off and fires from 600 m ("it doesn't make sense for a fab drone to drive into gun range; the guns are defense"). The turret script counts frames as four times the shells.
+- Found testing that: fights now spread past the flat world's ground (1000 m wide) and a drone fell off its end; the flat world is now 4000 m wide (every golden hash and the two determinism snapshots rewritten on purpose; saved replays carry their own world and still match). And a gun drone crossing over a target that kept its distance ratcheted its height up past 200 m; crossing is now capped at its ceiling plus 25 m.
+- Measured, 600 m apart, 60 s: the enemy fab drone now beats the many-gun drone (24 parts against 2); the fab gun drone beats the armored gun drone; the fab gun drone and the many-gun drone wreck each other.
+

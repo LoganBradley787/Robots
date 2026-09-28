@@ -65,7 +65,7 @@ function join(path: string, key: string): string {
 }
 
 const DEF_KEYS = [
-  'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
+  'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
   'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
@@ -185,6 +185,11 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     } else {
       def.onDestroyed = {};
     }
+  }
+  if (o.shellDamage !== undefined) {
+    const f = r.num(o, 'shellDamage', '');
+    if (f < 0 || f > 10) r.fail('shellDamage', 'must be 0 to 10 (the share of a shell\'s damage the part takes)');
+    def.shellDamage = f;
   }
   if (o.impact !== undefined) {
     const io = r.obj(o.impact, 'impact', ['speed']);

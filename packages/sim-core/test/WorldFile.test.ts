@@ -12,7 +12,7 @@ describe('parseWorldFile', () => {
   it('parses the shipped flat world with defaults filled in', () => {
     const w = parseWorldFile(flatJson);
     expect(w.name).toBe('flat');
-    expect(w.ground).toEqual({ width: 1000, thickness: 2 });
+    expect(w.ground).toEqual({ width: 4000, thickness: 2 });
     expect(w.spawn).toEqual({ x: 0, y: 6 });
     expect(w.boxes).toHaveLength(3);
     expect(w.boxes[0]).toEqual({ x: 8, y: 1, w: 2, h: 2, angleDeg: 0, dynamic: false, mass: 1 });

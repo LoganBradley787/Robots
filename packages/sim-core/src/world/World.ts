@@ -826,9 +826,11 @@ export class World {
     const part = owner === undefined ? undefined : robot?.parts.get(owner);
     // Terrain, or a part already destroyed this tick (its collider goes in the damage phase): the shell just stops.
     if (!robot || !part || part.health <= 0) return;
-    part.health -= sh.damage;
+    const damage = sh.damage * (part.def.shellDamage ?? 1);
+    // A shell is a hard knock: an armed part with an impact fuze (a warhead) goes off at once (Logan, after Gate 12).
+    part.health = part.def.impact && part.armed !== false ? 0 : part.health - damage;
     if (sh.push > 0) this.pendingPushes.push({ part, jx: dx * sh.push, jy: dy * sh.push, quiet: true });
-    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'shellHit', part: part.id, partType: part.def.id, by: sh.robot, x: sh.x, y: sh.y, damage: sh.damage });
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'shellHit', part: part.id, partType: part.def.id, by: sh.robot, x: sh.x, y: sh.y, damage });
   }
 
   /**

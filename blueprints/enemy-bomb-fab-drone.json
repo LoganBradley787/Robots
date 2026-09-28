@@ -161,7 +161,8 @@
         "settle": 0,
         "jitter": 0,
         "minRange": 0,
-        "maxRange": 1000
+        "maxRange": 1000,
+        "standoff": 200
       }
     },
     {

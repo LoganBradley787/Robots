@@ -189,6 +189,11 @@ export interface PartDef {
   onDestroyed?: { explode?: ExplodeSpec };
   impact?: ImpactSpec;
   /**
+   * Share of a shell's damage the part takes (Logan, after Gate 12: a gun should not cut through a metal frame fast;
+   * blasts are unchanged). 1 when absent. Frames are 0.25.
+   */
+  shellDamage?: number;
+  /**
    * M10: the part is safe until armed. It needs an `arm` input (above 0.5 arms it for good) and an `armed` output.
    * Unarmed, `onDestroyed.explode` and `impact` do not apply, and its behavior may ignore its triggers (a warhead's
    * `detonate`). A blueprint can start it armed (`armed: true`).
