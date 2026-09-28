@@ -50,11 +50,11 @@ export const GOLDEN_SCENES: readonly Scene[] = [
   // the enemy one.
   { name: 'enemy-fab-drone-vs-cars', bp: 'enemy-fab-drone', x: -60, y: 20, team: 1, seconds: 16, drops: ['car@0:-150,1.45', 'car@0:-175,1.45'] },
   { name: 'bomb-fab-drones', bp: 'bomb-fab-drone', x: -100, y: 15, seconds: 18, keys: 'f:1-18', drops: ['enemy-bomb-fab-drone@0:-190,25:enemy:flip'] },
-  // M11: flares. The hunter pops a pair three times while the enemy flying silo fires at it (hunter-duel and the enemy
-  // scenes above have the enemies popping their own).
   // M13: guns. A gun drone's turrets shoot down a missile fired at it; an enemy gun drone shreds a hovering hunter.
   { name: 'gun-drone-vs-missile', bp: 'launcher-seeker', x: -300, y: 1.5, team: 1, seconds: 8, keys: 'f:1', drops: ['gun-drone@0:-60,40'] },
   { name: 'enemy-gun-drone-vs-hunter', bp: 'enemy-gun-drone', x: 40, y: 40, team: 1, seconds: 15, drops: ['hunter-drone@0:-40,40'] },
+  // M11: flares. The hunter pops a pair three times while the enemy flying silo fires at it (hunter-duel and the enemy
+  // scenes above have the enemies popping their own).
   { name: 'hunter-flares', bp: 'hunter-drone', x: -250, y: 15, seconds: 12, keys: 'v:3.8, v:6, v:8.5', drops: ['enemy-flying-silo@0:-100,1.5:enemy'] },
 ];
 

@@ -88,6 +88,29 @@ describe('guns (M13)', () => {
     w.dispose();
   });
 
+  it('nothing passes through a one-cell block coming straight at the gun, even at 250 m/s', async () => {
+    for (const speed of [0, 130, 250]) {
+      const w = await World.create({ seed: 1 }, flat);
+      const car = w.spawnBlueprint(GUN_CAR, { x: -100, y: 2000 });
+      const block = w.spawnBlueprint({ format: 1, name: 'block', grid: ['F'] }, { x: 100, y: 2000 });
+      w.step(hold(car.id, 'f'));
+      const passed = new Set<object>();
+      for (let i = 0; i < 200; i++) {
+        const g = block.groups[0];
+        if (i === 0 && g) w.physics.kick(g.bodyId, -speed, 0, 0);
+        w.step();
+        const b = block.groups[0];
+        if (!b || block.parts.size === 0) break;
+        const s = w.physics.state(b.bodyId);
+        for (const sh of w.liveShells()) if (sh.x > s.x + 0.6 && Math.abs(sh.y - s.y) < 0.45) passed.add(sh);
+        if (s.x < -90) break;
+      }
+      expect(passed.size, `at ${speed} m/s`).toBe(0);
+      expect(w.events.filter((e) => e.kind === 'shellHit').length, `at ${speed} m/s`).toBeGreaterThan(2);
+      w.dispose();
+    }
+  });
+
   it('an armed warhead shot 4 times explodes; an unarmed one just breaks', async () => {
     for (const armed of [true, false]) {
       const w = await World.create({ seed: 1 }, flat);

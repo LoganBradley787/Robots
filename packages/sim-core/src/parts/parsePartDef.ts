@@ -218,7 +218,10 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     for (const out of GUN_OUTPUTS) if (!def.outputs.some((c) => c.name === out)) r.fail('gun', `a gun must have a "${out}" output`);
     const recoil = r.num(g, 'recoil', 'gun');
     if (recoil < 0) r.fail('gun.recoil', 'must not be negative');
-    def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range: r.positive(g, 'range', 'gun') };
+    const range = r.positive(g, 'range', 'gun');
+    const sight = def.outputs.find((c) => c.name === 'sight');
+    if (sight && sight.max !== range) r.fail('gun', `its "sight" output's max must be its range (${range})`);
+    def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range };
   }
   if (o.stretch !== undefined) {
     const so = r.obj(o.stretch, 'stretch', ['shape', 'min', 'max', 'massPerCell']);

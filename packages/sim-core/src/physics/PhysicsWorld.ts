@@ -414,6 +414,23 @@ export class PhysicsWorld {
     return { body, owner: this.owners.get(hit.collider.handle), distance: hit.timeOfImpact };
   }
 
+  /**
+   * Every collider a ray from (x, y) along the unit vector (dx, dy) touches within `length` meters, nearest first (ties
+   * by body id, then owner, so the order never depends on Rapier's handles). Same rules as `castRay`.
+   */
+  rayHits(x: number, y: number, dx: number, dy: number, length: number, skip?: (body: BodyId, owner: string | undefined) => boolean): { body: BodyId; owner: string | undefined; distance: number }[] {
+    const ray = new RAPIER.Ray({ x, y }, { x: dx, y: dy });
+    const out: { body: BodyId; owner: string | undefined; distance: number }[] = [];
+    this.world.intersectionsWithRay(ray, length, true, (hit) => {
+      const parent = hit.collider.parent();
+      const body = parent ? this.byHandle.get(parent.handle) : undefined;
+      const owner = this.owners.get(hit.collider.handle);
+      if (body !== undefined && !skip?.(body, owner)) out.push({ body, owner, distance: hit.timeOfImpact });
+      return true;
+    });
+    return out.sort((a, b) => a.distance - b.distance || a.body - b.body || (a.owner ?? '').localeCompare(b.owner ?? ''));
+  }
+
   /** Owners of every collider that has one, in creation order. */
   colliderOwners(): string[] {
     return [...this.owners.values()];

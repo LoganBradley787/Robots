@@ -9,7 +9,9 @@
 //   gun's `speed` plus our own motion), and up by what a shell falls on the way.
 // - Fire: within `reach` meters, while the barrel is on the aim point and the gun's sight says nothing of ours is in
 //   the way: the sight is a straight line out of the barrel, and shells hit friends and this robot too. A shell lives
-//   1 s (300 m); the sight looks 150 m, and past that nothing of ours shows (a friend beyond it is a risk it takes).
+//   1 s (300 m); the sight looks 150 m, and past that nothing of ours shows. The sight is straight and the barrel
+//   points above the target by the drop, so it also holds fire while a friend the radar tracks is within `clear`
+//   meters of the path to the target, nearer than it (a friend just in front of the target sits under the sight line).
 // With `auto` at 0, G switches the turrets on and off (they start on); robots that fly themselves leave it at 1.
 const auto = param('auto', 1, { min: 0, max: 1 });
 const speed = param('speed', 300, { min: 1, max: 5000 }); // m/s, the gun's shell speed (the gun part)
@@ -20,6 +22,7 @@ const gain = param('gain', 6, { min: 0.1, max: 50 }); // turn rate per radian of
 const rate = param('rate', 2, { min: 0.1, max: 20 }); // rad/s, the rotator's fastest turn (for leading a moving aim)
 const hold = param('hold', 0.5, { min: 0, max: 10 }); // s blocked before it gives up on a target
 const skip = param('skip', 1.5, { min: 0, max: 30 }); // s it leaves a target it gave up on
+const clear = param('clear', 6, { min: 0, max: 50 }); // m: a friend's center this close to the path holds fire
 const g = 9.81;
 const SIGHT = { nothing: 0, own: 1, friend: 2, enemy: 3, none: 4, terrain: 5 };
 
@@ -44,6 +47,21 @@ function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
   while (a < -Math.PI) a += 2 * Math.PI;
   return a;
+}
+
+/** A friend the radar tracks within `clear` meters of the path from `from` toward `angle`, nearer than `distance`. */
+function friendOnPath(from, angle, distance) {
+  const ux = Math.cos(angle);
+  const uy = Math.sin(angle);
+  for (const c of contacts) {
+    if (c.side !== 'friend') continue;
+    const rx = c.center.x - from.x;
+    const ry = c.center.y - from.y;
+    const along = rx * ux + ry * uy;
+    if (along < 0 || along > distance) continue;
+    if (Math.abs(rx * uy - ry * ux) < clear) return true;
+  }
+  return false;
 }
 
 /** The part with this tag, or undefined. */
@@ -112,7 +130,7 @@ function aimTurret(name) {
   const on = Math.abs(err) < Math.max(0.01, Math.atan2(1.5, best.l.distance));
   const side = gun.out.sightSide;
   // Something of ours in the way: its own robot, a friend, or the ground, nearer than the target.
-  const blocked = (side === SIGHT.own || side === SIGHT.friend || side === SIGHT.terrain) && gun.out.sight < best.l.distance;
+  const blocked = ((side === SIGHT.own || side === SIGHT.friend || side === SIGHT.terrain) && gun.out.sight < best.l.distance) || friendOnPath(from, want, best.l.distance);
   st.blocked = blocked ? st.blocked + dt : 0;
   if (st.blocked > hold) {
     st.skip[best.c.id] = time + skip;

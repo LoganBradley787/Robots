@@ -108,6 +108,13 @@ interface SeenDecoy {
   vel: { x: number; y: number };
 }
 
+/**
+ * M13: the fastest anything is taken to close on a shell, m/s. Each tick a shell also looks this far (times dt) behind
+ * where it was, for a body that came at it through that stretch during the tick: the ray is cast against where bodies
+ * are at the end of the tick, so without it a missile closing at 130 m/s let about one shell in six through its nose.
+ */
+const SHELL_SWEEP = 600;
+
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
 
@@ -219,6 +226,8 @@ export class World {
   private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true }[] = [];
   /** M13: shells in flight, oldest first. Simulation state, hashed. */
   private shells: Shell[] = [];
+  /** M13: robots that grew parts this tick, whose new guns get their aim before scripts next run. Derived. */
+  private readonly unprimed = new Set<Robot>();
   /** M13: shells each robot's guns have fired. Reporting only. */
   private readonly shots = new Map<number, number>();
   /**
@@ -309,6 +318,7 @@ export class World {
       this.channels.set(robot.id, controller.values());
       this.startScripts(robot, robot.blueprint.scripts);
     }
+    this.primeSights(robot);
     this.spawnLog.push({ tick: this.tickCount, name: robot.name, at: { x: at.x, y: at.y }, blueprint: raw, ...(team !== 0 ? { team } : {}) });
     return robot;
   }
@@ -358,6 +368,8 @@ export class World {
     this.pendingClearDebris = false;
     this.inputLog.append(this.tickCount, accepted, Object.keys(change).length > 0 ? change : undefined);
     for (const input of accepted) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
+    for (const robot of this.unprimed) this.primeSights(robot);
+    this.unprimed.clear();
     this.runScripts();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     this.armParts();
@@ -715,6 +727,8 @@ export class World {
     const guns: { robot: Robot; part: PartInstance }[] = [];
     for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.gun !== undefined) guns.push({ robot, part });
     if (guns.length === 0 && this.shells.length === 0) return;
+    // Shells in flight before this tick: only they can have met something coming the other way during it.
+    const old = new Set(this.shells);
     const bodies = new Map<BodyId, Robot>();
     for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
     for (const { robot, part } of guns) {
@@ -733,8 +747,20 @@ export class World {
       if (spec.recoil > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.recoil, jy: -m.dy * spec.recoil, quiet: true });
       this.shots.set(robot.id, (this.shots.get(robot.id) ?? 0) + 1);
     }
-    if (this.shells.length > 0) this.flyShells(bodies);
+    if (this.shells.length > 0) this.flyShells(bodies, old);
     for (const { robot, part } of guns) this.look(robot, part, bodies);
+  }
+
+  /**
+   * M13: a gun that has not looked yet (just spawned or built) knows which way it points: its `aim` from its pose, and
+   * nothing seen yet. Without this a script would read aim 0 for a gun pointing left on its first tick.
+   */
+  private primeSights(robot: Robot): void {
+    for (const part of robot.parts.values()) {
+      if (!part.def.gun || part.sight) continue;
+      const m = this.muzzle(robot, part);
+      if (m) part.sight = { distance: part.def.gun.range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
+    }
   }
 
   /** Where a gun's barrel ends, which way it points (a unit vector), and how fast that point moves (M13). */
@@ -754,7 +780,12 @@ export class World {
     return { x, y, dx, dy, vx: s.vx - s.w * (y - com.comY), vy: s.vy + s.w * (x - com.comX) };
   }
 
-  private flyShells(bodies: Map<BodyId, Robot>): void {
+  /**
+   * Moves every shell one tick. The ray starts `SHELL_SWEEP * dt` behind where the shell was: a hit in that stretch
+   * counts only if the body moved toward the shell enough this tick to have been ahead of it when the tick began (it
+   * came through the shell). A shell fired this tick left from where its gun is now, so it has nothing behind it.
+   */
+  private flyShells(bodies: Map<BodyId, Robot>, old: Set<Shell>): void {
     const flying: Shell[] = [];
     for (const sh of this.shells) {
       sh.px = sh.x;
@@ -763,11 +794,21 @@ export class World {
       const mx = sh.vx * this.dt;
       const my = sh.vy * this.dt;
       const len = Math.sqrt(mx * mx + my * my);
-      const hit = len > 0 ? this.physics.castRay(sh.x, sh.y, mx / len, my / len, len, (b, owner) => owner === sh.gun && bodies.get(b)?.id === sh.robot) : undefined;
+      if (len === 0) continue;
+      const dx = mx / len;
+      const dy = my / len;
+      const back = old.has(sh) ? SHELL_SWEEP * this.dt : 0;
+      const skip = (b: BodyId, owner: string | undefined): boolean => owner === sh.gun && bodies.get(b)?.id === sh.robot;
+      const hits = this.physics.rayHits(sh.x - dx * back, sh.y - dy * back, dx, dy, len + back, skip);
+      const hit = hits.find((h) => {
+        if (h.distance >= back) return true;
+        const v = this.physics.state(h.body);
+        return -(v.vx * dx + v.vy * dy) * this.dt >= back - h.distance;
+      });
       if (hit) {
-        sh.x += (mx / len) * hit.distance;
-        sh.y += (my / len) * hit.distance;
-        this.shellHit(sh, bodies.get(hit.body), hit.owner, mx / len, my / len);
+        sh.x += dx * (hit.distance - back);
+        sh.y += dy * (hit.distance - back);
+        this.shellHit(sh, bodies.get(hit.body), hit.owner, dx, dy);
         continue;
       }
       sh.x += mx;
@@ -893,6 +934,7 @@ export class World {
     this.stuck.delete(bay);
     this.dirty.add(robot);
     this.grown.add(robot);
+    this.unprimed.add(robot);
     this.decoyCache = undefined;
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'built', part: bay.id, recipe: recipe.name, scope });
@@ -1696,7 +1738,12 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
   }
   if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
   if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
-  if (part.def.gun !== undefined) return gunOutput(part, name);
+  if (part.def.gun !== undefined) {
+    if (name === 'sight') return part.sight?.distance ?? part.def.gun.range;
+    if (name === 'sightSide') return part.sight?.side ?? 0;
+    if (name === 'sightId') return part.sight?.id ?? 0;
+    if (name === 'aim') return part.sight?.aim ?? 0;
+  }
   return undefined;
 }
 
