@@ -1,0 +1,322 @@
+{
+  "format": 1,
+  "name": "enemy-popout-gun-drone",
+  "grid": [
+    "A gun-turret3g gun-turret3r F . . . . . . . . . F gun-turret4r gun-turret4g A",
+    "gun-turret3d . . F c c c . . . e e e F . . gun-turret4d",
+    "F F F F c c c . . . e e e F F F F",
+    ". . . F c c c F d F e e e F . . .",
+    ". s r F F F Z Z C Z Z F F F t u .",
+    ". . . F c c c c n e e e e F . . .",
+    "F F F F . . a b F f g . . F F F F",
+    "gun-turret5d . . F . . h i F j k . . F . . gun-turret6d",
+    "A gun-turret5g gun-turret5r F . . l m F o p . . F gun-turret6r gun-turret6g A"
+  ],
+  "legend": {
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "r": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.rot"
+      ],
+      "auto": false
+    },
+    "s": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.gun"
+      ]
+    },
+    "t": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.rot"
+      ],
+      "auto": false
+    },
+    "u": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.gun"
+      ]
+    },
+    "gun-turret3r": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "gun-turret3",
+        "gun-turret3.rot",
+        "hidden"
+      ],
+      "auto": false
+    },
+    "gun-turret3g": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "gun-turret3",
+        "gun-turret3.gun",
+        "hidden"
+      ]
+    },
+    "gun-turret3d": {
+      "part": "piston",
+      "rot": 0,
+      "tags": [
+        "gun-turret3.door"
+      ],
+      "auto": false
+    },
+    "gun-turret5r": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "gun-turret5",
+        "gun-turret5.rot",
+        "hidden"
+      ],
+      "auto": false
+    },
+    "gun-turret5g": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "gun-turret5",
+        "gun-turret5.gun",
+        "hidden"
+      ]
+    },
+    "gun-turret5d": {
+      "part": "piston",
+      "rot": 180,
+      "tags": [
+        "gun-turret5.door"
+      ],
+      "auto": false
+    },
+    "gun-turret4r": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "gun-turret4",
+        "gun-turret4.rot",
+        "hidden"
+      ],
+      "auto": false
+    },
+    "gun-turret4g": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "gun-turret4",
+        "gun-turret4.gun",
+        "hidden"
+      ]
+    },
+    "gun-turret4d": {
+      "part": "piston",
+      "rot": 0,
+      "tags": [
+        "gun-turret4.door"
+      ],
+      "auto": false
+    },
+    "gun-turret6r": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "gun-turret6",
+        "gun-turret6.rot",
+        "hidden"
+      ],
+      "auto": false
+    },
+    "gun-turret6g": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "gun-turret6",
+        "gun-turret6.gun",
+        "hidden"
+      ]
+    },
+    "gun-turret6d": {
+      "part": "piston",
+      "rot": 180,
+      "tags": [
+        "gun-turret6.door"
+      ],
+      "auto": false
+    },
+    "A": {
+      "part": "armorplate",
+      "rot": 0,
+      "tags": [
+        "plate"
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-popout-gun-drone.pilot.js"
+      },
+      "params": {
+        "standoff": 60,
+        "above": 5,
+        "settle": 0,
+        "jitter": 0,
+        "climb": 6
+      }
+    },
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-popout-gun-drone.turrets.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-popout-gun-drone.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ]
+}
