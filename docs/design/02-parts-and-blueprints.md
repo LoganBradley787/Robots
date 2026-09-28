@@ -91,10 +91,10 @@ A def with `fabricate: { joulesPerKg, secondsPerKg, separation }` builds things;
 - **Half-built:** the copy has no body until finished (Logan: a hit is on the bay as a whole). A bay destroyed mid-build loses its progress.
 
 ### Build time per part (Batch, as built)
-An optional def field `"build": <seconds>` is how long a fabricator spends building one of that part (Logan: boosters are advanced and slow, propellers basic and quick; warheads slow, sensors slower, blue batteries slower than green). A recipe's build time is the sum over its parts (`recipeStats` gives `built`, the seconds of parts that name their own, and `plainMass`, the mass of those that do not; `buildSeconds(stats, secondsPerKg)` adds them). A part without `build` (the fabricator bay itself, parts added later) takes the bay's `secondsPerKg` times its mass, as before. Energy is unchanged: `joulesPerKg` times mass plus what containers hold. A weak power draw can still make a build longer (`pnpm sim show` takes the longer of the two). Shipped seconds: frame 0.2, propeller 0.2, flare 0.2, cell 0.3, decoupler 0.3, wheel 0.3, gyro 0.4, core 0.5, heavy gyro 0.5, battery 0.6, thruster 0.6, seeker 0.7, rotator 0.8, warhead 1, gun 1, booster 1.1, radar 1.5, heavy warhead 1.3, dense battery 1.5. That keeps `missile-up` at 4.1 s and `heavy-drone-bomb` at 8.7 s. `pnpm sim parts` shows it per part.
+An optional def field `"build": <seconds>` is how long a fabricator spends building one of that part (Logan: boosters are advanced and slow, propellers basic and quick; warheads slow, sensors slower, blue batteries slower than green). A recipe's build time is the sum over its parts (`recipeStats` gives `built`, the seconds of parts that name their own, and `plainMass`, the mass of those that do not; `buildSeconds(stats, secondsPerKg)` adds them). A part without `build` (the fabricator bay itself, parts added later) takes the bay's `secondsPerKg` times its mass, as before. Energy is unchanged: `joulesPerKg` times mass plus what containers hold. A weak power draw can still make a build longer (`pnpm sim show` takes the longer of the two). Shipped seconds: frame 0.2, propeller 0.2, flare 0.2, cell 0.3, decoupler 0.3, wheel 0.3, gyro 0.4, core 0.5, heavy gyro 0.5, battery 0.6, thruster 0.6, seeker 0.7, rotator 0.8, warhead 1, gun 1, booster 1.1, radar 1.5, heavy warhead 1.3, dense battery 1.5. That keeps `missile-up` at 4.1 s and `heavy-drone-bomb` at 8.7 s. The batch parts (set at integration): fin 0.2, smoke pod 0.5, solar panel 0.7, piston 0.8, grapple 0.9, radio 1, jammer pod 1.2, swiveling thruster 1.3, proximity mine 1.3, heavy armor plate 2. Only the fabricator bay has none. `pnpm sim parts` shows it per part.
 
 ### Crash damage (Batch, as built)
-An engine rule, not a part. Every part takes damage when a hard hit changes its body's velocity: `World.checkImpacts` reads each body's velocity change over one step (gravity aside, from the physics velocities, as the fuze does), and a part whose body changed by `dv` above its `crash.safe` (default 12 m/s, a fall of 7 m) loses `health * ((dv - safe) / range)^2`, `range` default 8 m/s. So a hit of 20 m/s (a fall of about 20 m) costs a default part its whole health, and a hit at safe + 4 costs a quarter. A def may set `crash: { safe, range? }`; the frame has `safe: 24`, so frames stay tough (a missile at 130 m/s still shatters them).
+An engine rule, not a part. Every part takes damage when a hard hit changes its body's velocity: `World.checkImpacts` reads each body's velocity change over one step (gravity aside, from the physics velocities, as the fuze does), and a part whose body changed by `dv` above its `crash.safe` (default 12 m/s, a fall of 7 m) loses `health * ((dv - safe) / range)^2`, `range` default 8 m/s. So a hit of 20 m/s (a fall of about 20 m) costs a default part its whole health, and a hit at safe + 4 costs a quarter. A def may set `crash: { safe, range? }`; the frame and the heavy armor plate have `safe: 24`, so they stay tough (a missile at 130 m/s still shatters them).
 - **Nearest the impact takes the most:** Rapier reports no contact points for multibody links, so the hit's direction stands in: the velocity change points away from what was hit, and each part's damage is scaled from 0.5 to 1.5 by how far toward that side it sits in its whole robot (a falling car's wheels, each their own body, are lowest; a missile's nose is first). Pure functions in `world/crash.ts`.
 - **Not counted:** bodies in `unsettled` (a kick after a rebuild, a blast push, a decoupler's release), so releasing a missile or being blown across the room never crashes. No new hashed state: it only changes part health, which is hashed.
 - **Numbers:** drones set down by a few m/s and robots spawning at the default 6 m take nothing (about 10 m/s); a car falling 20 m loses its wheels and most of its core; a nose into a wall at 130 m/s is gone. A warhead's `impact` fuze (5 m/s) is separate and unchanged; an unarmed warhead now takes crash damage like any part. Broken-off debris that lands hard now shatters too.
@@ -183,6 +183,7 @@ A def with `radio: { range }` (meters) is a radio. It uses the `sensor` behavior
 - Shared contacts join `contacts` exactly like sensed ones (same fields; `distance` is measured from the receiver's core; `by` is `["radio"]`), unless the robot already sees that robot itself. Of several friends reporting the same robot, the report nearest the receiver wins.
 - No relaying: only what a friend's own sensors see is shared, never what it was told. `scan(id)` works only on what the robot's own sensors see. A robot seen at a burning flare is shared as seen there, so a flare keeps fooling.
 - Nothing extra is hashed: the radio's power flag is the sensor flag.
+- **Jammed (integration):** a radio inside a lit jammer pod's bubble neither sends nor hears, like a sensor there (`World.workingRadios` skips it).
 
 ### Pistons (Batch, as built)
 
@@ -238,8 +239,11 @@ T^  thruster pushing up (nozzle down)    Tv  pushing down    T<  pushing left   
 P   propeller lifting up                 Pv  lifting down
 D   decoupler releasing up               Dv  releasing down  D<  releasing left  D>  releasing right
 G   gyro
-So  solar panel, facing up (Batch)
-Xm  proximity mine
+A   heavy armor plate (Batch)                So  solar panel, facing up (Batch)
+Xm  proximity mine (Batch)                   N   radio (Batch)       J   jammer pod (Batch)      U   smoke pod (Batch)
+V^  swivel thruster pushing up (Batch)       Vv  pushing down    V<  pushing left    V>  pushing right
+L^  fin, plate lying up (Batch)              Lv  lying down      L<  lying left      L>  lying right
+Gp^ grapple firing up (Batch)                Gpv firing down     Gp< firing left     Gp> firing right
 R   rotator carrying up (mounts below)   Rv  carrying down   R<  carrying left   R>  carrying right
 I^  piston pushing up (mounts below)     Iv  pushing down    I<  pushing left    I>  pushing right
 ```
@@ -281,6 +285,7 @@ Wreckage does not pile up for ever. A robot is **debris** when it broke off some
 - **Cap:** at most 200 debris pieces stay in the world. Past that, the oldest (lowest robot id) go first, whether or not they are still.
 - **Hash:** the rest counts of pieces that have rested at all are added to `World.hash` under `debris`, only while any exist. A world that never breaks anything off hashes as before; long battle scenes changed on purpose (golden hashes rewritten).
 - The app may fade the sprite before it goes (optional; the sim just removes the robot).
+- **Live pieces (integration):** a piece holding an armed part (a proximity mine let go as a landmine, a bomb) is not debris and never fades.
 
 ## Rotator integral term (Batch)
 
