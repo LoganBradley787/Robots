@@ -2,6 +2,7 @@ import type { Issue, PartDef } from '@robots/sim-core';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
+import { BlueprintPicker } from './BlueprintPicker';
 
 export interface BuilderActions {
   hold(part: string): void;
@@ -25,21 +26,7 @@ export function TopBar({ store, actions }: { store: Store<AppState>; actions: Bu
     <div class="topbar panel">
       <label class="field">
         <span>Blueprint</span>
-        <select
-          value={doc.file ?? ''}
-          onChange={(e) => {
-            const v = (e.target as HTMLSelectElement).value;
-            if (v !== '') actions.open(v);
-            (e.target as HTMLSelectElement).value = doc.file ?? '';
-          }}
-        >
-          {doc.file === undefined && <option value="">(not saved yet)</option>}
-          {doc.files.map((f) => (
-            <option key={f.file} value={f.file}>
-              {f.name}
-            </option>
-          ))}
-        </select>
+        <BlueprintPicker files={doc.files} current={doc.file} label={doc.files.find((f) => f.file === doc.file)?.name ?? doc.name} onOpen={(f) => actions.open(f)} />
       </label>
       <button onClick={actions.newBlank}>New</button>
       <button onClick={actions.save} aria-keyshortcuts="Meta+S">

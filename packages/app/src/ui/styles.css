@@ -27,7 +27,7 @@
 
 .topbar {
   position: absolute; top: 0; left: 0; right: 0; height: 44px; display: flex; align-items: center; gap: 8px;
-  padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--panel-border);
+  padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--panel-border); z-index: 20;
 }
 .topbar .field { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .topbar select { min-width: 180px; }
@@ -186,3 +186,17 @@ kbd { font: 10px ui-monospace, Menlo, monospace; padding: 0 4px; border: 1px sol
   min-width: 22px;
   padding: 0 4px;
 }
+
+/* Blueprint picker (Logan: the plain dropdown got too long). */
+.bp-picker { position: relative; }
+#ui .bp-current { min-width: 200px; text-align: left; display: flex; justify-content: space-between; gap: 8px; }
+.bp-caret { color: var(--muted); }
+.bp-menu { background: #0b1426; position: absolute; top: calc(100% + 4px); left: 0; width: 300px; max-height: 70vh; display: flex; flex-direction: column; border: 1px solid var(--panel-border); border-radius: 10px; padding: 8px; z-index: 50; pointer-events: auto; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); }
+#ui .bp-search { width: 100%; box-sizing: border-box; margin-bottom: 6px; }
+.bp-list { overflow-y: auto; }
+.bp-group-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); padding: 8px 6px 4px; }
+.bp-count { opacity: 0.7; }
+.bp-item { padding: 4px 8px; border-radius: 6px; cursor: pointer; color: var(--text); }
+.bp-item.at { background: #213a66; }
+.bp-item.current { color: var(--accent); }
+.bp-empty { padding: 8px; color: var(--muted); }
