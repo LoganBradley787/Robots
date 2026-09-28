@@ -1,0 +1,14 @@
+{
+  "id": "radio",
+  "name": "Radio",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 1,
+  "health": 30,
+  "symmetry": 1,
+  "inputs": [{ "name": "on", "min": 0, "max": 1, "default": 1 }],
+  "outputs": [],
+  "powerDraw": 1,
+  "behavior": "sensor",
+  "radio": { "range": 1500 },
+  "sprite": { "frame": "part.radio" }
+}

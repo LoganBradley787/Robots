@@ -17,7 +17,7 @@ export interface PartInstance {
   cut?: Face[];
   /** A rotator's aim: radians relative to its base, within its range. */
   aim?: number;
-  /** A sensor part (M8): whether it was switched on and powered on the last tick. Undefined until it first runs (sees). */
+  /** A sensor part (M8) or radio (Batch): whether it was switched on and powered on the last tick. Undefined until it first runs (sees). */
   sensing?: boolean;
   /**
    * A core's messages from other cores (M8), oldest first, at most 16: its scripts see those sent before this tick,

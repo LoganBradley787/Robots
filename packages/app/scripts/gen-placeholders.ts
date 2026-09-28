@@ -720,6 +720,28 @@ function drawRadar(): Canvas {
   return cv;
 }
 
+/** Radio (Batch): a plate with a mast in the middle and two rings of waves (it shares what its robot sees). */
+function drawRadio(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 0, 0, CELL, CELL, hex('#4a5663'), hex('#2a323b'), 3);
+  for (const [x, y] of [[9, 9], [55, 9], [9, 55], [55, 55]] as const) rivet(cv, x, y);
+  const cx = 32;
+  // Mast and base.
+  plate(cv, 24, 46, 40, 54, hex('#2b3138'), hex('#111316'), 2);
+  cv.fill(rect(30, 24, 34, 48), hex('#c9d4de'));
+  cv.fill(circle(cx, 22, 4), hex('#ffb13b'));
+  glow(cv, cx, 22, 8, hex('#ffb13b'), 0.5);
+  // Waves out of the tip, left and right.
+  const wave = (r: number, side: number): Shape => (x, y) => {
+    const d = Math.hypot(x - cx, y - 22);
+    if (d < r - 1 || d > r + 1) return false;
+    const deg = ((Math.atan2(y - 22, x - cx) * 180) / Math.PI + 360) % 360;
+    return side < 0 ? deg >= 135 && deg <= 225 : deg >= 315 || deg <= 45;
+  };
+  for (const r of [10, 17, 24]) cv.fill(union(wave(r, -1), wave(r, 1)), hex('#3dff8b'), 0.7);
+  return cv;
+}
+
 // ---------------------------------------------------------------- fx
 
 /** Flame anchored at the top edge (the nozzle exit), pointing down. */
@@ -1051,6 +1073,7 @@ function main(): void {
     { name: 'part.fin', canvas: drawFin() },
     { name: 'part.mine', canvas: drawMine() },
     { name: 'part.mine.armed', canvas: drawMine(true) },
+    { name: 'part.radio', canvas: drawRadio() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

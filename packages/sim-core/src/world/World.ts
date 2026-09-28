@@ -1385,6 +1385,62 @@ export class World {
    * else on it is (the shipped racks let each flare go alone). Nothing here names a kind of robot: whatever steers by these contacts is fooled as a result.
    */
   private contactsFor(robot: Robot, remember: boolean, decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
+    const own = this.ownContacts(robot, remember, decoysOut);
+    const radios = this.workingRadios(robot);
+    if (radios.length === 0) return own;
+    return this.withRadio(robot, own, radios, decoysOut);
+  }
+
+  /** The radio parts of the robot's controlled chunk that work this tick (switched on and powered last tick), in part order. */
+  private workingRadios(robot: Robot): { x: number; y: number; range: number }[] {
+    const coreId = robot.primaryCoreId;
+    if (coreId === undefined || !this.controllers.has(robot.id)) return [];
+    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+    const out: { x: number; y: number; range: number }[] = [];
+    for (const id of chunk?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      const spec = p?.def.radio;
+      if (!p || !spec || p.sensing !== true) continue;
+      const pose = partWorldPose(this, robot, id);
+      out.push({ x: pose.x, y: pose.y, range: spec.range });
+    }
+    return out;
+  }
+
+  /**
+   * Batch, radio: adds what each teammate in radio range sees with its own sensors (never what it was told by radio, so
+   * no relaying) to the robot's own contacts, unless the robot already sees that robot itself. A shared contact is
+   * reported as the teammate saw it (a flare it took for a robot still fools), with `distance` measured from this
+   * robot's core, and `by: ['radio']`. Of several teammates seeing the same robot, the one whose report is nearest wins
+   * (ties: robot order). Shared contacts are never remembered for `scan(id)`.
+   */
+  private withRadio(robot: Robot, own: ScriptContact[], radios: { x: number; y: number; range: number }[], decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
+    const from = partWorldPose(this, robot, robot.primaryCoreId ?? robot.rootId);
+    const have = new Set(own.map((c) => c.id));
+    const shared = new Map<number, { contact: ScriptContact; decoy?: SeenDecoy }>();
+    for (const friend of this.robots) {
+      if (friend === robot || friend.team !== robot.team || friend.groups.length === 0) continue;
+      const theirs = this.workingRadios(friend);
+      // In reach when some pair of working radios is within both ranges.
+      if (!radios.some((a) => theirs.some((b) => Math.hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)))) continue;
+      const fooled = new Map<number, SeenDecoy>();
+      for (const c of this.ownContacts(friend, false, fooled)) {
+        if (c.id === robot.id || have.has(c.id)) continue;
+        const distance = Math.hypot(c.pos.x - from.x, c.pos.y - from.y);
+        const known = shared.get(c.id);
+        if (known && known.contact.distance <= distance) continue;
+        shared.set(c.id, { contact: { ...c, distance, by: ['radio'] }, decoy: fooled.get(c.id) });
+      }
+    }
+    if (shared.size === 0) return own;
+    for (const [id, s] of shared) if (s.decoy) decoysOut?.set(id, s.decoy);
+    const out = [...own, ...[...shared.values()].map((s) => s.contact)];
+    out.sort((a, b) => a.distance - b.distance || a.id - b.id);
+    return out;
+  }
+
+  /** What the robot's own sensors see (see contactsFor). */
+  private ownContacts(robot: Robot, remember: boolean, decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
     const sensors = this.workingSensors(robot);
     if (remember) {
       this.seen.delete(robot.id);

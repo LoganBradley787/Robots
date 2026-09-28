@@ -66,6 +66,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | swivelthruster | 1.5 | 25 | N E W | throttle [0, 1], swivel [-1, 1] | | Batch. A booster (400 N, 60 energy per second) whose push tilts up to 15 degrees with `swivel` (see Swiveling thrusters). Legend `V^ Vv V< V>` (the way it pushes), no builder key. |
 | fin | 0.3 | 10 | N E S W | deflect [-1, 1] | | Batch. A fin (see Fins): a flat plate along its `acts` axis that pushes on the air, `-k (v . n) |v| n` at its cell with k = 0.36; `deflect` turns it up to 20 degrees to steer. No energy. Legend `L^ Lv L< L>` (the way the plate lies), no builder key. |
 | mine | 1.5 | 60 | N E S W | detonate (pulse), arm | armed | Batch. A proximity mine (see Proximity mines): armed, it goes off when a part of another team's robot comes within 3 m. The heavy warhead's blast (250 damage falling to 0 at 4 m). Shot or caught in a blast it breaks as a dud; takes a quarter of a shell's damage. Legend `Xm`, no builder key. |
+| radio | 1 | 30 | N E S W | on [0, 1] | | Batch. Team contact sharing (see Radio), 1 energy per second. Legend `N`, no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -134,6 +135,14 @@ A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) i
 - `radar` (legend `O`, builder key `;`): 1 kg, health 40, all around, 1000 m (500 before 2026-09-28), 3 J/s.
 - A robot is seen when its reference point (its live core, else its center of mass) is inside a working sensor's cone and range and a ray to it crosses no terrain or static block. Other robots never block. Scripts get what their robot's sensors see as `contacts` (see `04`).
 - Still ideas, not built: a `scanner` that reports what is directly in front of it (for landing and terrain following: scripts cannot see the ground today), and a heat seeker that ranks targets by thruster heat.
+
+### Radio (Batch, as built)
+A def with `radio: { range }` (meters) is a radio. It uses the `sensor` behavior (so `on` and power work as for a sensor, and its power-last-tick flag is the same `PartInstance.sensing`), and the world does the sharing in `contactsFor`.
+- `radio` (legend `N`, no builder key): 1 kg, health 30, all faces, range 1500 m, 1 J/s.
+- A working radio (on, powered, not destroyed, on the chunk with the core) shares what its robot's own sensors see with every other robot of its team that also has a working radio within range (some pair of working radios within both ranges). A team is the spawn `team`; team 0 robots are friends of each other, like sensors.
+- Shared contacts join `contacts` exactly like sensed ones (same fields; `distance` is measured from the receiver's core; `by` is `["radio"]`), unless the robot already sees that robot itself. Of several friends reporting the same robot, the report nearest the receiver wins.
+- No relaying: only what a friend's own sensors see is shared, never what it was told. `scan(id)` works only on what the robot's own sensors see. A robot seen at a burning flare is shared as seen there, so a flare keeps fooling.
+- Nothing extra is hashed: the radio's power flag is the sensor flag.
 
 ## Blueprint JSON (canonical)
 
