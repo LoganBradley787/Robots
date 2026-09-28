@@ -544,6 +544,19 @@ function drawGun(): Canvas {
   return cv;
 }
 
+/** Solar panel (Batch): a blue cell grid facing up, on a small gray mount at the base. */
+function drawSolar(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 6, 50, 58, 62, hex('#6f747d'), OUTLINE, 2);
+  plate(cv, 26, 42, 38, 52, hex('#4f5660'), hex('#1b1e23'), 2);
+  plate(cv, 3, 8, 61, 44, hex('#8a9099'), OUTLINE, 2.5);
+  cv.fill(rect(7, 12, 57, 40), hex('#1f3f86'));
+  for (const x of [20, 32, 44]) cv.fill(rect(x - 0.6, 12, x + 0.6, 40), hex('#8fb2ee'), 0.7);
+  cv.fill(rect(7, 25.4, 57, 26.6), hex('#8fb2ee'), 0.7);
+  cv.fill(rect(9, 14, 30, 17), WHITE, 0.25);
+  return cv;
+}
+
 /**
  * Fabricator bay (M12): a U three cells wide and six tall, open at the top. Armored walls in dark steel with a
  * yellow and black band at the mouth, a lit strip down the inside of each wall, and a machine bed at the bottom.
@@ -977,6 +990,7 @@ function main(): void {
     { name: 'part.flare.lit', canvas: drawFlare(true) },
     { name: 'part.gun', canvas: drawGun() },
     { name: 'part.armorplate', canvas: drawArmorPlate() },
+    { name: 'part.solar', canvas: drawSolar() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

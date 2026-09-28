@@ -7,7 +7,7 @@ import { Controller } from '../control/controller';
 import type { ControlledPart, RobotInput } from '../control/types';
 import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
 import { allBindings, autoBindings } from '../control/autoControls';
-import { drainContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
+import { drainContainers, fillContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
@@ -373,6 +373,7 @@ export class World {
     this.runScripts();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     this.armParts();
+    this.runSolar();
     // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
     this.runBehaviors(true);
     if (this.dirty.size > 0) this.rebuildDirty();
@@ -400,6 +401,37 @@ export class World {
         if (part.armed !== false || (chans?.get(part.id)?.get('arm') ?? 0) <= 0.5) continue;
         part.armed = true;
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'armed', part: part.id });
+      }
+    }
+  }
+
+  /**
+   * Batch: every solar panel adds its power times the cosine of the angle between its `acts` face and straight up
+   * (nothing when it points level or down) to its chunk's energy pool, filling the containers up to capacity. A chunk's
+   * panels are added up first, then poured in once, so the result never depends on part order. Runs before behaviors,
+   * so a part can spend on the tick what the sun gave it. Panels in the sandbox's unlimited-energy mode make nothing.
+   */
+  private runSolar(): void {
+    if (this.unlimited) return;
+    for (const robot of this.robots) {
+      let sums: Map<number, number> | undefined;
+      for (const part of robot.parts.values()) {
+        const spec = part.def.solar;
+        if (spec === undefined || part.health <= 0) continue;
+        const up = this.muzzle(robot, part)?.dy ?? 0;
+        if (up <= 0) continue;
+        sums ??= new Map();
+        const chunk = chunkIndex(robot, part.id);
+        sums.set(chunk, (sums.get(chunk) ?? 0) + spec.power * up * this.dt);
+      }
+      if (!sums) continue;
+      for (const [chunk, amount] of sums) {
+        const containers = poolContainers(robot, chunk);
+        if (fillContainers(containers, amount) <= 0) continue;
+        for (const c of containers) {
+          const held = robot.parts.get(c.id);
+          if (held) held.stored = c.stored;
+        }
       }
     }
   }

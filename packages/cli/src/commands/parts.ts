@@ -78,6 +78,7 @@ function details(d: PartDef): string[] {
     out.push(`gun sight: looks ${g.range} m straight out of the barrel: sight (meters to the first thing, ${g.range} for nothing), sightSide (0 nothing, 1 own robot, 2 friend, 3 enemy, 4 nobody's, 5 terrain), sightId (the robot's contact id), aim (the barrel's world angle, radians)`);
   }
   if (d.shellDamage !== undefined) out.push(`armor: takes ${d.shellDamage} of a shell's damage (${Math.ceil(d.health / (5 * d.shellDamage))} hits from a 5 damage shell); blasts hurt it in full`);
+  if (d.solar) out.push(`solar: adds ${d.solar.power} J/s (times the cosine of the angle between its ${d.acts ?? 'N'} face and straight up, nothing when level or down) to its chunk's energy pool while its ${d.acts ?? 'N'} face points up; it fills batteries, cells, and cores up to their capacity; no inputs or outputs`);
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
   return out;
 }

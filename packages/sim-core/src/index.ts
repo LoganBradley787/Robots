@@ -14,7 +14,7 @@ export { Controller } from './control/controller';
 export { matchesTarget, scopedView } from './control/target';
 export { appendEdge } from './control/edges';
 export { keyProblem, WORLD_KEY_CODES } from './control/keys';
-export { poolTotals, grantFactor, drainContainers } from './resources/pools';
+export { poolTotals, grantFactor, drainContainers, fillContainers } from './resources/pools';
 export type { Container } from './resources/pools';
 export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
 export type { RobotInput, ControlledPart, ControlState } from './control/types';

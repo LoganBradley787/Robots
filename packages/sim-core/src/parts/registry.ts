@@ -21,6 +21,7 @@ import flare from './defs/flare.json';
 import fabbay from './defs/fabbay.json';
 import gun from './defs/gun.json';
 import armorplate from './defs/armorplate.json';
+import solar from './defs/solar.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -74,6 +75,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['fabbay.json', fabbay],
   ['gun.json', gun],
   ['armorplate.json', armorplate],
+  ['solar.json', solar],
 ];
 
 let shipped: PartRegistry | null = null;

@@ -500,27 +500,7 @@
         "h": 64
       }
     },
-    "part.fabbay": {
-      "frame": {
-        "x": 3,
-        "y": 343,
-        "w": 192,
-        "h": 384
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 192,
-        "h": 384
-      },
-      "sourceSize": {
-        "w": 192,
-        "h": 384
-      }
-    },
-    "part.fabbay.floor": {
+    "part.solar": {
       "frame": {
         "x": 71,
         "y": 275,
@@ -540,7 +520,27 @@
         "h": 64
       }
     },
-    "part.fabbay.corner": {
+    "part.fabbay": {
+      "frame": {
+        "x": 3,
+        "y": 411,
+        "w": 192,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 384
+      }
+    },
+    "part.fabbay.floor": {
       "frame": {
         "x": 139,
         "y": 275,
@@ -560,7 +560,7 @@
         "h": 64
       }
     },
-    "part.fabbay.wall": {
+    "part.fabbay.corner": {
       "frame": {
         "x": 207,
         "y": 275,
@@ -580,7 +580,7 @@
         "h": 64
       }
     },
-    "part.fabbay.mouth": {
+    "part.fabbay.wall": {
       "frame": {
         "x": 275,
         "y": 275,
@@ -600,10 +600,30 @@
         "h": 64
       }
     },
-    "part.fabbay.back": {
+    "part.fabbay.mouth": {
       "frame": {
         "x": 343,
         "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.back": {
+      "frame": {
+        "x": 3,
+        "y": 343,
         "w": 64,
         "h": 64
       },
@@ -626,7 +646,7 @@
     "format": "RGBA8888",
     "size": {
       "w": 410,
-      "h": 730
+      "h": 798
     },
     "scale": "1"
   }
