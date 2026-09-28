@@ -379,6 +379,15 @@ function drawThruster(body = hex('#959ba4'), heat = hex('#5f646d')): Canvas {
   return cv;
 }
 
+/** Batch: the swiveling thruster is the thruster in teal with a pale gimbal ring around the throat. */
+function drawSwivelThruster(): Canvas {
+  const cv = drawThruster(hex('#2f9c94'), hex('#1b5f5a'));
+  cv.fill(rect(16, 43, 48, 46), hex('#d8e2e0'));
+  cv.fill(rect(16, 43, 48, 44), WHITE, 0.3);
+  cv.fill(rect(16, 45, 48, 46), BLACK, 0.3);
+  return cv;
+}
+
 /** Blade across the top quarter at a given apparent width (1 = full). */
 function drawBlade(cv: Canvas, widthFactor: number): void {
   const half = 26 * widthFactor;
@@ -960,6 +969,7 @@ function main(): void {
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
     { name: 'part.gun', canvas: drawGun() },
+    { name: 'part.swivelthruster', canvas: drawSwivelThruster() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

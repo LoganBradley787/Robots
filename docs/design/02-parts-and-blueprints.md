@@ -61,6 +61,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | fabbay | 1 per cell (13 at its default) | 150 | outer faces; grips on its hollow | release (lets go) | ready, progress, built | M12. A fabricator bay (see Fabricators): a U open at the top whose hollow is sized where it is placed (`size`, 1 to 8 wide, 1 to 10 tall; default 1 by 5). Builds its recipe (`makes`) from energy. No legend token (it always needs `makes`), no builder key. |
 | flare | 0.2 | 5 | S (its base) | ignite (lights it for good) | burning | M11. A decoy (see Decoys): burns 2 s once lit, then is gone without a blast; while it burns, sensors take it for its robot. Legend `Q^ Qv Q< Q>` (the way it points), no builder key. |
 | gun | 1 | 25 | S (its base) | fire (while above 0.5) | sight, sightSide, sightId, aim | M13. A gun (see Guns): 10 shells a second out of its front at 300 m/s, 5 damage to the first part each hits (anyone's), 2 N s of kick; its sight looks 150 m straight out of the barrel. No energy. Legend `M^ Mv M< M>` (the way it fires), no builder key. |
+| swivelthruster | 1.5 | 25 | N E W | throttle [0, 1], swivel [-1, 1] | | Batch. A booster (400 N, 60 energy per second) whose push tilts up to 15 degrees with `swivel` (see Swiveling thrusters). Legend `V^ Vv V< V>` (the way it pushes), no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -86,6 +87,14 @@ A def with `gun: { speed, damage, rate, life, recoil, range }` is a gun; it need
 - **Pushes that do not unsettle:** a gun's kick and a shell's push are marked quiet: they are too small to trip a fuze, and a robot under fire keeps its fuzes (other pushes switch the impact check off for two ticks).
 - **The sight** (a sensor, straight): each tick after the step, a ray from the barrel's end along its real pose (not the rotator's `angle`, which is the commanded aim), `range` long, skipping its own collider. `sight` is the distance to the first thing (`range` for nothing), `sightSide` what it is (0 nothing, 1 its own robot, 2 a friend, 3 an enemy, 4 nobody's, 5 terrain: the rule contacts use), `sightId` that robot's contact id, `aim` the barrel's world angle. A burning flare let go by a robot reads as that robot. Derived each tick, not hashed. Aiming ahead of a moving target and allowing for drop is the script's job, from contacts; the sight is the last "clear to shoot" check.
 - **Events:** `shellHit` per hit (part, robot, shooter, damage); no event per shot (`World.shotsBy(robot)` counts them for reports).
+
+### Swiveling thrusters (Batch, as built)
+A thrust def whose `behaviorConfig` has `swivel` (degrees, above 0) also reads a `swivel` input (-1 to 1) and tilts its push that far. The engine reads the config key inside the existing `thrust` behavior; no part type is special-cased. Shipped: `swivelthruster` (400 N, 60 J/s, 1.5 kg, health 25, `swivel` 15).
+- **Direction:** `swivel` 1 turns the push 15 degrees counterclockwise from its `acts` face (an upward thruster pushes up and a little left), -1 turns it clockwise, in between is proportional. It follows the part's rotation and its body's, like the plain push.
+- **Force and torque:** the push is still `throttle * 400 N` at the part's cell center, now split into `400 sin(15 deg)` sideways and `400 cos(15 deg)` along the face at full swivel. The sideways part acts off the center of mass, so it turns the robot (a tail thruster under a body tilts it like a gimbal). Swivel 0 is exactly a booster; with no throttle, swivel does nothing.
+- **Controls:** the auto key is the way it pushes (W up, and so on) on `throttle`, like a thruster. `swivel` has no auto key: bind keys (`{ "key": "j", "mode": "hold", "target": "swivelthruster", "channel": "swivel", "value": 1 }`) or set it from a script (`set('tail', 'swivel', clamp(0.1 * err, -1, 1))`).
+- **Hashing:** nothing new is added: the swivel is an ordinary input channel (latched channels of uncontrolled robots are hashed already, only for parts present), so worlds without the part keep their hashes.
+- **App:** the flame overlay turns with the `swivel` channel.
 
 ### Decoys (M11, as built)
 A def with `decoy: { burn }` (seconds) is a decoy; it needs an `ignite` input and a `burning` output (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `flare`.

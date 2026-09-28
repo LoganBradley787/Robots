@@ -19,6 +19,8 @@ interface Effect {
   spin?: AnimatedSprite;
   /** Thruster flame: shown above zero, longer and brighter with the channel. */
   flame?: AnimatedSprite;
+  /** Batch: a swiveling thruster's flame turns with its swivel input (up to `deg` degrees, counterclockwise positive) from `base`. */
+  swivel?: { deg: number; base: number };
 }
 
 /** One Container per rigid body, one Sprite per part at its body-local offset. Only containers move per frame. */
@@ -95,6 +97,8 @@ export class RobotView {
           flame.play();
           flames.addChild(flame);
           effect.flame = flame;
+          const swivelDeg = def?.behaviorConfig?.swivel ?? 0;
+          if (swivelDeg > 0) effect.swivel = { deg: swivelDeg, base: s.rotation };
         }
         if (effect.spin || effect.flame) this.effects.push(effect);
       }
@@ -204,6 +208,10 @@ export class RobotView {
         e.flame.visible = t > 0;
         e.flame.alpha = 0.45 + 0.55 * t;
         e.flame.height = PIXELS_PER_METER * (0.45 + 0.75 * t);
+        if (e.swivel) {
+          const tilt = Math.max(-1, Math.min(1, value?.(e.partId, 'swivel') ?? 0)) * e.swivel.deg * (Math.PI / 180);
+          e.flame.rotation = toScreenAngle(e.swivel.base + tilt);
+        }
       }
     }
   }
