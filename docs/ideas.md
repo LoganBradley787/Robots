@@ -104,3 +104,8 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - Balance later, not now. Nothing gets kneecapped by script params (a pilot holding a finished missile for no reason); things get better or worse by changing parts in their entirety.
 - Build time per part (Logan's leaning): a bay's build time comes from what the copy is made of, not only its mass. Boosters are advanced and slow to build, propellers basic and quick. Energy cost stays as it is: running out of power is boring.
 - Nothing is balanced while energy is effectively free: a huge drone with 15 missile bays, blue batteries, and boosters would fire one or two missiles a second forever. Likely answers: a swarm of drones that tracks you and hangs a fixed distance off to soak up missiles, or a fab bay that builds flares and lets them go.
+
+## From playing the guns (Logan, 2026-09-28)
+- **Hidden guns:** guns kept rotated in, or behind a wall on a rotator that swings open to expose more guns once the other side's guns are gone ("the gun war"). Not now.
+- **Everything is close quarters:** radars see 500 m and guns reach 250 m, so once two robots see each other they are in gun range, and missiles cannot be launched from outside it. Options: shells spread a little (seeded) so guns are weak far out; longer range radars or missiles. Test the new drone designs first (Logan).
+- **Design over parts:** guns off the core's line, walls around a fab bay, many guns; `enemy-armored-gun-drone`, `enemy-fab-gun-drone`, `enemy-many-gun-drone` are the first tries.
