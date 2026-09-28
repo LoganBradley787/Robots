@@ -93,6 +93,11 @@ function details(d: PartDef): string[] {
   if (d.shellDamage !== undefined) out.push(`armor: takes ${d.shellDamage} of a shell's damage (${Math.ceil(d.health / (5 * d.shellDamage))} hits from a 5 damage shell); blasts hurt it in full`);
   if (d.solar) out.push(`solar: adds ${d.solar.power} J/s (times the cosine of the angle between its ${d.acts ?? 'N'} face and straight up, nothing when level or down) to its chunk's energy pool while its ${d.acts ?? 'N'} face points up; it fills batteries, cells, and cores up to their capacity; no inputs or outputs`);
   if (d.mine) out.push(`proximity mine: once armed it goes off (the blast above, then it is gone) when any part of a robot of another team comes within ${d.mine.radius} m (a flare counts as the robot it stands in for; friends and wrecks do not set it off), or on a detonate pulse; destroyed any other way (shot, caught in a blast) it breaks as a dud, without a blast; no impact fuze`);
+  if (d.grapple) {
+    const g = d.grapple;
+    out.push(`grapple: fire rising above 0.5 (once per press) casts a hook ${g.reach} m out of its ${d.acts ?? 'N'} face and ties a rope to the first thing it hits (another robot's part, debris, a loose block, or the ground; never its own robot), ${g.minLength} to ${g.maxLength} m long, as long as the distance at the hit; a taut rope tows what is on the other end`);
+    out.push(`grapple rope: reel (-1 to 1, positive pulls in) shortens it up to ${g.reelSpeed} m/s (taking up slack first), negative pays it out; release above 0.5 drops it (and wins over fire on the same tick); it is gone when either end's part is destroyed; outputs hooked (0 or 1) and length (meters, 0 with no rope); no energy`);
+  }
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
   return out;
 }

@@ -6,7 +6,7 @@ describe('parts', () => {
   const rows = partRows(defaultRegistry());
 
   it('has a row per part in builder order, with its key and legend tokens', () => {
-    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     const thruster = rows.find((r) => r.id === 'thruster');
     expect(thruster).toMatchObject({ key: '5', legend: ['T^', 'T<', 'Tv', 'T>'], mass: 1, health: 25, faces: ['N', 'E', 'W'], power: 20 });
     expect(thruster?.details.join('\n')).toContain('maxForce 160 N');
@@ -27,6 +27,7 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'mine')).toMatchObject({ key: '', legend: ['Xm'], mass: 1.5, faces: ['N', 'E', 'S', 'W'], health: 60, power: 0 });
     expect(rows.find((r) => r.id === 'radio')).toMatchObject({ key: '', legend: ['N'], mass: 1, health: 30, power: 1 });
     expect(rows.find((r) => r.id === 'jammer')).toMatchObject({ key: '', legend: ['J'], mass: 0.5, faces: ['N', 'E', 'S', 'W'], health: 10, power: 0 });
+    expect(rows.find((r) => r.id === 'grapple')).toMatchObject({ key: '', legend: ['Gp^', 'Gp<', 'Gpv', 'Gp>'], mass: 1, faces: ['S'], health: 30, power: 0 });
     expect(rows.find((r) => r.id === 'flare')).toMatchObject({ key: '', legend: ['Q^', 'Q<', 'Qv', 'Q>'], mass: 0.2, faces: ['S'], health: 5 });
     expect(rows.find((r) => r.id === 'smoke')).toMatchObject({ key: '', legend: ['U'], mass: 0.4, faces: ['N', 'E', 'S', 'W'], health: 10, power: 0 });
   });
@@ -54,6 +55,8 @@ describe('parts', () => {
     expect(text('radio')).toMatch(/shares what its robot's own sensors see with every robot of its team that has a working radio within 1500 m/);
     expect(text('jammer')).toMatch(/jams for 5 s and is then spent and gone; while it jams, within 30 m of the pod a sensor sees nothing/);
     expect(text('smoke')).toMatch(/releases a cloud 12 m in radius where it is and is used up/);
+    expect(text('grapple')).toMatch(/casts a hook 60 m out of its N face and ties a rope to the first thing it hits/);
+    expect(text('grapple')).toMatch(/reel \(-1 to 1, positive pulls in\) shortens it up to 5 m\/s/);
     expect(text('flare')).toMatch(/burns 2 s and is gone; while it burns, every sensor that sees it takes it for the robot/);
   });
 

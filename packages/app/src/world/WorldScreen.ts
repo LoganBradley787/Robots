@@ -8,6 +8,7 @@ import { RobotView } from '../render/RobotView';
 import { Effects } from '../render/Effects';
 import { ShellsView } from '../render/ShellsView';
 import { SmokeView } from '../render/SmokeView';
+import { RopesView } from '../render/RopesView';
 import { buildTerrainView } from '../render/TerrainView';
 import { buildGridView } from '../render/GridView';
 import { TERRAIN } from '../render/assetKeys';
@@ -85,6 +86,7 @@ export class WorldScreen {
   private readonly effects = new Effects();
   private readonly shells = new ShellsView();
   private readonly smoke = new SmokeView();
+  private readonly ropes = new RopesView();
   private readonly stepper: FixedStepper;
   private readonly grid: Graphics;
   private debugVisible = false;
@@ -143,6 +145,7 @@ export class WorldScreen {
     renderer.world.addChildAt(this.effects.root, renderer.world.getChildIndex(renderer.bodies) + 1);
     renderer.world.addChildAt(this.shells.root, renderer.world.getChildIndex(this.effects.root) + 1);
     renderer.world.addChildAt(this.smoke.root, renderer.world.getChildIndex(this.shells.root) + 1);
+    renderer.world.addChildAt(this.ropes.root, renderer.world.getChildIndex(this.shells.root) + 1);
     renderer.backdrop.addChild(
       this.grid,
       buildTerrainView(file, {
@@ -475,6 +478,7 @@ export class WorldScreen {
     this.effects.update(time.paused ? 0 : (ticker.deltaMS / 1000) * time.timeScale);
     this.shells.draw(this.world.liveShells(), alpha);
     this.smoke.draw(this.world.smokeClouds());
+    this.ropes.draw(this.world.liveRopes());
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);

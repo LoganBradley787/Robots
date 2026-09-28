@@ -14,6 +14,8 @@ export interface BodyState {
 }
 
 export type JointId = number;
+/** Batch: a rope (a Rapier rope joint between two bodies), by our own id. */
+export type RopeId = number;
 
 export interface BodySpec {
   x: number;
@@ -130,6 +132,9 @@ export class PhysicsWorld {
   private readonly helpers = new Map<BodyId, BodyId[]>();
   private nextId: BodyId = 1;
   private nextJointId: JointId = 1;
+  /** Batch: rope joints between two bodies, gone with either body. */
+  private readonly ropes = new Map<RopeId, { a: BodyId; b: BodyId; joint: RAPIER.ImpulseJoint }>();
+  private nextRopeId: RopeId = 1;
 
   constructor(gravityY: number, dt: number) {
     this.world = new RAPIER.World({ x: 0, y: gravityY });
@@ -176,6 +181,8 @@ export class PhysicsWorld {
       this.owners.delete(handle);
     }
     for (const [jointId, j] of this.joints) if (j.parent === id || j.child === id) this.joints.delete(jointId);
+    // Rapier drops a body's impulse joints with it; forget ours.
+    for (const [ropeId, r] of this.ropes) if (r.a === id || r.b === id) this.ropes.delete(ropeId);
     this.byHandle.delete(body.handle);
     this.world.removeRigidBody(body);
     this.bodies.delete(id);
@@ -217,6 +224,34 @@ export class PhysicsWorld {
     body.addForce({ x: (m * (vx - v.x)) / this.world.timestep, y: (m * (vy - v.y)) / this.world.timestep }, true);
     body.addTorque((body.principalInertia() * (w - body.angvel())) / this.world.timestep, true);
     this.forced.add(id);
+  }
+
+  /** Whether the body still exists. */
+  hasBody(id: BodyId): boolean {
+    return this.bodies.has(id);
+  }
+
+  /**
+   * Batch (grapple): a rope joint holding two points, one in each body's frame, at most `length` meters apart. Slack
+   * ropes do nothing. It goes when either body is removed (a robot rebuilt after damage): make it again on the new body.
+   */
+  createRope(a: BodyId, b: BodyId, anchorA: { x: number; y: number }, anchorB: { x: number; y: number }, length: number): RopeId {
+    const joint = this.world.createImpulseJoint(RAPIER.JointData.rope(length, anchorA, anchorB), this.body(a), this.body(b), true);
+    const id = this.nextRopeId++;
+    this.ropes.set(id, { a, b, joint });
+    return id;
+  }
+
+  /** Whether the rope is still there (it is not once one of its bodies is removed). */
+  ropeAlive(id: RopeId): boolean {
+    return this.ropes.has(id);
+  }
+
+  removeRope(id: RopeId): void {
+    const r = this.ropes.get(id);
+    if (!r) return;
+    this.ropes.delete(id);
+    this.world.removeImpulseJoint(r.joint, true);
   }
 
   /** Terrain colliders (no owner) that are boxes, in creation order. */
