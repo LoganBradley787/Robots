@@ -6,7 +6,7 @@ import type { Behavior } from './registry';
  * at up to `turnSpeed` rad/s within +-`range` of straight; with no input it holds the aim. The position motor's gains
  * come from the inertia of what it carries about the hinge, for a response near `frequency` rad/s critically damped,
  * so a heavy turret aims as crisply as a light one until the torque cap. Draws energy in proportion to the torque it
- * needs. `angle` reads the aim as a fraction of the range.
+ * needs. Its motor has an integral term (Batch), so a steady load (a missile's weight) does not leave a sag. `angle` reads the aim as a fraction of the range.
  */
 /** How far the aim may run ahead of the turret while it is turning, in radians. */
 const AIM_LEAD = 0.15;
@@ -39,12 +39,15 @@ export const rotator: Behavior = {
     const f = ctx.config('frequency');
     const stiffness = inertia * f * f;
     const damping = 2 * inertia * f;
+    // Batch: the integral gain, a quarter of the spring's per second at the response frequency, so a steady load's
+    // sag closes in a few seconds and the loop stays well inside its stability limit (the limit is twice the spring's).
+    const integral = (stiffness * f) / 4;
     const need = Math.abs(stiffness * wrapAngle(next - actual)) / spec.maxTorque;
     return {
       load: Math.min(1, Math.max(Math.abs(turn), need)),
       run(grant) {
         if (grant > 0) ctx.part.aim = next;
-        ctx.physics.setPositionMotor(joint.jointId, ctx.part.aim ?? 0, stiffness, damping, spec.maxTorque * grant, grant > 0 ? rate : 0);
+        ctx.physics.setPositionMotor(joint.jointId, ctx.part.aim ?? 0, stiffness, damping, spec.maxTorque * grant, grant > 0 ? rate : 0, integral);
       },
     };
   },

@@ -65,4 +65,52 @@ describe('rotator (M6)', () => {
     expect(w.robots.some((x) => x.parts.has('rotator@3,1') && x.parts.size === 4)).toBe(true);
     w.dispose();
   });
+
+  it('holds its angle to within 0.05 degrees under a steady load (Batch: integral term)', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(TURRET, { x: -100, y: 0.5 });
+    let worst = 0;
+    for (let i = 0; i < 60 * 10; i++) {
+      w.step();
+      if (i >= 60 * 6) worst = Math.max(worst, Math.abs(jointAngle(w, r)));
+    }
+    expect(worst).toBeLessThan(0.05 * DEG);
+    w.dispose();
+  });
+
+  it('a swing settles on its aim without the overshoot growing (Batch)', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(TURRET, { x: -100, y: 0.5 });
+    for (let i = 0; i < 30; i++) w.step();
+    w.step([{ robot: r.id, pressed: ['z'], released: [] }]);
+    for (let i = 0; i < 29; i++) w.step();
+    w.step([{ robot: r.id, pressed: [], released: ['z'] }]);
+    const aim = r.parts.get('rotator@3,1')?.aim ?? 0;
+    let peak1 = 0;
+    let peak2 = 0;
+    for (let i = 0; i < 60 * 12; i++) {
+      w.step();
+      const over = Math.abs(jointAngle(w, r) - aim);
+      if (i < 60 * 3) peak1 = Math.max(peak1, over);
+      else if (i < 60 * 6) peak2 = Math.max(peak2, over);
+    }
+    expect(peak2).toBeLessThanOrEqual(peak1);
+    expect(Math.abs(jointAngle(w, r) - aim)).toBeLessThan(0.05 * DEG);
+    w.dispose();
+  });
+
+  it('the integral term is capped to the motor torque and is hashed (Batch)', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(TURRET, { x: -100, y: 0.5 });
+    const before = w.hash();
+    for (let i = 0; i < 120; i++) w.step();
+    expect(w.hash()).not.toBe(before);
+    const rot = r.parts.get('rotator@3,1');
+    const joint = rot ? r.groups[rot.group]?.joint : undefined;
+    const entry = (w.physics as unknown as { joints: Map<number, { integral: number; maxTorque: number }> }).joints.get(joint?.jointId ?? -1);
+    expect(entry).toBeDefined();
+    expect(Math.abs(entry?.integral ?? 0)).toBeLessThanOrEqual(entry?.maxTorque ?? 0);
+    expect(Math.abs(entry?.integral ?? 0)).toBeGreaterThan(0);
+    w.dispose();
+  });
 });

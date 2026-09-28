@@ -62,16 +62,16 @@ async function attack(make: (w: World) => Robot, at: { x: number; y: number }, f
 }
 
 describe('M11 flares, done when', () => {
-  it('a seeker missile is pulled off by a pair lit about a second before it arrives; 4 s early or 0.2 s late, it hits', { timeout: 60_000 }, async () => {
-    const shot = (flareAt?: number) => attack((w) => w.spawnBlueprint(blueprint('launcher-seeker'), { x: -350, y: 1.5 }, { team: 1 }), { x: -40, y: 40 }, flareAt, 480, 60);
+  it('a seeker missile is pulled off by a pair lit about a second before it arrives; 3.5 s early or 0.5 s late, it hits', { timeout: 60_000 }, async () => {
+    const shot = (flareAt?: number) => attack((w) => w.spawnBlueprint(blueprint('launcher-seeker'), { x: -350, y: 1.5 }, { team: 1 }), { x: -40, y: 36 }, flareAt, 480, 60); // Batch: y 36, not 40: the rotator's integral term levels the launcher, so the missile flies a little lower
     const none = await shot();
     expect(none.lost).toBeGreaterThan(0);
     expect(none.distance).toBeLessThan(10);
     const right = await shot(none.tick - 60);
     expect(right.lost).toBe(0);
     expect(right.distance).toBeGreaterThan(12); // it went off at the flare
-    expect((await shot(none.tick - 240)).lost).toBeGreaterThan(0); // burnt out before it got there
-    expect((await shot(none.tick - 12)).lost).toBeGreaterThan(0); // already on it
+    expect((await shot(none.tick - 210)).lost).toBeGreaterThan(0); // burnt out before it got there
+    expect((await shot(none.tick - 30)).lost).toBeGreaterThan(0); // already on it
   });
 
   it('a drone bomb chasing the drone goes off at a well-timed pair instead', { timeout: 60_000 }, async () => {
