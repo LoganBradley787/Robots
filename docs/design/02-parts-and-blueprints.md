@@ -61,6 +61,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | fabbay | 1 per cell (13 at its default) | 150 | outer faces; grips on its hollow | release (lets go) | ready, progress, built | M12. A fabricator bay (see Fabricators): a U open at the top whose hollow is sized where it is placed (`size`, 1 to 8 wide, 1 to 10 tall; default 1 by 5). Builds its recipe (`makes`) from energy. No legend token (it always needs `makes`), no builder key. |
 | flare | 0.2 | 5 | S (its base) | ignite (lights it for good) | burning | M11. A decoy (see Decoys): burns 2 s once lit, then is gone without a blast; while it burns, sensors take it for its robot. Legend `Q^ Qv Q< Q>` (the way it points), no builder key. |
 | gun | 1 | 25 | S (its base) | fire (while above 0.5) | sight, sightSide, sightId, aim | M13. A gun (see Guns): 10 shells a second out of its front at 300 m/s, 5 damage to the first part each hits (anyone's), 2 N s of kick; its sight looks 150 m straight out of the barrel. No energy. Legend `M^ Mv M< M>` (the way it fires), no builder key. |
+| mine | 1.5 | 60 | N E S W | detonate (pulse), arm | armed | Batch. A proximity mine (see Proximity mines): armed, it goes off when a part of another team's robot comes within 3 m. The heavy warhead's blast (250 damage falling to 0 at 4 m). Shot or caught in a blast it breaks as a dud; takes a quarter of a shell's damage. Legend `Xm`, no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -88,6 +89,13 @@ A def with `gun: { speed, damage, rate, life, recoil, range }` is a gun; it need
 - **Pushes that do not unsettle:** a gun's kick and a shell's push are marked quiet: they are too small to trip a fuze, and a robot under fire keeps its fuzes (other pushes switch the impact check off for two ticks).
 - **The sight** (a sensor, straight): each tick after the step, a ray from the barrel's end along its real pose (not the rotator's `angle`, which is the commanded aim), `range` long, skipping its own collider. `sight` is the distance to the first thing (`range` for nothing), `sightSide` what it is (0 nothing, 1 its own robot, 2 a friend, 3 an enemy, 4 nobody's, 5 terrain: the rule contacts use), `sightId` that robot's contact id, `aim` the barrel's world angle. A burning flare let go by a robot reads as that robot. Derived each tick, not hashed. Aiming ahead of a moving target and allowing for drop is the script's job, from contacts; the sight is the last "clear to shoot" check.
 - **Events:** `shellHit` per hit (part, robot, shooter, damage); no event per shot (`World.shotsBy(robot)` counts them for reports).
+
+### Proximity mines (Batch, as built)
+A def with `mine: { radius }` is a mine; it needs `arming`, `onDestroyed.explode`, and a `detonate` input (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `mine` (radius 3, the heavy warhead's blast, health 60, `shellDamage` 0.25, `behavior: "mine"`, no `impact` fuze).
+- **Goes off** in the damage phase, right after the physics step: an armed mine whose radius holds a cell of any part of a robot of another team is set to 0 health and marked `fired` (`PartInstance.fired`, lasts the tick, never hashed), so the destroy step gives it its blast and it is gone. A `detonate` pulse on an armed mine does the same (the `mine` behavior). The blast is the same `onDestroyed.explode` a warhead has.
+- **Whose:** the robot's team, the rule contacts use (M8). A burning flare counts as the robot it stands in for (M11); a robot nobody controls (debris, a wreck) does not set it off; its own robot and friends never do. Robots and parts are scanned in order, so the result is a function of the state.
+- **A dud when it is not set off:** a mine destroyed any other way (shot to pieces, caught in another blast) breaks without a blast: no chain reactions, and you cannot shoot it off a missile. The `partDestroyed` event says `exploded: false`. Unarmed it never goes off and ignores `detonate` (M10 arming).
+- Nothing new in the state hash: `armed` was already there, and the check is derived from positions.
 
 ### Decoys (M11, as built)
 A def with `decoy: { burn }` (seconds) is a decoy; it needs an `ignite` input and a `burning` output (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `flare`.
@@ -148,6 +156,7 @@ T^  thruster pushing up (nozzle down)    Tv  pushing down    T<  pushing left   
 P   propeller lifting up                 Pv  lifting down
 D   decoupler releasing up               Dv  releasing down  D<  releasing left  D>  releasing right
 G   gyro
+Xm  proximity mine
 R   rotator carrying up (mounts below)   Rv  carrying down   R<  carrying left   R>  carrying right
 ```
 

@@ -6,6 +6,7 @@ import { wheel } from './wheel';
 import { gyro } from './gyro';
 import { decoupler } from './decoupler';
 import { warhead } from './warhead';
+import { mine } from './mine';
 import { rotator } from './rotator';
 import { sensor } from './sensor';
 import { fabricate } from './fabricate';
@@ -70,4 +71,5 @@ export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior
   ['rotator', rotator],
   ['sensor', sensor],
   ['fabricate', fabricate],
+  ['mine', mine],
 ]);

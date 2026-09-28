@@ -143,6 +143,15 @@ export interface GunSpec {
 }
 
 /**
+ * A proximity mine (Batch): once armed it goes off (its `onDestroyed.explode` blast, then it is gone) when any part of
+ * a robot of another team comes within `radius` meters of it, or on a `detonate` pulse. Destroyed any other way (shot,
+ * caught in a blast) it breaks without a blast. Needs `arming`, `onDestroyed.explode`, and a `detonate` input.
+ */
+export interface MineSpec {
+  radius: number;
+}
+
+/**
  * A fabricator (M12): it builds copies of a blueprint (the part's `makes`) inside its hollow, out of its robot's
  * energy: `joulesPerKg` of the copy's mass plus what its containers hold, over `secondsPerKg` of its mass. Its grips
  * hold the finished copy until its `release` input lets it go, pushed out along `acts` with `separation` N s.
@@ -204,6 +213,8 @@ export interface PartDef {
   decoy?: DecoySpec;
   /** M13: the part is a gun. It needs `acts`, a `fire` input, and `sight`, `sightSide`, `sightId`, and `aim` outputs. */
   gun?: GunSpec;
+  /** Batch: the part is a proximity mine. */
+  mine?: MineSpec;
   /** M12: the part's size is set per placement (`size` on the placed part). */
   stretch?: StretchSpec;
   /** M12: the part builds things (a fabricator bay). It needs grips, `acts`, a `release` input, and `ready`, `progress`, and `built` outputs. */

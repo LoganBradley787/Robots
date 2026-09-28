@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'mine', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -229,6 +229,13 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const sight = def.outputs.find((c) => c.name === 'sight');
     if (sight && sight.max !== range) r.fail('gun', `its "sight" output's max must be its range (${range})`);
     def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range, spread };
+  }
+  if (o.mine !== undefined) {
+    const m = r.obj(o.mine, 'mine', ['radius']);
+    if (def.arming !== true) r.fail('mine', 'a mine needs arming (an "arm" input, an "armed" output, and "arming": true)');
+    if (def.onDestroyed?.explode === undefined) r.fail('mine', 'a mine needs "onDestroyed.explode" (the blast it goes off with)');
+    if (!def.inputs.some((c) => c.name === 'detonate')) r.fail('mine', 'a mine must have a "detonate" input');
+    def.mine = { radius: r.positive(m, 'radius', 'mine') };
   }
   if (o.stretch !== undefined) {
     const so = r.obj(o.stretch, 'stretch', ['shape', 'min', 'max', 'massPerCell']);

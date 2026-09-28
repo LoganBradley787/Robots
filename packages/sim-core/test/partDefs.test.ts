@@ -38,6 +38,7 @@ describe('default part defs', () => {
       'flare',
       'fabbay',
       'gun',
+      'mine',
     ]);
   });
 
@@ -47,7 +48,7 @@ describe('default part defs', () => {
 
   it('health (M6): frames are armor, propellers are fragile', () => {
     const health = Object.fromEntries(defaultRegistry().list().map((d) => [d.id, d.health]));
-    expect(health).toEqual({ core: 50, frame: 60, battery: 30, wheel: 25, thruster: 25, propeller: 15, decoupler: 30, warhead: 20, gyro: 30, rotator: 40, cell: 10, seeker: 20, radar: 40, booster: 25, heavywarhead: 20, heavygyro: 30, densebattery: 30, flare: 5, fabbay: 150, gun: 25 });
+    expect(health).toEqual({ core: 50, frame: 60, battery: 30, wheel: 25, thruster: 25, propeller: 15, decoupler: 30, warhead: 20, gyro: 30, rotator: 40, cell: 10, seeker: 20, radar: 40, booster: 25, heavywarhead: 20, heavygyro: 30, densebattery: 30, flare: 5, fabbay: 150, gun: 25, mine: 60 });
   });
 
   it('the warhead explodes when destroyed and breaks on a hard hit', () => {
@@ -106,7 +107,7 @@ describe('parsePartDef', () => {
     expect(() => parsePartDef({ ...minimal, outputs: [armed], arming: true }, 'thing.json')).toThrow('must have an "arm" input');
     expect(() => parsePartDef({ ...minimal, inputs: [arm], arming: true }, 'thing.json')).toThrow('must have an "armed" output');
     expect(() => parsePartDef({ ...minimal, arming: 'yes' }, 'thing.json')).toThrow('arming must be true or false');
-    expect(defaultRegistry().list().filter((d) => d.arming === true).map((d) => d.id).sort()).toEqual(['heavywarhead', 'warhead']);
+    expect(defaultRegistry().list().filter((d) => d.arming === true).map((d) => d.id).sort()).toEqual(['heavywarhead', 'mine', 'warhead']);
   });
 
   it('decoy (M11): needs an ignite input, a burning output, and a burn time; the sprite may name a litFrame', () => {

@@ -6,7 +6,7 @@ describe('parts', () => {
   const rows = partRows(defaultRegistry());
 
   it('has a row per part in builder order, with its key and legend tokens', () => {
-    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '']);
+    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '', '']);
     const thruster = rows.find((r) => r.id === 'thruster');
     expect(thruster).toMatchObject({ key: '5', legend: ['T^', 'T<', 'Tv', 'T>'], mass: 1, health: 25, faces: ['N', 'E', 'W'], power: 20 });
     expect(thruster?.details.join('\n')).toContain('maxForce 160 N');
@@ -19,6 +19,7 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'densebattery')).toMatchObject({ key: '', legend: ['Z'] });
     expect(rows.find((r) => r.id === 'fabbay')).toMatchObject({ key: '', legend: [], mass: 13, health: 150 });
     expect(rows.find((r) => r.id === 'gun')).toMatchObject({ key: '', legend: ['M^', 'M<', 'Mv', 'M>'], mass: 1, faces: ['S'], health: 25, power: 0 });
+    expect(rows.find((r) => r.id === 'mine')).toMatchObject({ key: '', legend: ['Xm'], mass: 1.5, faces: ['N', 'E', 'S', 'W'], health: 60, power: 0 });
     expect(rows.find((r) => r.id === 'flare')).toMatchObject({ key: '', legend: ['Q^', 'Q<', 'Qv', 'Q>'], mass: 0.2, faces: ['S'], health: 5 });
   });
 
@@ -35,6 +36,8 @@ describe('parts', () => {
     expect(text('gun')).toMatch(/10 shells a second out of its N face at 300 m\/s; a shell falls under gravity, takes 5 off the first part it hits/);
     expect(text('gun')).toMatch(/looks 150 m straight out of the barrel/);
     expect(text('gun')).toMatch(/up to 0.5 degrees off the barrel's line/);
+    expect(text('mine')).toMatch(/goes off .* when any part of a robot of another team comes within 3 m/);
+    expect(text('mine')).toMatch(/destroyed any other way .* it breaks as a dud/);
     expect(text('flare')).toMatch(/burns 2 s and is gone; while it burns, every sensor that sees it takes it for the robot/);
   });
 
