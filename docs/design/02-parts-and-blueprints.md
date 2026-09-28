@@ -52,6 +52,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | warhead | 1 | 20 | N E S W | detonate (pulse) | | Explodes on detonate, when destroyed (chains), or when a hit changes its body's speed by more than 5 m/s in one step. A one-part core-less blueprint of it is the bomb. |
 | gyro | 1 | 30 | N E S W | spin [-1, 1], damp [0, 1] | | Reaction wheel (Gate 3): E and Q turn the robot, otherwise it damps spin. |
 | rotator | 1.5 | 40 | N E S W | turn [-1, 1] | angle [-1, 1] | M6 (Q5). Rotation 0 mounts on the part below (S) and carries parts on N, E, W in its own body. Z and X swing its aim at up to 2 rad/s within +-90 degrees; it holds the aim otherwise. Position motor, 600 N m (M7, was 300). M7: it swings only as fast as it can stop what it carries (`sqrt(0.2 * maxTorque / inertia)`), and its aim never runs more than 0.15 rad ahead of the turret, so a heavy turret no longer swings far past where it was aimed. |
+| piston | 2 | 40 | N E S W | extend [-1, 1] | position [0, 1] | Batch. A linear actuator (see Pistons). Rotation 0 mounts on the part below (S) and slides its head up; the head is the part itself and carries what is on its N, E, W faces. C and V extend and retract it at up to 1.5 m/s, stroke 0 to 2 m, 3000 N, 4 energy per second at full effort. Legend `I^ Iv I< I>`, palette only. |
 | cell | 0.5 | 10 | N E S W | | charge fraction | M7. A small battery, 250 units, legend `E`, builder key `-`. Made for missiles: the launcher's missile flew at thrust-to-weight 1.5 on a battery and 2.2 on a cell (3 since Gate 6's 160 N thruster). |
 | seeker | 0.3 | 20 | E S W | on [0, 1] | | M8. Sensor, 90 degree cone, 300 m, 1 energy per second (see Sensor parts). Legend `S^ Sv S< S>`, key `=`. |
 | radar | 1 | 40 | N E S W | on [0, 1] | | M8. Sensor, all around, 500 m, 3 energy per second. Legend `O`, key `;`. |
@@ -100,6 +101,14 @@ A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) i
 - A robot is seen when its reference point (its live core, else its center of mass) is inside a working sensor's cone and range and a ray to it crosses no terrain or static block. Other robots never block. Scripts get what their robot's sensors see as `contacts` (see `04`).
 - Still ideas, not built: a `scanner` that reports what is directly in front of it (for landing and terrain following: scripts cannot see the ground today), and a heat seeker that ranks targets by thruster heat.
 
+### Pistons (Batch, as built)
+
+- **What it is:** a rotator that slides. `joint.kind` is `prismatic` with `mountFace` (S at rotation 0) and `maxForce` (3000 N, enough for a small car). The piston part is the moving head: its body starts in its cell and slides along the way it acts (away from the mount face, N at rotation 0) by 0 to `stroke` (2 m), carrying whatever is attached to its other faces. The base is the part across the mount face, on the parent body; a sleeve sprite (`part.piston.mount`) is drawn there and the app draws a rod from the sleeve to the head as it moves.
+- **Controls:** `extend` (-1 to 1) is a rate like the rotator's `turn`: the target moves at up to `extendSpeed` (1.5 m/s) and holds when the input is 0. `position` (0 to 1 of the stroke) reads the target. Auto controls: C extends, V retracts. The target never runs more than 0.25 m ahead of the head, so a load that cannot keep up does not wind the target far away.
+- **Physics:** a Rapier prismatic multibody joint with limits at 0 and the stroke; contacts between base and head are off, like every joint. The motor is ours (multibody joints have no motor in Rapier's JS API): a spring and damper set by the mass being moved and `frequency`, an integral term that learns the load resting on the head (a car parked on it), and a feed-forward for the weight of the head body itself, all capped at `maxForce` times the energy granted. The force acts on the head and its reaction on the base at the same world point, so the pair adds no net force or torque to the robot. The gains follow the head's mass plus the weight the load term has learned to hold, which keeps a heavy load from ringing. The learned load is part of the world hash, only when a piston exists.
+- **Rebuilds:** a piece rebuilt mid-stroke (a part shot away elsewhere) keeps its extension: the new joint goes through an invisible pivot placed the current extension along the axis, like the rotator's angle.
+- **Traps:** the head slides through any cell of the parent body along its path (contacts between the two are off), so keep the stroke's cells free of parts you care about; a base that is light and free spins from the reaction when the head carries a lot off-axis.
+
 ## Blueprint JSON (canonical)
 
 ```json
@@ -147,6 +156,7 @@ P   propeller lifting up                 Pv  lifting down
 D   decoupler releasing up               Dv  releasing down  D<  releasing left  D>  releasing right
 G   gyro
 R   rotator carrying up (mounts below)   Rv  carrying down   R<  carrying left   R>  carrying right
+I^  piston pushing up (mounts below)     Iv  pushing down    I<  pushing left    I>  pushing right
 ```
 
 ### Placing a blueprint on another (M7, as built)

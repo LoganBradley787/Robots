@@ -67,6 +67,28 @@ interface JointEntry {
   maxTorque: number;
 }
 
+/**
+ * Batch: a prismatic (sliding) joint, the piston's. `axis` is the slide direction in the child's frame (which the
+ * joint keeps aligned with the parent's rest frame). `position` counts meters of extension from the anchor's rest pose.
+ * The motor is a spring, a damper, and an integral term that learns the load (a car parked on the head), plus a
+ * feed-forward for the weight of the child body itself, capped at `maxForce`.
+ */
+interface SliderEntry {
+  parent: BodyId;
+  child: BodyId;
+  anchorParent: { x: number; y: number };
+  axis: { x: number; y: number };
+  target: number;
+  rate: number;
+  stiffness: number;
+  damping: number;
+  maxForce: number;
+  integral: number;
+}
+
+/** How fast the slider motor's integral term learns a load, per second (times the stiffness). */
+const SLIDER_INTEGRAL_RATE = 4;
+
 /** Mass of the invisible helper bodies (a multibody root, a joint pivot): small enough to change nothing measurable. */
 const HELPER_MASS = 0.001;
 
@@ -112,6 +134,8 @@ function readState(body: RAPIER.RigidBody): BodyState {
 }
 
 export class PhysicsWorld {
+  /** Gravity's y (m/s^2, negative is down), for things that feed it forward (Batch: the piston). */
+  readonly gravityY: number;
   private readonly world: RAPIER.World;
   private readonly bodies = new Map<BodyId, RAPIER.RigidBody>();
   private readonly prev = new Map<BodyId, BodyState>();
@@ -122,6 +146,8 @@ export class PhysicsWorld {
   /** Bodies with forces or torques added for the next step; cleared after it. */
   private readonly forced = new Set<BodyId>();
   private readonly joints = new Map<JointId, JointEntry>();
+  /** Batch: sliding joints (pistons), by joint id. Empty in worlds without one, which then hash as before. */
+  private readonly sliders = new Map<JointId, SliderEntry>();
   /** Rapier body handle to our id, for mapping colliders back to bodies. */
   private readonly byHandle = new Map<number, BodyId>();
   /** Rapier colliders carry no user data, so owners (part ids) live here, keyed by the opaque handle. */
@@ -132,6 +158,7 @@ export class PhysicsWorld {
   private nextJointId: JointId = 1;
 
   constructor(gravityY: number, dt: number) {
+    this.gravityY = gravityY;
     this.world = new RAPIER.World({ x: 0, y: gravityY });
     this.world.timestep = dt;
     this.world.numSolverIterations = SOLVER_ITERATIONS;
@@ -176,6 +203,7 @@ export class PhysicsWorld {
       this.owners.delete(handle);
     }
     for (const [jointId, j] of this.joints) if (j.parent === id || j.child === id) this.joints.delete(jointId);
+    for (const [jointId, j] of this.sliders) if (j.parent === id || j.child === id) this.sliders.delete(jointId);
     this.byHandle.delete(body.handle);
     this.world.removeRigidBody(body);
     this.bodies.delete(id);
@@ -232,6 +260,39 @@ export class PhysicsWorld {
   }
 
   /**
+   * The body and anchor a multibody joint to `child` should hang from. Rapier starts every multibody joint at its rest
+   * pose (spike, M6), so a child that is already turned by `relAngle` (or slid by `slide`, in the child's rest frame)
+   * goes through an invisible pivot welded to the parent at that pose; with neither it is the parent itself.
+   */
+  private jointFrame(
+    parent: BodyId,
+    child: BodyId,
+    anchorParent: { x: number; y: number },
+    anchorChild: { x: number; y: number },
+    relAngle: number,
+    slide = { x: 0, y: 0 },
+  ): { from: RAPIER.RigidBody; fromAnchor: { x: number; y: number } } {
+    if (relAngle === 0 && slide.x === 0 && slide.y === 0) return { from: this.body(parent), fromAnchor: anchorParent };
+    const p = this.state(parent);
+    const c = Math.cos(p.angle);
+    const n = Math.sin(p.angle);
+    // The pivot's spot in the parent's frame: the anchor plus the slide (turned from the child's rest frame into the parent's).
+    const cr = Math.cos(relAngle);
+    const sr = Math.sin(relAngle);
+    const at = { x: anchorParent.x + cr * slide.x - sr * slide.y, y: anchorParent.y + sr * slide.x + cr * slide.y };
+    const pivot = this.createBody({ x: p.x + c * at.x - n * at.y, y: p.y + n * at.x + c * at.y, kind: 'dynamic' }, HELPER_MASS);
+    this.addHelper(child, pivot);
+    const weld = this.world.createMultibodyJoint(RAPIER.JointData.fixed(at, relAngle, { x: 0, y: 0 }, 0), this.body(parent), this.body(pivot), true);
+    weld.setContactsEnabled(false);
+    // Rapier only skips contacts between bodies joined directly. The parent and child now meet through the pivot,
+    // so a spring with no stiffness joins them only to switch their contacts off (else a rotator's box would rest
+    // on the part it turns on and jam).
+    const quiet = this.world.createImpulseJoint(RAPIER.JointData.spring(0, 0, 0, anchorParent, anchorChild), this.body(parent), this.body(child), true);
+    quiet.setContactsEnabled(false);
+    return { from: this.body(pivot), fromAnchor: { x: 0, y: 0 } };
+  }
+
+  /**
    * Revolute joint at the given anchors (each in its own body's frame). Contacts between the two bodies are off.
    * `relAngle` is the child's angle relative to the parent now (0 at spawn). Rapier starts every multibody joint at
    * relative angle 0 (spike, M6), so a nonzero one goes through an invisible pivot welded to the parent at that angle.
@@ -247,30 +308,106 @@ export class PhysicsWorld {
     // A multibody joint, not an impulse joint: impulse joints stretch and feed energy back under a driven wheel that
     // slips and lands (a car driven off a ledge bounced higher each time and flipped, Gate 3). Multibody joints are
     // exact, but Rapier's JS API has no motor for them, so the motor is ours (applied as torques in `step`).
-    let from = this.body(parent);
-    let fromAnchor = anchorParent;
-    if (relAngle !== 0) {
-      const p = this.state(parent);
-      const c = Math.cos(p.angle);
-      const n = Math.sin(p.angle);
-      const pivot = this.createBody({ x: p.x + c * anchorParent.x - n * anchorParent.y, y: p.y + n * anchorParent.x + c * anchorParent.y, kind: 'dynamic' }, HELPER_MASS);
-      this.addHelper(child, pivot);
-      const weld = this.world.createMultibodyJoint(RAPIER.JointData.fixed(anchorParent, relAngle, { x: 0, y: 0 }, 0), from, this.body(pivot), true);
-      weld.setContactsEnabled(false);
-      from = this.body(pivot);
-      fromAnchor = { x: 0, y: 0 };
-      // Rapier only skips contacts between bodies joined directly. The parent and child now meet through the pivot,
-      // so a spring with no stiffness joins them only to switch their contacts off (else a rotator's box would rest
-      // on the part it turns on and jam).
-      const quiet = this.world.createImpulseJoint(RAPIER.JointData.spring(0, 0, 0, anchorParent, anchorChild), this.body(parent), this.body(child), true);
-      quiet.setContactsEnabled(false);
-    }
+    const { from, fromAnchor } = this.jointFrame(parent, child, anchorParent, anchorChild, relAngle);
     const joint = this.world.createMultibodyJoint(RAPIER.JointData.revolute(fromAnchor, anchorChild), from, this.body(child), true);
     joint.setContactsEnabled(false);
     this.jointChildren.add(child);
     const id = this.nextJointId++;
     this.joints.set(id, { parent, child, kind: 'velocity', factor: motor?.factor ?? 0, damping: 0, target: motor?.targetVelocity ?? 0, rate: 0, maxTorque: motor?.maxTorque ?? 0 });
     return id;
+  }
+
+  /**
+   * Batch (piston): a sliding joint. The child slides along `axis` (in its own frame, which the joint keeps at the
+   * parent's `relAngle`) between 0 and `stroke` meters from the parent's anchor; `extension` is where it already is
+   * (a piece rebuilt mid-stroke). Contacts between the two bodies are off. The motor is ours: see `setSliderMotor`.
+   */
+  createPrismaticJoint(
+    parent: BodyId,
+    child: BodyId,
+    anchorParent: { x: number; y: number },
+    axis: { x: number; y: number },
+    stroke: number,
+    extension = 0,
+    relAngle = 0,
+  ): JointId {
+    const e = Math.max(0, Math.min(stroke, extension));
+    const { from, fromAnchor } = this.jointFrame(parent, child, anchorParent, { x: 0, y: 0 }, relAngle, { x: axis.x * e, y: axis.y * e });
+    const data = RAPIER.JointData.prismatic(fromAnchor, { x: 0, y: 0 }, axis);
+    // Measured from the pivot, which sits `e` along the stroke: the child may go back `e` and forward the rest.
+    data.limitsEnabled = true;
+    data.limits = [-e, stroke - e];
+    const joint = this.world.createMultibodyJoint(data, from, this.body(child), true);
+    joint.setContactsEnabled(false);
+    const id = this.nextJointId++;
+    this.sliders.set(id, { parent, child, anchorParent, axis, target: e, rate: 0, stiffness: 0, damping: 0, maxForce: 0, integral: 0 });
+    return id;
+  }
+
+  /**
+   * Holds a sliding joint at `target` meters of extension (rate = how fast the target moves, m/s, so a moving target
+   * is tracked without lag): force `stiffness * error + damping * (rate - speed)` plus a learned load, capped at
+   * `maxForce` N (0 = off). The child's own weight is fed forward, so a piston lifting a block needs no sag to hold it.
+   */
+  setSliderMotor(jointId: JointId, target: number, rate: number, stiffness: number, damping: number, maxForce: number): void {
+    const s = this.slider(jointId);
+    s.target = target;
+    s.rate = rate;
+    s.stiffness = stiffness;
+    s.damping = damping;
+    s.maxForce = maxForce;
+  }
+
+  /** How far a sliding joint's child is from its rest pose along the axis, meters. */
+  sliderPosition(jointId: JointId): number {
+    return this.sliderState(this.slider(jointId)).position;
+  }
+
+  /** How fast a sliding joint is extending, m/s (the child's speed along the axis relative to the parent's). */
+  sliderSpeed(jointId: JointId): number {
+    return this.sliderState(this.slider(jointId)).speed;
+  }
+
+  /**
+   * The mass (kg) beyond the child's own that a sliding joint's motor has learned to hold up against gravity (a car
+   * parked on the head), from its load term; 0 when it pushes across gravity or has learned nothing.
+   */
+  sliderCarriedMass(jointId: JointId): number {
+    const s = this.slider(jointId);
+    const g = this.gravityY;
+    if (g === 0) return 0;
+    return Math.max(0, (s.integral * -g * this.sliderState(s).ay) / (g * g));
+  }
+
+  private slider(jointId: JointId): SliderEntry {
+    const entry = this.sliders.get(jointId);
+    if (!entry) throw new Error(`unknown slider ${jointId}`);
+    return entry;
+  }
+
+  /** Extension, speed, and slide direction (world frame) of a slider, at the child's origin. */
+  private sliderState(s: SliderEntry): { position: number; speed: number; ax: number; ay: number; px: number; py: number } {
+    const p = this.body(s.parent);
+    const c = this.body(s.child);
+    const ct = c.translation();
+    const ca = c.rotation();
+    const ax = Math.cos(ca) * s.axis.x - Math.sin(ca) * s.axis.y;
+    const ay = Math.sin(ca) * s.axis.x + Math.cos(ca) * s.axis.y;
+    const pt = p.translation();
+    const pa = p.rotation();
+    const anchorX = pt.x + Math.cos(pa) * s.anchorParent.x - Math.sin(pa) * s.anchorParent.y;
+    const anchorY = pt.y + Math.sin(pa) * s.anchorParent.x + Math.cos(pa) * s.anchorParent.y;
+    const position = (ct.x - anchorX) * ax + (ct.y - anchorY) * ay;
+    // Velocity of each body at the child's origin: linear plus spin about the center of mass.
+    const cc = c.worldCom();
+    const pc = p.worldCom();
+    const cv = c.linvel();
+    const pv = p.linvel();
+    const cw = c.angvel();
+    const pw = p.angvel();
+    const rvx = cv.x - cw * (ct.y - cc.y) - (pv.x - pw * (ct.y - pc.y));
+    const rvy = cv.y + cw * (ct.x - cc.x) - (pv.y + pw * (ct.x - pc.x));
+    return { position, speed: rvx * ax + rvy * ay, ax, ay, px: ct.x, py: ct.y };
   }
 
   /** Changes a motor's target velocity, keeping the gain it was created with. */
@@ -472,6 +609,25 @@ export class PhysicsWorld {
       p.addTorque(-tau, true);
       this.forced.add(j.parent).add(j.child);
     }
+    // Batch: sliding joints. The motor's force on the child and its reaction on the parent, both at the child's
+    // origin, so the pair adds no net force or torque to the two bodies together.
+    for (const sl of this.sliders.values()) {
+      if (sl.maxForce === 0) continue;
+      const st = this.sliderState(sl);
+      const c = this.body(sl.child);
+      const err = sl.target - st.position;
+      const feed = -c.mass() * this.gravityY * st.ay;
+      const want = sl.stiffness * err + sl.damping * (sl.rate - st.speed) + sl.integral + feed;
+      const force = Math.max(-sl.maxForce, Math.min(sl.maxForce, want));
+      // The load term only learns while the motor has force to spare.
+      if (Math.abs(want) < sl.maxForce || want * err < 0) {
+        sl.integral = Math.max(-sl.maxForce, Math.min(sl.maxForce, sl.integral + SLIDER_INTEGRAL_RATE * sl.stiffness * err * this.world.timestep));
+      }
+      if (force === 0) continue;
+      c.addForceAtPoint({ x: force * st.ax, y: force * st.ay }, { x: st.px, y: st.py }, true);
+      this.body(sl.parent).addForceAtPoint({ x: -force * st.ax, y: -force * st.ay }, { x: st.px, y: st.py }, true);
+      this.forced.add(sl.parent).add(sl.child);
+    }
     for (const [id, cells] of this.cells) {
       const b = this.body(id);
       if (b.isSleeping()) continue;
@@ -530,6 +686,8 @@ export class PhysicsWorld {
       h.addF64(f.y);
       h.addF64(b.userTorque());
     }
+    // Batch: a slider's learned load shapes the future. Worlds without a slider add nothing.
+    for (const sl of this.sliders.values()) h.addF64(sl.integral);
   }
 
   debugRender(): DebugBuffers {

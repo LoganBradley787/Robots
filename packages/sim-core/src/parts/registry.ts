@@ -10,6 +10,7 @@ import decoupler from './defs/decoupler.json';
 import warhead from './defs/warhead.json';
 import gyro from './defs/gyro.json';
 import rotator from './defs/rotator.json';
+import piston from './defs/piston.json';
 import cell from './defs/cell.json';
 import seeker from './defs/seeker.json';
 import radar from './defs/radar.json';
@@ -72,6 +73,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['flare.json', flare],
   ['fabbay.json', fabbay],
   ['gun.json', gun],
+  ['piston.json', piston],
 ];
 
 let shipped: PartRegistry | null = null;
