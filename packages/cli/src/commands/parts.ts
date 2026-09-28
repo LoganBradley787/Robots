@@ -21,6 +21,7 @@ const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "
 /** Units for behavior settings, by setting name. */
 const UNITS: Record<string, string> = {
   maxForce: 'N',
+  swivel: 'deg',
   maxTorque: 'N m',
   dampTorque: 'N m',
   coastTorque: 'N m',
@@ -55,6 +56,9 @@ function details(d: PartDef): string[] {
     } else {
       out.push(`auto controls: the key for the way it pushes (W up, S down, D right, A left) sets ${a.channel} to max`);
     }
+  }
+  if ((d.behaviorConfig?.swivel ?? 0) > 0 && d.inputs.some((c) => c.name === 'swivel')) {
+    out.push(`swivels: the swivel input (-1 to 1) tilts its push up to ${d.behaviorConfig?.swivel} degrees counterclockwise (positive) or clockwise (negative) from its ${d.acts ?? 'N'} face; the push lands at its cell, so a tilt also turns the robot; no auto key for swivel: bind one or use a script`);
   }
   const boom = d.onDestroyed?.explode;
   const once = d.arming ? ' once armed' : '';
