@@ -180,6 +180,15 @@ export interface MineSpec {
 }
 
 /**
+ * A smoke pod (Batch): once its `on` input goes above 0.5 it releases a cloud of `radius` meters at its position and
+ * is used up. The cloud stays put (sinking slowly) for `seconds` and blocks sensors' line of sight like terrain.
+ */
+export interface SmokeSpec {
+  radius: number;
+  seconds: number;
+}
+
+/**
  * A fabricator (M12): it builds copies of a blueprint (the part's `makes`) inside its hollow, out of its robot's
  * energy: `joulesPerKg` of the copy's mass plus what its containers hold, over `secondsPerKg` of its mass. Its grips
  * hold the finished copy until its `release` input lets it go, pushed out along `acts` with `separation` N s.
@@ -249,6 +258,8 @@ export interface PartDef {
   solar?: SolarSpec;
   /** Batch: the part is a proximity mine. */
   mine?: MineSpec;
+  /** Batch: the part is a smoke pod. It needs an `on` input. */
+  smoke?: SmokeSpec;
   /** M12: the part's size is set per placement (`size` on the placed part). */
   stretch?: StretchSpec;
   /** M12: the part builds things (a fabricator bay). It needs grips, `acts`, a `release` input, and `ready`, `progress`, and `built` outputs. */

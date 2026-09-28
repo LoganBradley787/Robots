@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'mine', 'fabricate', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'mine', 'smoke', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -254,6 +254,11 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (def.onDestroyed?.explode === undefined) r.fail('mine', 'a mine needs "onDestroyed.explode" (the blast it goes off with)');
     if (!def.inputs.some((c) => c.name === 'detonate')) r.fail('mine', 'a mine must have a "detonate" input');
     def.mine = { radius: r.positive(m, 'radius', 'mine') };
+  }
+  if (o.smoke !== undefined) {
+    const sm = r.obj(o.smoke, 'smoke', ['radius', 'seconds']);
+    if (!def.inputs.some((c) => c.name === 'on')) r.fail('smoke', 'a smoke pod must have an "on" input');
+    def.smoke = { radius: r.positive(sm, 'radius', 'smoke'), seconds: r.positive(sm, 'seconds', 'smoke') };
   }
   if (o.stretch !== undefined) {
     const so = r.obj(o.stretch, 'stretch', ['shape', 'min', 'max', 'massPerCell']);

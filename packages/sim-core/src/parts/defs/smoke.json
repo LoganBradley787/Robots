@@ -1,0 +1,13 @@
+{
+  "id": "smoke",
+  "name": "Smoke pod",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 0.4,
+  "health": 10,
+  "symmetry": 4,
+  "inputs": [{ "name": "on", "min": 0, "max": 1, "default": 0 }],
+  "outputs": [],
+  "powerDraw": 0,
+  "smoke": { "radius": 12, "seconds": 8 },
+  "sprite": { "frame": "part.smoke" }
+}

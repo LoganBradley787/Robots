@@ -68,6 +68,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | mine | 1.5 | 60 | N E S W | detonate (pulse), arm | armed | Batch. A proximity mine (see Proximity mines): armed, it goes off when a part of another team's robot comes within 3 m. The heavy warhead's blast (250 damage falling to 0 at 4 m). Shot or caught in a blast it breaks as a dud; takes a quarter of a shell's damage. Legend `Xm`, no builder key. |
 | radio | 1 | 30 | N E S W | on [0, 1] | | Batch. Team contact sharing (see Radio), 1 energy per second. Legend `N`, no builder key. |
 | jammer | 0.5 | 10 | N E S W | ignite (lights it for good) | jamming | Batch. A jammer pod (see Jammers): jams for 5 s once lit, then is gone without a blast; within 30 m of it a sensor sees nothing, and no sensor outside sees a robot inside. Legend `J`, no builder key. |
+| smoke | 0.4 | 10 | N E S W | on (above 0.5 releases it) | | Batch. A smoke pod (see Smoke): releases a cloud 12 m in radius where it is, then is used up and gone quietly. The cloud lasts 8 s and blocks sensors like terrain. Legend `U`, no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -123,6 +124,14 @@ A def with `mine: { radius }` is a mine; it needs `arming`, `onDestroyed.explode
 - **Whose:** the robot's team, the rule contacts use (M8). A burning flare counts as the robot it stands in for (M11); a robot nobody controls (debris, a wreck) does not set it off; its own robot and friends never do. Robots and parts are scanned in order, so the result is a function of the state.
 - **A dud when it is not set off:** a mine destroyed any other way (shot to pieces, caught in another blast) breaks without a blast: no chain reactions, and you cannot shoot it off a missile. The `partDestroyed` event says `exploded: false`. Unarmed it never goes off and ignores `detonate` (M10 arming).
 - Nothing new in the state hash: `armed` was already there, and the check is derived from positions.
+
+### Smoke (Batch, as built)
+A def with `smoke: { radius, seconds }` is a smoke pod; it needs an `on` input (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `smoke` (12 m, 8 s).
+- **Releasing:** before behaviors run, a pod whose `on` input is above 0.5 puts a cloud at its position and is used up: its health goes to 0, so the damage phase removes it without a blast (`partDestroyed`, `exploded: false`), and a `smoked` event says where. A pod shot to pieces first releases nothing.
+- **The cloud:** a circle of `radius` meters that stays where it was released, sinking 0.5 m/s (`SMOKE_DRIFT`), for `seconds` counted in ticks. `World.smokeClouds()` lists them read-only (`x`, `y`, `radius`, `left`, `total` ticks) for drawing. They are simulation state: hashed (position, radius, ticks left) only while any exists, so worlds without smoke keep their hashes.
+- **What it blocks:** sensors, like terrain does. `sees()` refuses a target when the line from the sensor touches any cloud, so a robot behind a cloud is missing from `contacts` and `scan`, and a sensor inside a cloud sees nothing, a robot inside one is seen by nobody outside it. Robots still never block. Because it is the sensor rule, whatever steers by contacts (a missile's guide, a turret's tracking, a drone's pilot) loses the target as a consequence; nothing names a kind of robot.
+- **What passes:** shells and a gun's sight pass through smoke (the sight is a ray in the physics world, not a sensor cone; kept simple).
+- **Look:** soft grey circles, thinning out over the last 1.5 s (`SmokeView`); the sprite is a grey canister.
 
 ### Decoys (M11, as built)
 A def with `decoy: { burn }` (seconds) is a decoy; it needs an `ignite` input and a `burning` output (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `flare`.

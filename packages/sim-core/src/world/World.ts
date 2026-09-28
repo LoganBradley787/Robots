@@ -14,6 +14,7 @@ import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, 
 import { extrasJson, HEADER, layoutJson, numberCount, put, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, type JamBubble } from '../sensors/jam';
+import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
 import { buildWorld, type WorldFile } from './WorldFile';
@@ -89,7 +90,9 @@ export type WorldEvent =
   /** M12: a fabricator finished a build but cannot place it yet (`why`); it tries every tick. Once per wait. */
   | { tick: number; robot: number; kind: 'buildBlocked'; part: string; why: string }
   /** M13: a shell from robot `by` hit `part` of `robot` at `x`, `y`, taking `damage` off it. */
-  | { tick: number; robot: number; kind: 'shellHit'; part: string; partType: string; by: number; x: number; y: number; damage: number };
+  | { tick: number; robot: number; kind: 'shellHit'; part: string; partType: string; by: number; x: number; y: number; damage: number }
+  /** Batch: a smoke pod went off, leaving a cloud of `radius` meters at `x`, `y`; the pod is gone. */
+  | { tick: number; robot: number; kind: 'smoked'; part: string; x: number; y: number; radius: number };
 
 /** The world center of each footprint cell of a part, from its origin cell's pose (M12, multi-cell parts). */
 function footprintPoses(origin: { x: number; y: number; angle: number }, part: PartInstance): BlastCell[] {
@@ -229,6 +232,8 @@ export class World {
   private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true }[] = [];
   /** M13: shells in flight, oldest first. Simulation state, hashed. */
   private shells: Shell[] = [];
+  /** Batch: smoke clouds, oldest first. They block sensors' line of sight. Simulation state, hashed only while any exist. */
+  private clouds: SmokeCloud[] = [];
   /** M13: robots that grew parts this tick, whose new guns get their aim before scripts next run. Derived. */
   private readonly unprimed = new Set<Robot>();
   /** M13: shells each robot's guns have fired. Reporting only. */
@@ -403,9 +408,11 @@ export class World {
    * tick at a time and is destroyed (quietly: a decoy has no blast) when it reaches 0.
    */
   private armParts(): void {
+    this.driftSmoke();
     for (const robot of this.robots) {
       const chans = this.channels.get(robot.id);
       for (const part of robot.parts.values()) {
+        if (part.def.smoke !== undefined) this.releaseSmoke(robot, part, chans?.get(part.id)?.get('on') ?? 0, part.def.smoke);
         if (part.def.decoy !== undefined) this.burnDecoy(robot, part, chans?.get(part.id)?.get('ignite') ?? 0, part.def.decoy.burn);
         if (part.def.jammer !== undefined) this.burnJammer(robot, part, chans?.get(part.id)?.get('ignite') ?? 0, part.def.jammer);
         if (part.armed !== false || (chans?.get(part.id)?.get('arm') ?? 0) <= 0.5) continue;
@@ -444,6 +451,34 @@ export class World {
         }
       }
     }
+  }
+
+  /**
+   * Batch: a smoke pod whose `on` input is above 0.5 releases its cloud where it is and is used up (health 0, so it
+   * goes in the damage phase without a blast). The cloud stays where it was released, sinking slowly.
+   */
+  private releaseSmoke(robot: Robot, part: PartInstance, on: number, spec: { radius: number; seconds: number }): void {
+    if (on <= 0.5 || part.health <= 0) return;
+    const pose = partWorldPose(this, robot, part.id);
+    const total = Math.max(1, Math.round(spec.seconds / this.dt));
+    this.clouds.push({ x: pose.x, y: pose.y, radius: spec.radius, left: total, total });
+    part.health = 0;
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'smoked', part: part.id, x: pose.x, y: pose.y, radius: spec.radius });
+  }
+
+  /** Batch: every cloud sinks a little and ages one tick; a spent one is gone. */
+  private driftSmoke(): void {
+    if (this.clouds.length === 0) return;
+    for (const c of this.clouds) {
+      c.left--;
+      c.y -= SMOKE_DRIFT * this.dt;
+    }
+    this.clouds = this.clouds.filter((c) => c.left > 0);
+  }
+
+  /** Batch: smoke clouds now, oldest first, for drawing. Read only. */
+  smokeClouds(): readonly SmokeCloud[] {
+    return this.clouds;
   }
 
   private burnDecoy(robot: Robot, part: PartInstance, ignite: number, seconds: number): void {
@@ -1533,7 +1568,7 @@ export class World {
         if (d.robot === other) continue;
         const dist = Math.hypot(d.pos.x - from.x, d.pos.y - from.y);
         if (dist >= best || (bubbles && jammed(bubbles, d.pos))) continue;
-        const b = sensors.filter((s) => sees(s, d.pos, terrain)).map((s) => s.id);
+        const b = sensors.filter((s) => sees(s, d.pos, terrain, this.clouds)).map((s) => s.id);
         if (b.length === 0) continue;
         at = d;
         by = b;
@@ -1542,7 +1577,7 @@ export class World {
       if (!at) {
         // Batch: a robot whose reference point is inside a jammer's bubble is hidden from every sensor outside it.
         if (bubbles && jammed(bubbles, ref.pos)) continue;
-        by = sensors.filter((s) => sees(s, ref.pos, terrain)).map((s) => s.id);
+        by = sensors.filter((s) => sees(s, ref.pos, terrain, this.clouds)).map((s) => s.id);
         if (by.length === 0) continue;
       }
       const pos = at ? at.pos : ref.pos;
@@ -1853,6 +1888,16 @@ export class World {
         h.addInt(sh.robot);
         h.addString(sh.gun);
         h.addInt(sh.left);
+      }
+    }
+    // Smoke clouds (Batch). None adds nothing, so worlds without smoke hash as before.
+    if (this.clouds.length > 0) {
+      h.addString('smoke');
+      h.addInt(this.clouds.length);
+      for (const c of this.clouds) {
+        for (const v of [c.x, c.y, c.radius]) h.addF64(v);
+        h.addInt(c.left);
+        h.addInt(c.total);
       }
     }
     // Held keys and toggles shape the future, so they are state too.
