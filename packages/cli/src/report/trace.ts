@@ -166,6 +166,9 @@ export class Tracer {
         case 'lit':
           push(e.robot, 'lit', `${e.part} lit: while it burns, sensors that see it take it for ${this.letter(e.of)}`);
           break;
+        case 'jamStarted':
+          push(e.robot, 'jamStarted', `${e.part} jamming: sensors within ${e.radius} m of it see nothing, and none sees a robot inside`);
+          break;
         case 'burntOut':
           push(e.robot, 'burntOut', `${e.part} burnt out`);
           break;

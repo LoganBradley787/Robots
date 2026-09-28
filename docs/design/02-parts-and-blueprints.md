@@ -61,6 +61,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | fabbay | 1 per cell (13 at its default) | 150 | outer faces; grips on its hollow | release (lets go) | ready, progress, built | M12. A fabricator bay (see Fabricators): a U open at the top whose hollow is sized where it is placed (`size`, 1 to 8 wide, 1 to 10 tall; default 1 by 5). Builds its recipe (`makes`) from energy. No legend token (it always needs `makes`), no builder key. |
 | flare | 0.2 | 5 | S (its base) | ignite (lights it for good) | burning | M11. A decoy (see Decoys): burns 2 s once lit, then is gone without a blast; while it burns, sensors take it for its robot. Legend `Q^ Qv Q< Q>` (the way it points), no builder key. |
 | gun | 1 | 25 | S (its base) | fire (while above 0.5) | sight, sightSide, sightId, aim | M13. A gun (see Guns): 10 shells a second out of its front at 300 m/s, 5 damage to the first part each hits (anyone's), 2 N s of kick; its sight looks 150 m straight out of the barrel. No energy. Legend `M^ Mv M< M>` (the way it fires), no builder key. |
+| jammer | 0.5 | 10 | N E S W | ignite (lights it for good) | jamming | Batch. A jammer pod (see Jammers): jams for 5 s once lit, then is gone without a blast; within 30 m of it a sensor sees nothing, and no sensor outside sees a robot inside. Legend `J`, no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -92,6 +93,14 @@ A def with `decoy: { burn }` (seconds) is a decoy; it needs an `ignite` input an
 - Its `ignite` input above 0.5 lights it for good, attached or not, before behaviors run: a grip let go on the same tick lets it go burning. It records the robot it was part of (`decoyOf`) and burns `burn` seconds counted in ticks (`PartInstance.burn`, both in the state hash), then is destroyed without a blast (`partDestroyed` with `burntOut: true`, after a `burntOut` event).
 - While it burns, every sensor that sees it takes it for that robot (the rule is in `04`, contacts). A flare attaches only by its base (its S face at rotation 0), so flares stacked in a rack do not hold each other on.
 - The sprite's `litFrame` is drawn while it burns; the app adds a glow.
+
+### Jammers (Batch, as built)
+A def with `jammer: { radius, seconds }` is a jammer pod; it needs an `ignite` input and a `jamming` output (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `jammer` (30 m, 5 s, 0.5 kg, health 10, attaches on any face, legend `J`).
+- Its `ignite` input above 0.5 lights it for good, attached or let go, before behaviors run (the same rule as a decoy, so a grip fired on the same tick lets it go jamming). It counts `seconds` in ticks in `PartInstance.burn` (hashed), then is destroyed without a blast (`partDestroyed` with `burntOut: true`, after a `burntOut` event). `jamStarted` (part, x, y, radius) is told when it lights. `jamming` reads 1 while it jams.
+- **A bubble both ways,** centered on the pod's cell and moving with it (a let-go pod keeps its bubble): a sensor part whose position is inside sees nothing, and a sensor anywhere sees no robot whose reference point (its live core, else its center of mass) is inside. This lives in `World.workingSensors` and `World.contactsFor`, so `contacts`, `scan`, seekers, radars and everything that steers by them lose the target; turrets pick targets from contacts and lose them too. A burning flare inside a bubble is not seen either (a flare standing in for its robot is then not seen at all; the robot itself may be, if its own reference point is outside).
+- **Gun sights are not affected:** a sight is a straight look out of a barrel, not a sensor part.
+- Hashing: the pod's timer (and its position while it jams) is added only for parts whose def has `jammer`, so worlds without one keep their hashes. Bubbles are found once a tick from the pods, never stored.
+- The sprite's `litFrame` is drawn while it jams; the app adds a cyan glow. There is no bubble drawing yet.
 
 ### Sensor parts (M8, as built)
 A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) is a sensor, facing its `acts` face. The engine reads the field; no part type is special-cased. A `sensor` behavior draws power while the `on` input is above 0.5; switched off or unpowered, it sees nothing.

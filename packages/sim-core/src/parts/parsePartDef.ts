@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'jammer', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -210,6 +210,12 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (!def.inputs.some((c) => c.name === 'ignite')) r.fail('decoy', 'a decoy must have an "ignite" input');
     if (!def.outputs.some((c) => c.name === 'burning')) r.fail('decoy', 'a decoy must have a "burning" output');
     def.decoy = { burn: r.positive(d, 'burn', 'decoy') };
+  }
+  if (o.jammer !== undefined) {
+    const j = r.obj(o.jammer, 'jammer', ['radius', 'seconds']);
+    if (!def.inputs.some((c) => c.name === 'ignite')) r.fail('jammer', 'a jammer must have an "ignite" input');
+    if (!def.outputs.some((c) => c.name === 'jamming')) r.fail('jammer', 'a jammer must have a "jamming" output');
+    def.jammer = { radius: r.positive(j, 'radius', 'jammer'), seconds: r.positive(j, 'seconds', 'jammer') };
   }
   if (o.gun !== undefined) {
     const g = r.obj(o.gun, 'gun', ['speed', 'damage', 'rate', 'life', 'recoil', 'range']);

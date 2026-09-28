@@ -13,6 +13,7 @@ import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
 import { extrasJson, HEADER, layoutJson, numberCount, put, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
+import { jammed, type JamBubble } from '../sensors/jam';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
 import { buildWorld, type WorldFile } from './WorldFile';
@@ -26,7 +27,7 @@ import { footprintOf, partMass } from '../parts/footprint';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
-import type { ExplodeSpec, Face } from '../parts/types';
+import type { ExplodeSpec, Face, JammerSpec } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Binding, Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
@@ -79,6 +80,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'lit'; part: string; of: number }
   /** M11: a decoy burnt out; it is destroyed this tick without a blast. */
   | { tick: number; robot: number; kind: 'burntOut'; part: string }
+  /** Batch: a jammer pod started jamming, in a bubble of `radius` meters around `x`, `y`. */
+  | { tick: number; robot: number; kind: 'jamStarted'; part: string; x: number; y: number; radius: number }
   /** M12: a fabricator finished a copy of `recipe`, now held in it with its own `scope`. */
   | { tick: number; robot: number; kind: 'built'; part: string; recipe: string; scope: string }
   /** M12: a fabricator let go of what it held. */
@@ -264,6 +267,10 @@ export class World {
   private readonly grown = new Set<Robot>();
   /** Each robot blueprint's fabricator jobs by part (M12), worked out once per blueprint object. Derived. */
   private readonly jobs = new WeakMap<Blueprint, Map<string, { seconds: number; joules: number } | undefined>>();
+  /** Batch: jamming bubbles for the tick they were found on. Derived; dropped when robots come or go. */
+  private jamCache: { tick: number; bubbles: JamBubble[] | undefined } | undefined;
+  /** Batch: jammer pods lit at some point and maybe still jamming, so sensors skip looking for bubbles when there are none. Derived from each part's `burn`. */
+  private readonly jammers = new Set<PartInstance>();
   /** Burning decoys as sensors see them, for the tick they were found on (M11). Derived; dropped when robots come or go. */
   private decoyCache: { tick: number; view: { of: Map<number, SeenDecoy[]>; pieces: Set<number> } | undefined } | undefined;
   /** Contacts each robot's sensors saw at a decoy when its scripts last ran, for `scan()` (M11). Derived, not hashed. */
@@ -312,6 +319,7 @@ export class World {
     this.robots.push(robot);
     this.byId.set(robot.id, robot);
     this.decoyCache = undefined;
+    this.jamCache = undefined;
     const controller = controllerFor(robot, this.registry);
     if (controller) {
       this.controllers.set(robot.id, controller);
@@ -359,6 +367,7 @@ export class World {
     }
     const accepted = inputs.filter((i) => this.controllers.has(i.robot));
     this.decoyCache = undefined;
+    this.jamCache = undefined;
     const change: WorldChange = {};
     if (this.pendingUnlimited !== undefined) change.unlimitedEnergy = this.pendingUnlimited;
     if (this.pendingClearDebris) change.clearDebris = true;
@@ -397,6 +406,7 @@ export class World {
       const chans = this.channels.get(robot.id);
       for (const part of robot.parts.values()) {
         if (part.def.decoy !== undefined) this.burnDecoy(robot, part, chans?.get(part.id)?.get('ignite') ?? 0, part.def.decoy.burn);
+        if (part.def.jammer !== undefined) this.burnJammer(robot, part, chans?.get(part.id)?.get('ignite') ?? 0, part.def.jammer);
         if (part.armed !== false || (chans?.get(part.id)?.get('arm') ?? 0) <= 0.5) continue;
         part.armed = true;
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'armed', part: part.id });
@@ -418,6 +428,51 @@ export class World {
     if (part.burn > 0) return;
     part.health = 0;
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'burntOut', part: part.id });
+  }
+
+  /**
+   * Batch: a jammer pod is lit for good once its `ignite` input is above 0.5 (same rule as a decoy), jams `seconds`
+   * (its `burn` counts the ticks down), and is destroyed quietly when it reaches 0.
+   */
+  private burnJammer(robot: Robot, part: PartInstance, ignite: number, spec: JammerSpec): void {
+    if (part.burn === undefined) {
+      if (ignite <= 0.5 || part.health <= 0) return;
+      part.burn = Math.max(1, Math.round(spec.seconds / this.dt));
+      this.jammers.add(part);
+      this.jamCache = undefined;
+      const pose = partWorldPose(this, robot, part.id);
+      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'jamStarted', part: part.id, x: pose.x, y: pose.y, radius: spec.radius });
+      return;
+    }
+    if (part.burn <= 0) return;
+    part.burn--;
+    if (part.burn > 0) return;
+    part.health = 0;
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'burntOut', part: part.id });
+  }
+
+  /**
+   * Batch: every bubble now, one per jamming pod, where the pod is. Undefined when none jams (the usual case costs
+   * nothing). Computed once per tick.
+   */
+  private jamBubbles(): JamBubble[] | undefined {
+    if (this.jammers.size === 0) return undefined;
+    if (this.jamCache?.tick === this.tickCount) return this.jamCache.bubbles;
+    const out: JamBubble[] = [];
+    this.jammers.clear();
+    for (const r of this.robots) {
+      for (const bp of r.blueprint.parts) {
+        const part = r.parts.get(bp.id);
+        const spec = part?.def.jammer;
+        if (!part || !spec || (part.burn ?? 0) <= 0 || !r.groups[part.group]) continue;
+        this.jammers.add(part);
+        const pose = partWorldPose(this, r, part.id);
+        out.push({ x: pose.x, y: pose.y, radius: spec.radius });
+      }
+    }
+    const bubbles = out.length === 0 ? undefined : out;
+    this.jamCache = { tick: this.tickCount, bubbles };
+    return bubbles;
   }
 
   /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
@@ -450,6 +505,7 @@ export class World {
     this.seen.delete(robot.id);
     this.seenDecoys.delete(robot.id);
     this.decoyCache = undefined;
+    this.jamCache = undefined;
     this.scriptMarks.delete(robot.id);
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'removed' });
@@ -519,7 +575,10 @@ export class World {
    * too, unless its single core woke up, which starts fresh with its parts' auto controls.
    */
   private rebuildDirty(): void {
-    if (this.dirty.size > 0) this.decoyCache = undefined;
+    if (this.dirty.size > 0) {
+      this.decoyCache = undefined;
+      this.jamCache = undefined;
+    }
     for (const robot of [...this.robots]) {
       if (!this.dirty.has(robot)) continue;
       this.dirty.delete(robot);
@@ -936,6 +995,7 @@ export class World {
     this.grown.add(robot);
     this.unprimed.add(robot);
     this.decoyCache = undefined;
+    this.jamCache = undefined;
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'built', part: bay.id, recipe: recipe.name, scope });
   }
@@ -1151,6 +1211,7 @@ export class World {
     if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
+    if (name === 'jamming' && part.def.jammer !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
     if (part.def.gun !== undefined) return gunOutput(part, name);
     return undefined;
   }
@@ -1254,12 +1315,15 @@ export class World {
     if (coreId === undefined || !this.controllers.has(robot.id)) return [];
     const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const out: SensorPose[] = [];
+    const bubbles = this.jamBubbles();
     for (const id of chunk?.partIds ?? []) {
       const p = robot.parts.get(id);
       const spec = p?.def.sensor;
       // A sensor works only once it has been powered (the behavior sets `sensing` each tick); before its first tick it sees nothing.
       if (!p || !spec || p.sensing !== true) continue;
       const pose = partWorldPose(this, robot, id);
+      // Batch: a sensor inside a jammer's bubble sees nothing.
+      if (bubbles && jammed(bubbles, pose)) continue;
       const d = faceDir(rotateFace(p.def.acts ?? 'N', p.rot));
       out.push({ id, x: pose.x, y: pose.y, facing: pose.angle + Math.atan2(d.y, d.x), cone: spec.cone, range: spec.range });
     }
@@ -1314,6 +1378,7 @@ export class World {
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const from = partWorldPose(this, robot, coreId);
     const lit = this.burningDecoys();
+    const bubbles = this.jamBubbles();
     const fooled = lit && (remember || decoysOut) ? new Map<number, SeenDecoy>() : undefined;
     const out: ScriptContact[] = [];
     for (const other of this.robots) {
@@ -1327,7 +1392,7 @@ export class World {
         // One still on the robot it stands in for is just part of it (lit, not let go yet).
         if (d.robot === other) continue;
         const dist = Math.hypot(d.pos.x - from.x, d.pos.y - from.y);
-        if (dist >= best) continue;
+        if (dist >= best || (bubbles && jammed(bubbles, d.pos))) continue;
         const b = sensors.filter((s) => sees(s, d.pos, terrain)).map((s) => s.id);
         if (b.length === 0) continue;
         at = d;
@@ -1335,6 +1400,8 @@ export class World {
         best = dist;
       }
       if (!at) {
+        // Batch: a robot whose reference point is inside a jammer's bubble is hidden from every sensor outside it.
+        if (bubbles && jammed(bubbles, ref.pos)) continue;
         by = sensors.filter((s) => sees(s, ref.pos, terrain)).map((s) => s.id);
         if (by.length === 0) continue;
       }
@@ -1590,6 +1657,15 @@ export class World {
           h.addInt(part.burn ?? -1);
           h.addInt(part.decoyOf ?? 0);
         }
+        // Batch: a jammer pod's ticks left, and where its bubble is while it jams. Other parts add nothing.
+        if (part.def.jammer !== undefined) {
+          h.addInt(part.burn ?? -1);
+          if ((part.burn ?? 0) > 0 && robot.groups[part.group]) {
+            const pose = partWorldPose(this, robot, part.id);
+            h.addF64(pose.x);
+            h.addF64(pose.y);
+          }
+        }
         // Messages waiting for a core (M8) shape what its scripts do.
         for (const m of part.inbox ?? []) {
           h.addString(m.from);
@@ -1738,6 +1814,7 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
   }
   if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
   if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
+  if (name === 'jamming' && part.def.jammer !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
   if (part.def.gun !== undefined) {
     if (name === 'sight') return part.sight?.distance ?? part.def.gun.range;
     if (name === 'sightSide') return part.sight?.side ?? 0;

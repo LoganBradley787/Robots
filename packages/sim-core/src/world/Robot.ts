@@ -32,7 +32,8 @@ export interface PartInstance {
   armed?: boolean;
   /**
    * M11: for a part whose def has `decoy`, the ticks it has left to burn once lit (counting down to 0, when it is
-   * destroyed). Undefined until lit.
+   * destroyed). Undefined until lit. Batch: the same for a jammer pod (a part whose def has `jammer`): the ticks it has
+   * left to jam.
    */
   burn?: number;
   /** M11: the robot a lit decoy stands in for: the one it was part of when it was lit. */
