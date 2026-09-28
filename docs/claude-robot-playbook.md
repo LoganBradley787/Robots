@@ -131,7 +131,7 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 
 ## Pistons (Batch)
 - `I^` mounts on the part below and pushes up: the piston cell itself slides out 0 to 2 m, carrying what is on its N, E, and W faces (a frame block above it, a rotator with a turret, a rail of missiles). `Iv`, `I<`, `I>` push down, left, right and mount on the opposite side. Auto keys: C extends, V retracts.
-- `extend` is a rate (-1 to 1, at most 1.5 m/s); `position` reads 0 to 1 of the stroke (the target, not the head). It holds where you leave it. It lifts 3000 N (about 300 kg on Earth gravity) slowly: it learns a heavy load over about a second, then holds it. A car parked on its plate is lifted, not just what is bolted to it.
+- `extend` is a rate (-1 to 1, at most 1.5 m/s); `position` reads 0 to 1 of the stroke (the target, not the head). It holds where you leave it. It lifts 3000 N (about 300 kg on Earth gravity) slowly: it learns a heavy load over a second or two, then holds it. A car parked on its plate is lifted, not just what is bolted to it.
 - The head passes through the parent's own cells (no contacts with the base), so leave the stroke's column empty. Two pistons in a chain (a piston on a piston's head) work; a loop of joints is locked like a rotator's.
 - Power: 4 J/s at full effort, and holding a load up costs its weight as a share of 3000 N. The run report does not print piston positions yet; read `position` in a script or read a run's core path.
 
