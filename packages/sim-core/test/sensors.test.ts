@@ -58,7 +58,7 @@ describe('sensor parts (M8)', () => {
     const me = w.spawnBlueprint(RADAR, { x: 0, y: 100 });
     const enemy = w.spawnBlueprint(TARGET, { x: -100, y: 100 }, { team: 1 });
     const friend = w.spawnBlueprint(TARGET, { x: 0, y: 200 });
-    const far = w.spawnBlueprint(TARGET, { x: -600, y: 100 }, { team: 1 });
+    const far = w.spawnBlueprint(TARGET, { x: -1100, y: 100 }, { team: 1 }); // radar range 1000 m (500 before Logan doubled it)
     const junk = w.spawnBlueprint(DEBRIS, { x: 0, y: 60 });
     w.step();
     const seen = w.sensorView(me.id).contacts;

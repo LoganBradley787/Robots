@@ -9,6 +9,6 @@
   "outputs": [],
   "powerDraw": 3,
   "behavior": "sensor",
-  "sensor": { "cone": 360, "range": 500 },
+  "sensor": { "cone": 360, "range": 1000 },
   "sprite": { "frame": "part.radar" }
 }

@@ -14,6 +14,6 @@
   ],
   "powerDraw": 0,
   "acts": "N",
-  "gun": { "speed": 300, "damage": 5, "rate": 10, "life": 1, "recoil": 2, "range": 150 },
+  "gun": { "speed": 300, "damage": 5, "rate": 10, "life": 1, "recoil": 2, "range": 150, "spread": 0.5 },
   "sprite": { "frame": "part.gun" }
 }

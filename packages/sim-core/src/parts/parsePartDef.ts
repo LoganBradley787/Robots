@@ -212,16 +212,18 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     def.decoy = { burn: r.positive(d, 'burn', 'decoy') };
   }
   if (o.gun !== undefined) {
-    const g = r.obj(o.gun, 'gun', ['speed', 'damage', 'rate', 'life', 'recoil', 'range']);
+    const g = r.obj(o.gun, 'gun', ['speed', 'damage', 'rate', 'life', 'recoil', 'range', 'spread']);
     if (def.acts === undefined) r.fail('gun', 'a gun needs "acts" (the way it fires)');
     if (!def.inputs.some((c) => c.name === 'fire')) r.fail('gun', 'a gun must have a "fire" input');
     for (const out of GUN_OUTPUTS) if (!def.outputs.some((c) => c.name === out)) r.fail('gun', `a gun must have a "${out}" output`);
     const recoil = r.num(g, 'recoil', 'gun');
     if (recoil < 0) r.fail('gun.recoil', 'must not be negative');
     const range = r.positive(g, 'range', 'gun');
+    const spread = g.spread === undefined ? 0 : r.num(g, 'spread', 'gun');
+    if (spread < 0 || spread > 45) r.fail('gun.spread', 'must be 0 to 45 degrees');
     const sight = def.outputs.find((c) => c.name === 'sight');
     if (sight && sight.max !== range) r.fail('gun', `its "sight" output's max must be its range (${range})`);
-    def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range };
+    def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range, spread };
   }
   if (o.stretch !== undefined) {
     const so = r.obj(o.stretch, 'stretch', ['shape', 'min', 'max', 'massPerCell']);

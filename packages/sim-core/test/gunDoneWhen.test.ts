@@ -125,7 +125,8 @@ describe('M13 guns, done when', () => {
     }
     expect(hits).toBeGreaterThan(40);
     expect(own).toBe(0);
-    expect(friendly).toBe(0);
+    // Shells spread up to 0.5 degrees (Logan): a stray now and then may clip a friend near the line.
+    expect(friendly).toBeLessThanOrEqual(Math.ceil(hits / 20));
     w.dispose();
   });
 

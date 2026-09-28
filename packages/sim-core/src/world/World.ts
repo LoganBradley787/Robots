@@ -739,8 +739,12 @@ export class World {
       if ((this.channels.get(robot.id)?.get(part.id)?.get('fire') ?? 0) <= 0.5) continue;
       const m = this.muzzle(robot, part);
       if (!m) continue;
+      // Spread: off the barrel's line by up to `spread` degrees, center weighted (two draws averaged).
+      const off = spec.spread > 0 ? ((spec.spread * Math.PI) / 180) * (noise(this.seed, this.tickCount, robot.id, part.id, 0) + noise(this.seed, this.tickCount, robot.id, part.id, 1) - 1) : 0;
+      const sx = m.dx * Math.cos(off) - m.dy * Math.sin(off);
+      const sy = m.dx * Math.sin(off) + m.dy * Math.cos(off);
       this.shells.push({
-        x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + m.dx * spec.speed, vy: m.vy + m.dy * spec.speed,
+        x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + sx * spec.speed, vy: m.vy + sy * spec.speed,
         robot: robot.id, gun: part.id, damage: spec.damage, push: spec.recoil, left: Math.max(1, Math.round(spec.life / this.dt)),
       });
       part.cooldown = Math.max(1, Math.round(1 / (spec.rate * this.dt)));
@@ -1745,6 +1749,29 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
     if (name === 'aim') return part.sight?.aim ?? 0;
   }
   return undefined;
+}
+
+/**
+ * A number in [0, 1) that depends only on its inputs (M13: shell spread). A hash, not a random stream: nothing to
+ * keep or hash, and adding a gun changes nothing else's numbers. FNV-1a over the inputs, then a final mix.
+ */
+function noise(seed: number, tick: number, robot: number, key: string, n: number): number {
+  let h = 2166136261;
+  const mix = (v: number): void => {
+    h = Math.imul(h ^ (v & 0xffff), 16777619);
+    h = Math.imul(h ^ (v >>> 16), 16777619);
+  };
+  mix(seed | 0);
+  mix(tick | 0);
+  mix(robot | 0);
+  mix(n | 0);
+  for (let i = 0; i < key.length; i++) mix(key.charCodeAt(i));
+  h ^= h >>> 15;
+  h = Math.imul(h, 0x2c1b3c6d);
+  h ^= h >>> 12;
+  h = Math.imul(h, 0x297a2d39);
+  h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
 }
 
 /** A gun's outputs (M13): its sight after the last step; before it first looks, nothing seen within its range. */

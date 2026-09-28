@@ -44,3 +44,7 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - **Many-gun against many-gun** at 0.25 speed: a real gun war; one lost all its facing guns, tried to cross over, and the other (below it) took its propellers, guns, and core. The winner kept most of its guns.
 - **Many-gun against fab gun drone** (on the many-gun's damaged side): the fab gun drone's missiles got through once its guns were down and took the many-gun drone's core. The fab gun drone then drifted to a spot and waited.
 
+### 3. Range (Logan, 2026-09-28)
+- Tried before any bigger change: shells spread up to 0.5 degrees (center weighted, deterministic), and radar range doubled to 1000 m.
+- Measured, 600 m apart, 60 s: the enemy fab drone now beats the enemy gun drone (2 parts lost against 24; it fires from outside gun range); the many-gun drone still beats the fab drone and the fab gun drone; the enemy flying silo beats the gun drone. Missile shootdowns in the done-when tests still hold (4 or more hits, nothing lost). The 2v2 friendly fire check now allows a stray shell in twenty.
+

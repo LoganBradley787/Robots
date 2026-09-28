@@ -125,7 +125,7 @@ export interface DecoySpec {
  * A gun (M13): while its `fire` input is above 0.5 it fires `rate` shells a second out of its `acts` face at `speed`
  * m/s (plus its own motion), each pushing it back `recoil` N s. A shell falls under gravity, takes `damage` off the
  * first part it hits (anyone's) and pushes it `recoil` N s, stops on terrain, and is gone after `life` seconds. Its
- * sight looks `range` meters straight out of the barrel: what it would hit first (the `sight`, `sightSide`, `sightId`
+ * sight looks `range` meters straight out of the barrel (the barrel's line, not a shell's: see `spread`): what it would hit first (the `sight`, `sightSide`, `sightId`
  * outputs), and `aim`, the barrel's world angle.
  */
 export interface GunSpec {
@@ -135,6 +135,11 @@ export interface GunSpec {
   life: number;
   recoil: number;
   range: number;
+  /**
+   * Degrees: each shell leaves up to this far off the barrel's line (center weighted, the same every replay: worked
+   * out from the world's seed, the tick, and the gun, not drawn from a random stream). 0 when absent.
+   */
+  spread: number;
 }
 
 /**

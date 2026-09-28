@@ -21,10 +21,12 @@ describe('guns (M13)', () => {
     expect(w.shotsBy(car.id)).toBe(0);
     w.step(hold(car.id, 'f'));
     const first = w.liveShells()[0];
-    expect(first?.vx).toBeCloseTo(300, 3);
+    // 300 m/s, a little off the barrel's line (spread 0.5 degrees).
+    expect(Math.hypot(first?.vx ?? 0, first?.vy ?? 0)).toBeCloseTo(300, 1);
+    expect(Math.abs(Math.atan2(first?.vy ?? 0, first?.vx ?? 1))).toBeLessThanOrEqual((0.5 * Math.PI) / 180);
     // It left the barrel's end (x -98.5) and flew one tick.
     expect(first?.px).toBeCloseTo(-98.5, 2);
-    expect(first?.x).toBeCloseTo(-98.5 + 5, 2);
+    expect(first?.x).toBeCloseTo(-98.5 + 5, 1);
     for (let i = 0; i < 59; i++) w.step();
     // The tick F went down, then every 6 ticks: 0, 6, ..., 54.
     expect(w.shotsBy(car.id)).toBe(10);
@@ -41,7 +43,7 @@ describe('guns (M13)', () => {
     for (let i = 0; i < 29; i++) w.step();
     // After 30 ticks (0.5 s): down about g t^2 / 2 = 1.2 m, give or take the gun falling as it fired.
     expect(y0 - first.y).toBeGreaterThan(1.1);
-    expect(y0 - first.y).toBeLessThan(1.35);
+    expect(y0 - first.y).toBeLessThan(1.35 + 150 * Math.tan((0.5 * Math.PI) / 180)); // plus spread
     w.dispose();
     // In the air, nothing to hit: each shell lives 60 ticks.
     const w2 = await World.create({ seed: 1 }, flat);
@@ -102,7 +104,12 @@ describe('guns (M13)', () => {
         const b = block.groups[0];
         if (!b || block.parts.size === 0) break;
         const s = w.physics.state(b.bodyId);
-        for (const sh of w.liveShells()) if (sh.x > s.x + 0.6 && Math.abs(sh.y - s.y) < 0.45) passed.add(sh);
+        // A shell whose last step crossed the block's x within its height went through it.
+        for (const sh of w.liveShells()) {
+          if (!(sh.px <= s.x && sh.x > s.x)) continue;
+          const yAt = sh.py + ((s.x - sh.px) / (sh.x - sh.px)) * (sh.y - sh.py);
+          if (Math.abs(yAt - s.y) < 0.45) passed.add(sh);
+        }
         if (s.x < -90) break;
       }
       expect(passed.size, `at ${speed} m/s`).toBe(0);
