@@ -267,3 +267,10 @@ Runs on load, on every editor change, and in the headless runner. Returns a list
 - `toGrid(blueprint)`: renders a `parts` blueprint back into `grid` plus `legend` text for display or copy.
 - Both are pure functions in `blueprint/` with tests, so Claude can call them from the CLI.
 - As built (M7): `mirrorBlueprint(bp, axisHalfCells)` also renames everything that names a part by id (binding targets, `primaryCore`, `corePriority`, `cores`); scripts are copied unchanged. The CLI (`docs/claude-robot-playbook.md` has the full list): `pnpm sim parts` (every part def as a table), `show` (grid via `toGrid`, mass, bodies, every core's controls), `mirror <bp> [--axis] [--save]`, `place <target> <source> --at x,y [--rot] [--mirror] [--save]`, and `run`, whose report lists events in order, every piece's final state, and an ASCII side view of every piece's path.
+
+### Debris fades (Batch, engine rule)
+Wreckage does not pile up for ever. A robot is **debris** when it broke off something (`Robot.brokeFrom` is set) and has no core in charge (`primaryCoreId` unset). Robots spawned coreless on purpose (walls, bombs, targets) never broke off anything, so they are never debris. The rule lives in `packages/sim-core/src/world/debris.ts` and runs once a tick, right after the damage phase.
+- **Rest clock:** a debris piece whose every body is nearly still (the same thresholds as `sampleRobot`'s `resting`: under 0.05 m/s and 0.05 rad/s) has its rest count go up one tick; any movement resets it to 0. At `10 s` (600 ticks, counted in ticks so replays hold) the piece is removed with the usual `removed` event.
+- **Cap:** at most 200 debris pieces stay in the world. Past that, the oldest (lowest robot id) go first, whether or not they are still.
+- **Hash:** the rest counts of pieces that have rested at all are added to `World.hash` under `debris`, only while any exist. A world that never breaks anything off hashes as before; long battle scenes changed on purpose (golden hashes rewritten).
+- The app may fade the sprite before it goes (optional; the sim just removes the robot).

@@ -194,6 +194,9 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 - **What ends a rope:** the grapple or the far part destroyed, or a released rope. A rope survives either robot being damaged and rebuilt, and follows the far part if it breaks off. Keep the barrel's line clear of your own parts (the hook skips your robot, but a robot that hooks itself gains nothing).
 - **Traps:** a rope stops a fast robot dead once it goes taut, which is a hard hit for anything with a fuze on that body. Reeling in a heavy target moves you more than it (a rope pulls both ends).
 
+## Debris fades (Batch)
+- Pieces that broke off something and have no core (a blown-off wing, a wrecked missile's frame) are removed once every body of the piece has been nearly still for 10 s, and the oldest go first past 200 such pieces. A coreless robot you spawn on purpose (a wall, a target, a bomb) is never removed. So a long fight's wreckage does not pile up, and a `run` report shows `removed` events for it: a piece "gone at t=..." after a fight may have faded, not been destroyed. Pieces that woke with a core (missiles) are robots, not debris.
+
 ## Sensors, teams, and homing (M8)
 - **Teams:** every robot has a team (0 is Logan's, 1 the enemy; more later). Pieces keep their robot's team. Scripts only see `side`, so one blueprint works on either team.
 - **Handing a missile its target:** the launcher's script picks a contact and calls `send(<missile's scope or core id>, { x, y, vx, vy, id })`, then fires the decoupler on the same tick. The missile's guide reads it from `inbox` in `setup()`. See `launcher-seeker.fire.js` (it finds its missile by looking for the core that is not its own) and `missile-seeker.guide.js`.
