@@ -1,0 +1,175 @@
+{
+  "format": 1,
+  "name": "enemy-factory",
+  "grid": [
+    ". . . So . . . So . . . . . . . . . . . . . . . . . . . So . . . So . . .",
+    ". . . A = . = A . . . . . . . . . . . . . . . . . . . A = . = A . . .",
+    ". . . A = . = A . . . . . So . . . . . . . So . . . . . A = . = A . . .",
+    ". . . A = . = A . . . . . A = . . . . . = A . . . . . A = . = A . . .",
+    ". . . A = . = A . . . . . A = . . . . . = A . . . . . A = . = A . . .",
+    ". . . A = . = A . . . . . A = . . . . . = A . . . . . A = . = A . . .",
+    "So So So A = q = A So So So So So A = s = = = = = A So So So So So A = r = A So So So",
+    "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+    "A Z Z Z Z F F F F F F F F F F F F C O F F F F F F F F F F F Z Z Z Z A",
+    "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A"
+  ],
+  "legend": {
+    "q": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "msl-a"
+      ],
+      "makes": "missile-up"
+    },
+    "r": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "msl-b"
+      ],
+      "makes": "missile-up"
+    },
+    "s": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "bmb-a"
+      ],
+      "makes": "heavy-drone-bomb",
+      "size": [
+        5,
+        3
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-factory.pilot.js"
+      },
+      "params": {}
+    }
+  ],
+  "recipes": {
+    "missile-up": {
+      "format": 1,
+      "name": "missile-up",
+      "grid": [
+        "S^",
+        "H",
+        "C",
+        "a",
+        "b"
+      ],
+      "legend": {
+        "a": {
+          "part": "heavygyro",
+          "rot": 0,
+          "auto": false
+        },
+        "b": {
+          "part": "booster",
+          "rot": 0,
+          "auto": false
+        }
+      },
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 15,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "enemy-factory.missile-up.guide.js"
+          }
+        }
+      ]
+    },
+    "heavy-drone-bomb": {
+      "format": 1,
+      "name": "heavy-drone-bomb",
+      "grid": [
+        "L  L  R  R",
+        "H  C  O  H",
+        "H  G  E  H"
+      ],
+      "legend": {
+        "L": {
+          "part": "propeller",
+          "tags": [
+            "lprop"
+          ],
+          "auto": false
+        },
+        "R": {
+          "part": "propeller",
+          "tags": [
+            "rprop"
+          ],
+          "auto": false
+        },
+        "O": {
+          "part": "radar",
+          "tags": [
+            "radar"
+          ]
+        },
+        "H": {
+          "part": "heavywarhead",
+          "auto": false
+        },
+        "G": {
+          "part": "gyro",
+          "tags": [
+            "stab"
+          ],
+          "auto": false
+        }
+      },
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-factory.heavy-drone-bomb.pilot.js"
+          },
+          "params": {
+            "clearWidth": 10,
+            "brake": 14,
+            "ram": 10,
+            "speed": 40,
+            "lean": 65
+          }
+        }
+      ]
+    }
+  }
+}
