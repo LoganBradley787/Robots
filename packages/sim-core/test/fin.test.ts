@@ -113,9 +113,9 @@ describe('fins (Batch)', () => {
       const finned = await rod();
       const bare = await World.create({ seed: 1, gravityY: 0 }, sky);
       const plain = bare.spawnBlueprint({ format: 1, name: 'rod', grid: ['.  C  .', '.  F  .', 'F  F  F'] }, { x: 0, y: 100 });
-      // Thrown sideways at 60 m/s with its nose up.
-      finned.w.physics.kick(finned.body, 60, 0, 0);
-      bare.physics.kick(plain.groups[0]?.bodyId as number, 60, 0, 0);
+      // Thrown sideways at 60 m/s with its nose up (kickRobot: a raw physics kick reads as a crash).
+      finned.w.kickRobot(finned.r, 60, 0);
+      bare.kickRobot(plain, 60, 0);
       for (let i = 0; i < 40; i++) {
         finned.w.step();
         bare.step();
@@ -130,8 +130,8 @@ describe('fins (Batch)', () => {
     it('a fin at speed pushes sideways with the square of the speed', async () => {
       // One tick from a fast start: the sideways speed lost is force over mass, so four times as much at double speed.
       const lost = async (v: number): Promise<number> => {
-        const { w, body } = await rod();
-        w.physics.kick(body, v, 0, 0);
+        const { w, r, body } = await rod();
+        w.kickRobot(r, v, 0);
         w.step();
         w.step();
         const s = w.physics.state(body);
@@ -149,7 +149,7 @@ describe('fins (Batch)', () => {
     it('deflecting the fins turns a free-flying body', async () => {
       const steer = async (press: boolean) => {
         const { w, r, body } = await rod();
-        w.physics.kick(body, 0, 100, 0);
+        w.kickRobot(r, 0, 100);
         w.step(press ? hold(r.id, 'f') : []);
         for (let i = 0; i < 30; i++) w.step();
         const s = w.physics.state(body);
@@ -167,8 +167,8 @@ describe('fins (Batch)', () => {
 
     it('is deterministic with fins in it', async () => {
       const run = async (): Promise<string> => {
-        const { w, r, body } = await rod();
-        w.physics.kick(body, 30, 80, 0);
+        const { w, r } = await rod();
+        w.kickRobot(r, 30, 80);
         w.step(hold(r.id, 'f'));
         for (let i = 0; i < 60; i++) w.step();
         const h = w.hash();

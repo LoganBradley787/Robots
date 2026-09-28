@@ -103,6 +103,7 @@ function details(d: PartDef): string[] {
     out.push(`grapple rope: reel (-1 to 1, positive pulls in) shortens it up to ${g.reelSpeed} m/s (taking up slack first), negative pays it out; release above 0.5 drops it (and wins over fire on the same tick); it is gone when either end's part is destroyed; outputs hooked (0 or 1) and length (meters, 0 with no rope); no energy`);
   }
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
+  if (d.crash) out.push(`crash damage from hits over ${d.crash.safe} m/s (a fall of about ${((d.crash.safe * d.crash.safe) / (2 * G)).toFixed(1)} m; others 12)`);
   return out;
 }
 

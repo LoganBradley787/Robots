@@ -35,12 +35,14 @@ async function shoot(target: string, at: { x: number; y: number }, seconds: numb
   const w = await World.create({ seed: 1, scripts: host }, flat);
   const launcher = w.spawnBlueprint(blueprint(opts.launcher ?? 'launcher-seeker'), { x: -100, y: 1.45 });
   const t = w.spawnBlueprint(blueprint(target), at, { team: 1 });
+  // Batch: seen while it flies: after its core dies its debris shatters on the ground (crash damage) and goes.
+  let missile: Robot | undefined;
   for (let tick = 0; tick < seconds * 60; tick++) {
     const inputs = during?.(w, t, tick) ?? [];
     if (tick === 60) inputs.push({ robot: launcher.id, pressed: ['f'], released: [] });
     w.step(inputs);
+    missile ??= w.robots.find((r) => r.brokeFrom === launcher.id && r.woke);
   }
-  const missile = w.robots.find((r) => r.brokeFrom === launcher.id && r.woke);
   return { w, target: t, ...(missile ? { missile } : {}) };
 }
 

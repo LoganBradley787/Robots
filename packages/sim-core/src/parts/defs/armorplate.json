@@ -6,6 +6,7 @@
   "health": 250,
   "shellDamage": 0.1,
   "build": 2.0,
+  "crash": { "safe": 24 },
   "symmetry": 1,
   "inputs": [],
   "outputs": [],

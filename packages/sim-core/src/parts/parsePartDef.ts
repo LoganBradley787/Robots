@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'mine', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'mine', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -194,6 +194,10 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   if (o.impact !== undefined) {
     const io = r.obj(o.impact, 'impact', ['speed']);
     def.impact = { speed: r.positive(io, 'speed', 'impact') };
+  }
+  if (o.crash !== undefined) {
+    const co = r.obj(o.crash, 'crash', ['safe', 'range']);
+    def.crash = { safe: r.positive(co, 'safe', 'crash'), ...(co.range !== undefined ? { range: r.positive(co, 'range', 'crash') } : {}) };
   }
   if (o.arming !== undefined) {
     if (o.arming !== true && o.arming !== false) r.fail('arming', 'must be true or false');

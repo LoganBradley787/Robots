@@ -17,6 +17,7 @@ import { jammed, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
+import { crashFraction, crashWeight } from './crash';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -562,6 +563,14 @@ export class World {
     return bubbles;
   }
 
+  /**
+   * Batch: gives every body of a robot a velocity as a kick on the next step, like the ones a rebuild gives new pieces
+   * (the impact check ignores it). For tests and tools; a raw physics kick reads as a crash.
+   */
+  kickRobot(robot: Robot, vx: number, vy: number, w = 0): void {
+    for (const g of robot.groups) this.pendingKicks.set(g.bodyId, { vx, vy, w });
+  }
+
   /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
   clearDebris(): void {
     this.pendingClearDebris = true;
@@ -630,19 +639,72 @@ export class World {
    * in one step, gravity aside. Measured from the velocity, not Rapier's contact forces, which are not reported for
    * contacts on multibody links (a bomb bouncing off a car's roof went unnoticed). Thrust changes a body's speed by a
    * fraction of a meter per second per step, so only hits count.
+   *
+   * Batch: every other part takes crash damage from the same measure (`crash` on its def, default safe 8 m/s): see
+   * `world/crash.ts`. Bodies in `unsettled` (kicks, blast pushes) never count.
    */
   private checkImpacts(): void {
     for (const [body, until] of this.unsettled) if (until < this.tickCount) this.unsettled.delete(body);
     for (const robot of this.robots) {
+      // Each body's velocity change this step (gravity aside), read once: undefined for a body that was just kicked.
+      const hits = new Map<number, { dv: number; ux: number; uy: number } | undefined>();
+      const hitOf = (index: number): { dv: number; ux: number; uy: number } | undefined => {
+        if (hits.has(index)) return hits.get(index);
+        const group = robot.groups[index];
+        let hit: { dv: number; ux: number; uy: number } | undefined;
+        if (group && !this.unsettled.has(group.bodyId)) {
+          const s = this.physics.state(group.bodyId);
+          const p = this.physics.prevState(group.bodyId);
+          const dvx = s.vx - p.vx;
+          const dvy = s.vy - p.vy - this.gravityY * this.dt;
+          const dv = Math.sqrt(dvx * dvx + dvy * dvy);
+          // The impact is on the side the velocity change points away from.
+          hit = { dv, ux: dv > 0 ? -dvx / dv : 0, uy: dv > 0 ? -dvy / dv : 0 };
+        }
+        hits.set(index, hit);
+        return hit;
+      };
+      // Batch: crash damage, spread over the robot by how near each part is to the impact (`world/crash.ts`).
+      let poses: Map<string, { x: number; y: number }> | undefined;
+      const poseOf = (id: string): { x: number; y: number } => {
+        if (!poses) {
+          poses = new Map();
+          for (const other of robot.parts.values()) poses.set(other.id, partWorldPose(this, robot, other.id));
+        }
+        return poses.get(id) ?? { x: 0, y: 0 };
+      };
+      const spreads = new Map<number, { cx: number; cy: number; reach: number }>();
+      const spreadOf = (index: number, hit: { ux: number; uy: number }): { cx: number; cy: number; reach: number } => {
+        const known = spreads.get(index);
+        if (known) return known;
+        poseOf('');
+        let cx = 0;
+        let cy = 0;
+        for (const q of poses?.values() ?? []) {
+          cx += q.x;
+          cy += q.y;
+        }
+        const n = Math.max(1, poses?.size ?? 1);
+        cx /= n;
+        cy /= n;
+        let reach = 0;
+        for (const q of poses?.values() ?? []) reach = Math.max(reach, Math.abs((q.x - cx) * hit.ux + (q.y - cy) * hit.uy));
+        const made = { cx, cy, reach };
+        spreads.set(index, made);
+        return made;
+      };
       for (const part of robot.parts.values()) {
-        const group = robot.groups[part.group];
+        const hit = hitOf(part.group);
+        if (!hit) continue;
         // A part that needs arming has its fuze off until it is armed (M10).
-        if (!part.def.impact || !group || this.unsettled.has(group.bodyId) || part.armed === false) continue;
-        const s = this.physics.state(group.bodyId);
-        const p = this.physics.prevState(group.bodyId);
-        const dvx = s.vx - p.vx;
-        const dvy = s.vy - p.vy - this.gravityY * this.dt;
-        if (Math.sqrt(dvx * dvx + dvy * dvy) > part.def.impact.speed) part.health = 0;
+        if (part.def.impact && part.armed !== false && hit.dv > part.def.impact.speed) part.health = 0;
+        const fraction = crashFraction(hit.dv, part.def.crash);
+        if (fraction > 0 && part.health > 0) {
+          const spread = spreadOf(part.group, hit);
+          const q = poseOf(part.id);
+          const weight = crashWeight((q.x - spread.cx) * hit.ux + (q.y - spread.cy) * hit.uy, spread.reach);
+          part.health -= part.def.health * fraction * weight;
+        }
       }
     }
   }

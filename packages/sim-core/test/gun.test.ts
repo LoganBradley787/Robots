@@ -102,8 +102,7 @@ describe('guns (M13)', () => {
       w.step(hold(car.id, 'f'));
       const passed = new Set<object>();
       for (let i = 0; i < 200; i++) {
-        const g = block.groups[0];
-        if (i === 0 && g) w.physics.kick(g.bodyId, -speed, 0, 0);
+        if (i === 0) w.kickRobot(block, -speed, 0);
         w.step();
         const b = block.groups[0];
         if (!b || block.parts.size === 0) break;
