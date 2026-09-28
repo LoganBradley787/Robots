@@ -260,9 +260,10 @@
       },
       "params": {
         "standoff": 40,
-        "above": 15,
+        "above": 25,
         "settle": 0,
-        "jitter": 0
+        "jitter": 0,
+        "climb": 6
       }
     },
     {

@@ -49,6 +49,8 @@ const dodgeAhead = param('dodgeAhead', 2.5, { min: 0.2, max: 10 }); // s ahead i
 const dodgeMiss = param('dodgeMiss', 10, { min: 1, max: 50 }); // m: a missile passing closer than this is dodged
 const dodgeTime = param('dodgeTime', 1.2, { min: 0.1, max: 5 }); // s it keeps dodging
 const dodgeRoom = param('dodgeRoom', 15, { min: 0, max: 200 }); // m above the robot it tracks it needs to dodge down (it cannot see the ground)
+const reserve = param('reserve', 0.65, { min: 0.2, max: 1 }); // share of full lift it may lean on: it leans no further than keeps its weight up on this much throttle (the 96 kg many-gun drone leaned 44 degrees and sank from 40 m to 8)
+const floor = param('floor', 8, { min: 0, max: 200 }); // m: its lowest part never asked to go below this height (y 0 is the ground; the many-gun drone hangs 7 m of guns under its core and scraped it)
 const cross = param('cross', 25, { min: 5, max: 200 }); // m under or over what it tracks while crossing to its other side
 const dodgeSpeed = param('dodgeSpeed', 14, { min: 1, max: 40 }); // m/s up or down it dodges at
 
@@ -77,6 +79,13 @@ function gunSide() {
     else if (x < -0.5) left++;
   }
   return right > 0 && left === 0 ? -1 : left > 0 && right === 0 ? 1 : 0;
+}
+
+/** The lowest height its core may be asked for: `floor` plus how far its lowest part hangs below its core. */
+function lowestOk() {
+  let low = self.pos.y;
+  for (const p of parts) if (p.pos.y < low) low = p.pos.y;
+  return floor + (self.pos.y - low);
 }
 
 /** One of its own propellers (a copy held in the bay may have its own, asleep). */
@@ -130,8 +139,10 @@ function fly(vx, height, vy) {
   const upward = clamp(5 * (climbing - self.vel.y), -g, rise);
   const throttle = clamp((self.mass * (g + upward)) / Math.max(up, 1e-9), 0, 1);
 
-  // Leaning left (counterclockwise) pushes it left: lean against the sideways speed it is short of.
-  const want = clamp(-steer * (vx - self.vel.x), -lean, lean);
+  // Leaning left (counterclockwise) pushes it left: lean against the sideways speed it is short of. A heavy drone
+  // leans less: never so far that `reserve` of its full lift, tilted, no longer holds its weight.
+  const most = Math.min(lean, Math.acos(clamp((self.mass * g) / (reserve * props * lift), 0, 1)));
+  const want = clamp(-steer * (vx - self.vel.x), -most, most);
   const off = want - self.angle;
   const b = body();
   const ccw = lift * b.right + gyroTorque;
@@ -277,12 +288,16 @@ function tick() {
       if (state.crossOver === undefined) {
         const dy = self.pos.y - target.pos.y;
         state.crossOver = Math.abs(dy) > 2 ? dy > 0 : here < 0;
+        // Never under something so low that it would take it below the floor.
+        if (target.pos.y - cross < lowestOk()) state.crossOver = true;
       }
       // Over: `cross` above it, never past its ceiling plus `cross` (the goal once followed its own height, and a drone
       // chasing one that kept its distance ratcheted up past 200 m and flew off the edge of the world).
       goal = { x: goal.x, y: state.crossOver ? Math.min(target.pos.y + cross, state.home.y + ceiling + cross) : target.pos.y - cross };
     } else state.crossOver = undefined;
   } else state.crossOver = undefined;
+
+  goal = { x: goal.x, y: Math.max(goal.y, lowestOk()) };
 
   // Off the line (Logan): nothing it sees (friend, enemy, or wreckage) straight above or below it. Something above may
   // come down on it or into its bay (what it let go waits there with nothing in range; debris falls), and a robot below

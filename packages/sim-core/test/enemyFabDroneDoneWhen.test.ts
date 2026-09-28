@@ -36,9 +36,10 @@ const holdF = (robot: number, from: number) => (t: number) => (t === Math.round(
 describe('enemy fab drone, done when', () => {
   it('flies to its spot beside your parked cars and keeps firing what its bay builds: more than the enemy drone’s four, and they hit parked cars', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
-    const d = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -60, y: 20 }, { team: 1 });
+    // Clear of the flat world's boxes near x 0: holding 200 m off (Logan), its spot past them hid the cars from its radar.
+    const d = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -360, y: 20 }, { team: 1 });
     // A row of parked cars: when one is wrecked, it goes after the next.
-    const cars = Array.from({ length: 8 }, (_, i) => w.spawnBlueprint(blueprint('car'), { x: -150 - 25 * i, y: 1.45 }));
+    const cars = Array.from({ length: 8 }, (_, i) => w.spawnBlueprint(blueprint('car'), { x: -450 - 25 * i, y: 1.45 }));
     for (let t = 0; t < 40 * 60; t++) w.step();
     expect(of(w, d, 'released').length).toBeGreaterThanOrEqual(7);
     expect(cars.filter((c) => partsLost(w, c) > 0).length).toBeGreaterThanOrEqual(3);
@@ -208,13 +209,20 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
       w.spawnBlueprint(blueprint('enemy-bomb-fab-drone'), { x: -110, y: 28 }),
     ];
     let top = 0;
+    const late = new Map<number, number[]>();
     for (let t = 0; t < 30 * 60; t++) {
       w.step();
-      for (const r of all) if (w.robots.includes(r) && r.groups[0]) top = Math.max(top, w.physics.state(r.groups[0].bodyId).y);
+      for (const r of all) {
+        if (!w.robots.includes(r) || !r.groups[0]) continue;
+        const y = w.physics.state(r.groups[0].bodyId).y;
+        top = Math.max(top, y);
+        if (t >= 20 * 60 && r.primaryCoreId !== undefined) late.set(r.id, [...(late.get(r.id) ?? []), y]);
+      }
     }
     expect(top).toBeLessThan(100); // dodging a missile may take one up for a moment
-    // Where they hold: under the ceiling (30 over where each started), give or take.
-    for (const r of all) if (w.robots.includes(r) && r.primaryCoreId !== undefined && r.groups[0]) expect(w.physics.state(r.groups[0].bodyId).y).toBeLessThan(28 + 30 + 10);
+    // Where they hold over the last 10 s: under the ceiling (30 over where each started), give or take. The middle
+    // height, not the last one: a drone caught mid-dodge (fab drones at 200 m off dodge more) was 30 m over it.
+    for (const ys of late.values()) expect([...ys].sort((a, b) => a - b)[Math.floor(ys.length / 2)]).toBeLessThan(28 + 30 + 10);
     w.dispose();
   });
 

@@ -156,7 +156,8 @@
       },
       "params": {
         "standoff": 200,
-        "maxRange": 600
+        "maxRange": 600,
+        "above": 25
       }
     },
     {
