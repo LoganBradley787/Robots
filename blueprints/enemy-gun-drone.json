@@ -1,0 +1,203 @@
+{
+  "format": 1,
+  "name": "enemy-gun-drone",
+  "grid": [
+    ". . F c c c F d F e e e F . .",
+    "s r F F F Z Z C Z Z F F F t u",
+    ". . F c c c c n e e e e F . .",
+    ". . . . . a b F f g . . . . .",
+    ". . . . . h i F j k . . . . .",
+    ". . . . . l m F o p . . . . ."
+  ],
+  "legend": {
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "r": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.rot"
+      ],
+      "auto": false
+    },
+    "s": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.gun"
+      ]
+    },
+    "t": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.rot"
+      ],
+      "auto": false
+    },
+    "u": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.gun"
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-gun-drone.pilot.js"
+      },
+      "params": {
+        "standoff": 40,
+        "above": 15,
+        "settle": 0,
+        "jitter": 0
+      }
+    },
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-gun-drone.turrets.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-gun-drone.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ]
+}

@@ -67,6 +67,8 @@ export class Tracer {
   private readonly pieces = new Map<number, PieceReport>();
   private readonly events: TraceEvent[] = [];
   private readonly blasts: { x: number; y: number }[] = [];
+  /** Shell hits being folded (M13), by hit robot and shooter. */
+  private readonly hits = new Map<string, { ev: TraceEvent; by: string; count: number; damage: number; parts: Map<string, number>; first: number; last: number }>();
   private readonly lastLog = new Map<string, TraceEvent>();
   /** Each robot's scripts that were on after the last step, to report a key turning one on or off. */
   private readonly scriptsOn = new Map<number, Set<string>>();
@@ -188,6 +190,28 @@ export class Tracer {
         case 'scriptCrashed':
           push(e.robot, 'scriptCrashed', `script ${e.script} stopped (${e.error.kind}): ${e.error.message}`);
           break;
+        case 'shellHit': {
+          // Shells come ten a second per gun (M13): hits on one piece by one shooter within a second fold into one line.
+          const key = `${e.robot}:${e.by}`;
+          const run = this.hits.get(key);
+          if (run && tickTime - run.last <= 1) {
+            run.count++;
+            run.damage += e.damage;
+            run.parts.set(e.part, (run.parts.get(e.part) ?? 0) + 1);
+            run.last = tickTime;
+          } else {
+            const ev: TraceEvent = { t: tickTime, robot: this.letter(e.robot), kind: 'shellHit', text: '' };
+            this.events.push(ev);
+            this.hits.set(key, { ev, by: this.letter(e.by), count: 1, damage: e.damage, parts: new Map([[e.part, 1]]), first: tickTime, last: tickTime });
+          }
+          const r = this.hits.get(key);
+          if (r) {
+            const parts = [...r.parts].map(([id, n]) => (n > 1 ? `${id} x${n}` : id)).join(', ');
+            const until = r.last > r.first ? ` until t=${r.last.toFixed(2)}` : '';
+            r.ev.text = `hit by ${r.count} shell${r.count === 1 ? '' : 's'} from ${r.by}${until}: ${r.damage} damage (${parts})`;
+          }
+          break;
+        }
         case 'sent': {
           const r = w.robots.find((x) => x.id === e.robot);
           const scope = r?.blueprint.cores?.find((c) => c.core === e.to)?.scope;

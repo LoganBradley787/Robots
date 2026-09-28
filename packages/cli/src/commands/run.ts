@@ -51,6 +51,8 @@ export interface RunReport {
   scriptCrashes: { script: string; t: number; kind: string; message: string }[];
   /** What broke (M6): parts destroyed anywhere, blasts, and how many pieces the robot is in now (0: all gone). */
   destruction: { destroyed: string[]; explosions: number; pieces: number };
+  /** M13: shells the robot's guns fired, how many hit something and for how much, and hits it took. Absent without either. */
+  guns?: { shots: number; hits: number; damage: number; taken: number };
   /** M7: what happened, in order: keys, drops, decouplers, splits, wakes, parts lost, blasts, script logs and crashes. */
   events: TraceEvent[];
   /** M7: every robot seen, by letter (A is the spawned robot), with its path and final state. */
@@ -137,6 +139,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       warnings,
       scriptCrashes: world.events.flatMap((e) => (e.kind === 'scriptCrashed' ? [{ script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message }] : [])),
       destruction: destructionOf(world, robot.id),
+      ...gunsOf(world, robot.id),
       ...(aims.some((a) => Object.keys(a).length > 0) ? { aims } : {}),
       finalHash: world.hash(),
       timing: { avgMs: ticks > 0 ? totalMs / ticks : 0, worstMs },
@@ -199,6 +202,7 @@ export function formatReport(r: RunReport): string {
     const pieces = d.pieces === 0 ? 'the robot is gone' : `the robot is in ${d.pieces} piece${d.pieces === 1 ? '' : 's'}`;
     lines.push(`destruction: ${d.destroyed.length} part${d.destroyed.length === 1 ? '' : 's'} destroyed (${shown})   ${d.explosions} explosion${d.explosions === 1 ? '' : 's'}   ${pieces}`);
   }
+  if (r.guns) lines.push(`guns: fired ${r.guns.shots} shell${r.guns.shots === 1 ? '' : 's'}, ${r.guns.hits} hit (${r.guns.damage} damage)   took ${r.guns.taken} hit${r.guns.taken === 1 ? '' : 's'}`);
   if (r.events.length > 0) {
     lines.push('events (A is the robot; other letters are pieces and drops, listed below):');
     for (const e of r.events.slice(0, EVENTS_SHOWN)) lines.push(formatEvent(e));
@@ -256,6 +260,23 @@ export function destructionOf(world: SimWorld, robotId: number): RunReport['dest
     explosions: world.events.filter((e) => e.kind === 'explosion').length,
     pieces: world.robots.filter((r) => family.has(r.id)).length,
   };
+}
+
+/** M13: the robot's shooting and what it took, or nothing when it neither fired nor was hit. */
+function gunsOf(world: SimWorld, robotId: number): { guns?: RunReport['guns'] } {
+  const shots = world.shotsBy(robotId);
+  let hits = 0;
+  let damage = 0;
+  let taken = 0;
+  for (const e of world.events) {
+    if (e.kind !== 'shellHit') continue;
+    if (e.by === robotId) {
+      hits++;
+      damage += e.damage;
+    }
+    if (e.robot === robotId) taken++;
+  }
+  return shots > 0 || taken > 0 ? { guns: { shots, hits, damage, taken } } : {};
 }
 
 export function energyOf(world: SimWorld, robotId: number): RunReport['energy'] {
