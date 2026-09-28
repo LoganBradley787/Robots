@@ -1,0 +1,137 @@
+{
+  "format": 1,
+  "name": "walker",
+  "grid": [
+    ". . . g r F t u . . . . . . . G R F T U . . A . .",
+    ". . . . . F . . . . A A A . . . . F . . . . A . .",
+    "F Z Z F F F F F O F A C A F F F F F F F F F A . .",
+    "F . . . . F F . . . . A A . . . . F F . . . . . .",
+    "F H s s s . F H s s s . F H s s s . F H s s s . .",
+    ". V . . . . . V . . . . . V . . . . . V . . . . .",
+    ". A . . . . . A . . . . . A . . . . . A . . . . .",
+    ". A . . . . . A . . . . . A . . . . . A . . . . .",
+    ". A . . . . . A . . . . . A . . . . . A . . . . .",
+    ". A . . . . . A . . . . . A . . . . . A . . . . ."
+  ],
+  "legend": {
+    "g": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.gun"
+      ]
+    },
+    "r": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.rot"
+      ],
+      "auto": false
+    },
+    "t": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.rot"
+      ],
+      "auto": false
+    },
+    "u": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.gun"
+      ]
+    },
+    "G": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "gun-turret3",
+        "gun-turret3.gun"
+      ]
+    },
+    "R": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "gun-turret3",
+        "gun-turret3.rot"
+      ],
+      "auto": false
+    },
+    "T": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "gun-turret4",
+        "gun-turret4.rot"
+      ],
+      "auto": false
+    },
+    "U": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "gun-turret4",
+        "gun-turret4.gun"
+      ]
+    },
+    "O": {
+      "part": "radar",
+      "tags": [
+        "radar"
+      ]
+    },
+    "Z": {
+      "part": "densebattery"
+    },
+    "A": {
+      "part": "armorplate"
+    },
+    "s": {
+      "part": "armorplate",
+      "tags": [
+        "shoe"
+      ]
+    },
+    "H": {
+      "part": "piston",
+      "rot": 270,
+      "tags": [
+        "drive"
+      ],
+      "auto": false
+    },
+    "V": {
+      "part": "piston",
+      "rot": 180,
+      "tags": [
+        "lift"
+      ],
+      "auto": false
+    }
+  },
+  "scripts": [
+    {
+      "id": "gait",
+      "source": {
+        "file": "walker.gait.js"
+      }
+    },
+    {
+      "id": "turrets",
+      "params": {
+        "auto": 0
+      },
+      "source": {
+        "file": "walker.turrets.js"
+      }
+    }
+  ]
+}
