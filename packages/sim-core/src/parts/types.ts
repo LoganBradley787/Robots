@@ -122,6 +122,22 @@ export interface DecoySpec {
 }
 
 /**
+ * A gun (M13): while its `fire` input is above 0.5 it fires `rate` shells a second out of its `acts` face at `speed`
+ * m/s (plus its own motion), each pushing it back `recoil` N s. A shell falls under gravity, takes `damage` off the
+ * first part it hits (anyone's) and pushes it `recoil` N s, stops on terrain, and is gone after `life` seconds. Its
+ * sight looks `range` meters straight out of the barrel: what it would hit first (the `sight`, `sightSide`, `sightId`
+ * outputs), and `aim`, the barrel's world angle.
+ */
+export interface GunSpec {
+  speed: number;
+  damage: number;
+  rate: number;
+  life: number;
+  recoil: number;
+  range: number;
+}
+
+/**
  * A fabricator (M12): it builds copies of a blueprint (the part's `makes`) inside its hollow, out of its robot's
  * energy: `joulesPerKg` of the copy's mass plus what its containers hold, over `secondsPerKg` of its mass. Its grips
  * hold the finished copy until its `release` input lets it go, pushed out along `acts` with `separation` N s.
@@ -176,6 +192,8 @@ export interface PartDef {
   sensor?: SensorSpec;
   /** M11: the part is a decoy (a flare). It needs an `ignite` input and a `burning` output. */
   decoy?: DecoySpec;
+  /** M13: the part is a gun. It needs `acts`, a `fire` input, and `sight`, `sightSide`, `sightId`, and `aim` outputs. */
+  gun?: GunSpec;
   /** M12: the part's size is set per placement (`size` on the placed part). */
   stretch?: StretchSpec;
   /** M12: the part builds things (a fabricator bay). It needs grips, `acts`, a `release` input, and `ready`, `progress`, and `built` outputs. */

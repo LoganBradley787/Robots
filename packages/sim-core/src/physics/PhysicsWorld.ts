@@ -393,6 +393,27 @@ export class PhysicsWorld {
     return hit;
   }
 
+  /**
+   * The first collider a ray from (x, y) along the unit vector (dx, dy) touches within `length` meters (M13: shells and
+   * gun sights): its body, its owner (the part id; undefined for terrain), and how far along. A ray that starts inside a
+   * collider hits it at 0. `skip` leaves out colliders it returns true for. Uses Rapier's query index, which is fresh
+   * right after a step: colliders created since (a robot rebuilt after the step) are missed until the next one.
+   */
+  castRay(x: number, y: number, dx: number, dy: number, length: number, skip?: (body: BodyId, owner: string | undefined) => boolean): { body: BodyId; owner: string | undefined; distance: number } | undefined {
+    const ray = new RAPIER.Ray({ x, y }, { x: dx, y: dy });
+    const filter = skip ? (c: RAPIER.Collider): boolean => {
+      const parent = c.parent();
+      const body = parent ? this.byHandle.get(parent.handle) : undefined;
+      return body === undefined || !skip(body, this.owners.get(c.handle));
+    } : undefined;
+    const hit = this.world.castRay(ray, length, true, undefined, undefined, undefined, undefined, filter);
+    if (!hit) return undefined;
+    const parent = hit.collider.parent();
+    const body = parent ? this.byHandle.get(parent.handle) : undefined;
+    if (body === undefined) return undefined;
+    return { body, owner: this.owners.get(hit.collider.handle), distance: hit.timeOfImpact };
+  }
+
   /** Owners of every collider that has one, in creation order. */
   colliderOwners(): string[] {
     return [...this.owners.values()];

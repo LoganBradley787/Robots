@@ -37,6 +37,7 @@ describe('default part defs', () => {
       'densebattery',
       'flare',
       'fabbay',
+      'gun',
     ]);
   });
 
@@ -46,7 +47,7 @@ describe('default part defs', () => {
 
   it('health (M6): frames are armor, propellers are fragile', () => {
     const health = Object.fromEntries(defaultRegistry().list().map((d) => [d.id, d.health]));
-    expect(health).toEqual({ core: 50, frame: 60, battery: 30, wheel: 25, thruster: 25, propeller: 15, decoupler: 30, warhead: 20, gyro: 30, rotator: 40, cell: 10, seeker: 20, radar: 40, booster: 25, heavywarhead: 20, heavygyro: 30, densebattery: 30, flare: 5, fabbay: 150 });
+    expect(health).toEqual({ core: 50, frame: 60, battery: 30, wheel: 25, thruster: 25, propeller: 15, decoupler: 30, warhead: 20, gyro: 30, rotator: 40, cell: 10, seeker: 20, radar: 40, booster: 25, heavywarhead: 20, heavygyro: 30, densebattery: 30, flare: 5, fabbay: 150, gun: 25 });
   });
 
   it('the warhead explodes when destroyed and breaks on a hard hit', () => {

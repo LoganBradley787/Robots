@@ -510,6 +510,25 @@ function drawFlare(lit = false): Canvas {
 }
 
 /**
+ * Gun (M13): a riveted base plate, a squat receiver, and a long barrel out of the top (the way it fires at rotation 0)
+ * with a muzzle ring and a cooling sleeve.
+ */
+function drawGun(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 6, 44, 58, 62, hex('#6f747d'), OUTLINE, 2);
+  for (const [x, y] of [[12, 53], [52, 53]] as const) rivet(cv, x, y, 2.2);
+  plate(cv, 16, 26, 48, 46, hex('#3d434c'), hex('#1b1e23'), 2.5);
+  cv.fill(rect(19, 29, 45, 32), WHITE, 0.15);
+  plate(cv, 27, 2, 37, 30, hex('#2b2f35'), hex('#111316'), 2);
+  plate(cv, 24, 14, 40, 24, hex('#4f5660'), hex('#1b1e23'), 2);
+  for (let y = 16; y < 23; y += 3) cv.fill(rect(25, y, 39, y + 1), hex('#1b1e23'), 0.8);
+  plate(cv, 25, 0, 39, 6, hex('#555b64'), hex('#111316'), 2);
+  cv.fill(rect(30, 0.5, 34, 4), hex('#0b0c0e'));
+  cv.fill(rect(29, 7, 31, 13), WHITE, 0.2);
+  return cv;
+}
+
+/**
  * Fabricator bay (M12): a U three cells wide and six tall, open at the top. Armored walls in dark steel with a
  * yellow and black band at the mouth, a lit strip down the inside of each wall, and a machine bed at the bottom.
  */
@@ -940,6 +959,7 @@ function main(): void {
     { name: 'part.radar', canvas: drawRadar() },
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
+    { name: 'part.gun', canvas: drawGun() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

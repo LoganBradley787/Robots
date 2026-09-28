@@ -1,6 +1,7 @@
 import type { Blueprint } from '../blueprint/types';
 import type { BodyId, JointId } from '../physics/PhysicsWorld';
 import type { Face, FootprintCell, PartDef, Rotation } from '../parts/types';
+import type { GunSight } from '../weapons/shells';
 
 /** A placed part in a spawned robot. */
 export interface PartInstance {
@@ -46,6 +47,10 @@ export interface PartInstance {
   progress?: number;
   built?: number;
   holds?: string;
+  /** M13: a gun's ticks until it may fire again (undefined is 0: ready). */
+  cooldown?: number;
+  /** M13: what a gun's sight saw after the last physics step. Undefined until it first looks. Derived, not hashed. */
+  sight?: GunSight;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;
   /** M12: the part's cells when they differ from its def's (a stretchy part placed at another size). */

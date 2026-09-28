@@ -28,6 +28,7 @@ import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
+import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Binding, Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
 
@@ -83,7 +84,9 @@ export type WorldEvent =
   /** M12: a fabricator let go of what it held. */
   | { tick: number; robot: number; kind: 'released'; part: string; scope: string }
   /** M12: a fabricator finished a build but cannot place it yet (`why`); it tries every tick. Once per wait. */
-  | { tick: number; robot: number; kind: 'buildBlocked'; part: string; why: string };
+  | { tick: number; robot: number; kind: 'buildBlocked'; part: string; why: string }
+  /** M13: a shell from robot `by` hit `part` of `robot` at `x`, `y`, taking `damage` off it. */
+  | { tick: number; robot: number; kind: 'shellHit'; part: string; partType: string; by: number; x: number; y: number; damage: number };
 
 /** The world center of each footprint cell of a part, from its origin cell's pose (M12, multi-cell parts). */
 function footprintPoses(origin: { x: number; y: number; angle: number }, part: PartInstance): BlastCell[] {
@@ -213,7 +216,11 @@ export class World {
    * Pushes (N s) waiting for the next physics step, by part: they land on whatever body holds the part by then, so a
    * robot rebuilt again before the step keeps them. Simulation state, hashed.
    */
-  private pendingPushes: { part: PartInstance; jx: number; jy: number }[] = [];
+  private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true }[] = [];
+  /** M13: shells in flight, oldest first. Simulation state, hashed. */
+  private shells: Shell[] = [];
+  /** M13: shells each robot's guns have fired. Reporting only. */
+  private readonly shots = new Map<number, number>();
   /**
    * Velocities for new bodies, applied as kicks just before the next physics step. Until then Rapier reports them at
    * rest, so a second rebuild reads the velocity from here (M6 review). Simulation state, hashed.
@@ -360,6 +367,7 @@ export class World {
     this.runBehaviors(false);
     this.applyPendingForces();
     this.physics.step();
+    this.runGuns();
     this.damagePhase();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
@@ -648,7 +656,8 @@ export class World {
       if (!robot || !group) continue;
       const pose = partWorldPose(this, robot, p.part.id);
       this.physics.addForceAt(group.bodyId, p.jx / this.dt, p.jy / this.dt, pose.x, pose.y);
-      for (const g of robot.groups) settle(g.bodyId);
+      // A gun's kick and a shell's hit (M13) are too small to set off a fuze, and a robot under fire must keep its fuzes.
+      if (!p.quiet) for (const g of robot.groups) settle(g.bodyId);
     }
     this.pendingPushes = [];
   }
@@ -684,6 +693,122 @@ export class World {
     if (neighbor) this.pendingPushes.push({ part: neighbor, jx: nx * impulse, jy: ny * impulse });
     const at = partWorldPose(this, robot, part.id);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'decoupled', part: part.id, x: at.x + 0.5 * nx, y: at.y + 0.5 * ny });
+  }
+
+  /** M13: shells in flight, oldest first, for drawing. Read only. */
+  liveShells(): readonly Shell[] {
+    return this.shells;
+  }
+
+  /** M13: how many shells a robot's guns have fired so far. Reporting only. */
+  shotsBy(robot: number): number {
+    return this.shots.get(robot) ?? 0;
+  }
+
+  /**
+   * M13, right after the physics step (Rapier's query index is fresh then): guns fire, shells fly, and every gun's
+   * sight looks along its barrel. A gun fires while its `fire` input is above 0.5, once every `1 / rate` seconds; a
+   * wreck (no core in charge) fires nothing. A shell moves one tick with gravity along a ray: the first collider on the
+   * way (anyone's but its own gun's) takes its damage and a push and stops it; terrain just stops it.
+   */
+  private runGuns(): void {
+    const guns: { robot: Robot; part: PartInstance }[] = [];
+    for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.gun !== undefined) guns.push({ robot, part });
+    if (guns.length === 0 && this.shells.length === 0) return;
+    const bodies = new Map<BodyId, Robot>();
+    for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
+    for (const { robot, part } of guns) {
+      const spec = part.def.gun;
+      if (!spec) continue;
+      if ((part.cooldown ?? 0) > 0) part.cooldown = (part.cooldown ?? 0) - 1;
+      if (part.health <= 0 || !this.controllers.has(robot.id) || (part.cooldown ?? 0) > 0) continue;
+      if ((this.channels.get(robot.id)?.get(part.id)?.get('fire') ?? 0) <= 0.5) continue;
+      const m = this.muzzle(robot, part);
+      if (!m) continue;
+      this.shells.push({
+        x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + m.dx * spec.speed, vy: m.vy + m.dy * spec.speed,
+        robot: robot.id, gun: part.id, damage: spec.damage, push: spec.recoil, left: Math.max(1, Math.round(spec.life / this.dt)),
+      });
+      part.cooldown = Math.max(1, Math.round(1 / (spec.rate * this.dt)));
+      if (spec.recoil > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.recoil, jy: -m.dy * spec.recoil, quiet: true });
+      this.shots.set(robot.id, (this.shots.get(robot.id) ?? 0) + 1);
+    }
+    if (this.shells.length > 0) this.flyShells(bodies);
+    for (const { robot, part } of guns) this.look(robot, part, bodies);
+  }
+
+  /** Where a gun's barrel ends, which way it points (a unit vector), and how fast that point moves (M13). */
+  private muzzle(robot: Robot, part: PartInstance): { x: number; y: number; dx: number; dy: number; vx: number; vy: number } | undefined {
+    const group = robot.groups[part.group];
+    if (!group || part.def.acts === undefined) return undefined;
+    const s = this.physics.state(group.bodyId);
+    const com = this.physics.massProperties(group.bodyId);
+    const pose = partWorldPose(this, robot, part.id);
+    const f = faceDir(rotateFace(part.def.acts, part.rot));
+    const c = Math.cos(s.angle);
+    const n = Math.sin(s.angle);
+    const dx = c * f.x - n * f.y;
+    const dy = n * f.x + c * f.y;
+    const x = pose.x + 0.5 * dx;
+    const y = pose.y + 0.5 * dy;
+    return { x, y, dx, dy, vx: s.vx - s.w * (y - com.comY), vy: s.vy + s.w * (x - com.comX) };
+  }
+
+  private flyShells(bodies: Map<BodyId, Robot>): void {
+    const flying: Shell[] = [];
+    for (const sh of this.shells) {
+      sh.px = sh.x;
+      sh.py = sh.y;
+      sh.vy += this.gravityY * this.dt;
+      const mx = sh.vx * this.dt;
+      const my = sh.vy * this.dt;
+      const len = Math.sqrt(mx * mx + my * my);
+      const hit = len > 0 ? this.physics.castRay(sh.x, sh.y, mx / len, my / len, len, (b, owner) => owner === sh.gun && bodies.get(b)?.id === sh.robot) : undefined;
+      if (hit) {
+        sh.x += (mx / len) * hit.distance;
+        sh.y += (my / len) * hit.distance;
+        this.shellHit(sh, bodies.get(hit.body), hit.owner, mx / len, my / len);
+        continue;
+      }
+      sh.x += mx;
+      sh.y += my;
+      if (--sh.left > 0) flying.push(sh);
+    }
+    this.shells = flying;
+  }
+
+  private shellHit(sh: Shell, robot: Robot | undefined, owner: string | undefined, dx: number, dy: number): void {
+    const part = owner === undefined ? undefined : robot?.parts.get(owner);
+    // Terrain, or a part already destroyed this tick (its collider goes in the damage phase): the shell just stops.
+    if (!robot || !part || part.health <= 0) return;
+    part.health -= sh.damage;
+    if (sh.push > 0) this.pendingPushes.push({ part, jx: dx * sh.push, jy: dy * sh.push, quiet: true });
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'shellHit', part: part.id, partType: part.def.id, by: sh.robot, x: sh.x, y: sh.y, damage: sh.damage });
+  }
+
+  /**
+   * A gun's sight (M13): the first thing straight out of its barrel within `range`, and whose it is, by the rule
+   * contacts use (M8). A burning decoy (a flare) let go by a robot reads as that robot: the sight is a sensor too (M11).
+   */
+  private look(robot: Robot, part: PartInstance, bodies: Map<BodyId, Robot>): void {
+    const spec = part.def.gun;
+    const m = spec && part.health > 0 ? this.muzzle(robot, part) : undefined;
+    if (!spec || !m) return;
+    const sight: GunSight = { distance: spec.range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
+    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, spec.range, (b, owner) => owner === part.id && bodies.get(b) === robot);
+    if (hit) {
+      sight.distance = hit.distance;
+      const hitRobot = bodies.get(hit.body);
+      const hitPart = hit.owner === undefined ? undefined : hitRobot?.parts.get(hit.owner);
+      if (!hitRobot || !hitPart) sight.side = SIGHT.terrain;
+      else {
+        const decoy = (hitPart.burn ?? 0) > 0 && hitPart.decoyOf !== undefined && hitPart.decoyOf !== hitRobot.id ? this.byId.get(hitPart.decoyOf) : undefined;
+        const seen = decoy ?? hitRobot;
+        sight.id = seen.id;
+        sight.side = seen === robot ? SIGHT.own : !this.controllers.has(seen.id) ? SIGHT.none : seen.team === robot.team ? SIGHT.friend : SIGHT.enemy;
+      }
+    }
+    part.sight = sight;
   }
 
   /** What a fabricator's recipe costs (M12): seconds of build and joules, from the recipe's mass and containers. */
@@ -984,6 +1109,7 @@ export class World {
     if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
+    if (part.def.gun !== undefined) return gunOutput(part, name);
     return undefined;
   }
 
@@ -1415,6 +1541,8 @@ export class World {
           h.addInt(part.built ?? 0);
           h.addString(part.holds ?? '');
         }
+        // A gun's cooldown (M13). Other parts add nothing.
+        if (part.def.gun !== undefined) h.addInt(part.cooldown ?? 0);
         // A decoy's burn left and the robot it stands in for (M11). Other parts add nothing.
         if (part.def.decoy !== undefined) {
           h.addInt(part.burn ?? -1);
@@ -1456,6 +1584,18 @@ export class World {
       h.addString(p.part.id);
       h.addF64(p.jx);
       h.addF64(p.jy);
+      if (p.quiet) h.addInt(1);
+    }
+    // Shells in flight (M13). None adds nothing, so worlds without guns hash as before.
+    if (this.shells.length > 0) {
+      h.addString('shells');
+      h.addInt(this.shells.length);
+      for (const sh of this.shells) {
+        for (const v of [sh.x, sh.y, sh.vx, sh.vy, sh.damage, sh.push]) h.addF64(v);
+        h.addInt(sh.robot);
+        h.addString(sh.gun);
+        h.addInt(sh.left);
+      }
     }
     // Held keys and toggles shape the future, so they are state too.
     for (const [id, c] of this.controllers) {
@@ -1556,6 +1696,17 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
   }
   if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
   if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
+  if (part.def.gun !== undefined) return gunOutput(part, name);
+  return undefined;
+}
+
+/** A gun's outputs (M13): its sight after the last step; before it first looks, nothing seen within its range. */
+function gunOutput(part: PartInstance, name: string): number | undefined {
+  const range = part.def.gun?.range ?? 0;
+  if (name === 'sight') return part.sight?.distance ?? range;
+  if (name === 'sightSide') return part.sight?.side ?? SIGHT.nothing;
+  if (name === 'sightId') return part.sight?.id ?? 0;
+  if (name === 'aim') return part.sight?.aim ?? 0;
   return undefined;
 }
 
