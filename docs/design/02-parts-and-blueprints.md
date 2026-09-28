@@ -61,6 +61,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | fabbay | 1 per cell (13 at its default) | 150 | outer faces; grips on its hollow | release (lets go) | ready, progress, built | M12. A fabricator bay (see Fabricators): a U open at the top whose hollow is sized where it is placed (`size`, 1 to 8 wide, 1 to 10 tall; default 1 by 5). Builds its recipe (`makes`) from energy. No legend token (it always needs `makes`), no builder key. |
 | flare | 0.2 | 5 | S (its base) | ignite (lights it for good) | burning | M11. A decoy (see Decoys): burns 2 s once lit, then is gone without a blast; while it burns, sensors take it for its robot. Legend `Q^ Qv Q< Q>` (the way it points), no builder key. |
 | gun | 1 | 25 | S (its base) | fire (while above 0.5) | sight, sightSide, sightId, aim | M13. A gun (see Guns): 10 shells a second out of its front at 300 m/s, 5 damage to the first part each hits (anyone's), 2 N s of kick; its sight looks 150 m straight out of the barrel. No energy. Legend `M^ Mv M< M>` (the way it fires), no builder key. |
+| radio | 1 | 30 | N E S W | on [0, 1] | | Batch. Team contact sharing (see Radio), 1 energy per second. Legend `N`, no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -99,6 +100,14 @@ A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) i
 - `radar` (legend `O`, builder key `;`): 1 kg, health 40, all around, 500 m, 3 J/s.
 - A robot is seen when its reference point (its live core, else its center of mass) is inside a working sensor's cone and range and a ray to it crosses no terrain or static block. Other robots never block. Scripts get what their robot's sensors see as `contacts` (see `04`).
 - Still ideas, not built: a `scanner` that reports what is directly in front of it (for landing and terrain following: scripts cannot see the ground today), and a heat seeker that ranks targets by thruster heat.
+
+### Radio (Batch, as built)
+A def with `radio: { range }` (meters) is a radio. It uses the `sensor` behavior (so `on` and power work as for a sensor, and its power-last-tick flag is the same `PartInstance.sensing`), and the world does the sharing in `contactsFor`.
+- `radio` (legend `N`, no builder key): 1 kg, health 30, all faces, range 1500 m, 1 J/s.
+- A working radio (on, powered, not destroyed, on the chunk with the core) shares what its robot's own sensors see with every other robot of its team that also has a working radio within range (some pair of working radios within both ranges). A team is the spawn `team`; team 0 robots are friends of each other, like sensors.
+- Shared contacts join `contacts` exactly like sensed ones (same fields; `distance` is measured from the receiver's core; `by` is `["radio"]`), unless the robot already sees that robot itself. Of several friends reporting the same robot, the report nearest the receiver wins.
+- No relaying: only what a friend's own sensors see is shared, never what it was told. `scan(id)` works only on what the robot's own sensors see. A robot seen at a burning flare is shared as seen there, so a flare keeps fooling.
+- Nothing extra is hashed: the radio's power flag is the sensor flag.
 
 ## Blueprint JSON (canonical)
 

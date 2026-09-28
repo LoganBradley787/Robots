@@ -114,6 +114,15 @@ export interface AutoControlSpec {
 }
 
 /**
+ * A radio (Batch): while switched on and powered it shares what its robot's own sensors see with every other robot of
+ * its team that has a working radio within `range` meters (of both radios' ranges). Shared contacts join `contacts`
+ * with `by` listing "radio"; no relaying, and `scan(id)` still needs the robot's own sensors.
+ */
+export interface RadioSpec {
+  range: number;
+}
+
+/**
  * A decoy (M11, a flare): once its `ignite` input goes above 0.5 it burns for `burn` seconds, then is gone. While it
  * burns, every sensor that sees it takes it for the robot it was part of when it was lit (`03`, `04`: contacts).
  */
@@ -190,6 +199,8 @@ export interface PartDef {
    */
   arming?: boolean;
   sensor?: SensorSpec;
+  /** Batch: the part is a radio (team contact sharing). It uses the sensor behavior and needs an `on` input. */
+  radio?: RadioSpec;
   /** M11: the part is a decoy (a flare). It needs an `ignite` input and a `burning` output. */
   decoy?: DecoySpec;
   /** M13: the part is a gun. It needs `acts`, a `fire` input, and `sight`, `sightSide`, `sightId`, and `aim` outputs. */

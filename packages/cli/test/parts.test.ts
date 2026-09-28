@@ -19,6 +19,7 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'densebattery')).toMatchObject({ key: '', legend: ['Z'] });
     expect(rows.find((r) => r.id === 'fabbay')).toMatchObject({ key: '', legend: [], mass: 13, health: 150 });
     expect(rows.find((r) => r.id === 'gun')).toMatchObject({ key: '', legend: ['M^', 'M<', 'Mv', 'M>'], mass: 1, faces: ['S'], health: 25, power: 0 });
+    expect(rows.find((r) => r.id === 'radio')).toMatchObject({ key: '', legend: ['N'], mass: 1, health: 30, power: 1 });
     expect(rows.find((r) => r.id === 'flare')).toMatchObject({ key: '', legend: ['Q^', 'Q<', 'Qv', 'Q>'], mass: 0.2, faces: ['S'], health: 5 });
   });
 
@@ -34,6 +35,7 @@ describe('parts', () => {
     expect(text('fabbay')).toMatch(/builds its recipe \(the part's "makes"\) in its hollow \(1 by 5 by default\): 40 J per kg plus what its containers hold, 0.6 s per kg \(longer if its draw/);
     expect(text('gun')).toMatch(/10 shells a second out of its N face at 300 m\/s; a shell falls under gravity, takes 5 off the first part it hits/);
     expect(text('gun')).toMatch(/looks 150 m straight out of the barrel/);
+    expect(text('radio')).toMatch(/shares what its robot's own sensors see with every robot of its team that has a working radio within 1500 m/);
     expect(text('flare')).toMatch(/burns 2 s and is gone; while it burns, every sensor that sees it takes it for the robot/);
   });
 

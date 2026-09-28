@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'radio', 'decoy', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -204,6 +204,13 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (cone > 360) r.fail('sensor.cone', 'must be at most 360 degrees (360 sees all around)');
     if (cone < 360 && def.acts === undefined) r.fail('sensor', 'a cone narrower than 360 degrees needs "acts" (the way the part looks)');
     def.sensor = { cone, range: r.positive(so, 'range', 'sensor') };
+  }
+  if (o.radio !== undefined) {
+    // Batch: a radio is switched on and powered like a sensor part; the world does the sharing.
+    const ro = r.obj(o.radio, 'radio', ['range']);
+    if (def.behavior !== 'sensor') r.fail('radio', 'a radio must use the "sensor" behavior (switched on, powered)');
+    if (!def.inputs.some((c) => c.name === 'on')) r.fail('radio', 'a radio must have an "on" input');
+    def.radio = { range: r.positive(ro, 'range', 'radio') };
   }
   if (o.decoy !== undefined) {
     const d = r.obj(o.decoy, 'decoy', ['burn']);
