@@ -476,7 +476,7 @@ export class WorldScreen {
       );
     }
     this.effects.update(time.paused ? 0 : (ticker.deltaMS / 1000) * time.timeScale);
-    this.shells.draw(this.world.liveShells(), alpha);
+    this.shells.draw([...this.world.liveShells(), ...this.world.spentShells()], alpha);
     this.smoke.draw(this.world.smokeClouds());
     this.ropes.draw(this.world.liveRopes());
     const focus = this.world.robots.find((r) => r.id === this.focusId);

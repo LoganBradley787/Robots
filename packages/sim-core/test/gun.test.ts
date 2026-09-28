@@ -150,6 +150,19 @@ describe('guns (M13)', () => {
     w.dispose();
   });
 
+  it('a shell that hits on the tick it is fired is still there to draw for that tick (Logan: invisible shells up close)', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const car = w.spawnBlueprint(GUN_CAR, { x: -100, y: 0.5 });
+    w.spawnBlueprint(POST, { x: -97, y: 2.5 });
+    w.step(hold(car.id, 'f'));
+    expect(w.liveShells().length).toBe(0);
+    expect(w.spentShells().length).toBe(1);
+    expect(w.spentShells()[0]?.x).toBeCloseTo(-97.49, 1);
+    w.step();
+    expect(w.spentShells().length).toBe(0);
+    w.dispose();
+  });
+
   it('each shot kicks the gun back 2 N s', async () => {
     const w = await World.create({ seed: 1 }, flat);
     const car = w.spawnBlueprint(GUN_CAR, { x: -100, y: 300 });

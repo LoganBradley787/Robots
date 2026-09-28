@@ -242,6 +242,8 @@ export class World {
   private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true }[] = [];
   /** M13: shells in flight, oldest first. Simulation state, hashed. */
   private shells: Shell[] = [];
+  /** Shells that hit on the last tick, for drawing only. Not hashed. */
+  private spent: Shell[] = [];
   /** Batch: smoke clouds, oldest first. They block sensors' line of sight. Simulation state, hashed only while any exist. */
   private clouds: SmokeCloud[] = [];
   /** M13: robots that grew parts this tick, whose new guns get their aim before scripts next run. Derived. */
@@ -992,6 +994,14 @@ export class World {
     return this.shells;
   }
 
+  /**
+   * Shells that hit something on the last tick, stopped where they hit, for drawing their last stretch (Logan: a gun
+   * right up against its target fired and hit within one tick, so its shells were never drawn). Not simulation state.
+   */
+  spentShells(): readonly Shell[] {
+    return this.spent;
+  }
+
   /** M13: how many shells a robot's guns have fired so far. Reporting only. */
   shotsBy(robot: number): number {
     return this.shots.get(robot) ?? 0;
@@ -1006,6 +1016,7 @@ export class World {
   private runGuns(): void {
     const guns: { robot: Robot; part: PartInstance }[] = [];
     for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.gun !== undefined) guns.push({ robot, part });
+    this.spent = [];
     if (guns.length === 0 && this.shells.length === 0) return;
     // Shells in flight before this tick: only they can have met something coming the other way during it.
     const old = new Set(this.shells);
@@ -1093,6 +1104,7 @@ export class World {
         sh.x += dx * (hit.distance - back);
         sh.y += dy * (hit.distance - back);
         this.shellHit(sh, bodies.get(hit.body), hit.owner, dx, dy);
+        this.spent.push(sh);
         continue;
       }
       sh.x += mx;
