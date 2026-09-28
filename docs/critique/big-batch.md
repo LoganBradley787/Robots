@@ -33,7 +33,7 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
 - **Deploy against:** `hunter-drone` or the plain `drone`, 120 m away. It hooks at about 7 s, reels to 6 m, shoots what hangs under it, climbs and drops it. It wrecked a hunter in 16 s and beat `enemy-gun-drone` up close.
 - **Watch for:**
   - Starting 250 m apart it loses to the gun drone. It never gets a hook into `enemy-fab-drone` (that one holds 200 m off). It is a close-range hunter.
-  - Ropes are loose on anything with rotators or wheels (gun drones, cars). See Known problems.
+  - Ropes now hold on anything, rotators and wheels included (fixed after the batch: a rope is forces now).
   - A side rope pulls the drone over hard. The AI only uses the middle one; you can use the sides.
 
 ### 2. Walker: `walker` (yours) and `enemy-walker`
@@ -126,7 +126,7 @@ The run report (`pnpm sim run`) now also prints grapples hooking and letting go,
 
 ## Known problems
 
-- **Ropes stretch on robots with rotators or wheels.** A rope tied to a body that has a rotator or wheels (either end) stretches instead of holding. So the grapple drone has fixed guns, not turrets, and cars and gun drones hold a rope loosely. Likely in `packages/sim-core/src/world/grapple.ts` and `createRope` in `PhysicsWorld.ts`.
+- **Fixed: ropes stretched on robots with rotators or wheels.** Those robots are multibody links and Rapier drops impulses on links, so its rope joint did nothing there (127 m of stretch on a 5 m rope in a test). A rope is now a stiff spring that only pulls, applied as forces at both anchors (`PhysicsWorld.pullRopes`, test `rope.test.ts`). The grapple drone still has fixed guns; turrets would work now.
 - **Ropes are soft under big loads** and the winch stalls; the grapple AI climbs while reeling to work around it.
 - **Piston legs bounce unless the head is heavy.** A piston pushing down on the ground only learns the load resting on top of it, so a light head oscillates. The walker uses armor plates as foot weight; that is why it is 254 kg.
 - **Rotator hips cannot hold a heavy body** (600 N m cap), so the walker walks on rails.

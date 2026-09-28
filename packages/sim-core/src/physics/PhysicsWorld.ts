@@ -100,6 +100,11 @@ export const INTEGRAL_DEADBAND = 0.0002;
 /** Batch: the fraction of the integral term bled per second while on target. */
 export const INTEGRAL_BLEED = 0.05;
 
+/** Batch: a rope's stiffness (Hz on the two ends' combined mass), damping ratio, and strongest pull in N. */
+const ROPE_HZ = 4;
+const ROPE_DAMPING = 0.7;
+const ROPE_MAX_FORCE = 30000;
+
 /** Mass of the invisible helper bodies (a multibody root, a joint pivot): small enough to change nothing measurable. */
 const HELPER_MASS = 0.001;
 
@@ -167,8 +172,11 @@ export class PhysicsWorld {
   private readonly helpers = new Map<BodyId, BodyId[]>();
   private nextId: BodyId = 1;
   private nextJointId: JointId = 1;
-  /** Batch: rope joints between two bodies, gone with either body. */
-  private readonly ropes = new Map<RopeId, { a: BodyId; b: BodyId; joint: RAPIER.ImpulseJoint }>();
+  /**
+   * Batch: ropes between two bodies, gone with either body. A rope is forces, not a Rapier joint: a robot with a rotator
+   * or wheels is multibody links, and Rapier drops impulses on links, so a rope joint stretched without limit there.
+   */
+  private readonly ropes = new Map<RopeId, { a: BodyId; b: BodyId; anchorA: { x: number; y: number }; anchorB: { x: number; y: number }; length: number }>();
   private nextRopeId: RopeId = 1;
 
   constructor(gravityY: number, dt: number) {
@@ -273,10 +281,50 @@ export class PhysicsWorld {
    * ropes do nothing. It goes when either body is removed (a robot rebuilt after damage): make it again on the new body.
    */
   createRope(a: BodyId, b: BodyId, anchorA: { x: number; y: number }, anchorB: { x: number; y: number }, length: number): RopeId {
-    const joint = this.world.createImpulseJoint(RAPIER.JointData.rope(length, anchorA, anchorB), this.body(a), this.body(b), true);
     const id = this.nextRopeId++;
-    this.ropes.set(id, { a, b, joint });
+    this.ropes.set(id, { a, b, anchorA: { ...anchorA }, anchorB: { ...anchorB }, length });
     return id;
+  }
+
+  /**
+   * Each rope pulls its two anchor points together once they are more than its length apart: a stiff spring (about
+   * 4 Hz on the two bodies' combined mass) damped by how fast the ends separate, never pushing, capped. Applied as
+   * forces for this step, which work on multibody links. A fixed body (the ground) takes nothing and adds no mass.
+   */
+  private pullRopes(): void {
+    for (const r of this.ropes.values()) {
+      const ba = this.bodies.get(r.a);
+      const bb = this.bodies.get(r.b);
+      if (!ba || !bb) continue;
+      const end = (b: RAPIER.RigidBody, anchor: { x: number; y: number }) => {
+        const t = b.translation();
+        const rot = b.rotation();
+        const c = Math.cos(rot);
+        const n = Math.sin(rot);
+        const x = t.x + c * anchor.x - n * anchor.y;
+        const y = t.y + n * anchor.x + c * anchor.y;
+        const v = b.linvel();
+        const w = b.angvel();
+        const com = b.worldCom();
+        return { x, y, vx: v.x - w * (y - com.y), vy: v.y + w * (x - com.x), m: b.isDynamic() ? b.mass() : 0 };
+      };
+      const p = end(ba, r.anchorA);
+      const q = end(bb, r.anchorB);
+      const dx = q.x - p.x;
+      const dy = q.y - p.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d <= r.length || d === 0) continue;
+      const ux = dx / d;
+      const uy = dy / d;
+      const m = p.m > 0 && q.m > 0 ? (p.m * q.m) / (p.m + q.m) : Math.max(p.m, q.m);
+      if (m <= 0) continue;
+      const omega = 2 * Math.PI * ROPE_HZ;
+      const opening = (q.vx - p.vx) * ux + (q.vy - p.vy) * uy;
+      const pull = Math.min(ROPE_MAX_FORCE, Math.max(0, m * omega * omega * (d - r.length) + 2 * ROPE_DAMPING * m * omega * opening));
+      if (pull === 0) continue;
+      if (p.m > 0) this.addForceAt(r.a, ux * pull, uy * pull, p.x, p.y);
+      if (q.m > 0) this.addForceAt(r.b, -ux * pull, -uy * pull, q.x, q.y);
+    }
   }
 
   /** Whether the rope is still there (it is not once one of its bodies is removed). */
@@ -285,10 +333,7 @@ export class PhysicsWorld {
   }
 
   removeRope(id: RopeId): void {
-    const r = this.ropes.get(id);
-    if (!r) return;
     this.ropes.delete(id);
-    this.world.removeImpulseJoint(r.joint, true);
   }
 
   /** Terrain colliders (no owner) that are boxes, in creation order. */
@@ -730,6 +775,7 @@ export class PhysicsWorld {
       if (!this.jointChildren.has(id)) b.addTorque(-AIR_SPIN_DRAG * cells * Math.abs(w) * w, false);
       this.forced.add(id);
     }
+    this.pullRopes();
     this.world.step();
     for (const id of this.forced) {
       const b = this.body(id);
