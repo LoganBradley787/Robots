@@ -1,11 +1,12 @@
 import type { Graphics, Ticker } from 'pixi.js';
-import { World, activeControls, keysScriptsRead, orientRaw, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
+import { World, activeControls, keysScriptsRead, orientRaw, partWorldPose, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
 import { drawSensors, type SensorOverlay } from '../render/SensorDraw';
 import { interpolateState } from '../render/interpolate';
 import { RobotView } from '../render/RobotView';
 import { Effects } from '../render/Effects';
+import { ShellsView } from '../render/ShellsView';
 import { buildTerrainView } from '../render/TerrainView';
 import { buildGridView } from '../render/GridView';
 import { TERRAIN } from '../render/assetKeys';
@@ -81,6 +82,7 @@ export class WorldScreen {
   /** One view per robot, by robot id. Rebuilt when the robot is (damage, a split), dropped when it is gone. */
   private views = new Map<number, RobotView>();
   private readonly effects = new Effects();
+  private readonly shells = new ShellsView();
   private readonly stepper: FixedStepper;
   private readonly grid: Graphics;
   private debugVisible = false;
@@ -137,6 +139,7 @@ export class WorldScreen {
     this.lastHash = world.hash();
     this.grid = buildGridView({ minX: -60, maxX: 60, minY: -2, maxY: 30 });
     renderer.world.addChildAt(this.effects.root, renderer.world.getChildIndex(renderer.bodies) + 1);
+    renderer.world.addChildAt(this.shells.root, renderer.world.getChildIndex(this.effects.root) + 1);
     renderer.backdrop.addChild(
       this.grid,
       buildTerrainView(file, {
@@ -420,9 +423,16 @@ export class WorldScreen {
     for (const r of this.world.robots) {
       const view = this.world.sensorView(r.id);
       const marks = this.world.marks(r.id);
-      if (view.sensors.length === 0 && marks.length === 0) continue;
+      const sights = [];
+      for (const part of r.parts.values()) {
+        if (!part.def.gun || !part.sight) continue;
+        const pose = partWorldPose(this.world, r, part.id);
+        const aim = part.sight.aim;
+        sights.push({ x: pose.x + 0.5 * Math.cos(aim), y: pose.y + 0.5 * Math.sin(aim), aim, distance: part.sight.distance, side: part.sight.side });
+      }
+      if (view.sensors.length === 0 && marks.length === 0 && sights.length === 0) continue;
       const s = sampleRobot(this.world, r);
-      out.push({ ...view, from: { x: s.coreX, y: s.coreY }, marks });
+      out.push({ ...view, from: { x: s.coreX, y: s.coreY }, marks, sights });
     }
     return out;
   }
@@ -460,6 +470,7 @@ export class WorldScreen {
       );
     }
     this.effects.update(time.paused ? 0 : (ticker.deltaMS / 1000) * time.timeScale);
+    this.shells.draw(this.world.liveShells(), alpha);
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
@@ -499,6 +510,7 @@ export class WorldScreen {
       if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
       if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
       if (ev?.kind === 'decoupled') this.effects.spark(ev.x, ev.y);
+      if (ev?.kind === 'shellHit') this.effects.hit(ev.x, ev.y);
       // A part that explodes gets the blast instead of a puff (an unarmed warhead just breaks: M10).
       // A burnt-out flare (M11) just goes out.
       if (ev?.kind === 'partDestroyed' && !ev.exploded && ev.burntOut !== true) this.effects.breakPuff(ev.x, ev.y);

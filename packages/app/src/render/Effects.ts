@@ -81,6 +81,16 @@ export class Effects {
     });
   }
 
+  /** A shell hit something (M13): a tiny spark. */
+  hit(x: number, y: number): void {
+    const p = toScreen({ x, y });
+    const r = 0.25 * PIXELS_PER_METER;
+    this.add(p, 0.1, (g, t) => {
+      const k = t / 0.1;
+      g.circle(0, 0, r * (0.4 + k)).fill({ color: FLASH, alpha: 0.9 * (1 - k) });
+    });
+  }
+
   /** Advances every effect by `dt` seconds and drops finished ones. */
   update(dt: number): void {
     for (let i = this.live.length - 1; i >= 0; i--) {
