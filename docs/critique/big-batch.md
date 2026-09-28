@@ -6,7 +6,7 @@ Seven robot sets, 12 blueprints. Most fly or drive themselves, so deploy them on
 
 ## Coverage at a glance
 
-Which robot shows which new part or rule. Fins, the swiveling thruster and the mine have no robot yet (see Dropped).
+Which robot shows which new part or rule. Fins, the swiveling thruster and the charge have no robot yet (see Dropped).
 
 | Feature | Robots that show it |
 |---|---|
@@ -22,7 +22,7 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the m
 | Debris fades | bomber (wrecked cars), any long fight |
 | Fab bays clear their hollow | gun swarm, factory |
 | Build time per part | gun swarm (4.9 s per gun drone bomb), factory (missile 4.1 s, drone bomb 8.7 s) |
-| Fin, swiveling thruster, mine | none (dropped) |
+| Fin, swiveling thruster, charge | none (dropped) |
 
 ## The robots
 
@@ -110,7 +110,7 @@ All new parts are palette only (no builder key). Every part has health, a build 
 | Solar panel | `solar` | `So` | 0.5 kg. Adds up to 6 J/s to its chunk's batteries while facing up (less as it tilts). Mounts by its base. |
 | Swiveling thruster | `swivelthruster` | `V^ Vv V< V>` | A 400 N booster whose push tilts up to 15 degrees (`swivel` input). At a tail it steers like a gimbal. |
 | Fin | `fin` | `L^ Lv L< L>` | 0.3 kg plate that pushes against air crossing it (lift). `deflect` turns it up to 20 degrees. Two behind the middle keep a nose into the wind. |
-| Proximity mine | `mine` | `Xm` | Armed, it goes off when an enemy part comes within 3 m (heavy warhead blast). Shot, blasted or crashed, it breaks as a dud. Health 60. |
+| Distance charge | `charge` | `Xd` | Armed, it goes off when an enemy part comes within 3 m (heavy warhead blast). Shot, blasted or crashed, it breaks as a dud. Health 60. |
 | Radio | `radio` | `N` | Shares its robot's sensor contacts with same-team radios within 1500 m. No relaying. Jammed inside a jammer bubble. |
 | Jammer pod | `jammer` | `J` | Lit, for 5 s any sensor within 30 m sees nothing, and nothing outside sees a robot whose core is inside. Gun sights still work. |
 | Smoke pod | `smoke` | `U` | One 12 m cloud for 8 s. Sensor lines through it are blocked; shells pass. |
@@ -140,7 +140,7 @@ The run report (`pnpm sim run`) now also prints grapples hooking and letting go,
 
 ## Dropped
 
-- **Tech missile drone** (fins, swiveling thruster and a mine on its missiles, plus armor and solar). Its agent committed nothing. The integration session started one (a missile of seeker, mine, core, fin, heavy gyro and swiveling thruster on a hunter drone airframe) and was stopped before it ran. So fins, the swiveling thruster and the mine are covered by unit tests only. This is the robot you described, so it is the first thing to build next.
+- **Tech missile drone** (fins, swiveling thruster and a charge on its missiles, plus armor and solar). Its agent committed nothing. The integration session started one (a missile of seeker, charge, core, fin, heavy gyro and swiveling thruster on a hunter drone airframe) and was stopped before it ran. So fins, the swiveling thruster and the charge are covered by unit tests only. This is the robot you described, so it is the first thing to build next.
 - **Grapple drone turrets and a drag-down mode:** turrets dropped because of the rope problem above; it only carries up and lets go.
 - **Walker hip joints:** dropped, rails instead.
 

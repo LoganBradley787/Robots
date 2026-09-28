@@ -600,7 +600,7 @@
         "h": 64
       }
     },
-    "part.mine": {
+    "part.charge": {
       "frame": {
         "x": 139,
         "y": 275,
@@ -620,7 +620,7 @@
         "h": 64
       }
     },
-    "part.mine.armed": {
+    "part.charge.armed": {
       "frame": {
         "x": 207,
         "y": 275,

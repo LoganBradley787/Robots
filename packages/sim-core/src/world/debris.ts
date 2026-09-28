@@ -10,7 +10,7 @@ export const DEBRIS_CAP = 200;
 /**
  * Batch: debris is a piece that broke off something (`brokeFrom`) and has no core in charge. A robot spawned coreless
  * on purpose (a wall, a bomb, a target) never broke off anything, so it is never debris. Integration: a piece holding
- * an armed part (a proximity mine dropped as a landmine, a bomb let go) is live, not debris, so it never fades.
+ * an armed part (a distance charge dropped as a ground charge, a bomb let go) is live, not debris, so it never fades.
  */
 export function isDebris(robot: Robot): boolean {
   if (robot.brokeFrom === undefined || robot.primaryCoreId !== undefined) return false;

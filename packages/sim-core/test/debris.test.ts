@@ -70,14 +70,14 @@ describe('debris fades (Batch)', () => {
     w.dispose();
   });
 
-  it('a broken-off piece holding an armed part (a dropped mine) is live, not debris (integration: mine and debris)', async () => {
+  it('a broken-off piece holding an armed part (a dropped charge) is live, not debris (integration: charge and debris)', async () => {
     const w = await World.create({ seed: 1, gravityY: 0 }, space);
-    const mine = w.spawnBlueprint({ format: 1, name: 'landmine', grid: ['Xm'], legend: { Xm: { part: 'mine', armed: true } } }, { x: 0, y: 20 });
-    mine.brokeFrom = 999;
-    const dud = w.spawnBlueprint({ format: 1, name: 'dud', grid: ['Xm'] }, { x: 40, y: 20 });
+    const charge = w.spawnBlueprint({ format: 1, name: 'ground charge', grid: ['Xd'], legend: { Xd: { part: 'charge', armed: true } } }, { x: 0, y: 20 });
+    charge.brokeFrom = 999;
+    const dud = w.spawnBlueprint({ format: 1, name: 'dud', grid: ['Xd'] }, { x: 40, y: 20 });
     dud.brokeFrom = 999;
     for (let i = 0; i < HOLD_TICKS + 60; i++) w.step();
-    expect(has(w, mine.id)).toBe(true);
+    expect(has(w, charge.id)).toBe(true);
     // An unarmed one is just debris.
     expect(has(w, dud.id)).toBe(false);
     w.dispose();

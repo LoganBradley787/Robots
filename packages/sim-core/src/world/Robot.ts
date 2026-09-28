@@ -52,7 +52,7 @@ export interface PartInstance {
   cooldown?: number;
   /** M13: what a gun's sight saw after the last physics step. Undefined until it first looks. Derived, not hashed. */
   sight?: GunSight;
-  /** Batch: a mine that was set off this tick (by an enemy near or `detonate`) and blasts as it is destroyed. Transient, never hashed. */
+  /** Batch: a charge that was set off this tick (by an enemy near or `detonate`) and blasts as it is destroyed. Transient, never hashed. */
   fired?: boolean;
   /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
   stored?: number;

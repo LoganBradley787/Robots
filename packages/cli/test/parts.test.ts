@@ -24,7 +24,7 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'solar')).toMatchObject({ key: '', legend: ['So'], mass: 0.5, faces: ['S'], health: 8, power: 0 });
     expect(rows.find((r) => r.id === 'swivelthruster')).toMatchObject({ key: '', legend: ['V^', 'V<', 'Vv', 'V>'], mass: 1.5, faces: ['N', 'E', 'W'], health: 25, power: 60 });
     expect(rows.find((r) => r.id === 'fin')).toMatchObject({ key: '', legend: ['L^', 'L<', 'Lv', 'L>'], mass: 0.3, faces: ['N', 'E', 'S', 'W'], health: 10, power: 0 });
-    expect(rows.find((r) => r.id === 'mine')).toMatchObject({ key: '', legend: ['Xm'], mass: 1.5, faces: ['N', 'E', 'S', 'W'], health: 60, power: 0 });
+    expect(rows.find((r) => r.id === 'charge')).toMatchObject({ key: '', legend: ['Xd'], mass: 1.5, faces: ['N', 'E', 'S', 'W'], health: 60, power: 0 });
     expect(rows.find((r) => r.id === 'radio')).toMatchObject({ key: '', legend: ['N'], mass: 1, health: 30, power: 1 });
     expect(rows.find((r) => r.id === 'jammer')).toMatchObject({ key: '', legend: ['J'], mass: 0.5, faces: ['N', 'E', 'S', 'W'], health: 10, power: 0 });
     expect(rows.find((r) => r.id === 'grapple')).toMatchObject({ key: '', legend: ['Gp^', 'Gp<', 'Gpv', 'Gp>'], mass: 1, faces: ['S'], health: 30, power: 0 });
@@ -54,8 +54,8 @@ describe('parts', () => {
     expect(text('swivelthruster')).toContain('swivel 15 deg');
     expect(text('fin')).toMatch(/plate along its N axis/);
     expect(text('fin')).toMatch(/up to 20 degrees/);
-    expect(text('mine')).toMatch(/goes off .* when any part of a robot of another team comes within 3 m/);
-    expect(text('mine')).toMatch(/destroyed any other way .* it breaks as a dud/);
+    expect(text('charge')).toMatch(/goes off .* when any part of a robot of another team comes within 3 m/);
+    expect(text('charge')).toMatch(/destroyed any other way .* it breaks as a dud/);
     expect(text('radio')).toMatch(/shares what its robot's own sensors see with every robot of its team that has a working radio within 1500 m/);
     expect(text('jammer')).toMatch(/jams for 5 s and is then spent and gone; while it jams, within 30 m of the pod a sensor sees nothing/);
     expect(text('smoke')).toMatch(/releases a cloud 12 m in radius where it is and is used up/);

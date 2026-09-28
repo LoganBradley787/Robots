@@ -605,10 +605,10 @@ function drawSolar(): Canvas {
 }
 
 /**
- * Proximity mine (Batch): a squat olive-drab case with a ring of small feeler studs around a central sensor dome.
+ * Distance charge (Batch): a squat olive-drab case with a ring of small feeler studs around a central sensor dome.
  * Armed, the dome glows red; unarmed it is a dark socket.
  */
-function drawMine(armed = false): Canvas {
+function drawCharge(armed = false): Canvas {
   const cv = new Canvas(CELL, CELL);
   plate(cv, 0, 0, CELL, CELL, hex('#5c6440'), hex('#2f3520'), 3);
   cv.fill(circle(32, 32, 26), hex('#2f3520'));
@@ -1165,8 +1165,8 @@ function main(): void {
     { name: 'part.solar', canvas: drawSolar() },
     { name: 'part.swivelthruster', canvas: drawSwivelThruster() },
     { name: 'part.fin', canvas: drawFin() },
-    { name: 'part.mine', canvas: drawMine() },
-    { name: 'part.mine.armed', canvas: drawMine(true) },
+    { name: 'part.charge', canvas: drawCharge() },
+    { name: 'part.charge.armed', canvas: drawCharge(true) },
     { name: 'part.radio', canvas: drawRadio() },
     { name: 'part.smoke', canvas: drawSmoke() },
     { name: 'part.grapple', canvas: drawGrapple() },

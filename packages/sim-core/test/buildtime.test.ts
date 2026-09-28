@@ -40,7 +40,7 @@ describe('build time per part (Batch)', () => {
     const d = (id: string): number => registry.get(id).build ?? 0;
     expect(d('swivelthruster')).toBeGreaterThan(d('booster'));
     expect(d('armorplate')).toBeGreaterThan(d('frame'));
-    expect(d('mine')).toBeGreaterThan(d('warhead'));
+    expect(d('charge')).toBeGreaterThan(d('warhead'));
     expect(d('fin')).toBe(d('propeller'));
   });
 

@@ -184,11 +184,11 @@ export interface SolarSpec {
 }
 
 /**
- * A proximity mine (Batch): once armed it goes off (its `onDestroyed.explode` blast, then it is gone) when any part of
+ * A distance charge (Batch): once armed it goes off (its `onDestroyed.explode` blast, then it is gone) when any part of
  * a robot of another team comes within `radius` meters of it, or on a `detonate` pulse. Destroyed any other way (shot,
  * caught in a blast) it breaks without a blast. Needs `arming`, `onDestroyed.explode`, and a `detonate` input.
  */
-export interface MineSpec {
+export interface ChargeSpec {
   radius: number;
 }
 
@@ -284,8 +284,8 @@ export interface PartDef {
   gun?: GunSpec;
   /** Batch: the part is a solar panel. It needs `acts`. */
   solar?: SolarSpec;
-  /** Batch: the part is a proximity mine. */
-  mine?: MineSpec;
+  /** Batch: the part is a distance charge. */
+  charge?: ChargeSpec;
   /** Batch: the part is a smoke pod. It needs an `on` input. */
   smoke?: SmokeSpec;
   /** Batch: the part is a grapple. It needs `acts`, `fire`, `reel`, and `release` inputs, and `hooked` and `length` outputs. */

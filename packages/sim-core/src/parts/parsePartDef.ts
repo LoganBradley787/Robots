@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'mine', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -252,12 +252,12 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (def.acts === undefined) r.fail('solar', 'a solar panel needs "acts" (the face that catches the sun)');
     def.solar = { power: r.positive(so, 'power', 'solar') };
   }
-  if (o.mine !== undefined) {
-    const m = r.obj(o.mine, 'mine', ['radius']);
-    if (def.arming !== true) r.fail('mine', 'a mine needs arming (an "arm" input, an "armed" output, and "arming": true)');
-    if (def.onDestroyed?.explode === undefined) r.fail('mine', 'a mine needs "onDestroyed.explode" (the blast it goes off with)');
-    if (!def.inputs.some((c) => c.name === 'detonate')) r.fail('mine', 'a mine must have a "detonate" input');
-    def.mine = { radius: r.positive(m, 'radius', 'mine') };
+  if (o.charge !== undefined) {
+    const m = r.obj(o.charge, 'charge', ['radius']);
+    if (def.arming !== true) r.fail('charge', 'a charge needs arming (an "arm" input, an "armed" output, and "arming": true)');
+    if (def.onDestroyed?.explode === undefined) r.fail('charge', 'a charge needs "onDestroyed.explode" (the blast it goes off with)');
+    if (!def.inputs.some((c) => c.name === 'detonate')) r.fail('charge', 'a charge must have a "detonate" input');
+    def.charge = { radius: r.positive(m, 'radius', 'charge') };
   }
   if (o.smoke !== undefined) {
     const sm = r.obj(o.smoke, 'smoke', ['radius', 'seconds']);

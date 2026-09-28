@@ -623,7 +623,7 @@ export class World {
    * that give new bodies their velocity act on the next step.
    */
   private damagePhase(): void {
-    this.checkMines();
+    this.checkCharges();
     this.checkImpacts();
     let budget = MAX_BLASTS_PER_TICK;
     for (;;) {
@@ -712,23 +712,23 @@ export class World {
   }
 
   /**
-   * Batch: an armed mine (`mine` in its def) goes off when any part cell of a robot of another team comes within its
-   * `radius`: it is marked `fired` and set to 0 health, so the destroy step below gives it its blast (a mine destroyed
+   * Batch: an armed charge (`charge` in its def) goes off when any part cell of a robot of another team comes within its
+   * `radius`: it is marked `fired` and set to 0 health, so the destroy step below gives it its blast (a charge destroyed
    * any other way is a dud). A burning flare counts as the robot it stands in for, like a sensor sees it (M11); a robot
    * nobody controls (debris, a wreck) does not count, like a contact of side none. Robots and parts are scanned in
    * order and the first cell in range sets it off, so the outcome never depends on anything but the state.
    */
-  private checkMines(): void {
-    let mines: { robot: Robot; part: PartInstance }[] | undefined;
+  private checkCharges(): void {
+    let charges: { robot: Robot; part: PartInstance }[] | undefined;
     for (const robot of this.robots) {
       for (const part of robot.parts.values()) {
-        if (part.def.mine === undefined || part.armed !== true || part.health <= 0 || part.fired === true) continue;
-        (mines ??= []).push({ robot, part });
+        if (part.def.charge === undefined || part.armed !== true || part.health <= 0 || part.fired === true) continue;
+        (charges ??= []).push({ robot, part });
       }
     }
-    if (!mines) return;
-    for (const { robot, part } of mines) {
-      const radius = part.def.mine?.radius ?? 0;
+    if (!charges) return;
+    for (const { robot, part } of charges) {
+      const radius = part.def.charge?.radius ?? 0;
       const at = partWorldPose(this, robot, part.id);
       const sq = radius * radius;
       const near = (): boolean => {
@@ -761,9 +761,9 @@ export class World {
         const pose = partWorldPose(this, robot, part.id);
         robot.parts.delete(part.id);
         this.dirty.add(robot);
-        // An unarmed part that needs arming breaks like any other part (M10). A mine blasts only when it was set off
+        // An unarmed part that needs arming breaks like any other part (M10). A charge blasts only when it was set off
         // (Batch): shot or caught in a blast, it breaks as a dud.
-        const explode = part.armed === false || (part.def.mine !== undefined && part.fired !== true) ? undefined : part.def.onDestroyed?.explode;
+        const explode = part.armed === false || (part.def.charge !== undefined && part.fired !== true) ? undefined : part.def.onDestroyed?.explode;
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y, exploded: explode !== undefined, ...(part.burn === 0 ? { burntOut: true as const } : {}) });
         if (explode) this.queuedBlasts.push({ robot: robot.id, x: pose.x, y: pose.y, spec: explode });
       }
