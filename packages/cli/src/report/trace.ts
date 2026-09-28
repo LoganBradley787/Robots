@@ -172,6 +172,15 @@ export class Tracer {
         case 'burntOut':
           push(e.robot, 'burntOut', `${e.part} burnt out`);
           break;
+        case 'hooked':
+          push(e.robot, 'hooked', `${e.part} hooked ${e.to !== 0 ? this.letter(e.to) : 'the ground or a loose body'}, rope ${f2(e.length)} m`);
+          break;
+        case 'unhooked':
+          push(e.robot, 'unhooked', `${e.part} ${e.why === 'released' ? 'let go of its rope' : 'lost its rope'}`);
+          break;
+        case 'smoked':
+          push(e.robot, 'smoked', `${e.part} smoked: a ${e.radius} m cloud at (${f2(e.x)}, ${f2(e.y)}) hides what is in or behind it from sensors`);
+          break;
         case 'built':
           push(e.robot, 'built', `${e.part} built ${e.recipe} (${e.scope}), holding it`);
           break;

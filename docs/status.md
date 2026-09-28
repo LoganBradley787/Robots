@@ -1,5 +1,7 @@
 # Status
 
+**Big batch (2026-09-28):** 15 new parts and rules and 7 robot sets live on the branch `experimental/big-batch`, not merged to main and not pushed. The play-test sheet is `docs/critique/big-batch.md`. The notes below are main's, from before the batch.
+
 Updated: 2026-09-28, by an Opus 5.5 session, end of M13 (guns)
 
 - Current milestone: **M13 (guns) done, stopped at Gate 12** for Logan to play. What to try: `docs/critique/gate-12.md`. Plan and As built: `docs/plans/M13-guns.md`. Gate 11 (M12, fab bays and fab drones) was never formally closed; its notes are below and in `docs/critique/gate-11.md`. Everything since `m12` is pushed together at this gate.
