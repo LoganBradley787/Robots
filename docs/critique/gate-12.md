@@ -37,3 +37,10 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - **Everything is close quarters:** radars see 500 m, guns reach 250 m, so once two robots see each other they are in gun range; fab drones 730 m apart never saw each other. Decided (Logan): test designs first; spread for shells, or longer range radars and missiles, later.
 - **Design, not parts?** Built three drones to find out: `enemy-armored-gun-drone` (guns off the core's line), `enemy-fab-gun-drone` (a walled-in missile bay plus guns), `enemy-many-gun-drone` (12 guns). Results so far are in the playbook's examples.
 
+### 2. Second play (Logan, 2026-09-28)
+- **Fab gun drone against many-gun drone:** multi-target tracking; the many-gun drone shot missiles and shredded the fab gun drone.
+- **"Turrets stopped: ran too long for one tick"** (the many-gun drone against the enemy flying silo): all twelve turrets scored every part of the 100-part silo on the same tick. Fixed: at most one turret picks its part per tick, and scoring stops once no part left can beat the best (test).
+- **Gun drone against enemy flying silo:** the silo won with one missile to spare; missiles with their seeker shot off still flew on to the last point they knew and hit.
+- **Many-gun against many-gun** at 0.25 speed: a real gun war; one lost all its facing guns, tried to cross over, and the other (below it) took its propellers, guns, and core. The winner kept most of its guns.
+- **Many-gun against fab gun drone** (on the many-gun's damaged side): the fab gun drone's missiles got through once its guns were down and took the many-gun drone's core. The fab gun drone then drifted to a spot and waited.
+

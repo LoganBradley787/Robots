@@ -9,7 +9,8 @@
 //   heavier it scans the parts and picks the best hit per shell: what the part is worth (its guns and warheads most,
 //   then its core, radar, and lift, frames least) over the shells it takes to break it and everything of that robot in
 //   front of it on the way (a propeller behind a wall of frames costs the whole wall). It picks again every `repick`
-//   seconds, and when the part is gone.
+//   seconds, and when the part is gone; at most one turret picks per tick (a drone with twelve turrets all scoring a
+//   100-part silo on one tick ran over the script's time budget), and a turret waiting its turn aims at the middle.
 // - Aim: ahead of that point, where it will be when a shell gets there (from its speed and ours; shells leave at the
 //   gun's `speed` plus our own motion), and up by what a shell falls on the way.
 // - Fire: within `reach` meters, while the barrel is on the aim point and the gun's sight says nothing of ours is in
@@ -101,8 +102,12 @@ function scanned(id) {
 function bestPart(target, from) {
   const list = scanned(target.id);
   if (!list || list.length === 0) return undefined;
+  // Best first by what each could score with nothing in front of it; stop once none left can beat the best.
+  const order = list.map((p) => ({ p, bound: (WORTH[p.type] ?? 1) / Math.ceil(p.health / damage) }));
+  order.sort((a, b) => b.bound - a.bound);
   let best;
-  for (const p of list) {
+  for (const { p, bound } of order) {
+    if (best && bound <= best.score) break;
     const worth = WORTH[p.type] ?? 1;
     const rx = p.pos.x - from.x;
     const ry = p.pos.y - from.y;
@@ -182,7 +187,8 @@ function aimTurret(name) {
   // A heavy target: aim at the part chosen, if it is still there.
   let l = best.l;
   if (best.c.mass >= heavy) {
-    if (time - st.picked >= repick || st.part === undefined) {
+    if ((time - st.picked >= repick || st.part === undefined) && state.pickFrame !== frame) {
+      state.pickFrame = frame;
       st.part = bestPart(best.c, from);
       st.picked = time;
     }

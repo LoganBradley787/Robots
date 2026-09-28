@@ -92,6 +92,16 @@ describe('M13 guns, done when', () => {
     w.dispose();
   });
 
+  it('twelve turrets on a big target stay within the script time budget (Logan: "turrets stopped, ran too long")', { timeout: 60_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const guns = w.spawnBlueprint(blueprint('enemy-many-gun-drone'), { x: -100, y: 40 }, { team: 1 });
+    w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: 100, y: 1.5 });
+    for (let t = 0; t < 300; t++) w.step();
+    expect(w.events.filter((e) => e.kind === 'scriptCrashed')).toEqual([]);
+    expect(w.shotsBy(guns.id)).toBeGreaterThan(20);
+    w.dispose();
+  });
+
   it('in a 2v2 with fab drones, no shell hits its own side, and a turret never shoots its own robot', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: -60, y: 30 });
