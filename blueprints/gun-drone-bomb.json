@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "gun-drone-bomb",
+  "grid": [
+    "L  L  R  R",
+    "F  C  O  F",
+    ".  G  E  g"
+  ],
+  "legend": {
+    "L": { "part": "propeller", "tags": ["lprop"], "auto": false },
+    "R": { "part": "propeller", "tags": ["rprop"], "auto": false },
+    "O": { "part": "radar", "tags": ["radar"] },
+    "g": { "part": "gun", "rot": 270, "tags": ["gun"] },
+    "G": { "part": "gyro", "tags": ["stab"], "auto": false }
+  },
+  "scripts": [{ "id": "pilot", "source": { "file": "gun-drone-bomb.pilot.js" } }]
+}

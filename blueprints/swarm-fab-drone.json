@@ -1,0 +1,241 @@
+{
+  "format": 1,
+  "name": "swarm-fab-drone",
+  "grid": [
+    ". . . . = . . . . . = . . . .",
+    ". . . . = . . . . . = . . . .",
+    ". . . . = . . . . . = . . . .",
+    ". . . . = q = = = = = . . . .",
+    "a b F c c c F d F e e e F f g",
+    "h i F F F Z Z C Z Z F F F j k",
+    "l m F c c c c n e e e e F o p"
+  ],
+  "legend": {
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "q": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "bay"
+      ],
+      "makes": "gun-drone-bomb",
+      "size": [
+        5,
+        3
+      ]
+    }
+  },
+  "bindings": [
+    {
+      "key": "h",
+      "mode": "script",
+      "script": "hover"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "hover",
+      "params": {
+        "lean": 60
+      },
+      "source": {
+        "file": "swarm-fab-drone.hover.js"
+      }
+    },
+    {
+      "id": "fire",
+      "source": {
+        "file": "swarm-fab-drone.fire.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "swarm-fab-drone.flares.js"
+      }
+    }
+  ],
+  "recipes": {
+    "gun-drone-bomb": {
+      "format": 1,
+      "name": "gun-drone-bomb",
+      "grid": [
+        "L  L  R  R",
+        "F  C  O  F",
+        ".  G  E  g"
+      ],
+      "legend": {
+        "L": {
+          "part": "propeller",
+          "tags": [
+            "lprop"
+          ],
+          "auto": false
+        },
+        "R": {
+          "part": "propeller",
+          "tags": [
+            "rprop"
+          ],
+          "auto": false
+        },
+        "O": {
+          "part": "radar",
+          "tags": [
+            "radar"
+          ]
+        },
+        "g": {
+          "part": "gun",
+          "rot": 270,
+          "tags": [
+            "gun"
+          ]
+        },
+        "G": {
+          "part": "gyro",
+          "tags": [
+            "stab"
+          ],
+          "auto": false
+        }
+      },
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "swarm-fab-drone.gun-drone-bomb.pilot.js"
+          },
+          "params": {
+            "clearWidth": 10
+          }
+        }
+      ]
+    }
+  }
+}
