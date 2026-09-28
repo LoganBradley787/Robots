@@ -1,0 +1,231 @@
+{
+  "format": 1,
+  "name": "grapple-drone",
+  "grid": [
+    ". . c c c c c d e e e e e . .",
+    ". x A F F Z Z C Z Z F F A y .",
+    ". . F c c c c n e e e e F . .",
+    ". . q F z a b F f g z F w . .",
+    ". . . . . h i F j k . . . . .",
+    ". . . . . l m F o p . . . . .",
+    ". . . . . . . v . . . . . . ."
+  ],
+  "legend": {
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "q": {
+      "part": "grapple",
+      "rot": 90,
+      "tags": [
+        "hook",
+        "hookl"
+      ]
+    },
+    "w": {
+      "part": "grapple",
+      "rot": 270,
+      "tags": [
+        "hook",
+        "hookr"
+      ]
+    },
+    "v": {
+      "part": "grapple",
+      "rot": 180,
+      "tags": [
+        "hook",
+        "hookd"
+      ]
+    },
+    "x": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "hgun",
+        "gunl"
+      ]
+    },
+    "y": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "hgun",
+        "gunr"
+      ]
+    },
+    "z": {
+      "part": "gun",
+      "rot": 180,
+      "tags": [
+        "hgun",
+        "gund"
+      ]
+    }
+  },
+  "bindings": [
+    {
+      "key": "h",
+      "mode": "script",
+      "script": "hover"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "hover",
+      "source": {
+        "file": "grapple-drone.hover.js"
+      },
+      "params": {
+        "lean": 60
+      }
+    },
+    {
+      "id": "guns",
+      "source": {
+        "file": "grapple-drone.guns.js"
+      },
+      "params": {
+        "auto": 0
+      }
+    },
+    {
+      "id": "grapples",
+      "source": {
+        "file": "grapple-drone.grapples.js"
+      },
+      "params": {
+        "auto": 0
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "grapple-drone.flares.js"
+      }
+    }
+  ]
+}
