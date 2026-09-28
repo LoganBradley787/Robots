@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'grapple', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -222,6 +222,16 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const sight = def.outputs.find((c) => c.name === 'sight');
     if (sight && sight.max !== range) r.fail('gun', `its "sight" output's max must be its range (${range})`);
     def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range };
+  }
+  if (o.grapple !== undefined) {
+    const g = r.obj(o.grapple, 'grapple', ['reach', 'reelSpeed', 'minLength', 'maxLength']);
+    if (def.acts === undefined) r.fail('grapple', 'a grapple needs "acts" (the way it fires)');
+    for (const input of ['fire', 'reel', 'release']) if (!def.inputs.some((c) => c.name === input)) r.fail('grapple', `a grapple must have a "${input}" input`);
+    for (const out of ['hooked', 'length']) if (!def.outputs.some((c) => c.name === out)) r.fail('grapple', `a grapple must have a "${out}" output`);
+    const minLength = r.positive(g, 'minLength', 'grapple');
+    const maxLength = r.positive(g, 'maxLength', 'grapple');
+    if (maxLength < minLength) r.fail('grapple.maxLength', 'must be at least minLength');
+    def.grapple = { reach: r.positive(g, 'reach', 'grapple'), reelSpeed: r.positive(g, 'reelSpeed', 'grapple'), minLength, maxLength };
   }
   if (o.stretch !== undefined) {
     const so = r.obj(o.stretch, 'stretch', ['shape', 'min', 'max', 'massPerCell']);

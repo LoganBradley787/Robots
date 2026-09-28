@@ -529,6 +529,31 @@ function drawGun(): Canvas {
 }
 
 /**
+ * Grapple (Batch): a riveted base plate, a squat winch housing with a wound cable drum, and a hook out of the top (the
+ * way it fires at rotation 0): a shank with two curved prongs, and a line running back to the drum.
+ */
+function drawGrapple(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 6, 44, 58, 62, hex('#6f747d'), OUTLINE, 2);
+  for (const [x, y] of [[12, 53], [52, 53]] as const) rivet(cv, x, y, 2.2);
+  plate(cv, 14, 30, 50, 46, hex('#3d434c'), hex('#1b1e23'), 2.5);
+  shadedDisc(cv, 32, 38, 8, hex('#b8732e'));
+  cv.fill(ring(32, 38, 3, 7), hex('#5a3a17'), 0.6);
+  cv.fill(circle(32, 38, 2.2), hex('#1b1e23'));
+  // The line from the drum out to the hook.
+  cv.fill(seg(32, 30, 32, 16, 2), hex('#c9ccd2'));
+  // The hook: a shank and two prongs curling out and back.
+  cv.fill(seg(32, 16, 32, 8, 5), hex('#555b64'));
+  cv.fill(seg(32, 8, 22, 4, 4), hex('#8a9099'));
+  cv.fill(seg(22, 4, 20, 10, 4), hex('#8a9099'));
+  cv.fill(seg(32, 8, 42, 4, 4), hex('#8a9099'));
+  cv.fill(seg(42, 4, 44, 10, 4), hex('#8a9099'));
+  cv.fill(circle(32, 16, 3), hex('#e8c21e'));
+  cv.fill(rect(29, 9, 30.5, 15), WHITE, 0.25);
+  return cv;
+}
+
+/**
  * Fabricator bay (M12): a U three cells wide and six tall, open at the top. Armored walls in dark steel with a
  * yellow and black band at the mouth, a lit strip down the inside of each wall, and a machine bed at the bottom.
  */
@@ -960,6 +985,7 @@ function main(): void {
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
     { name: 'part.gun', canvas: drawGun() },
+    { name: 'part.grapple', canvas: drawGrapple() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

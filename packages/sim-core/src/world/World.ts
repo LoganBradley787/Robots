@@ -31,6 +31,7 @@ import type { PartInstance, Robot } from './Robot';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Binding, Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
+import { Grapples, type GrappleHost } from './grapple';
 
 export interface SpawnRecord {
   tick: number;
@@ -86,6 +87,10 @@ export type WorldEvent =
   /** M12: a fabricator finished a build but cannot place it yet (`why`); it tries every tick. Once per wait. */
   | { tick: number; robot: number; kind: 'buildBlocked'; part: string; why: string }
   /** M13: a shell from robot `by` hit `part` of `robot` at `x`, `y`, taking `damage` off it. */
+  /** Batch: a grapple's hook caught something (`to` is the robot it caught, 0 for the ground or a loose body) and tied a rope of `length` meters. */
+  | { tick: number; robot: number; kind: 'hooked'; part: string; to: number; length: number }
+  /** Batch: a grapple's rope is gone: released on purpose, or lost (either end's part was destroyed). */
+  | { tick: number; robot: number; kind: 'unhooked'; part: string; why: 'released' | 'lost' }
   | { tick: number; robot: number; kind: 'shellHit'; part: string; partType: string; by: number; x: number; y: number; damage: number };
 
 /** The world center of each footprint cell of a part, from its origin cell's pose (M12, multi-cell parts). */
@@ -228,6 +233,9 @@ export class World {
   private shells: Shell[] = [];
   /** M13: robots that grew parts this tick, whose new guns get their aim before scripts next run. Derived. */
   private readonly unprimed = new Set<Robot>();
+  /** Batch: grapple ropes and held triggers. Simulation state, hashed when present. */
+  private readonly grapples = new Grapples();
+  private grappleHost?: GrappleHost;
   /** M13: shells each robot's guns have fired. Reporting only. */
   private readonly shots = new Map<number, number>();
   /**
@@ -378,8 +386,10 @@ export class World {
     if (this.dirty.size > 0) this.rebuildDirty();
     this.runBehaviors(false);
     this.applyPendingForces();
+    this.grapples.sync(this.gh());
     this.physics.step();
     this.runGuns();
+    this.grapples.run(this.gh());
     this.damagePhase();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
@@ -705,6 +715,28 @@ export class World {
     if (neighbor) this.pendingPushes.push({ part: neighbor, jx: nx * impulse, jy: ny * impulse });
     const at = partWorldPose(this, robot, part.id);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'decoupled', part: part.id, x: at.x + 0.5 * nx, y: at.y + 0.5 * ny });
+  }
+
+  /** Batch: what the grapple logic needs of the world. */
+  private gh(): GrappleHost {
+    const world = this;
+    return (this.grappleHost ??= {
+      physics: this.physics,
+      dt: this.dt,
+      robots: this.robots,
+      events: this.events,
+      get tick() {
+        return world.tickCount;
+      },
+      controlled: (robot) => this.controllers.has(robot.id),
+      input: (robot, part, name) => this.channels.get(robot.id)?.get(part.id)?.get(name) ?? 0,
+      muzzle: (robot, part) => this.muzzle(robot, part),
+    });
+  }
+
+  /** Batch: every grapple rope's two ends in the world, for drawing. Read only. */
+  liveRopes(): { x1: number; y1: number; x2: number; y2: number; taut: boolean }[] {
+    return this.grapples.segments(this.gh());
   }
 
   /** M13: shells in flight, oldest first, for drawing. Read only. */
@@ -1152,6 +1184,7 @@ export class World {
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
     if (part.def.gun !== undefined) return gunOutput(part, name);
+    if (part.def.grapple !== undefined) return this.grapples.output(part, name);
     return undefined;
   }
 
@@ -1639,6 +1672,8 @@ export class World {
         h.addInt(sh.left);
       }
     }
+    // Grapple ropes (Batch). None adds nothing, so worlds without grapples hash as before.
+    this.grapples.hashInto(h, this.gh());
     // Held keys and toggles shape the future, so they are state too.
     for (const [id, c] of this.controllers) {
       const st = c.state();
@@ -1744,6 +1779,8 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
     if (name === 'sightId') return part.sight?.id ?? 0;
     if (name === 'aim') return part.sight?.aim ?? 0;
   }
+  // Batch: the reference has no ropes; a grapple with none reads 0 and 0.
+  if (part.def.grapple !== undefined && (name === 'hooked' || name === 'length')) return 0;
   return undefined;
 }
 

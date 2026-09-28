@@ -77,6 +77,11 @@ function details(d: PartDef): string[] {
     out.push(`gun: while fire is above 0.5, ${g.rate} shells a second out of its ${d.acts ?? 'N'} face at ${g.speed} m/s; a shell falls under gravity, takes ${g.damage} off the first part it hits (anyone's, friends and its own robot too) and is gone after ${g.life} s; ${g.recoil} N s of kick per shot; no energy`);
     out.push(`gun sight: looks ${g.range} m straight out of the barrel: sight (meters to the first thing, ${g.range} for nothing), sightSide (0 nothing, 1 own robot, 2 friend, 3 enemy, 4 nobody's, 5 terrain), sightId (the robot's contact id), aim (the barrel's world angle, radians)`);
   }
+  if (d.grapple) {
+    const g = d.grapple;
+    out.push(`grapple: fire rising above 0.5 (once per press) casts a hook ${g.reach} m out of its ${d.acts ?? 'N'} face and ties a rope to the first thing it hits (another robot's part, debris, a loose block, or the ground; never its own robot), ${g.minLength} to ${g.maxLength} m long, as long as the distance at the hit; a taut rope tows what is on the other end`);
+    out.push(`grapple rope: reel (-1 to 1, positive pulls in) shortens it up to ${g.reelSpeed} m/s (taking up slack first), negative pays it out; release above 0.5 drops it (and wins over fire on the same tick); it is gone when either end's part is destroyed; outputs hooked (0 or 1) and length (meters, 0 with no rope); no energy`);
+  }
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
   return out;
 }

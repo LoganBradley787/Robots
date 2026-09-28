@@ -138,6 +138,19 @@ export interface GunSpec {
 }
 
 /**
+ * A grapple (Batch): while its `fire` input rises above 0.5 (once per press) it casts a ray out of its `acts` face up
+ * to `reach` meters; what the ray hits first (a robot's part, debris, a loose body, or the ground) gets a rope joint
+ * from the grapple to the hit point, `maxLength` at most and `minLength` at least. `reel` (-1 to 1, positive pulls in)
+ * changes the rope's length at up to `reelSpeed` m/s; `release` above 0.5 drops it.
+ */
+export interface GrappleSpec {
+  reach: number;
+  reelSpeed: number;
+  minLength: number;
+  maxLength: number;
+}
+
+/**
  * A fabricator (M12): it builds copies of a blueprint (the part's `makes`) inside its hollow, out of its robot's
  * energy: `joulesPerKg` of the copy's mass plus what its containers hold, over `secondsPerKg` of its mass. Its grips
  * hold the finished copy until its `release` input lets it go, pushed out along `acts` with `separation` N s.
@@ -194,6 +207,8 @@ export interface PartDef {
   decoy?: DecoySpec;
   /** M13: the part is a gun. It needs `acts`, a `fire` input, and `sight`, `sightSide`, `sightId`, and `aim` outputs. */
   gun?: GunSpec;
+  /** Batch: the part is a grapple. It needs `acts`, `fire`, `reel`, and `release` inputs, and `hooked` and `length` outputs. */
+  grapple?: GrappleSpec;
   /** M12: the part's size is set per placement (`size` on the placed part). */
   stretch?: StretchSpec;
   /** M12: the part builds things (a fabricator bay). It needs grips, `acts`, a `release` input, and `ready`, `progress`, and `built` outputs. */
