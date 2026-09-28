@@ -6,7 +6,7 @@ describe('parts', () => {
   const rows = partRows(defaultRegistry());
 
   it('has a row per part in builder order, with its key and legend tokens', () => {
-    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '']);
+    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '', '']);
     const thruster = rows.find((r) => r.id === 'thruster');
     expect(thruster).toMatchObject({ key: '5', legend: ['T^', 'T<', 'Tv', 'T>'], mass: 1, health: 25, faces: ['N', 'E', 'W'], power: 20 });
     expect(thruster?.details.join('\n')).toContain('maxForce 160 N');
@@ -19,6 +19,8 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'densebattery')).toMatchObject({ key: '', legend: ['Z'] });
     expect(rows.find((r) => r.id === 'fabbay')).toMatchObject({ key: '', legend: [], mass: 13, health: 150 });
     expect(rows.find((r) => r.id === 'gun')).toMatchObject({ key: '', legend: ['M^', 'M<', 'Mv', 'M>'], mass: 1, faces: ['S'], health: 25, power: 0 });
+    expect(rows.find((r) => r.id === 'armorplate')).toMatchObject({ key: '', legend: ['A'], mass: 5, faces: ['N', 'E', 'S', 'W'], health: 250, power: 0 });
+    expect(rows.find((r) => r.id === 'armorplate')?.details.join('\n')).toMatch(/takes 0.1 of a shell's damage \(500 hits/);
     expect(rows.find((r) => r.id === 'flare')).toMatchObject({ key: '', legend: ['Q^', 'Q<', 'Qv', 'Q>'], mass: 0.2, faces: ['S'], health: 5 });
   });
 
