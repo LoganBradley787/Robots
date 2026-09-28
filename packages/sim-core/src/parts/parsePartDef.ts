@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'fabricate', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'decoy', 'gun', 'solar', 'fabricate', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -222,6 +222,11 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const sight = def.outputs.find((c) => c.name === 'sight');
     if (sight && sight.max !== range) r.fail('gun', `its "sight" output's max must be its range (${range})`);
     def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range };
+  }
+  if (o.solar !== undefined) {
+    const so = r.obj(o.solar, 'solar', ['power']);
+    if (def.acts === undefined) r.fail('solar', 'a solar panel needs "acts" (the face that catches the sun)');
+    def.solar = { power: r.positive(so, 'power', 'solar') };
   }
   if (o.stretch !== undefined) {
     const so = r.obj(o.stretch, 'stretch', ['shape', 'min', 'max', 'massPerCell']);

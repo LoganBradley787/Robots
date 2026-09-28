@@ -77,6 +77,7 @@ function details(d: PartDef): string[] {
     out.push(`gun: while fire is above 0.5, ${g.rate} shells a second out of its ${d.acts ?? 'N'} face at ${g.speed} m/s; a shell falls under gravity, takes ${g.damage} off the first part it hits (anyone's, friends and its own robot too) and is gone after ${g.life} s; ${g.recoil} N s of kick per shot; no energy`);
     out.push(`gun sight: looks ${g.range} m straight out of the barrel: sight (meters to the first thing, ${g.range} for nothing), sightSide (0 nothing, 1 own robot, 2 friend, 3 enemy, 4 nobody's, 5 terrain), sightId (the robot's contact id), aim (the barrel's world angle, radians)`);
   }
+  if (d.solar) out.push(`solar: adds ${d.solar.power} J/s (times the cosine of the angle between its ${d.acts ?? 'N'} face and straight up, nothing when level or down) to its chunk's energy pool while its ${d.acts ?? 'N'} face points up; it fills batteries, cells, and cores up to their capacity; no inputs or outputs`);
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
   return out;
 }

@@ -1,0 +1,14 @@
+{
+  "id": "solar",
+  "name": "Solar panel",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["S"] }],
+  "mass": 0.5,
+  "health": 8,
+  "symmetry": 4,
+  "inputs": [],
+  "outputs": [],
+  "powerDraw": 0,
+  "acts": "N",
+  "solar": { "power": 6 },
+  "sprite": { "frame": "part.solar" }
+}
