@@ -69,6 +69,26 @@ describe('radio (Batch)', () => {
     w.dispose();
   });
 
+  it('a radio inside a jammer bubble hears nothing (integration: jammer and radio)', async () => {
+    const w = await world();
+    // A lit jammer pod on my own robot: my radio sits inside its 30 m bubble.
+    const JAMMED = { ...BLIND, grid: ['C  N  B  J'], scripts: [{ id: 'jam', source: "function tick() { set('jammer', 'ignite', 1); }" }] };
+    const me = w.spawnBlueprint(JAMMED, { x: 0, y: 300 });
+    w.spawnBlueprint(SCOUT, { x: 800, y: 300 });
+    w.spawnBlueprint(TARGET, { x: 1100, y: 300 }, { team: 1 });
+    run(w);
+    expect(w.sensorView(me.id).contacts).toEqual([]);
+    // The same robot without the pod hears the enemy.
+    const w2 = await world();
+    const me2 = w2.spawnBlueprint(BLIND, { x: 0, y: 300 });
+    w2.spawnBlueprint(SCOUT, { x: 800, y: 300 });
+    const enemy2 = w2.spawnBlueprint(TARGET, { x: 1100, y: 300 }, { team: 1 });
+    run(w2);
+    expect(w2.sensorView(me2.id).contacts.map((c) => c.id)).toEqual([enemy2.id]);
+    w.dispose();
+    w2.dispose();
+  });
+
   it('without a working radio on either end nothing is shared', async () => {
     // My radio is switched off by my script.
     const w = await world();

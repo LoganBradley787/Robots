@@ -60,12 +60,12 @@ describe('expandBlueprint', () => {
   });
 
   it('reports an unknown token with its row, column, and cell', () => {
-    const { issues } = expandBlueprint({ format: 1, name: 't', grid: ['F F', 'F J'] });
+    const { issues } = expandBlueprint({ format: 1, name: 't', grid: ['F F', 'F @'] });
     expect(issues).toEqual([
       {
         severity: 'error',
         code: 'UNKNOWN_TOKEN',
-        message: "grid token 'J' at row 1 column 1 is not in the legend",
+        message: "grid token '@' at row 1 column 1 is not in the legend",
         cell: { x: 1, y: 0 },
       },
     ]);

@@ -131,6 +131,16 @@ export interface DecoySpec {
 }
 
 /**
+ * A jammer pod (Batch): once its `ignite` input goes above 0.5 it jams for `seconds`, then is gone (quietly, like a
+ * flare burning out). While it jams, a bubble of `radius` meters around it blinds sensors both ways: a sensor inside
+ * sees nothing, and a sensor outside sees no robot whose reference point is inside. Gun sights are not sensors.
+ */
+export interface JammerSpec {
+  radius: number;
+  seconds: number;
+}
+
+/**
  * A gun (M13): while its `fire` input is above 0.5 it fires `rate` shells a second out of its `acts` face at `speed`
  * m/s (plus its own motion), each pushing it back `recoil` N s. A shell falls under gravity, takes `damage` off the
  * first part it hits (anyone's) and pushes it `recoil` N s, stops on terrain, and is gone after `life` seconds. Its
@@ -231,6 +241,8 @@ export interface PartDef {
   radio?: RadioSpec;
   /** M11: the part is a decoy (a flare). It needs an `ignite` input and a `burning` output. */
   decoy?: DecoySpec;
+  /** Batch: the part is a jammer pod. It needs an `ignite` input and a `jamming` output. */
+  jammer?: JammerSpec;
   /** M13: the part is a gun. It needs `acts`, a `fire` input, and `sight`, `sightSide`, `sightId`, and `aim` outputs. */
   gun?: GunSpec;
   /** Batch: the part is a solar panel. It needs `acts`. */

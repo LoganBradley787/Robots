@@ -67,6 +67,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | fin | 0.3 | 10 | N E S W | deflect [-1, 1] | | Batch. A fin (see Fins): a flat plate along its `acts` axis that pushes on the air, `-k (v . n) |v| n` at its cell with k = 0.36; `deflect` turns it up to 20 degrees to steer. No energy. Legend `L^ Lv L< L>` (the way the plate lies), no builder key. |
 | mine | 1.5 | 60 | N E S W | detonate (pulse), arm | armed | Batch. A proximity mine (see Proximity mines): armed, it goes off when a part of another team's robot comes within 3 m. The heavy warhead's blast (250 damage falling to 0 at 4 m). Shot or caught in a blast it breaks as a dud; takes a quarter of a shell's damage. Legend `Xm`, no builder key. |
 | radio | 1 | 30 | N E S W | on [0, 1] | | Batch. Team contact sharing (see Radio), 1 energy per second. Legend `N`, no builder key. |
+| jammer | 0.5 | 10 | N E S W | ignite (lights it for good) | jamming | Batch. A jammer pod (see Jammers): jams for 5 s once lit, then is gone without a blast; within 30 m of it a sensor sees nothing, and no sensor outside sees a robot inside. Legend `J`, no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -128,6 +129,14 @@ A def with `decoy: { burn }` (seconds) is a decoy; it needs an `ignite` input an
 - Its `ignite` input above 0.5 lights it for good, attached or not, before behaviors run: a grip let go on the same tick lets it go burning. It records the robot it was part of (`decoyOf`) and burns `burn` seconds counted in ticks (`PartInstance.burn`, both in the state hash), then is destroyed without a blast (`partDestroyed` with `burntOut: true`, after a `burntOut` event).
 - While it burns, every sensor that sees it takes it for that robot (the rule is in `04`, contacts). A flare attaches only by its base (its S face at rotation 0), so flares stacked in a rack do not hold each other on.
 - The sprite's `litFrame` is drawn while it burns; the app adds a glow.
+
+### Jammers (Batch, as built)
+A def with `jammer: { radius, seconds }` is a jammer pod; it needs an `ignite` input and a `jamming` output (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `jammer` (30 m, 5 s, 0.5 kg, health 10, attaches on any face, legend `J`).
+- Its `ignite` input above 0.5 lights it for good, attached or let go, before behaviors run (the same rule as a decoy, so a grip fired on the same tick lets it go jamming). It counts `seconds` in ticks in `PartInstance.burn` (hashed), then is destroyed without a blast (`partDestroyed` with `burntOut: true`, after a `burntOut` event). `jamStarted` (part, x, y, radius) is told when it lights. `jamming` reads 1 while it jams.
+- **A bubble both ways,** centered on the pod's cell and moving with it (a let-go pod keeps its bubble): a sensor part whose position is inside sees nothing, and a sensor anywhere sees no robot whose reference point (its live core, else its center of mass) is inside. This lives in `World.workingSensors` and `World.contactsFor`, so `contacts`, `scan`, seekers, radars and everything that steers by them lose the target; turrets pick targets from contacts and lose them too. A burning flare inside a bubble is not seen either (a flare standing in for its robot is then not seen at all; the robot itself may be, if its own reference point is outside).
+- **Gun sights are not affected:** a sight is a straight look out of a barrel, not a sensor part.
+- Hashing: the pod's timer (and its position while it jams) is added only for parts whose def has `jammer`, so worlds without one keep their hashes. Bubbles are found once a tick from the pods, never stored.
+- The sprite's `litFrame` is drawn while it jams; the app adds a cyan glow. There is no bubble drawing yet.
 
 ### Sensor parts (M8, as built)
 A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) is a sensor, facing its `acts` face. The engine reads the field; no part type is special-cased. A `sensor` behavior draws power while the `on` input is above 0.5; switched off or unpowered, it sees nothing.

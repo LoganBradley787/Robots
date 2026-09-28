@@ -1,0 +1,13 @@
+{
+  "id": "jammer",
+  "name": "Jammer pod",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 0.5,
+  "health": 10,
+  "symmetry": 4,
+  "inputs": [{ "name": "ignite", "min": 0, "max": 1, "default": 0 }],
+  "outputs": [{ "name": "jamming", "min": 0, "max": 1, "default": 0 }],
+  "powerDraw": 0,
+  "jammer": { "radius": 30, "seconds": 5 },
+  "sprite": { "frame": "part.jammer", "litFrame": "part.jammer.lit" }
+}

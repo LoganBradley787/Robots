@@ -26,6 +26,7 @@ import swivelthruster from './defs/swivelthruster.json';
 import fin from './defs/fin.json';
 import mine from './defs/mine.json';
 import radio from './defs/radio.json';
+import jammer from './defs/jammer.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -84,6 +85,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['fin.json', fin],
   ['mine.json', mine],
   ['radio.json', radio],
+  ['jammer.json', jammer],
 ];
 
 let shipped: PartRegistry | null = null;

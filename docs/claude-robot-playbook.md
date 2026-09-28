@@ -98,7 +98,7 @@ function tick() {
 
 ## Numbers that matter
 Run `pnpm sim parts` for the full table. g is 9.81.
-- **Mass (kg):** core 2, frame 1, battery 3, cell 0.5, wheel 1.5, thruster 1, propeller 1, decoupler 1, warhead 1, gyro 1, rotator 1.5, seeker 0.3, radar 1, booster 1.5, heavy warhead 1.5, heavy gyro 1.5, dense battery 3, flare 0.2, gun 1, solar panel 0.5, fin 0.3, mine 1.5, radio 1, fabricator bay 13, heavy armor plate 5.
+- **Mass (kg):** core 2, frame 1, battery 3, cell 0.5, wheel 1.5, thruster 1, propeller 1, decoupler 1, warhead 1, gyro 1, rotator 1.5, seeker 0.3, radar 1, booster 1.5, heavy warhead 1.5, heavy gyro 1.5, dense battery 3, flare 0.2, gun 1, solar panel 0.5, fin 0.3, mine 1.5, radio 1, jammer pod 0.5, fabricator bay 13, heavy armor plate 5.
 - **Push:** thruster 160 N (20 J/s), propeller 120 N (10 J/s), both along their arrow (Gate 6: Logan raised both). Lift must beat weight: a flier needs thrust-to-weight well above 1 (1.5 to 2 hovers with room to climb; the missile flies at about 3). Propellers only push along their arrow; a drone moves sideways by leaning.
 - **Missile parts (Gate 7):** booster 400 N (60 J/s), heavy gyro 200 N m (15 J/s), heavy warhead 250 damage out to 4 m. Every homing missile uses all three: without lift or fins, a missile turns only by swinging its nose with a gyro and pointing its push, so the gyro sets how tight it can turn.
 - **Turning:** a gyro gives 40 N m. That is plenty for a small robot and far too little for a wide heavy one: a 38 kg, 11-wide drone needs its left and right propellers throttled differently to lean (see `missile-drone.hover.js`). Rotators hold 600 N m and turn at most 2 rad/s, within plus or minus 90 degrees.
@@ -170,6 +170,11 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 - **Firing:** on target means within `size` (1 m) of the aim point, at least `tight` (0.012 rad); once firing it keeps on out to twice that, so a barrel on the edge does not stutter.
 - **Where turrets go:** on the ends of a drone, pointing out (`gun-drone`): each sweeps from straight up to straight down on its side, and the propellers on top do not block it. Keep the column above and below each gun clear (the enemy gun drone hangs its flare racks under its middle for this).
 - **What it does (measured):** a seeker missile at about 130 m/s is shot down 60 m or more out (it tracks from 400 m, so it is already pointing when the missile comes in range; tracking only from 150 m, one got to within 4 m and its blast took 9 parts); a drone bomb is shot down short; a hovering hunter 80 m off loses its flares and near-side grips first, then propellers, then its core in about 11 s. Two gun drones facing each other shoot each other's guns off first: aimed at the core, the facing gun is on the line.
+
+## Jammer pod (Batch)
+- **A jammer pod** (`jammer`, legend `J`, 0.5 kg, health 10, attaches on any face): its `ignite` input above 0.5 starts it for good (attached or let go), it jams for 5 s, then is spent and gone quietly (`jamming` reads 1 while it runs). Rack it like a flare: pod on a `D` grip, `set(pod, 'ignite', 1)` and fire the grip on the same tick.
+- **The bubble is 30 m, both ways:** a sensor inside sees nothing, and a sensor outside does not see any robot whose reference point (its core) is inside. So dropping one behind you hides you from far radars and seekers while you are in it, and it blinds your own radar (and turrets, which pick targets from contacts) while you are in it. Gun sights still work: a gun keeps its straight look along the barrel, so turrets you aim yourself still read `sight`.
+- **Use it:** drop it and fly out of the bubble on the far side, or drop it between you and a missile launcher; a missile's seeker inside the bubble goes blind too. It follows the pod, so let it go and it stays where it fell. Timing: 5 s is short, so light it just before it matters.
 
 ## Sensors, teams, and homing (M8)
 - **Teams:** every robot has a team (0 is Logan's, 1 the enemy; more later). Pieces keep their robot's team. Scripts only see `side`, so one blueprint works on either team.

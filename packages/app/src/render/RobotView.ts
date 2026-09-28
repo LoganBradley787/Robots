@@ -71,13 +71,15 @@ export class RobotView {
         view.addChild(sprite);
         if (s.kind === 'part') {
           // A part that needs arming (M10) swaps to its armed frame once armed; a decoy (M11) to its lit frame while it burns.
-          const litName = def?.arming === true ? def.sprite.armedFrame : def?.decoy !== undefined ? def.sprite.litFrame : undefined;
+          const litName = def?.arming === true ? def.sprite.armedFrame : def?.decoy !== undefined || def?.jammer !== undefined ? def.sprite.litFrame : undefined;
           const lit = litName !== undefined && !s.animation && !def?.sprite.tiles ? frame(litName) : undefined;
           this.parts.push({ partId: s.partId, sprite, health: Number.NaN, ...(lit ? { plain: sprite.texture, lit } : {}) });
         }
-        if (s.kind === 'part' && def?.decoy !== undefined) {
+        if (s.kind === 'part' && (def?.decoy !== undefined || def?.jammer !== undefined)) {
           const glow = new Graphics();
-          for (const [r, color, alpha] of [[1.6, 0xff8a2a, 0.12], [1.0, 0xffc04a, 0.22], [0.5, 0xfff2c0, 0.5]] as const) glow.circle(0, 0, r * PIXELS_PER_METER).fill({ color, alpha });
+          // Batch: a jamming pod glows cyan instead of orange.
+          const rings = def.jammer !== undefined ? ([[1.6, 0x2ab6d8, 0.12], [1.0, 0x4fe3ff, 0.22], [0.5, 0xc8f6ff, 0.5]] as const) : ([[1.6, 0xff8a2a, 0.12], [1.0, 0xffc04a, 0.22], [0.5, 0xfff2c0, 0.5]] as const);
+          for (const [r, color, alpha] of rings) glow.circle(0, 0, r * PIXELS_PER_METER).fill({ color, alpha });
           glow.blendMode = 'add';
           glow.position.set(p.x, p.y);
           glow.visible = false;

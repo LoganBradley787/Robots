@@ -552,6 +552,27 @@ function drawFlare(lit = false): Canvas {
 }
 
 /**
+ * Jammer pod (Batch): a squat blue-grey canister on a mounting plate with a small dish on top. Jamming, the dish and a
+ * ring around the canister glow cyan.
+ */
+function drawJammer(lit = false): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 6, 46, 58, 62, hex('#6f747d'), OUTLINE, 2);
+  for (const [x, y] of [[12, 54], [52, 54]] as const) rivet(cv, x, y, 2.2);
+  plate(cv, 14, 22, 50, 48, hex('#3f5568'), hex('#1b2833'), 2.5);
+  cv.fill(rect(17, 25, 47, 28), WHITE, 0.2);
+  cv.fill(rect(14, 34, 50, 38), lit ? hex('#4fe3ff') : hex('#24313d'));
+  plate(cv, 30, 12, 34, 24, hex('#555b64'), hex('#111316'), 1.5);
+  plate(cv, 20, 6, 44, 14, lit ? hex('#c8f6ff') : hex('#3b3e45'), lit ? hex('#2ab6d8') : hex('#1d1f23'), 2);
+  if (lit) {
+    cv.fill(circle(32, 10, 26), hex('#38d6ff'), 0.22);
+    cv.fill(circle(32, 10, 14), hex('#8ff0ff'), 0.45);
+    cv.fill(circle(32, 10, 6), WHITE, 0.95);
+  }
+  return cv;
+}
+
+/**
  * Gun (M13): a riveted base plate, a squat receiver, and a long barrel out of the top (the way it fires at rotation 0)
  * with a muzzle ring and a cooling sleeve.
  */
@@ -1066,6 +1087,8 @@ function main(): void {
     { name: 'part.radar', canvas: drawRadar() },
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
+    { name: 'part.jammer', canvas: drawJammer() },
+    { name: 'part.jammer.lit', canvas: drawJammer(true) },
     { name: 'part.gun', canvas: drawGun() },
     { name: 'part.armorplate', canvas: drawArmorPlate() },
     { name: 'part.solar', canvas: drawSolar() },
