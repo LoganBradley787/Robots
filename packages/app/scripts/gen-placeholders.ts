@@ -277,6 +277,22 @@ function drawFrame(): Canvas {
   return cv;
 }
 
+/** Batch: a heavy armor plate: a thick dark slab, a raised inner panel, big bolts at the corners. */
+function drawArmorPlate(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 0, 0, CELL, CELL, hex('#4a4f58'), hex('#22252b'), 5, 3);
+  // Raised inner panel with a drop shadow.
+  cv.fill(rect(15, 15, 51, 51), BLACK, 0.3);
+  plate(cv, 13, 13, 49, 49, hex('#5a606b'), hex('#33373e'), 3, 2);
+  // Two shallow ribs across the panel.
+  cv.fill(rect(19, 28, 43, 31), BLACK, 0.3);
+  cv.fill(rect(19, 34, 43, 37), BLACK, 0.3);
+  cv.fill(rect(19, 31, 43, 32), WHITE, 0.12);
+  cv.fill(rect(19, 37, 43, 38), WHITE, 0.12);
+  for (const [x, y] of [[8, 8], [56, 8], [8, 56], [56, 56]] as const) rivet(cv, x, y, 3.4);
+  return cv;
+}
+
 function drawBattery(green = hex('#3fae5a'), edge = hex('#22703a')): Canvas {
   const cv = new Canvas(CELL, CELL);
   plate(cv, 0, 0, CELL, CELL, green, edge, 3);
@@ -960,6 +976,7 @@ function main(): void {
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
     { name: 'part.gun', canvas: drawGun() },
+    { name: 'part.armorplate', canvas: drawArmorPlate() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

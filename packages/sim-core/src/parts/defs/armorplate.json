@@ -1,0 +1,13 @@
+{
+  "id": "armorplate",
+  "name": "Heavy armor plate",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 5,
+  "health": 250,
+  "shellDamage": 0.1,
+  "symmetry": 1,
+  "inputs": [],
+  "outputs": [],
+  "powerDraw": 0,
+  "sprite": { "frame": "part.armorplate" }
+}
