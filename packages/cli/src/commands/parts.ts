@@ -78,6 +78,7 @@ function details(d: PartDef): string[] {
     out.push(`gun sight: looks ${g.range} m straight out of the barrel: sight (meters to the first thing, ${g.range} for nothing), sightSide (0 nothing, 1 own robot, 2 friend, 3 enemy, 4 nobody's, 5 terrain), sightId (the robot's contact id), aim (the barrel's world angle, radians)`);
   }
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
+  if (d.crash) out.push(`crash damage from hits over ${d.crash.safe} m/s (a fall of about ${((d.crash.safe * d.crash.safe) / (2 * G)).toFixed(1)} m; others 12)`);
   return out;
 }
 

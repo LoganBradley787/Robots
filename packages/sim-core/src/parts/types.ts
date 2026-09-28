@@ -94,6 +94,16 @@ export interface SensorSpec {
   range: number;
 }
 
+/**
+ * Batch: how a part takes a crash (a hard hit to its body, see `world/crash.ts`). A hit whose velocity change in one
+ * step passes `safe` (default 12 m/s) costs health * ((dv - safe) / range)^2, `range` default 8 m/s. A tougher part
+ * (a frame) raises `safe`.
+ */
+export interface CrashSpec {
+  safe: number;
+  range?: number;
+}
+
 /** A part that breaks when a hit stops its body by more than `speed` m/s within one step (a warhead's fuze). */
 export interface ImpactSpec {
   speed: number;
@@ -183,6 +193,8 @@ export interface PartDef {
   resource?: ResourceSpec;
   onDestroyed?: { explode?: ExplodeSpec };
   impact?: ImpactSpec;
+  /** Batch: crash damage for every part (default `safe` 12 m/s); a def can be tougher or softer. */
+  crash?: CrashSpec;
   /**
    * M10: the part is safe until armed. It needs an `arm` input (above 0.5 arms it for good) and an `armed` output.
    * Unarmed, `onDestroyed.explode` and `impact` do not apply, and its behavior may ignore its triggers (a warhead's

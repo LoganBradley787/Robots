@@ -4,6 +4,7 @@
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
   "health": 60,
+  "crash": { "safe": 24 },
   "symmetry": 1,
   "inputs": [],
   "outputs": [],

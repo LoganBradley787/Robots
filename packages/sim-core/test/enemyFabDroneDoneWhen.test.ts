@@ -214,7 +214,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     }
     expect(top).toBeLessThan(100); // dodging a missile may take one up for a moment
     // Where they hold: under the ceiling (30 over where each started), give or take.
-    for (const r of all) if (w.robots.includes(r) && r.primaryCoreId !== undefined && r.groups[0]) expect(w.physics.state(r.groups[0].bodyId).y).toBeLessThan(28 + 30 + 10);
+    for (const r of all) if (w.robots.includes(r) && r.primaryCoreId !== undefined && r.groups[0]) expect(w.physics.state(r.groups[0].bodyId).y).toBeLessThan(28 + 30 + 15); // Batch: 10 before crash damage; a fight now ends differently and one dodged 1.4 m higher
     w.dispose();
   });
 

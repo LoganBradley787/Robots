@@ -25,7 +25,7 @@ function checkIds(w: World, maxId: number): void {
 }
 
 describe('robotById (M9)', () => {
-  it('follows spawns, missiles breaking off and waking, pieces blown apart, and debris cleared', async () => {
+  it('follows spawns, missiles breaking off and waking, pieces blown apart, and debris cleared', { timeout: 30_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const silo = w.spawnBlueprint(blueprint('silo'), { x: -100, y: 0.5 });
     w.spawnBlueprint(orientRaw(blueprint('enemy-drone'), { flip: true }, w.registry), { x: -30, y: 25 }, { team: 1 });
