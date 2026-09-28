@@ -10,6 +10,11 @@
 // - Off the line (Logan): nothing it sees within `width` meters to either side, `space` above, or `under` below. It
 //   slides away sideways: a drone bomb it let go (or anything else) may wait or fall there, and one flew into its
 //   own drone bomb climbing to a new spot.
+// - Guns (M13, Logan: they are not smart enough to flip around): with working guns that only point one way (the
+//   other side's were shot off), it takes the side of what it tracks that puts that robot in front of them. To get
+//   there it crosses `cross` meters over it if it is higher or on its left, under it otherwise (decided once per
+//   crossing: two swapping sides must not both go the same way), and the off-the-line rule lets that robot be under or
+//   over it while it crosses (two of them trying to swap sides pushed each other apart forever).
 // Flying is the hunter drone's hover (time-optimal leaning, balance from its parts, height braking just in time),
 // with the AI asking for a sideways speed and a height instead of keys. Left and right are worked out from where the
 // propellers are, not their tags, so it works deployed flipped. Only its own propellers (`lprop`, `rprop`) count
@@ -44,6 +49,7 @@ const dodgeAhead = param('dodgeAhead', 2.5, { min: 0.2, max: 10 }); // s ahead i
 const dodgeMiss = param('dodgeMiss', 10, { min: 1, max: 50 }); // m: a missile passing closer than this is dodged
 const dodgeTime = param('dodgeTime', 1.2, { min: 0.1, max: 5 }); // s it keeps dodging
 const dodgeRoom = param('dodgeRoom', 15, { min: 0, max: 200 }); // m above the robot it tracks it needs to dodge down (it cannot see the ground)
+const cross = param('cross', 25, { min: 5, max: 200 }); // m under or over what it tracks while crossing to its other side
 const dodgeSpeed = param('dodgeSpeed', 14, { min: 1, max: 40 }); // m/s up or down it dodges at
 
 function setup() {
@@ -52,6 +58,25 @@ function setup() {
   state.wait = jitter * random();
   state.dodgeUntil = -Infinity;
   state.dodgeMove = { vx: 0, vy: 0 };
+}
+
+/**
+ * Which side of what it tracks its guns want it on: 1 to its right (its guns face left), -1 to its left (they face
+ * right), 0 either (both ways, up or down only, or none). A gun on a turret (`<turret>.gun` beside `<turret>.rot`)
+ * counts the way it was built, not where it points now.
+ */
+function gunSide() {
+  let left = 0;
+  let right = 0;
+  for (const p of parts) {
+    if (p.type !== 'gun') continue;
+    const tag = p.tags.find((t) => t.endsWith('.gun'));
+    const turned = tag ? (get(tag.slice(0, -4) + '.rot', 'angle') ?? 0) * (Math.PI / 2) : 0;
+    const x = Math.cos(p.out.aim - turned);
+    if (x > 0.5) right++;
+    else if (x < -0.5) left++;
+  }
+  return right > 0 && left === 0 ? -1 : left > 0 && right === 0 ? 1 : 0;
 }
 
 /** One of its own propellers (a copy held in the bay may have its own, asleep). */
@@ -103,7 +128,7 @@ function fly(vx, height, vy) {
     climbing = Math.sign(err) * Math.min(Math.sqrt(2 * margin * stop * Math.abs(err)), 3 * Math.abs(err), climb);
   }
   const upward = clamp(5 * (climbing - self.vel.y), -g, rise);
-  const throttle = clamp((self.mass * (g + upward)) / up, 0, 1);
+  const throttle = clamp((self.mass * (g + upward)) / Math.max(up, 1e-9), 0, 1);
 
   // Leaning left (counterclockwise) pushes it left: lean against the sideways speed it is short of.
   const want = clamp(-steer * (vx - self.vel.x), -lean, lean);
@@ -240,16 +265,28 @@ function tick() {
 
   // Where it wants to be: beside and over what it tracks, or home.
   let goal = state.home;
+  let crossing = false;
   if (target) {
-    const side = self.pos.x >= target.pos.x ? 1 : -1;
+    const guns = gunSide();
+    const here = self.pos.x >= target.pos.x ? 1 : -1;
+    const side = guns !== 0 ? guns : here;
     goal = { x: target.pos.x + side * standoff, y: Math.min(target.pos.y + above, state.home.y + ceiling) };
-  }
+    // On the wrong side for its guns: cross over or under it, then go to the spot.
+    if (side !== here) {
+      crossing = true;
+      if (state.crossOver === undefined) {
+        const dy = self.pos.y - target.pos.y;
+        state.crossOver = Math.abs(dy) > 2 ? dy > 0 : here < 0;
+      }
+      goal = { x: goal.x, y: state.crossOver ? Math.max(self.pos.y, target.pos.y + cross) : target.pos.y - cross };
+    } else state.crossOver = undefined;
+  } else state.crossOver = undefined;
 
   // Off the line (Logan): nothing it sees (friend, enemy, or wreckage) straight above or below it. Something above may
   // come down on it or into its bay (what it let go waits there with nothing in range; debris falls), and a robot below
   // may send something straight up. It slides away sideways at full speed, heading for the height it wants but never
   // toward the thing (held where the slide began, it stayed 60 m over its ceiling after dodging up).
-  const line = contacts.find((c) => c.distance > 0.01 && Math.abs(c.pos.x - self.pos.x) < width && c.pos.y - self.pos.y < space && self.pos.y - c.pos.y < under);
+  const line = contacts.find((c) => c.distance > 0.01 && !(crossing && c.id === target.id) && Math.abs(c.pos.x - self.pos.x) < width && c.pos.y - self.pos.y < space && self.pos.y - c.pos.y < under);
   if (!line) {
     // Off it now: with nothing tracked it waits here, not back on the line (two deployed together shared a home).
     if (state.lineY !== undefined) state.home = { x: self.pos.x + state.lineAway * 0.5 * width, y: state.home.y };

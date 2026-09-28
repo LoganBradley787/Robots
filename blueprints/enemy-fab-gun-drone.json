@@ -1,0 +1,275 @@
+{
+  "format": 1,
+  "name": "enemy-fab-gun-drone",
+  "grid": [
+    ".  .  .  .  .  F  =  .  =  F  .  .  .  .  .",
+    ".  .  .  .  .  F  =  .  =  F  .  .  .  .  .",
+    ".  .  .  .  .  F  =  .  =  F  .  .  .  .  .",
+    ".  .  .  .  .  F  =  .  =  F  .  .  .  .  .",
+    ".  .  .  .  .  F  =  .  =  F  .  .  .  .  .",
+    ".  .  .  .  .  F  =  q  =  F  .  .  .  .  .",
+    "g1 t1 F  c  c  c  F  d  F  e  e  e  F  .  .",
+    ".  .  F  F  F  Z  Z  C  Z  Z  F  F  F  .  .",
+    ".  .  F  c  c  c  c  n  e  e  e  e  F  t2 g2",
+    ".  .  .  .  .  a  b  F  f  g  .  .  .  .  .",
+    ".  .  .  .  .  h  i  F  j  k  .  .  .  .  .",
+    ".  .  .  .  .  l  m  F  o  p  .  .  .  .  ."
+  ],
+  "legend": {
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "q": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "bay"
+      ],
+      "makes": "missile-up"
+    },
+    "t1": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.rot"
+      ],
+      "auto": false
+    },
+    "g1": {
+      "part": "gun",
+      "rot": 90,
+      "tags": [
+        "gun-turret1",
+        "gun-turret1.gun"
+      ]
+    },
+    "t2": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.rot"
+      ],
+      "auto": false
+    },
+    "g2": {
+      "part": "gun",
+      "rot": 270,
+      "tags": [
+        "gun-turret2",
+        "gun-turret2.gun"
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-fab-gun-drone.pilot.js"
+      },
+      "params": {}
+    },
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-fab-gun-drone.turrets.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-fab-gun-drone.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ],
+  "recipes": {
+    "missile-up": {
+      "format": 1,
+      "name": "missile-up",
+      "grid": [
+        "S^",
+        "H",
+        "C",
+        "a",
+        "b"
+      ],
+      "legend": {
+        "a": {
+          "part": "heavygyro",
+          "rot": 0,
+          "auto": false
+        },
+        "b": {
+          "part": "booster",
+          "rot": 0,
+          "auto": false
+        }
+      },
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 15,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "enemy-fab-drone.missile-up.guide.js"
+          }
+        }
+      ]
+    }
+  }
+}

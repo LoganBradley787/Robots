@@ -97,7 +97,7 @@ function fly(vx, vy, angle) {
   const up = Math.max(1, props * lift * Math.max(0.3, Math.cos(self.angle)));
   const rise = Math.max(0.5, up / self.mass - g);
   const upward = clamp(5 * (vy - self.vel.y), -g, rise);
-  let throttle = clamp((self.mass * (g + upward)) / up, 0, 1);
+  let throttle = clamp((self.mass * (g + upward)) / Math.max(up, 1e-9), 0, 1);
   // At least the push along its lean that the whole acceleration it wants calls for (sideways and up together):
   // asked to go down and sideways, the height alone cut the push to nothing, and it hung leaning with no push while
   // gravity slowly took it down (Logan).

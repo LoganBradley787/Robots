@@ -5,13 +5,20 @@
 //   meters that this turret can swing to (it turns `swing` degrees either way from how it was built). It points at it
 //   from there, so it is on target when it comes in range (a missile covers 150 m in about a second). A robot a turret
 //   could not shoot for `hold` seconds (a friend or its own robot in the way) is left for `skip` seconds.
-// - Aim: ahead of the target, where it will be when a shell gets there (from its speed and ours; shells leave at the
+// - Which part: something light (under `heavy` kg: a missile, a drone bomb) is aimed at its middle. On anything
+//   heavier it scans the parts and picks the best hit per shell: what the part is worth (its guns and warheads most,
+//   then its core, radar, and lift, frames least) over the shells it takes to break it and everything of that robot in
+//   front of it on the way (a propeller behind a wall of frames costs the whole wall). It picks again every `repick`
+//   seconds, and when the part is gone.
+// - Aim: ahead of that point, where it will be when a shell gets there (from its speed and ours; shells leave at the
 //   gun's `speed` plus our own motion), and up by what a shell falls on the way.
 // - Fire: within `reach` meters, while the barrel is on the aim point and the gun's sight says nothing of ours is in
 //   the way: the sight is a straight line out of the barrel, and shells hit friends and this robot too. A shell lives
 //   1 s (300 m); the sight looks 150 m, and past that nothing of ours shows. The sight is straight and the barrel
 //   points above the target by the drop, so it also holds fire while a friend the radar tracks is within `clear`
 //   meters of the path to the target, nearer than it (a friend just in front of the target sits under the sight line).
+//   On target means within `size` meters of the aim point (at least `tight` radians); once firing it keeps on out to
+//   twice that, so a barrel wobbling on the edge does not stutter.
 // With `auto` at 0, G switches the turrets on and off (they start on); robots that fly themselves leave it at 1.
 const auto = param('auto', 1, { min: 0, max: 1 });
 const speed = param('speed', 300, { min: 1, max: 5000 }); // m/s, the gun's shell speed (the gun part)
@@ -23,6 +30,13 @@ const rate = param('rate', 2, { min: 0.1, max: 20 }); // rad/s, the rotator's fa
 const hold = param('hold', 0.5, { min: 0, max: 10 }); // s blocked before it gives up on a target
 const skip = param('skip', 1.5, { min: 0, max: 30 }); // s it leaves a target it gave up on
 const clear = param('clear', 6, { min: 0, max: 50 }); // m: a friend's center this close to the path holds fire
+const heavy = param('heavy', 10, { min: 0, max: 1000 }); // kg: lighter targets are aimed at their middle, heavier by part
+const repick = param('repick', 0.3, { min: 0, max: 5 }); // s between choosing which part to aim at
+const damage = param('damage', 5, { min: 0.1, max: 1000 }); // a shell's damage (the gun part)
+const size = param('size', 1, { min: 0.1, max: 10 }); // m off the aim point that still counts as on target
+const tight = param('tight', 0.012, { min: 0.001, max: 0.5 }); // radians: on target at the least this close
+// What breaking each kind of part is worth: disarm it, blow it up, kill or blind it, then ground it.
+const WORTH = { gun: 10, heavywarhead: 12, warhead: 10, core: 8, radar: 6, rotator: 4, booster: 4, propeller: 4, thruster: 3, fabbay: 5, seeker: 3, battery: 2, densebattery: 2, heavygyro: 2, gyro: 2, wheel: 2, cell: 1, decoupler: 1, flare: 0.5, frame: 0.5 };
 const g = 9.81;
 const SIGHT = { nothing: 0, own: 1, friend: 2, enemy: 3, none: 4, terrain: 5 };
 
@@ -70,11 +84,53 @@ function tagged(tag) {
   return undefined;
 }
 
+/** A robot's parts as the radar scans them, once per tick however many turrets ask (at most 4 scans a tick). */
+function scanned(id) {
+  if (state.scanTick !== frame) {
+    state.scanTick = frame;
+    state.scans = {};
+  }
+  if (!(id in state.scans)) state.scans[id] = scan(id);
+  return state.scans[id];
+}
+
 /**
- * Where to point to hit `c` from `from`: its position after the shell's time of flight (solved three times), raised by
- * what the shell falls in that time. Returns the angle, the distance, and the time.
+ * The part of `target` worth the most per shell from `from`: its worth over the shells to break it plus everything of
+ * that robot within half a cell of the line in front of it. Undefined when it cannot be scanned.
  */
-function lead(c, from) {
+function bestPart(target, from) {
+  const list = scanned(target.id);
+  if (!list || list.length === 0) return undefined;
+  let best;
+  for (const p of list) {
+    const worth = WORTH[p.type] ?? 1;
+    const rx = p.pos.x - from.x;
+    const ry = p.pos.y - from.y;
+    const d = Math.hypot(rx, ry);
+    if (d < 0.1) continue;
+    const ux = rx / d;
+    const uy = ry / d;
+    let shells = Math.ceil(p.health / damage);
+    for (const q of list) {
+      if (q === p) continue;
+      const qx = q.pos.x - from.x;
+      const qy = q.pos.y - from.y;
+      const along = qx * ux + qy * uy;
+      if (along <= 0 || along >= d - 0.3) continue;
+      if (Math.abs(qx * uy - qy * ux) < 0.6) shells += Math.ceil(q.health / damage);
+    }
+    const score = worth / shells;
+    if (!best || score > best.score) best = { id: p.id, score };
+  }
+  return best && best.id;
+}
+
+/**
+ * Where to point to hit a point at `pos` moving at `vel` from `from`: where it is after the shell's time of flight
+ * (solved three times), raised by what the shell falls in that time. Returns the angle, the distance, and the time.
+ */
+function lead(pos, vel, from) {
+  const c = { pos, vel };
   const rx = c.pos.x - from.x;
   const ry = c.pos.y - from.y;
   const vx = c.vel.x - self.vel.x;
@@ -94,7 +150,7 @@ function aimTurret(name) {
   const gun = tagged(name + '.gun');
   const rot = tagged(name + '.rot');
   if (!gun || !rot) return;
-  const st = state.turrets[name] || (state.turrets[name] = { id: 0, blocked: 0, skip: {}, want: undefined });
+  const st = state.turrets[name] || (state.turrets[name] = { id: 0, blocked: 0, skip: {}, want: undefined, part: undefined, picked: -Infinity, firing: false });
   const aim = gun.out.aim;
   // How it was built: its aim now, less how far it has turned (-1 to 1 of its range).
   const rest = aim - get(name + '.rot', 'angle') * swing;
@@ -102,7 +158,7 @@ function aimTurret(name) {
   let best;
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core || c.distance > track || (st.skip[c.id] || 0) > time) continue;
-    const l = lead(c, from);
+    const l = lead(c.pos, c.vel, from);
     if (Math.abs(wrap(l.angle - rest)) > swing) continue;
     // Keep the target it has unless something is much closer.
     const d = l.distance - (c.id === st.id ? 10 : 0);
@@ -111,6 +167,7 @@ function aimTurret(name) {
   if (!best || !state.on) {
     st.id = 0;
     st.want = undefined;
+    st.firing = false;
     set(name + '.gun', 'fire', 0);
     set(name + '.rot', 'turn', clamp(-3 * get(name + '.rot', 'angle'), -1, 1));
     return;
@@ -119,25 +176,41 @@ function aimTurret(name) {
     st.id = best.c.id;
     st.blocked = 0;
     st.want = undefined;
+    st.part = undefined;
+    st.picked = -Infinity;
   }
-  const want = best.l.angle;
+  // A heavy target: aim at the part chosen, if it is still there.
+  let l = best.l;
+  if (best.c.mass >= heavy) {
+    if (time - st.picked >= repick || st.part === undefined) {
+      st.part = bestPart(best.c, from);
+      st.picked = time;
+    }
+    const list = st.part === undefined ? undefined : scanned(best.c.id);
+    const p = list && list.find((x) => x.id === st.part);
+    if (p) l = lead(p.pos, best.c.vel, from);
+    else st.part = undefined;
+  }
+  const want = l.angle;
   // The aim point moves: turn at its rate, plus a push toward it.
   const moving = st.want === undefined ? 0 : wrap(want - st.want) / dt;
   st.want = want;
   const err = wrap(want - aim);
   set(name + '.rot', 'turn', clamp(moving / rate + gain * err / rate, -1, 1));
-  // On target: within about a meter and a half of it, or a hundredth of a radian.
-  const on = Math.abs(err) < Math.max(0.01, Math.atan2(1.5, best.l.distance));
+  // On target: within `size` meters of the aim point (or `tight` radians); firing already, twice that.
+  const within = Math.max(tight, Math.atan2(size, l.distance)) * (st.firing ? 2 : 1);
+  const on = Math.abs(err) < within;
   const side = gun.out.sightSide;
   // Something of ours in the way: its own robot, a friend, or the ground, nearer than the target.
-  const blocked = ((side === SIGHT.own || side === SIGHT.friend || side === SIGHT.terrain) && gun.out.sight < best.l.distance) || friendOnPath(from, want, best.l.distance);
+  const blocked = ((side === SIGHT.own || side === SIGHT.friend || side === SIGHT.terrain) && gun.out.sight < l.distance) || friendOnPath(from, want, l.distance);
   st.blocked = blocked ? st.blocked + dt : 0;
   if (st.blocked > hold) {
     st.skip[best.c.id] = time + skip;
     st.id = 0;
   }
-  set(name + '.gun', 'fire', on && !blocked && best.l.distance <= reach ? 1 : 0);
-  mark(from.x + Math.cos(want) * best.l.distance, from.y + Math.sin(want) * best.l.distance, name);
+  st.firing = on && !blocked && l.distance <= reach;
+  set(name + '.gun', 'fire', st.firing ? 1 : 0);
+  mark(from.x + Math.cos(want) * l.distance, from.y + Math.sin(want) * l.distance, name);
 }
 
 function tick() {

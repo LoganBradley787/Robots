@@ -90,7 +90,7 @@ function fly(vx, height, vy) {
     climbing = Math.sign(err) * Math.min(Math.sqrt(2 * margin * stop * Math.abs(err)), 3 * Math.abs(err), climb);
   }
   const upward = clamp(5 * (climbing - self.vel.y), -g, rise);
-  const throttle = clamp((self.mass * (g + upward)) / up, 0, 1);
+  const throttle = clamp((self.mass * (g + upward)) / Math.max(up, 1e-9), 0, 1);
 
   // Leaning left (counterclockwise) pushes it left: lean against the sideways speed it is short of.
   const want = clamp(-steer * (vx - self.vel.x), -lean, lean);

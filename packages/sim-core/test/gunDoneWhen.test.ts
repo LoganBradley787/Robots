@@ -80,14 +80,15 @@ describe('M13 guns, done when', () => {
     w.dispose();
   });
 
-  it('an enemy gun drone shreds a hovering hunter within 60 m: propellers first to go on its side, then its core', { timeout: 60_000 }, async () => {
+  it('an enemy gun drone disarms a hovering hunter first: the missiles on its rack are broken, then it is worn down', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -40, y: 40 });
     w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: 40, y: 40 }, { team: 1 });
     for (let t = 0; t < 900; t++) w.step();
     const lost = w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id);
-    expect(lost.filter((e) => e.kind === 'partDestroyed' && e.partType === 'propeller').length).toBeGreaterThanOrEqual(2);
-    expect(w.events.some((e) => e.kind === 'coreLost' && e.robot === hunter.id)).toBe(true);
+    // Worth the most per shell: the warheads of the four missiles standing on it (and their cores).
+    expect(lost.filter((e) => e.kind === 'partDestroyed' && e.partType === 'heavywarhead').length).toBeGreaterThanOrEqual(3);
+    expect(lost.length).toBeGreaterThanOrEqual(8);
     w.dispose();
   });
 

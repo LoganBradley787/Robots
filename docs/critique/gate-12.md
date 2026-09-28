@@ -23,3 +23,17 @@ What to try, and what to judge. Play it, then write findings below (or tell Clau
 - A script's memory limit does not cap many small allocations (planned in `docs/plans/script-memory-limit.md`, not started).
 
 ## Findings
+
+### 1. First play (Logan, 2026-09-28)
+- **Gun drone against gun drone:** they shoot fast and shoot each other's guns off; "not smart enough to flip around", so the fight ends there.
+  - Fixed: the fab pilot (all its copies) takes the side of its target its remaining guns face, crossing over or under it (headless: two enemy gun drones that used to sit disarmed at their ceiling now fight on; one wins, 1 part lost against 27).
+- **Enemy gun drone against enemy flying silo** at 0.25 speed: the gun hits missiles all over (thruster, gyro) but not smart enough to land on the warhead; flares pulled two missiles off; the silo won with two missiles left. It kept firing at the wreck after its core was gone (missiles already on their way).
+- **Enemy bomb fab drone against a gun drone:** the gun drone won easily from far off: flares first, then the bay, a drone bomb in the air, the batteries, the core. At 92 percent power at the end.
+- **Enemy fab drone against a gun drone:** the fab drone won: it took out the left gun and the left propellers, and the gun drone fell with its other gun pointing the wrong way.
+- **"That bullet just flew through this thing"** (the fab drone). Not reproduced. Likely through a fab bay's empty hollow (the U is open when its missile is out) or between a flare and its grip; shells now also check behind them for things coming at them (the Gate 12 review fix).
+- **Warning:** "pilot: set(lprop, throttle): the value is not a number; ignored": fixed (every hover and pilot divided by zero lift once every propeller was gone).
+- **Aim at parts, not the core:** Logan unsure (guns, lift, core? a gun war is the meta; hidden guns behind a wall that opens would be cool, not now). Built: turrets score each part of a big target by worth over the shells to break it and everything in front of it (guns and warheads most, then core, radar, lift). Missiles and drone bombs are still aimed at their middle.
+- **Firing looked inconsistent** (pauses, then fast): on target was within 1.5 m of the aim point, so at range it flickered on and off. Now 1 m or 0.012 rad to start, twice that to keep firing.
+- **Everything is close quarters:** radars see 500 m, guns reach 250 m, so once two robots see each other they are in gun range; fab drones 730 m apart never saw each other. Decided (Logan): test designs first; spread for shells, or longer range radars and missiles, later.
+- **Design, not parts?** Built three drones to find out: `enemy-armored-gun-drone` (guns off the core's line), `enemy-fab-gun-drone` (a walled-in missile bay plus guns), `enemy-many-gun-drone` (12 guns). Results so far are in the playbook's examples.
+

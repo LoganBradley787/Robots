@@ -83,7 +83,7 @@ function tick() {
     climbing = Math.sign(err) * Math.min(Math.sqrt(2 * margin * stop * Math.abs(err)), 3 * Math.abs(err), climb);
   }
   const upward = clamp(5 * (climbing - self.vel.y), -g, rise);
-  const throttle = clamp((self.mass * (g + upward)) / up, 0, 1);
+  const throttle = clamp((self.mass * (g + upward)) / Math.max(up, 1e-9), 0, 1);
 
   // The lean it wants: A and D, else leaning against its sideways speed to stop.
   let want = clamp(brake * self.vel.x, -lean, lean);
