@@ -65,7 +65,16 @@ interface JointEntry {
   /** Position motors: how fast the target angle is moving (rad/s), so a moving aim is tracked without lag. */
   rate: number;
   maxTorque: number;
+  /** Batch: position motors' integral gain (N m per rad per second); 0 is a plain spring and damper. */
+  integralGain: number;
+  /** Batch: the integral term's accumulated torque (N m). Simulation state: hashed when nonzero. */
+  integral: number;
 }
+
+/** Batch: within this error (rad) a position motor counts as on target and its integral term bleeds. */
+export const INTEGRAL_DEADBAND = 0.0002;
+/** Batch: the fraction of the integral term bled per second while on target. */
+export const INTEGRAL_BLEED = 0.05;
 
 /** Mass of the invisible helper bodies (a multibody root, a joint pivot): small enough to change nothing measurable. */
 const HELPER_MASS = 0.001;
@@ -269,7 +278,7 @@ export class PhysicsWorld {
     joint.setContactsEnabled(false);
     this.jointChildren.add(child);
     const id = this.nextJointId++;
-    this.joints.set(id, { parent, child, kind: 'velocity', factor: motor?.factor ?? 0, damping: 0, target: motor?.targetVelocity ?? 0, rate: 0, maxTorque: motor?.maxTorque ?? 0 });
+    this.joints.set(id, { parent, child, kind: 'velocity', factor: motor?.factor ?? 0, damping: 0, target: motor?.targetVelocity ?? 0, rate: 0, maxTorque: motor?.maxTorque ?? 0, integralGain: 0, integral: 0 });
     return id;
   }
 
@@ -294,11 +303,15 @@ export class PhysicsWorld {
   /**
    * Sets a position motor: holds the child at `targetAngle` (radians, relative to the parent, counterclockwise
    * positive) with torque `stiffness * error - damping * (relative spin - rate)`, capped at `maxTorque`. `rate` is
-   * how fast the target is moving (rad/s), 0 to hold still.
+   * how fast the target is moving (rad/s), 0 to hold still. `integralGain` (Batch) adds an integral term: torque
+   * that builds at `integralGain * error` per second while off target (so a steady load stops sagging the joint),
+   * bleeds while on target, and never exceeds `maxTorque` (no windup).
    */
-  setPositionMotor(jointId: JointId, targetAngle: number, stiffness: number, damping: number, maxTorque: number, rate = 0): void {
+  setPositionMotor(jointId: JointId, targetAngle: number, stiffness: number, damping: number, maxTorque: number, rate = 0, integralGain = 0): void {
     const entry = this.joint(jointId);
+    if (entry.kind !== 'position') entry.integral = 0;
     entry.kind = 'position';
+    entry.integralGain = integralGain;
     entry.target = targetAngle;
     entry.rate = rate;
     entry.factor = stiffness;
@@ -461,11 +474,28 @@ export class PhysicsWorld {
     // Joint motors: torque min(cap, gain * speed error) on the child and its reaction on the parent. A motor that
     // pushes wakes its bodies, so a wheel held against a wall never falls asleep with the key down.
     for (const j of this.joints.values()) {
-      if (j.maxTorque === 0) continue;
+      if (j.maxTorque === 0) {
+        j.integral = 0;
+        continue;
+      }
       const p = this.body(j.parent);
       const c = this.body(j.child);
       const rel = c.angvel() - p.angvel();
-      const want = j.kind === 'velocity' ? j.factor * (j.target - rel) : j.factor * wrapAngle(j.target - wrapAngle(c.rotation() - p.rotation())) - j.damping * (rel - j.rate);
+      let want: number;
+      if (j.kind === 'velocity') want = j.factor * (j.target - rel);
+      else {
+        const err = wrapAngle(j.target - wrapAngle(c.rotation() - p.rotation()));
+        const pd = j.factor * err - j.damping * (rel - j.rate);
+        want = pd + j.integral;
+        if (j.integralGain > 0) {
+          // Batch: the integral term. It builds while off target and bleeds while on it; it stops growing (anti-windup)
+          // once the whole torque is at the cap in the direction it would push, and is itself capped to the cap.
+          if (Math.abs(err) <= INTEGRAL_DEADBAND) j.integral *= 1 - INTEGRAL_BLEED * this.dt;
+          else if (Math.abs(want) < j.maxTorque || want * err < 0) j.integral += j.integralGain * err * this.dt;
+          j.integral = Math.max(-j.maxTorque, Math.min(j.maxTorque, j.integral));
+          want = pd + j.integral;
+        } else j.integral = 0;
+      }
       const tau = Math.max(-j.maxTorque, Math.min(j.maxTorque, want));
       if (tau === 0) continue;
       c.addTorque(tau, true);
@@ -521,6 +551,12 @@ export class PhysicsWorld {
       h.addF64(s.vx);
       h.addF64(s.vy);
       h.addF64(s.w);
+    }
+    // Batch: a position motor's integral term shapes the future. Added only when nonzero, so other worlds keep their hashes.
+    for (const [jointId, j] of this.joints) {
+      if (j.integral === 0) continue;
+      h.addInt(jointId);
+      h.addF64(j.integral);
     }
     for (const id of this.forced) {
       const b = this.body(id);
