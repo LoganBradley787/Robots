@@ -28,6 +28,7 @@ import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
+import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Binding, Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
@@ -207,6 +208,8 @@ export class World {
   private readonly logBudget = new Map<number, { second: number; count: number }>();
   /** Pools that have already reported running dry, by `robot:chunk`. */
   private readonly emptied = new Set<string>();
+  /** Batch: consecutive resting ticks of each broken-off coreless piece (only pieces that have rested at all). */
+  private readonly debrisRest = new Map<number, number>();
   /** Energy drawn so far, per robot. Reporting only. */
   private readonly used = new Map<number, number>();
   /**
@@ -381,6 +384,7 @@ export class World {
     this.physics.step();
     this.runGuns();
     this.damagePhase();
+    this.fadeDebris();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
   }
@@ -429,7 +433,14 @@ export class World {
     for (const robot of [...this.robots]) if (!this.controllers.has(robot.id)) this.removeRobot(robot);
   }
 
+  /** Batch: broken-off coreless pieces that rest for 10 s fade away, and past 200 the oldest go (see debris.ts). */
+  private fadeDebris(): void {
+    const gone = sweepDebris(this.physics, this.robots, this.debrisRest, Math.max(1, Math.round(DEBRIS_REST_SECONDS / this.dt)));
+    for (const robot of gone) this.removeRobot(robot);
+  }
+
   private removeRobot(robot: Robot): void {
+    this.debrisRest.delete(robot.id);
     for (const g of robot.groups) {
       this.pendingKicks.delete(g.bodyId);
       this.lastKicks.delete(g.bodyId);
@@ -1627,6 +1638,14 @@ export class World {
       h.addF64(p.jx);
       h.addF64(p.jy);
       if (p.quiet) h.addInt(1);
+    }
+    // Batch: how long each broken-off piece has rested decides when it fades. None adds nothing.
+    if (this.debrisRest.size > 0) {
+      h.addString('debris');
+      for (const [id, n] of this.debrisRest) {
+        h.addInt(id);
+        h.addInt(n);
+      }
     }
     // Shells in flight (M13). None adds nothing, so worlds without guns hash as before.
     if (this.shells.length > 0) {

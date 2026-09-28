@@ -21,8 +21,8 @@ export interface RobotSample {
   chunks: number;
 }
 
-const REST_SPEED = 0.05;
-const REST_SPIN = 0.05;
+export const REST_SPEED = 0.05;
+export const REST_SPIN = 0.05;
 
 /** World pose of a part's cell center. Reports, scripts, and (since M6) blast positions and pushes use it. */
 export function partWorldPose(world: World, robot: Robot, partId: string): { x: number; y: number; angle: number } {
