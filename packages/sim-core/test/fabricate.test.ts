@@ -38,7 +38,8 @@ const bayBot = (recipe: unknown = missileUp, extra: Record<string, unknown> = {}
 const events = (w: World, kind: WorldEvent['kind']): WorldEvent[] => w.events.filter((e) => e.kind === kind);
 const tap = (robot: number, key: string) => [{ robot, pressed: [key], released: [] }];
 const lift = (robot: number, key: string) => [{ robot, pressed: [], released: [key] }];
-const BUILD_S = 0.6 * 6.8;
+// Batch: a recipe's build time is the sum of its parts' own (seeker 0.7, heavywarhead 1.3, core 0.5, heavygyro 0.5, booster 1.1).
+const BUILD_S = 4.1;
 
 describe('fabricator bay: the part and recipes (M12)', () => {
   it('the bay: a 3 by 6 U whose five-cell hollow fits a missile-up; the costs come from the recipe', () => {
@@ -46,7 +47,9 @@ describe('fabricator bay: the part and recipes (M12)', () => {
     expect(bay.fabricate).toEqual({ joulesPerKg: 40, secondsPerKg: 0.6, separation: 4 });
     expect(hollowCells(bay)).toEqual([1, 2, 3, 4, 5].map((y) => ({ x: 0, y })));
     const v = validateBlueprint(missileUp, registry);
-    expect(recipeStats(v.blueprint!, registry)).toEqual({ mass: 6.8, stored: 600 });
+    const stats = recipeStats(v.blueprint!, registry);
+    expect(stats).toMatchObject({ mass: 6.8, stored: 600, plainMass: 0 });
+    expect(stats.built).toBeCloseTo(4.1, 9);
   });
 
   it('validates: makes needs a fabricator and a recipe, and the recipe must be valid and fit', () => {

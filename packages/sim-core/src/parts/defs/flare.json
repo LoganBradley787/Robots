@@ -4,6 +4,7 @@
   "footprint": [{ "x": 0, "y": 0, "faces": ["S"] }],
   "mass": 0.2,
   "health": 5,
+  "build": 0.2,
   "symmetry": 4,
   "inputs": [{ "name": "ignite", "min": 0, "max": 1, "default": 0 }],
   "outputs": [{ "name": "burning", "min": 0, "max": 1, "default": 0 }],

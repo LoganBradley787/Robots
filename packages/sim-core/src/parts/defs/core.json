@@ -4,6 +4,7 @@
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 2,
   "health": 50,
+  "build": 0.5,
   "symmetry": 4,
   "inputs": [],
   "outputs": [

@@ -19,16 +19,30 @@ export function hollowCells(def: PartDef, size?: readonly [number, number]): Cel
   return out;
 }
 
-/** What a recipe weighs, and the energy its containers hold full (M12: a build pays for both). */
-export function recipeStats(bp: Blueprint, registry: PartRegistry): { mass: number; stored: number } {
+/**
+ * What a recipe weighs, and the energy its containers hold full (M12: a build pays for both). Batch: also what its
+ * parts take to build, split in two: `built` is the seconds of the parts that name their own build time (the def
+ * field `build`), `plainMass` the mass of those that do not, which a bay builds at its `secondsPerKg`.
+ */
+export function recipeStats(bp: Blueprint, registry: PartRegistry): { mass: number; stored: number; built: number; plainMass: number } {
   let mass = 0;
   let stored = 0;
+  let built = 0;
+  let plainMass = 0;
   for (const p of bp.parts) {
     const d = registry.get(p.part);
-    mass += partMass(d, footprintOf(d, p.size));
+    const m = partMass(d, footprintOf(d, p.size));
+    mass += m;
     stored += d.resource?.capacity ?? 0;
+    if (d.build !== undefined) built += d.build;
+    else plainMass += m;
   }
-  return { mass, stored };
+  return { mass, stored, built, plainMass };
+}
+
+/** Batch: the seconds a bay with this time per kg needs for a recipe, before its power draw slows it. */
+export function buildSeconds(s: { built: number; plainMass: number }, secondsPerKg: number): number {
+  return s.built + secondsPerKg * s.plainMass;
 }
 
 /**
