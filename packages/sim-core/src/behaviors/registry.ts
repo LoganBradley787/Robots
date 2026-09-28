@@ -9,6 +9,7 @@ import { warhead } from './warhead';
 import { rotator } from './rotator';
 import { sensor } from './sensor';
 import { fabricate } from './fabricate';
+import { fin } from './fin';
 
 export interface BehaviorContext {
   physics: PhysicsWorld;
@@ -70,4 +71,5 @@ export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior
   ['rotator', rotator],
   ['sensor', sensor],
   ['fabricate', fabricate],
+  ['fin', fin],
 ]);

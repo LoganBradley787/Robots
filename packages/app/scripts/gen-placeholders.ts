@@ -395,6 +395,23 @@ function drawThruster(body = hex('#959ba4'), heat = hex('#5f646d')): Canvas {
   return cv;
 }
 
+/**
+ * Fin (Batch): a swept, tapered plate along the cell's up axis (the way it acts at rotation 0), seen edge on, with a
+ * root flange on the base and a bright leading edge.
+ */
+function drawFin(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  // Root strip along the whole cell so it reads as one piece with whatever it hangs on.
+  plate(cv, 26, 2, 38, 62, hex('#9aa0a9'), OUTLINE, 2);
+  cv.fill(rect(28.5, 5, 31, 59), WHITE, 0.3);
+  // Two ribs and rivets down the plate.
+  for (const y of [16, 32, 48]) cv.fill(rect(27, y, 37, y + 1.5), OUTLINE, 0.7);
+  for (const y of [9, 55]) rivet(cv, 32, y, 2);
+  // A red tip band at the far (front) end.
+  plate(cv, 26, 2, 38, 10, hex('#c2412b'), hex('#6e1d12'), 2);
+  return cv;
+}
+
 /** Batch: the swiveling thruster is the thruster in teal with a pale gimbal ring around the throat. */
 function drawSwivelThruster(): Canvas {
   const cv = drawThruster(hex('#2f9c94'), hex('#1b5f5a'));
@@ -1001,6 +1018,7 @@ function main(): void {
     { name: 'part.armorplate', canvas: drawArmorPlate() },
     { name: 'part.solar', canvas: drawSolar() },
     { name: 'part.swivelthruster', canvas: drawSwivelThruster() },
+    { name: 'part.fin', canvas: drawFin() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

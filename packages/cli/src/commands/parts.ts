@@ -22,6 +22,8 @@ const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "
 const UNITS: Record<string, string> = {
   maxForce: 'N',
   swivel: 'deg',
+  area: 'm2',
+  deflect: 'degrees',
   maxTorque: 'N m',
   dampTorque: 'N m',
   coastTorque: 'N m',
@@ -59,6 +61,10 @@ function details(d: PartDef): string[] {
   }
   if ((d.behaviorConfig?.swivel ?? 0) > 0 && d.inputs.some((c) => c.name === 'swivel')) {
     out.push(`swivels: the swivel input (-1 to 1) tilts its push up to ${d.behaviorConfig?.swivel} degrees counterclockwise (positive) or clockwise (negative) from its ${d.acts ?? 'N'} face; the push lands at its cell, so a tilt also turns the robot; no auto key for swivel: bind one or use a script`);
+  }
+  if (d.behavior === 'fin' && d.behaviorConfig) {
+    const area = d.behaviorConfig.area ?? 0;
+    out.push(`fin: a flat plate along its ${d.acts ?? 'N'} axis that pushes on the air: at speed it takes 0.5 * 1.2 * ${area} * (speed across the plate) * speed N, against the way it moves, at its cell (${(0.6 * area).toFixed(2)} N per (m/s)^2 straight across; nothing along the plate); deflect (-1 to 1) turns the plate up to ${d.behaviorConfig.deflect ?? 0} degrees counterclockwise to steer; fins behind the middle keep the nose into the wind; no energy`);
   }
   const boom = d.onDestroyed?.explode;
   const once = d.arming ? ' once armed' : '';

@@ -23,6 +23,7 @@ import gun from './defs/gun.json';
 import armorplate from './defs/armorplate.json';
 import solar from './defs/solar.json';
 import swivelthruster from './defs/swivelthruster.json';
+import fin from './defs/fin.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -78,6 +79,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['armorplate.json', armorplate],
   ['solar.json', solar],
   ['swivelthruster.json', swivelthruster],
+  ['fin.json', fin],
 ];
 
 let shipped: PartRegistry | null = null;
