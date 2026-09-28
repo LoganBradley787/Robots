@@ -529,6 +529,24 @@ function drawGun(): Canvas {
 }
 
 /**
+ * Smoke pod (Batch): a stubby grey canister on a mounting plate, a vented cap with a nozzle on top, and a pale
+ * smoke ring band around the middle.
+ */
+function drawSmoke(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 6, 46, 58, 62, hex('#6f747d'), OUTLINE, 2);
+  for (const [x, y] of [[12, 54], [52, 54]] as const) rivet(cv, x, y, 2.2);
+  plate(cv, 14, 16, 50, 50, hex('#8b9199'), hex('#3a3f46'), 2.5);
+  cv.fill(rect(17, 19, 22, 47), WHITE, 0.25);
+  cv.fill(rect(15.5, 30, 48.5, 38), hex('#d8dbe0'));
+  cv.fill(rect(15.5, 33, 48.5, 35), hex('#a5aab3'));
+  plate(cv, 22, 8, 42, 18, hex('#4b525c'), hex('#1b1e23'), 2);
+  plate(cv, 28, 2, 36, 10, hex('#2b2f35'), hex('#111316'), 2);
+  cv.fill(circle(32, 3, 5), hex('#c9ccd2'), 0.55);
+  return cv;
+}
+
+/**
  * Fabricator bay (M12): a U three cells wide and six tall, open at the top. Armored walls in dark steel with a
  * yellow and black band at the mouth, a lit strip down the inside of each wall, and a machine bed at the bottom.
  */
@@ -960,6 +978,7 @@ function main(): void {
     { name: 'part.flare', canvas: drawFlare() },
     { name: 'part.flare.lit', canvas: drawFlare(true) },
     { name: 'part.gun', canvas: drawGun() },
+    { name: 'part.smoke', canvas: drawSmoke() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },
