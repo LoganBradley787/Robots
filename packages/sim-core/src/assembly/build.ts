@@ -1,6 +1,6 @@
 import { partMass } from '../parts/footprint';
-import type { PhysicsWorld } from '../physics/PhysicsWorld';
-import { rotateCell } from '../parts/faces';
+import type { JointId, PhysicsWorld } from '../physics/PhysicsWorld';
+import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { BodyGroup, PartInstance } from '../world/Robot';
 import type { AssemblyPlan, GroupPlan } from './assemble';
 
@@ -93,7 +93,22 @@ export function buildBodies(
     const js = jp.def.joint;
     const motor = js?.motor === 'velocity' ? { targetVelocity: 0, factor: js.motorFactor, maxTorque: js.maxTorque } : undefined;
     const rel = (poses[g.index] as GroupPose).angle - (poses[g.joint.parentGroup] as GroupPose).angle;
-    const jointId = physics.createRevoluteJoint(parent.bodyId, child.bodyId, { x: anchorParentX, y: anchorParentY }, { x: 0, y: 0 }, motor, rel);
+    let jointId: JointId;
+    if (js?.kind === 'prismatic') {
+      // Batch: a piston slides from its mount face across its cell. Its extension now (a piece rebuilt mid-stroke) is
+      // how far the child body's origin sits from the parent's anchor along the axis (the child frame's rest axis).
+      const dir = faceDir(opposite(rotateFace(js.mountFace, jp.rot)));
+      const at = poses[g.index] as GroupPose;
+      const pp = poses[g.joint.parentGroup] as GroupPose;
+      const cos = Math.cos(pp.angle);
+      const sin = Math.sin(pp.angle);
+      const ax = pp.x + cos * anchorParentX - sin * anchorParentY;
+      const ay = pp.y + sin * anchorParentX + cos * anchorParentY;
+      const extension = (at.x - ax) * (Math.cos(at.angle) * dir.x - Math.sin(at.angle) * dir.y) + (at.y - ay) * (Math.sin(at.angle) * dir.x + Math.cos(at.angle) * dir.y);
+      jointId = physics.createPrismaticJoint(parent.bodyId, child.bodyId, { x: anchorParentX, y: anchorParentY }, dir, jp.def.behaviorConfig?.stroke ?? 1, extension, rel);
+    } else {
+      jointId = physics.createRevoluteJoint(parent.bodyId, child.bodyId, { x: anchorParentX, y: anchorParentY }, { x: 0, y: 0 }, motor, rel);
+    }
     child.joint = { partId: g.joint.partId, parentGroup: g.joint.parentGroup, jointId, anchorParentX, anchorParentY };
   }
   return groups;

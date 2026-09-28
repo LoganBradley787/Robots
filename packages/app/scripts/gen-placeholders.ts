@@ -882,6 +882,34 @@ function drawRotator(): Canvas {
   return cv;
 }
 
+const PISTON = hex('#3f8f8b');
+
+/** Batch: the piston's head, which slides (N at rotation 0): a plate across the top and a rod stub down to the bottom edge. */
+function drawPiston(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  cv.fill(rect(24, 20, 40, 64), OUTLINE);
+  cv.fill(rect(26.5, 20, 37.5, 64), STEEL);
+  cv.fill(rect(26.5, 20, 29.5, 64), WHITE, 0.3);
+  cv.fill(rect(0, 0, 64, 24), OUTLINE);
+  cv.fill(rect(2.5, 2.5, 61.5, 21.5), PISTON);
+  bevel(cv, 2.5, 2.5, 61.5, 21.5, 2, 0.3, 0.3);
+  for (const [x, y] of [[9, 12], [55, 12]] as const) rivet(cv, x, y);
+  cv.fill(poly([[32, 5], [38, 12], [26, 12]]), YELLOW);
+  return cv;
+}
+
+/** Drawn on the parent body at the joint (it does not slide): the sleeve the head slides out of, over the cell's lower half. */
+function drawPistonMount(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  cv.fill(rect(10, 36, 54, 64), OUTLINE);
+  cv.fill(rect(12.5, 38.5, 51.5, 61.5), lighten(PISTON, -0.1));
+  bevel(cv, 12.5, 38.5, 51.5, 61.5, 2, 0.3, 0.3);
+  cv.fill(rect(12.5, 36, 51.5, 42), DARK_METAL);
+  cv.fill(rect(24, 36, 40, 42), BLACK, 0.5);
+  for (const x of [18, 46] as const) rivet(cv, x, 54, 2.2);
+  return cv;
+}
+
 function drawFlame(length: number, width: number, seed: number): Canvas {
   const cv = new Canvas(CELL, CELL);
   const rnd = mulberry32(seed);
@@ -1142,6 +1170,8 @@ function main(): void {
     { name: 'part.radio', canvas: drawRadio() },
     { name: 'part.smoke', canvas: drawSmoke() },
     { name: 'part.grapple', canvas: drawGrapple() },
+    { name: 'part.piston', canvas: drawPiston() },
+    { name: 'part.piston.mount', canvas: drawPistonMount() },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

@@ -11,6 +11,7 @@ import { rotator } from './rotator';
 import { sensor } from './sensor';
 import { fabricate } from './fabricate';
 import { fin } from './fin';
+import { piston } from './piston';
 
 export interface BehaviorContext {
   physics: PhysicsWorld;
@@ -74,4 +75,5 @@ export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior
   ['fabricate', fabricate],
   ['fin', fin],
   ['mine', mine],
+  ['piston', piston],
 ]);

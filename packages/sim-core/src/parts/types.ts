@@ -26,15 +26,18 @@ export interface ChannelDef {
  * motor targets.
  */
 export interface JointSpec {
-  kind: 'revolute';
+  /** Batch: `prismatic` slides along the axis from its mount face across the cell (a piston), with a force cap. */
+  kind: 'revolute' | 'prismatic';
   mountFace: Face;
   /**
    * `velocity` (wheel): spins at a target speed; a velocity joint part attaches only through its mount face.
    * `position` (rotator, M6): holds a target angle, gains set by its behavior each tick.
    */
   motor: 'velocity' | 'position';
-  /** Torque cap in N m. The motor is force based, so heavy robots need stronger motors. */
+  /** Torque cap in N m. The motor is force based, so heavy robots need stronger motors. 0 for a prismatic joint. */
   maxTorque: number;
+  /** Batch: force cap in N of a prismatic joint's motor. Absent on revolute joints. */
+  maxForce?: number;
   /** Velocity gain: torque per rad/s of error, before the cap. Velocity motors only (0 for position motors). */
   motorFactor: number;
 }

@@ -248,7 +248,7 @@ describe('grapple (Batch)', () => {
   it('the def: shipped, and a grapple needs its inputs and outputs', () => {
     const def = defaultRegistry().get('grapple');
     expect(def.grapple).toEqual({ reach: 60, reelSpeed: 5, minLength: 1, maxLength: 60 });
-    expect(defaultRegistry().ids().at(-1)).toBe('grapple');
+    expect(defaultRegistry().ids()).toContain('grapple');
     const without = (drop: string): unknown => ({ ...grappleJson, inputs: grappleJson.inputs.filter((c) => c.name !== drop) });
     expect(() => parsePartDef(without('release'), 'g.json')).toThrow(PartDefError);
     expect(() => parsePartDef(without('release'), 'g.json')).toThrow(/"release" input/);

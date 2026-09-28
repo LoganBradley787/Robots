@@ -700,6 +700,46 @@
         "h": 64
       }
     },
+    "part.piston": {
+      "frame": {
+        "x": 3,
+        "y": 343,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.piston.mount": {
+      "frame": {
+        "x": 71,
+        "y": 343,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
     "part.fabbay": {
       "frame": {
         "x": 3,
@@ -722,7 +762,7 @@
     },
     "part.fabbay.floor": {
       "frame": {
-        "x": 3,
+        "x": 139,
         "y": 343,
         "w": 64,
         "h": 64
@@ -742,7 +782,7 @@
     },
     "part.fabbay.corner": {
       "frame": {
-        "x": 71,
+        "x": 207,
         "y": 343,
         "w": 64,
         "h": 64
@@ -762,7 +802,7 @@
     },
     "part.fabbay.wall": {
       "frame": {
-        "x": 139,
+        "x": 275,
         "y": 343,
         "w": 64,
         "h": 64
@@ -782,7 +822,7 @@
     },
     "part.fabbay.mouth": {
       "frame": {
-        "x": 207,
+        "x": 343,
         "y": 343,
         "w": 64,
         "h": 64
@@ -802,7 +842,7 @@
     },
     "part.fabbay.back": {
       "frame": {
-        "x": 275,
+        "x": 411,
         "y": 343,
         "w": 64,
         "h": 64

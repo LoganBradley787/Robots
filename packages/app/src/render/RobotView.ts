@@ -1,5 +1,5 @@
 import { AnimatedSprite, Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import { footprintBox, footprintOf, recipePlacement, rootPartId, rotateCell, rotationRadians, type BodyId, type PartRegistry, type PhysicsWorld, type Robot } from '@robots/sim-core';
+import { faceDir, footprintBox, footprintOf, opposite, recipePlacement, rootPartId, rotateCell, rotateFace, rotationRadians, type BodyId, type PartRegistry, type PhysicsWorld, type Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { layoutRobot } from './robotLayout';
 import { damageTint } from './damageTint';
@@ -40,6 +40,8 @@ export class RobotView {
    * build goes, and a progress bar across the bay's floor. Hidden while it holds a finished (real) copy.
    */
   private readonly builds: { partId: string; ghosts: Container[]; bar: Graphics; barW: number }[] = [];
+  /** Batch: the rod of each piston, drawn on the head's body from its rest cell to where the head is now. */
+  private readonly rods: { partId: string; jointId: number; rod: Graphics; dx: number; dy: number }[] = [];
   private frames = 0;
 
   constructor(robot: Robot, frame: (name: string) => Texture, animations?: Animations, registry?: PartRegistry) {
@@ -104,12 +106,25 @@ export class RobotView {
         }
         if (effect.spin || effect.flame) this.effects.push(effect);
       }
+      this.addRod(body.group, view);
       if (registry) this.addBuilds(body.group, view, frame, registry);
       // Flames draw behind the body so they come out of the nozzle, not over the frame.
       view.addChildAt(flames, 0);
       this.root.addChild(view);
       this.bodies.push({ bodyId: body.bodyId, view });
     }
+  }
+
+  /** Batch: a piston's rod, on the body of its head (which slides), from the head back toward its sleeve. */
+  private addRod(group: number, view: Container): void {
+    const joint = this.robot.groups[group]?.joint;
+    const part = joint ? this.robot.parts.get(joint.partId) : undefined;
+    if (!joint || !part || part.def.joint?.kind !== 'prismatic') return;
+    const way = faceDir(opposite(rotateFace(part.def.joint.mountFace, part.rot)));
+    const rod = new Graphics();
+    // Under the head's sprites (and the flames), so the plate covers its end.
+    view.addChildAt(rod, 0);
+    this.rods.push({ partId: part.id, jointId: joint.jointId, rod, dx: -way.x, dy: -way.y });
   }
 
   /** The ghost of each bay's recipe on this body (M12), laid out where the finished copy will sit. */
@@ -192,6 +207,18 @@ export class RobotView {
       b.ghosts.forEach((g, i) => (g.visible = i < shown));
       b.bar.clear();
       if (building) b.bar.rect(-b.barW / 2, -3, b.barW * progress, 6).fill({ color: 0x38d6ff, alpha: 0.9 });
+    }
+    for (const r of this.rods) {
+      const len = physics.sliderPosition(r.jointId);
+      r.rod.clear();
+      if (len < 0.02) continue;
+      const w = 0.22 * PIXELS_PER_METER;
+      const l = len * PIXELS_PER_METER;
+      // The head's origin is its cell (the body origin, drawn at the view's origin); the rod's middle is half its length back.
+      const c = toScreen({ x: (r.dx * len) / 2, y: (r.dy * len) / 2 });
+      const vertical = r.dx === 0;
+      const [rw, rh] = vertical ? [w, l] : [l, w];
+      r.rod.rect(c.x - rw / 2, c.y - rh / 2, rw, rh).fill({ color: 0x8a9099 }).stroke({ color: 0x454a52, width: 2 });
     }
     this.frames++;
     for (const g of this.glows) {

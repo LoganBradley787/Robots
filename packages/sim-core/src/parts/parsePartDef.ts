@@ -322,8 +322,8 @@ function sprite(r: Reader, v: unknown): SpriteSpec {
 }
 
 function joint(r: Reader, v: unknown, footprint: FootprintCell[]): JointSpec {
-  const jo = r.obj(v, 'joint', ['kind', 'mountFace', 'motor', 'maxTorque', 'motorFactor']);
-  if (jo.kind !== 'revolute') r.fail('joint.kind', 'must be "revolute"');
+  const jo = r.obj(v, 'joint', ['kind', 'mountFace', 'motor', 'maxTorque', 'maxForce', 'motorFactor']);
+  if (jo.kind !== 'revolute' && jo.kind !== 'prismatic') r.fail('joint.kind', 'must be "revolute" or "prismatic"');
   if (!isFace(jo.mountFace)) r.fail('joint.mountFace', 'must be one of N, E, S, W');
   if (jo.motor !== 'velocity' && jo.motor !== 'position') r.fail('joint.motor', 'must be "velocity" or "position"');
   if (footprint.length !== 1) r.fail('joint', 'is only supported on one-cell parts');
@@ -332,6 +332,12 @@ function joint(r: Reader, v: unknown, footprint: FootprintCell[]): JointSpec {
   // A wheel is a ball: anything welded to its other faces would spin with it. Position joints carry parts.
   if (jo.motor === 'velocity' && faces.length !== 1) r.fail('footprint[0].faces', `must be exactly [${jo.mountFace}]: a velocity joint part attaches only through its mount face`);
   if (jo.motor === 'position' && jo.motorFactor !== undefined) r.fail('joint.motorFactor', 'is for velocity motors; a position motor gets its gains from its behavior');
+  if (jo.kind === 'prismatic') {
+    if (jo.motor !== 'position') r.fail('joint.motor', 'must be "position" for a prismatic joint');
+    if (jo.maxTorque !== undefined) r.fail('joint.maxTorque', 'is for revolute joints; a prismatic joint has maxForce');
+    return { kind: 'prismatic', mountFace: jo.mountFace, motor: 'position', maxTorque: 0, maxForce: r.positive(jo, 'maxForce', 'joint'), motorFactor: 0 };
+  }
+  if (jo.maxForce !== undefined) r.fail('joint.maxForce', 'is for prismatic joints; a revolute joint has maxTorque');
   return {
     kind: 'revolute',
     mountFace: jo.mountFace,

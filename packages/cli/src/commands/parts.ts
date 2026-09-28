@@ -32,6 +32,8 @@ const UNITS: Record<string, string> = {
   turnSpeed: 'rad/s',
   range: 'rad',
   frequency: 'Hz',
+  stroke: 'm',
+  extendSpeed: 'm/s',
   separation: 'N s',
 };
 
@@ -45,7 +47,8 @@ function details(d: PartDef): string[] {
   const cfg = Object.entries(d.behaviorConfig ?? {});
   const unit = (k: string, v: number): string => (UNITS[k] === 'rad' ? `${v} rad (${Math.round((v * 180) / Math.PI)} deg)` : `${v}${UNITS[k] ? ` ${UNITS[k]}` : ''}`);
   if (cfg.length > 0) out.push(`${d.behavior ?? 'settings'}: ${cfg.map(([k, v]) => `${k} ${unit(k, v)}`).join(', ')}`);
-  if (d.joint) out.push(`${d.joint.motor} motor joint mounted by its ${d.joint.mountFace} face, up to ${d.joint.maxTorque} N m`);
+  if (d.joint?.kind === 'prismatic') out.push(`sliding joint mounted by its ${d.joint.mountFace} face at rotation 0: the part slides out of its cell the other way, carrying what is on its other faces, up to ${d.joint.maxForce} N`);
+  else if (d.joint) out.push(`${d.joint.motor} motor joint mounted by its ${d.joint.mountFace} face, up to ${d.joint.maxTorque} N m`);
   if (d.collider) out.push(`${d.collider.shape} collider, radius ${d.collider.radius} m, friction ${d.collider.friction}`);
   if (d.inputs.length > 0) out.push(`inputs: ${d.inputs.map((c) => `${c.name} ${c.min} to ${c.max}`).join(', ')}`);
   if (d.outputs.length > 0) out.push(`outputs scripts can read: ${d.outputs.map((c) => c.name).join(', ')}`);
