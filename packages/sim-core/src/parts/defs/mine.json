@@ -5,6 +5,7 @@
   "mass": 1.5,
   "health": 60,
   "shellDamage": 0.25,
+  "build": 1.3,
   "symmetry": 4,
   "inputs": [
     { "name": "detonate", "min": 0, "max": 1, "default": 0 },

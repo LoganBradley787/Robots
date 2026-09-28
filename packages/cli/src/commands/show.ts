@@ -1,4 +1,4 @@
-import { autoBindings, defaultRegistry, recipeStats, staticStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
+import { autoBindings, buildSeconds, defaultRegistry, recipeStats, staticStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -33,7 +33,7 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
           if (!f) return '';
           const joules = f.joulesPerKg * s.mass + s.stored;
           // As fast as its time per kg allows, unless its draw cannot pay for that.
-          const seconds = Math.max(f.secondsPerKg * s.mass, joules / registry.get(p.part).powerDraw);
+          const seconds = Math.max(buildSeconds(s, f.secondsPerKg), joules / registry.get(p.part).powerDraw);
           return `${p.id}: ${seconds.toFixed(1)} s, ${Math.round(joules)} J each`;
         })
         .filter((t) => t !== '');

@@ -5,6 +5,7 @@
   "mass": 1,
   "health": 60,
   "shellDamage": 0.25,
+  "build": 0.2,
   "symmetry": 1,
   "inputs": [],
   "outputs": [],

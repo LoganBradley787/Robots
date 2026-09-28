@@ -4,6 +4,7 @@
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
   "health": 30,
+  "build": 0.3,
   "symmetry": 4,
   "inputs": [{ "name": "fire", "min": 0, "max": 1, "default": 0 }],
   "outputs": [{ "name": "armed", "min": 0, "max": 1, "default": 1 }],

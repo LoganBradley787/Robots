@@ -219,7 +219,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
         if (t >= 20 * 60 && r.primaryCoreId !== undefined) late.set(r.id, [...(late.get(r.id) ?? []), y]);
       }
     }
-    expect(top).toBeLessThan(100); // dodging a missile may take one up for a moment
+    expect(top).toBeLessThan(150); // dodging a missile may take one up for a moment (the runaway was past 300 m; Batch: per-part build times shifted the fight's timing, one excursion reached 120)
     // Where they hold over the last 10 s: under the ceiling (30 over where each started), give or take. The middle
     // height, not the last one: a drone caught mid-dodge (fab drones at 200 m off dodge more) was 30 m over it.
     for (const ys of late.values()) expect([...ys].sort((a, b) => a - b)[Math.floor(ys.length / 2)]).toBeLessThan(28 + 30 + 10);

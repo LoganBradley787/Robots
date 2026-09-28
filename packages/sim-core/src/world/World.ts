@@ -23,7 +23,7 @@ import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
 import { spawnRobot } from '../assembly/spawn';
 import { partCells, rootPartId } from '../assembly/assemble';
 import { placeBlueprint } from '../blueprint/place';
-import { hollowAt, recipePlacement, recipeStats, scopeBase } from '../fabricate/recipe';
+import { buildSeconds, hollowAt, recipePlacement, recipeStats, scopeBase } from '../fabricate/recipe';
 import { footprintOf, partMass } from '../parts/footprint';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, type BlastCell } from '../damage/explosion';
@@ -1072,7 +1072,7 @@ export class World {
     let job: { seconds: number; joules: number } | undefined;
     if (recipe) {
       const s = recipeStats(recipe.blueprint, this.registry);
-      job = { seconds: Math.max(this.dt, spec.secondsPerKg * s.mass), joules: spec.joulesPerKg * s.mass + s.stored };
+      job = { seconds: Math.max(this.dt, buildSeconds(s, spec.secondsPerKg)), joules: spec.joulesPerKg * s.mass + s.stored };
     }
     byPart.set(part.id, job);
     return job;

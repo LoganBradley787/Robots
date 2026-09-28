@@ -44,7 +44,8 @@ describe('parts', () => {
     expect(text('gyro')).toMatch(/E \/ Q/);
     expect(text('seeker')).toMatch(/90 degree cone toward its N face out to 300 m/);
     expect(text('radar')).toMatch(/all around out to 1000 m/);
-    expect(text('fabbay')).toMatch(/builds its recipe \(the part's "makes"\) in its hollow \(1 by 5 by default\): 40 J per kg plus what its containers hold, 0.6 s per kg \(longer if its draw/);
+    expect(text('fabbay')).toMatch(/builds its recipe \(the part's "makes"\) in its hollow \(1 by 5 by default\): 40 J per kg plus what its containers hold, 0.6 s per kg for parts with no build time of their own \(a recipe takes the sum over its parts; longer if its draw/);
+    expect(text('booster')).toMatch(/build time: 1.1 s in a fabricator/);
     expect(text('gun')).toMatch(/10 shells a second out of its N face at 300 m\/s; a shell falls under gravity, takes 5 off the first part it hits/);
     expect(text('gun')).toMatch(/looks 150 m straight out of the barrel/);
     expect(text('gun')).toMatch(/up to 0.5 degrees off the barrel's line/);

@@ -44,7 +44,7 @@ export type { KeyPress } from './control/timeline';
 export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls } from './blueprint/edit';
 export { mirrorRotation, mirrorX, mirrorBlueprint, mirrorProblem } from './blueprint/mirror';
 export { footprintBox, footprintOf, mirrorable, mirroredShift, partMass, defaultSize, cupFootprint } from './parts/footprint';
-export { hollowCells, hollowAt, recipePlacement, recipeStats, scopeBase } from './fabricate/recipe';
+export { hollowCells, hollowAt, recipePlacement, recipeStats, buildSeconds, scopeBase } from './fabricate/recipe';
 export { orientBlueprint, orientRaw } from './blueprint/orient';
 export type { Orientation } from './blueprint/orient';
 export { staticStats } from './blueprint/stats';

@@ -4,6 +4,7 @@
   "footprint": [{ "x": 0, "y": 0, "faces": ["S", "E", "W"] }],
   "mass": 1,
   "health": 15,
+  "build": 0.2,
   "symmetry": 4,
   "inputs": [{ "name": "throttle", "min": 0, "max": 1, "default": 0 }],
   "outputs": [],

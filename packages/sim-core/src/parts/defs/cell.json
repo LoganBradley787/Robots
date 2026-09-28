@@ -4,6 +4,7 @@
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 0.5,
   "health": 10,
+  "build": 0.3,
   "symmetry": 4,
   "inputs": [],
   "outputs": [{ "name": "charge", "min": 0, "max": 1, "default": 1 }],

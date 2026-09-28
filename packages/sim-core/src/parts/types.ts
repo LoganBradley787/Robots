@@ -282,6 +282,11 @@ export interface PartDef {
   stretch?: StretchSpec;
   /** M12: the part builds things (a fabricator bay). It needs grips, `acts`, a `release` input, and `ready`, `progress`, and `built` outputs. */
   fabricate?: FabricateSpec;
+  /**
+   * Batch: seconds a fabricator spends building one of this part (advanced parts are slow, basic ones quick). A part
+   * without it takes the bay's `secondsPerKg` times its mass. A recipe's build time is the sum over its parts.
+   */
+  build?: number;
   sprite: SpriteSpec;
   defaultTags?: string[];
 }

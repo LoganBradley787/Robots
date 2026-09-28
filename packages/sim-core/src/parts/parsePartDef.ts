@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'mine', 'smoke', 'grapple', 'fabricate', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'mine', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -297,6 +297,8 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     for (const out of ['ready', 'progress', 'built']) if (!def.outputs.some((c) => c.name === out)) r.fail('fabricate', `a fabricator must have a "${out}" output`);
     def.fabricate = { joulesPerKg: r.positive(f, 'joulesPerKg', 'fabricate'), secondsPerKg: r.positive(f, 'secondsPerKg', 'fabricate'), separation: r.positive(f, 'separation', 'fabricate') };
   }
+  // Batch: seconds a fabricator needs to build one of this part (without it: the bay's secondsPerKg times its mass).
+  if (o.build !== undefined) def.build = r.positive(o, 'build', '');
   if (o.defaultTags !== undefined) {
     def.defaultTags = r.arr(o, 'defaultTags', '').map((t, i) => {
       if (typeof t !== 'string' || t === '') r.fail(`defaultTags[${i}]`, 'must be a non-empty string');
