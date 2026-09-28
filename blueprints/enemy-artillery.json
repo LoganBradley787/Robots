@@ -1,0 +1,238 @@
+{
+  "format": 1,
+  "name": "enemy-artillery",
+  "grid": [
+    ". . . . . . = . = . . . . . .",
+    ". . . . . . = . = . . . . . .",
+    ". . . . . . = . = . . . . . .",
+    ". . . . . . = . = . . . . . .",
+    ". . . . . . = . = . . . . . .",
+    ". . . . . . = q = . . . . . .",
+    "a b F c c c F d F e e e F f g",
+    "h i F F F Z Z C Z Z F F F j k",
+    "l m F c c c c n e e e e F o p"
+  ],
+  "legend": {
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "n": {
+      "part": "radio",
+      "rot": 0,
+      "tags": [
+        "radio"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "q": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "bay"
+      ],
+      "makes": "missile-up"
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-artillery.pilot.js"
+      },
+      "params": {
+        "standoff": 650,
+        "minRange": 300,
+        "maxRange": 900,
+        "above": 25,
+        "speed": 25
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-artillery.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ],
+  "recipes": {
+    "missile-up": {
+      "format": 1,
+      "name": "missile-up",
+      "grid": [
+        "S^",
+        "H",
+        "C",
+        "a",
+        "b"
+      ],
+      "legend": {
+        "a": {
+          "part": "heavygyro",
+          "rot": 0,
+          "auto": false
+        },
+        "b": {
+          "part": "booster",
+          "rot": 0,
+          "auto": false
+        }
+      },
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 15,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "enemy-artillery.missile-up.guide.js"
+          }
+        }
+      ]
+    }
+  }
+}

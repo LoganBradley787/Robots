@@ -1,0 +1,150 @@
+{
+  "format": 1,
+  "name": "enemy-spotter",
+  "grid": [
+    "a b c c c G d d d e f",
+    "g h F F F C F F F i j",
+    ". . k l O Z N m n . ."
+  ],
+  "legend": {
+    "a": {
+      "part": "jammer",
+      "tags": [
+        "jam1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "jgrip1"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "e": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "jgrip3"
+      ]
+    },
+    "f": {
+      "part": "jammer",
+      "tags": [
+        "jam3"
+      ]
+    },
+    "G": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "g": {
+      "part": "jammer",
+      "tags": [
+        "jam2"
+      ]
+    },
+    "h": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "jgrip2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "jgrip4"
+      ]
+    },
+    "j": {
+      "part": "jammer",
+      "tags": [
+        "jam4"
+      ]
+    },
+    "k": {
+      "part": "smoke",
+      "tags": [
+        "smoke1"
+      ]
+    },
+    "l": {
+      "part": "smoke",
+      "tags": [
+        "smoke2"
+      ]
+    },
+    "m": {
+      "part": "smoke",
+      "tags": [
+        "smoke3"
+      ]
+    },
+    "n": {
+      "part": "smoke",
+      "tags": [
+        "smoke4"
+      ]
+    },
+    "O": {
+      "part": "radar",
+      "tags": [
+        "radar"
+      ]
+    },
+    "N": {
+      "part": "radio",
+      "tags": [
+        "radio"
+      ]
+    },
+    "Z": {
+      "part": "densebattery"
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-spotter.pilot.js"
+      },
+      "params": {
+        "standoff": 700,
+        "above": 25,
+        "speed": 25,
+        "lean": 55,
+        "minRange": 100000,
+        "dodgeSpeed": 25,
+        "dodgeAhead": 3,
+        "climb": 20
+      }
+    },
+    {
+      "id": "jammers",
+      "source": {
+        "file": "enemy-spotter.jammers.js"
+      },
+      "params": {}
+    }
+  ]
+}
