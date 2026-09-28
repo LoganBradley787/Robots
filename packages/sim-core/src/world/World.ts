@@ -30,6 +30,7 @@ import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face, JammerSpec } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
+import { BAY_CLEAR_SPEED, bayClearAfterTicks } from './bayclear';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Binding, Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
@@ -276,6 +277,11 @@ export class World {
   private readonly decoys = new Set<PartInstance>();
   /** Fabricators waiting on a finished build, told once (M12). Reporting only, not hashed. */
   private readonly stuck = new WeakSet<PartInstance>();
+  /**
+   * Batch: the tick a bay first found a piece with no core in its hollow, while it is still there. After a second the
+   * bay pushes it out. Simulation state, hashed only while any is set.
+   */
+  private readonly clearing = new WeakMap<PartInstance, number>();
   /** Robots that grew parts this tick (M12: a fabricator finished): their controller is rebuilt with the rebuild. */
   private readonly grown = new Set<Robot>();
   /** Each robot blueprint's fabricator jobs by part (M12), worked out once per blueprint object. Derived. */
@@ -1102,7 +1108,11 @@ export class World {
       const dy = h.y - placed.y;
       return { x: pose.x + c * dx - s * dy, y: pose.y + s * dx + c * dy, shape: { shape: 'ball' as const, radius: 0.45 } };
     });
-    if (this.physics.overlapsShapes(probes)) return this.blocked(robot, bay, 'something is in its hollow');
+    if (this.physics.overlapsShapes(probes)) {
+      this.clearHollow(robot, bay, probes);
+      return this.blocked(robot, bay, 'something is in its hollow');
+    }
+    this.clearing.delete(bay);
     const base = scopeBase(placed, bay.def);
     if (base === undefined) return this.blocked(robot, bay, 'it has no tag to name what it builds');
     const scope = `${base}${(bay.built ?? 0) + 1}`;
@@ -1146,6 +1156,37 @@ export class World {
     this.jamCache = undefined;
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'built', part: bay.id, recipe: recipe.name, scope });
+  }
+
+  /**
+   * Batch: a bay held up by pieces with no core (debris, a spent copy) pushes them out along its `acts` face once they
+   * have been in the way for a second, every tick until clear. A piece with a live core is left alone (it may be a copy
+   * leaving), and a bay whose only blocker is one of those never starts the clock.
+   */
+  private clearHollow(robot: Robot, bay: PartInstance, probes: readonly { x: number; y: number; shape: ShapeSpec }[]): void {
+    const bodies = this.physics.overlappingBodies(probes);
+    const loose: { part: PartInstance; mass: number }[] = [];
+    for (const other of this.robots) {
+      if (other === robot || this.controllers.has(other.id)) continue;
+      for (const g of other.groups) {
+        const part = other.parts.get(g.originId);
+        if (part && bodies.includes(g.bodyId)) loose.push({ part, mass: this.physics.massProperties(g.bodyId).mass });
+      }
+    }
+    if (loose.length === 0) {
+      this.clearing.delete(bay);
+      return;
+    }
+    const since = this.clearing.get(bay) ?? this.tickCount;
+    this.clearing.set(bay, since);
+    if (this.tickCount - since < bayClearAfterTicks(this.dt)) return;
+    const d = faceDir(rotateFace(bay.def.acts ?? 'N', bay.rot));
+    const s = this.physics.state(robot.groups[bay.group]?.bodyId ?? 0);
+    const c = Math.cos(s.angle);
+    const n = Math.sin(s.angle);
+    const nx = c * d.x - n * d.y;
+    const ny = n * d.x + c * d.y;
+    for (const l of loose) this.pendingPushes.push({ part: l.part, jx: nx * l.mass * BAY_CLEAR_SPEED, jy: ny * l.mass * BAY_CLEAR_SPEED });
   }
 
   /** A finished build that cannot be placed (M12): told once per wait, then tried again every tick. */
@@ -1911,6 +1952,16 @@ export class World {
       h.addF64(p.jx);
       h.addF64(p.jy);
       if (p.quiet) h.addInt(1);
+    }
+    // Batch: bays waiting on loose pieces. None adds nothing, so worlds without a blocked bay hash as before.
+    for (const robot of this.robots) {
+      for (const part of robot.parts.values()) {
+        const since = this.clearing.get(part);
+        if (since === undefined) continue;
+        h.addString('clearing');
+        h.addString(part.id);
+        h.addInt(since);
+      }
     }
     // Shells in flight (M13). None adds nothing, so worlds without guns hash as before.
     if (this.shells.length > 0) {

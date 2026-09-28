@@ -533,6 +533,31 @@ export class PhysicsWorld {
    * refreshes during a step, so it misses colliders created since (a robot just spawned, or a world that is paused).
    */
   overlapsShapes(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin = 0.02): boolean {
+    let hit = false;
+    this.scanOverlaps(shapes, margin, () => {
+      hit = true;
+      return true;
+    });
+    return hit;
+  }
+
+  /**
+   * Batch: the dynamic bodies any of the shapes overlaps, in the order Rapier lists their colliders (stable for a given
+   * world). Terrain is left out, so a caller sees which pieces (not the ground) are in the way.
+   */
+  overlappingBodies(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin = 0.02): BodyId[] {
+    const found: BodyId[] = [];
+    this.scanOverlaps(shapes, margin, (c) => {
+      const parent = c.parent();
+      const id = parent && parent.isDynamic() ? this.byHandle.get(parent.handle) : undefined;
+      if (id !== undefined && !found.includes(id)) found.push(id);
+      return false;
+    });
+    return found;
+  }
+
+  /** Calls `visit` on every collider that overlaps any shape, stopping once it returns true. */
+  private scanOverlaps(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin: number, visit: (c: RAPIER.Collider) => boolean): void {
     const shrink = (v: number): number => Math.max(0.001, v - margin);
     const probes = shapes.map((s) => ({
       pos: { x: s.x, y: s.y },
@@ -552,17 +577,16 @@ export class PhysicsWorld {
       maxX = Math.max(maxX, s.x + hx);
       maxY = Math.max(maxY, s.y + hy);
     }
-    let hit = false;
+    let done = false;
     this.world.forEachCollider((c) => {
-      if (hit) return;
+      if (done) return;
       const pos = c.translation();
       const type = c.shapeType();
       const reach = type === RAPIER.ShapeType.Ball ? c.radius() : type === RAPIER.ShapeType.Cuboid ? Math.hypot(c.halfExtents()?.x ?? Infinity, c.halfExtents()?.y ?? Infinity) : Infinity;
       if (pos.x + reach < minX || pos.x - reach > maxX || pos.y + reach < minY || pos.y - reach > maxY) return;
       const rot = c.rotation();
-      hit = probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0));
+      if (probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0))) done = visit(c);
     });
-    return hit;
   }
 
   /**
