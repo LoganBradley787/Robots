@@ -1,0 +1,253 @@
+{
+  "format": 1,
+  "name": "enemy-bomber",
+  "grid": [
+    "a  b  F  c  c  c  F  d  F  e  e  e  F  f  g",
+    "h  i  F  F  F  Z  Z  C  Z  Z  F  F  F  j  k",
+    "l  m  F  c  c  c  c  n  e  e  e  e  F  o  p",
+    ".  .  g1  .  g2  .  g3  .  g4  .  g5  .  g6  .  .",
+    ".  .  F  .  F  .  F  .  F  .  F  .  F  .  .",
+    ".  .  x1  .  x2  .  x3  .  x4  .  x5  .  x6  .  ."
+  ],
+  "legend": {
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "g1": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "grip1"
+      ],
+      "auto": false
+    },
+    "x1": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "bomb1"
+      ],
+      "auto": false
+    },
+    "g2": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "grip2"
+      ],
+      "auto": false
+    },
+    "x2": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "bomb2"
+      ],
+      "auto": false
+    },
+    "g3": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "grip3"
+      ],
+      "auto": false
+    },
+    "x3": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "bomb3"
+      ],
+      "auto": false
+    },
+    "g4": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "grip4"
+      ],
+      "auto": false
+    },
+    "x4": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "bomb4"
+      ],
+      "auto": false
+    },
+    "g5": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "grip5"
+      ],
+      "auto": false
+    },
+    "x5": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "bomb5"
+      ],
+      "auto": false
+    },
+    "g6": {
+      "part": "decoupler",
+      "rot": 180,
+      "tags": [
+        "grip6"
+      ],
+      "auto": false
+    },
+    "x6": {
+      "part": "heavywarhead",
+      "rot": 0,
+      "tags": [
+        "bomb6"
+      ],
+      "auto": false
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-bomber.pilot.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-bomber.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ]
+}
