@@ -584,6 +584,36 @@ function drawSolar(): Canvas {
 }
 
 /**
+ * Proximity mine (Batch): a squat olive-drab case with a ring of small feeler studs around a central sensor dome.
+ * Armed, the dome glows red; unarmed it is a dark socket.
+ */
+function drawMine(armed = false): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 0, 0, CELL, CELL, hex('#5c6440'), hex('#2f3520'), 3);
+  cv.fill(circle(32, 32, 26), hex('#2f3520'));
+  cv.fill(circle(32, 32, 24), hex('#71794f'));
+  cv.fill(diff(circle(32, 32, 24), circle(33, 33, 24)), WHITE, 0.25);
+  // Feeler studs around the rim.
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    const x = 32 + Math.cos(a) * 18;
+    const y = 32 + Math.sin(a) * 18;
+    cv.fill(circle(x, y, 3.6), hex('#1d1f23'));
+    cv.fill(circle(x - 0.6, y - 0.6, 2.2), hex('#a4a98a'));
+  }
+  cv.fill(circle(32, 32, 10), hex('#1d1f23'));
+  if (armed) {
+    cv.fill(circle(32, 32, 14), hex('#ff2a1a'), 0.3);
+    cv.fill(circle(32, 32, 8.5), hex('#ff3b2a'));
+    cv.fill(circle(29.5, 29.5, 2.6), WHITE, 0.8);
+  } else {
+    cv.fill(circle(32, 32, 8.5), hex('#3a1512'));
+  }
+  for (const [x, y] of [[8, 8], [56, 8], [8, 56], [56, 56]] as const) rivet(cv, x, y, 2.2);
+  return cv;
+}
+
+/**
  * Fabricator bay (M12): a U three cells wide and six tall, open at the top. Armored walls in dark steel with a
  * yellow and black band at the mouth, a lit strip down the inside of each wall, and a machine bed at the bottom.
  */
@@ -1019,6 +1049,8 @@ function main(): void {
     { name: 'part.solar', canvas: drawSolar() },
     { name: 'part.swivelthruster', canvas: drawSwivelThruster() },
     { name: 'part.fin', canvas: drawFin() },
+    { name: 'part.mine', canvas: drawMine() },
+    { name: 'part.mine.armed', canvas: drawMine(true) },
     { name: 'part.fabbay', canvas: drawFabBay() },
     { name: 'part.fabbay.floor', canvas: drawFabTile('floor') },
     { name: 'part.fabbay.corner', canvas: drawFabTile('corner') },

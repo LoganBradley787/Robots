@@ -65,6 +65,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | solar | 0.5 | 8 | S (its base) | | | Batch. A solar panel (see Solar panels): adds 6 J/s to its chunk's energy pool while its front face points up, scaled by the cosine of the angle to straight up. Legend `So` (rotation 0, facing up), no builder key. |
 | swivelthruster | 1.5 | 25 | N E W | throttle [0, 1], swivel [-1, 1] | | Batch. A booster (400 N, 60 energy per second) whose push tilts up to 15 degrees with `swivel` (see Swiveling thrusters). Legend `V^ Vv V< V>` (the way it pushes), no builder key. |
 | fin | 0.3 | 10 | N E S W | deflect [-1, 1] | | Batch. A fin (see Fins): a flat plate along its `acts` axis that pushes on the air, `-k (v . n) |v| n` at its cell with k = 0.36; `deflect` turns it up to 20 degrees to steer. No energy. Legend `L^ Lv L< L>` (the way the plate lies), no builder key. |
+| mine | 1.5 | 60 | N E S W | detonate (pulse), arm | armed | Batch. A proximity mine (see Proximity mines): armed, it goes off when a part of another team's robot comes within 3 m. The heavy warhead's blast (250 damage falling to 0 at 4 m). Shot or caught in a blast it breaks as a dud; takes a quarter of a shell's damage. Legend `Xm`, no builder key. |
 
 Health and blasts are tuned together (M6, `03`): a warhead does 120 at its center, falling to 0 at 3 m, so a lone frame breaks within 1.5 m, a battery within 2.25 m, a propeller within 2.6 m, and every part in the way halves it.
 
@@ -113,6 +114,13 @@ A part with `behavior: "fin"` and `behaviorConfig: { area, deflect }` is a fin (
 - **Stability:** fins behind the center of mass keep the nose into the wind. Measured: a 7.6 kg missile with a fin on each side of its tail at 130 m/s given a 20 m/s sideways speed turns its nose to the velocity (0.148 rad, the angle of the flight) in half a second and stays there, no oscillation.
 - **Steering:** `deflect` (-1 to 1) times the def's `deflect` (20 degrees) turns the plate counterclockwise. Two tail fins at full deflection swing that missile's nose about 23 degrees in half a second and the flight path follows: about a 0.5 rad/s turn at 130 m/s, not a snap. Positive deflect pushes a tail fin toward the left of the way the plate points (on a missile flying right with its fins along x: up), so the nose swings down (clockwise); negative is the other way. A script sets it with `set('fin', 'deflect', x)`; a binding sets it to a fixed value while a key is held.
 - **What it is not:** no lift at a fixed angle of attack beyond this formula, no stall, and no fin shadowing (fins do not block each other's air). It does not touch a body's own air drag, which stays per cell.
+
+### Proximity mines (Batch, as built)
+A def with `mine: { radius }` is a mine; it needs `arming`, `onDestroyed.explode`, and a `detonate` input (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `mine` (radius 3, the heavy warhead's blast, health 60, `shellDamage` 0.25, `behavior: "mine"`, no `impact` fuze).
+- **Goes off** in the damage phase, right after the physics step: an armed mine whose radius holds a cell of any part of a robot of another team is set to 0 health and marked `fired` (`PartInstance.fired`, lasts the tick, never hashed), so the destroy step gives it its blast and it is gone. A `detonate` pulse on an armed mine does the same (the `mine` behavior). The blast is the same `onDestroyed.explode` a warhead has.
+- **Whose:** the robot's team, the rule contacts use (M8). A burning flare counts as the robot it stands in for (M11); a robot nobody controls (debris, a wreck) does not set it off; its own robot and friends never do. Robots and parts are scanned in order, so the result is a function of the state.
+- **A dud when it is not set off:** a mine destroyed any other way (shot to pieces, caught in another blast) breaks without a blast: no chain reactions, and you cannot shoot it off a missile. The `partDestroyed` event says `exploded: false`. Unarmed it never goes off and ignores `detonate` (M10 arming).
+- Nothing new in the state hash: `armed` was already there, and the check is derived from positions.
 
 ### Decoys (M11, as built)
 A def with `decoy: { burn }` (seconds) is a decoy; it needs an `ignite` input and a `burning` output (the parser refuses one without). The engine reads the field; no part type is special-cased. Shipped: `flare`.
@@ -174,6 +182,7 @@ P   propeller lifting up                 Pv  lifting down
 D   decoupler releasing up               Dv  releasing down  D<  releasing left  D>  releasing right
 G   gyro
 So  solar panel, facing up (Batch)
+Xm  proximity mine
 R   rotator carrying up (mounts below)   Rv  carrying down   R<  carrying left   R>  carrying right
 ```
 

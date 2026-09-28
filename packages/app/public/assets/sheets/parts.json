@@ -560,6 +560,46 @@
         "h": 64
       }
     },
+    "part.mine": {
+      "frame": {
+        "x": 275,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.mine.armed": {
+      "frame": {
+        "x": 343,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
     "part.fabbay": {
       "frame": {
         "x": 3,
@@ -582,46 +622,6 @@
     },
     "part.fabbay.floor": {
       "frame": {
-        "x": 275,
-        "y": 275,
-        "w": 64,
-        "h": 64
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 64,
-        "h": 64
-      },
-      "sourceSize": {
-        "w": 64,
-        "h": 64
-      }
-    },
-    "part.fabbay.corner": {
-      "frame": {
-        "x": 343,
-        "y": 275,
-        "w": 64,
-        "h": 64
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 64,
-        "h": 64
-      },
-      "sourceSize": {
-        "w": 64,
-        "h": 64
-      }
-    },
-    "part.fabbay.wall": {
-      "frame": {
         "x": 3,
         "y": 343,
         "w": 64,
@@ -640,7 +640,7 @@
         "h": 64
       }
     },
-    "part.fabbay.mouth": {
+    "part.fabbay.corner": {
       "frame": {
         "x": 71,
         "y": 343,
@@ -660,9 +660,49 @@
         "h": 64
       }
     },
-    "part.fabbay.back": {
+    "part.fabbay.wall": {
       "frame": {
         "x": 139,
+        "y": 343,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.mouth": {
+      "frame": {
+        "x": 207,
+        "y": 343,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.back": {
+      "frame": {
+        "x": 275,
         "y": 343,
         "w": 64,
         "h": 64
