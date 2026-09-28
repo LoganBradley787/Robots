@@ -43,7 +43,7 @@ Updated: 2026-09-28, by an Opus 5.5 session, end of M13 (guns)
 - M13: shells do not hit each other and do not bounce.
 - M10: replays recorded before M10 do not replay exactly (their warheads were live from the start); `pnpm sim replay` says MISMATCH.
 - M12: a copy with no motor stays in a bay pointing up and blocks the next build (the push out is 4 N s).
-- M12: any piece that lands in an open bay's hollow (debris from a nearby blast) blocks it for the rest of the fight. Seen with the enemy bomb fab drone before its pilot stopped flying into its own drone bombs. Possible fix (Logan's call): a bay pushes loose pieces with no core out of its hollow, or a lid part.
+- M12: any piece that lands in an open bay's hollow (debris from a nearby blast) blocked it for the rest of the fight. Fixed in the big batch (bayclear): a bay pushes pieces with no core out after 1 s. A piece with a live core (a copy with no motor) is still left alone.
 - M12: `canPlace` probes each cell with 0.5 half extents (colliders are 0.49); unchanged, noted for multi-cell parts.
 - M11: flare racks stick out 2 cells a side and soak up side hits (a drone bomb homes on the nearest part it scans). Gate 10 question.
 - M11: a drone bomb (brakes at 7 m/s^2) overshoots a flare thrown toward it; flares against it work popped early, or with flying off.

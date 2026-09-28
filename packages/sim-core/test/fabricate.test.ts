@@ -115,18 +115,20 @@ describe('fabricator bay: building and letting go (M12)', () => {
     w.dispose();
   });
 
-  it('a finished item that never leaves blocks the next', async () => {
+  it('a finished item that never leaves blocks the next, until the bay pushes it out (Batch: after a second)', async () => {
     const w = await World.create({ seed: 1 }, flat);
-    // A frame has no motor: let go, it just sits in the hollow.
+    // A frame has no motor or core: let go, it just sits in the hollow.
     const r = w.spawnBlueprint(bayBot({ format: 1, name: 'lump', grid: ['F'] }), { x: -100, y: 0.5 });
     for (let t = 0; t < 60; t++) w.step();
     expect(events(w, 'built')).toHaveLength(1);
     w.step(tap(r.id, 'r'));
     w.step(lift(r.id, 'r'));
-    for (let t = 0; t < 300; t++) w.step();
+    for (let t = 0; t < 80; t++) w.step();
     expect(events(w, 'built')).toHaveLength(1);
     expect(w.partOutput(r.id, 'fabbay@0,1', 'progress')).toBe(1);
     expect(w.partOutput(r.id, 'fabbay@0,1', 'ready')).toBe(0);
+    for (let t = 0; t < 300; t++) w.step();
+    expect(events(w, 'built')).toHaveLength(2);
     w.dispose();
   });
 
