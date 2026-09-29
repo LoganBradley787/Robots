@@ -2,21 +2,21 @@
   "format": 1,
   "name": "missilenator-silo",
   "grid": [
-    ". . . . s s . . . . . . . . . s s . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    ". . . . A = . . . . . . . . . = A . . . .",
-    "e . . . A = . . . . . . . . . = A . . . i",
-    "f s s s A = q = = = = = = = = = A s s s h",
-    "A A A A A A A A A A A A A A A A A A A A A",
-    "A z z z z F F F F r C F F F F F z z z z A",
-    "A A A A A A A A A A A A A A A A A A A A A"
+    ". . . . s s . . . . . . . . . . s s . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . . = A . . . .",
+    "e . . . A = . . . . . . . . . . = A . . . i",
+    "f s s s A = q = = = = = = = = = = A s s s h",
+    "A A A A A A A A A A A A A A A A A A A A A A",
+    "A z z z z F F F F F r C F F F F F z z z z A",
+    "A A A A A A A A A A A A A A A A A A A A A A"
   ],
   "legend": {
     "A": {
@@ -40,7 +40,7 @@
       ],
       "makes": "missilenator",
       "size": [
-        9,
+        10,
         10
       ]
     },
@@ -256,7 +256,8 @@
             "gyroTorque": 1800,
             "fuse": 25,
             "turnLag": 2.5,
-            "dive": 35
+            "dive": 35,
+            "columnTime": 0.2
           },
           "source": {
             "file": "missilenator-silo.missilenator.guide.js"

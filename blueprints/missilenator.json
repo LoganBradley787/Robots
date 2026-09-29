@@ -158,7 +158,8 @@
         "gyroTorque": 1800,
         "fuse": 25,
         "turnLag": 2.5,
-        "dive": 35
+        "dive": 35,
+        "columnTime": 0.2
       },
       "source": {
         "file": "missilenator.guide.js"
