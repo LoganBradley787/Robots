@@ -121,6 +121,8 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
 - **Deploy against:** `hunter-drone` (wiped), `enemy-many-gun-drone` (killed), `enemy-gun-drone` (usually dies to the silo's roof turrets first).
 - **Watch for:** the booster columns steering (one side's flames dim as it turns); the crown's turrets shooting flares and missiles on the way in; all nine warheads going off at once.
 - **Known:** it cannot arc over the top (it overshoots), so it always flies straight; a wide drone hit on its side keeps its core out of the blast, so it wrecks by ramming through.
+- **First play (Logan):** silo against silo, the missilenators "fall short" and bounce off: measured, they hit the other silo's side about 8 m up, on heavy armor (250 health, and every cell in the way halves a blast), so the silo loses about 3 parts. Aiming at the middle of its parts did not change that; armor is its counter. Against drones it shakes too much for its guns (turrets now fire as the barrel sweeps across, `shake` 1 on its turrets only) and "does more damage from impact than from exploding" (true: its crown holds the target 3 m from warheads whose blast reaches 4). A swarm fab drone beats it: one missilenator every 41 s rams about two gun drones. Fab drones fighting the silo scraped along the ground in its gun range: pilots now hold 40 m over a ground target (the pop-out 25) and fab drones 270 m off (outside turret reach, 250).
+- **Bomber (Logan, first try):** against a hovering plain drone one of three bombs hit and knocked it aside, so the other two missed; against a heavy armored car all three struck.
 
 ## New parts and rules
 

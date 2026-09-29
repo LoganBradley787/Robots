@@ -155,7 +155,7 @@
         "file": "enemy-fab-drone.pilot.js"
       },
       "params": {
-        "standoff": 200,
+        "standoff": 270,
         "maxRange": 600,
         "above": 25
       }

@@ -46,6 +46,11 @@ const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the 
 const gunRange = param('gunRange', 150, { min: 0, max: 300 }); // m: the nose gun blasts at an enemy its sight shows this close
 const topSpeed = param('topSpeed', 1000, { min: 5, max: 1000 }); // m/s it holds once diving or straight in (1000: no limit)
 const minAlong = param('minAlong', 0.4, { min: 0, max: 1 }); // share of full push that always goes along its line
+const columnTime = param('columnTime', 0, { min: 0, max: 2 }); // s the booster columns take to stop a spin error (0: as the gyro)
+const columnRate = param('columnRate', 0, { min: 0, max: 60 }); // most a column's throttle changes a second (0: at once)
+const aimMiddle = param('aimMiddle', 0, { min: 0, max: 1 }); // 1: aims at the middle of the robot's parts, not its core
+const aimLift = param('aimLift', 0, { min: 0, max: 20 }); // m: and never lower than this over its lowest part, on the ground
+const aimGround = param('aimGround', 2, { min: 0, max: 20 }); // m: a robot whose lowest part is under this is on the ground
 const boosterPush = param('boosterPush', 400, { min: 1, max: 5000 }); // N, one booster's full push (the booster part)
 const SIGHT_ENEMY = 3; // a gun's sightSide when an enemy is on its line
 
@@ -173,6 +178,27 @@ function columns() {
   return Object.keys(by).map((tag) => ({ tag, turn: by[tag] }));
 }
 
+/**
+ * Where to aim at a robot: its core, or with `aimMiddle` the middle of its parts from a scan, never lower than `aimLift`
+ * over its lowest part when that is on the ground (Logan: against a silo whose core is buried at ground level it hit the ground short of it).
+ */
+function middleOf(c) {
+  if (aimMiddle < 0.5) return { x: c.pos.x, y: c.pos.y };
+  const list = scan(c.id);
+  if (!list || list.length === 0) return { x: c.pos.x, y: c.pos.y };
+  let sx = 0;
+  let sy = 0;
+  let low = Infinity;
+  for (const q of list) {
+    sx += q.pos.x;
+    sy += q.pos.y;
+    low = Math.min(low, q.pos.y);
+  }
+  // Only a robot standing on the ground (its lowest part under `aimGround` m) gets the lift: on a drone 3 m tall it aimed
+  // over the top.
+  return { x: sx / list.length, y: low < aimGround ? Math.max(sy / list.length, low + aimLift) : sy / list.length };
+}
+
 /** The most the columns can turn it either way at this throttle: one side eased off entirely. */
 function columnTorque(throttle) {
   let most = 0;
@@ -200,7 +226,7 @@ function tick() {
     state.armed = true;
   }
   if (seen) {
-    state.point = { x: seen.pos.x, y: seen.pos.y };
+    state.point = middleOf(seen);
     state.vel = { x: seen.vel.x, y: seen.vel.y };
     state.id = seen.id;
     state.seenAt = time;
@@ -303,7 +329,11 @@ function tick() {
   set('heavygyro', 'spin', spinCmd);
   // What the gyro cannot give (counterclockwise positive) comes from the booster columns: raise the ones that help
   // (if they have room), then ease off the ones that fight it.
-  const rest = clearing ? 0 : torque + spinCmd * gyroTorque;
+  // The columns work on a gentler turn than the gyro's (`columnTime` s to take out the spin error, not 3 ticks): all or
+  // nothing, they overcorrected and it shook (Logan: its guns could not hold a lock). Eased by `columnRate` a second.
+  const soft = columnTime > 0 ? (inertia * (spin - self.angVel)) / Math.max(columnTime, 3 * dt) : torque;
+  let rest = clearing ? 0 : soft + spinCmd * gyroTorque;
+  if (rest * soft < 0) rest = 0;
   const cols = columns();
   let help = 0;
   let fight = 0;
@@ -314,5 +344,12 @@ function tick() {
   const up = Math.abs(help) > 1e-6 ? clamp(rest / ((1 - throttle) * help || 1e-6), 0, 1) : 0;
   const left = rest - up * (1 - throttle) * help;
   const down = Math.abs(fight) > 1e-6 && throttle > 0 ? clamp(left / (-throttle * fight), 0, 1) : 0;
-  for (const c of cols) set(c.tag, 'throttle', c.turn * rest > 0 ? throttle + (1 - throttle) * up : throttle * (1 - down));
+  if (!state.cols) state.cols = {};
+  for (const c of cols) {
+    const want = c.turn * rest > 0 ? throttle + (1 - throttle) * up : throttle * (1 - down);
+    const was = state.cols[c.tag] === undefined ? want : state.cols[c.tag];
+    const now = columnRate > 0 ? was + clamp(want - was, -columnRate * dt, columnRate * dt) : want;
+    state.cols[c.tag] = now;
+    set(c.tag, 'throttle', now);
+  }
 }

@@ -162,7 +162,7 @@
         "jitter": 0,
         "minRange": 0,
         "maxRange": 1000,
-        "standoff": 200,
+        "standoff": 270,
         "above": 25
       }
     },

@@ -109,3 +109,7 @@ Out-of-scope ideas noticed during work. Not a backlog; a planning session promot
 - **Hidden guns:** guns kept rotated in, or behind a wall on a rotator that swings open to expose more guns once the other side's guns are gone ("the gun war"). Not now.
 - **Everything is close quarters:** radars see 500 m and guns reach 250 m, so once two robots see each other they are in gun range, and missiles cannot be launched from outside it. Options: shells spread a little (seeded) so guns are weak far out; longer range radars or missiles. Test the new drone designs first (Logan).
 - **Design over parts:** guns off the core's line, walls around a fab bay, many guns; `enemy-armored-gun-drone`, `enemy-fab-gun-drone`, `enemy-many-gun-drone` are the first tries.
+
+## From playing the missilenator (Logan, 2026-09-28)
+- **A fast gun drone out of a bay (later):** launched from a fab bay, flies fast, locks on and shoots from afar. Logan is still thinking on it: guns on the sides, the front, or everywhere; boosters instead of propellers, like a rocket, some on all four sides (fewer each) so it boosts to the target, then brakes and holds itself in gun range, with fast steering and sideways moves from the boosters; it zooms by and guns people down. Needs turrets that hit from a shaking platform (turret `shake`).
+- **The missilenator's warheads behind its crown:** the crown holds a target 3 m off, so the blast barely reaches; it wrecks by ramming. Warheads in front of the crown is Logan's call.

@@ -30,6 +30,8 @@ const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of its turni
 const speed = param('speed', 12, { min: 1, max: 40 }); // m/s, fastest it flies sideways to get somewhere
 const standoff = param('standoff', 50, { min: 5, max: 300 }); // m to the side of the robot it tracks
 const above = param('above', 12, { min: 0, max: 100 }); // m above it
+const groundTarget = param('groundTarget', 10, { min: 0, max: 100 }); // m: a target whose core is this low is on the ground
+const groundHeight = param('groundHeight', 40, { min: 0, max: 300 }); // m: over a target on the ground it never asks to be lower
 const ceiling = param('ceiling', 30, { min: 0, max: 500 }); // m above where it was deployed it never climbs past (two of these tracking each other would otherwise climb forever)
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots are missiles (dodged, not chased)
 const maxSpeed = param('maxSpeed', 30, { min: 1, max: 1000 }); // m/s: anything faster is a missile or a drone bomb (dodged, not chased; the artillery chased heavy drone bombs coming at it at 50 m/s and backed off the map)
@@ -241,10 +243,12 @@ function tick() {
     const room = target !== undefined && self.pos.y - target.pos.y > dodgeRoom;
     const options = [
       { vx: 0, vy: 0, dx: 0, dy: 0 },
-      { vx: 0, vy: dodgeSpeed, dx: 0, dy: vertical },
       { vx: -dodgeSpeed, vy: 0, dx: -across, dy: 0 },
       { vx: dodgeSpeed, vy: 0, dx: across, dy: 0 },
     ];
+    // Up only under its ceiling: each dodge up it came back down from slowly, so missiles arcing in from above kept
+    // lifting it (fab drones 270 m off hung at 100 m, twice their ceiling).
+    if (self.pos.y < state.home.y + ceiling) options.push({ vx: 0, vy: dodgeSpeed, dx: 0, dy: vertical });
     if (room) options.push({ vx: 0, vy: -dodgeSpeed, dx: 0, dy: -vertical });
     let best = options[0];
     let bestGap = -1;
@@ -298,6 +302,9 @@ function tick() {
     } else state.crossOver = undefined;
   } else state.crossOver = undefined;
 
+  // Over something on the ground (Logan: against silos they scraped along it, in reach of its guns for nothing): never
+  // lower than `groundHeight` m.
+  if (target && target.pos.y < groundTarget) goal = { x: goal.x, y: Math.max(goal.y, groundHeight) };
   goal = { x: goal.x, y: Math.max(goal.y, lowestOk()) };
 
   // Off the line (Logan): nothing it sees (friend, enemy, or wreckage) straight above or below it. Something above may

@@ -19,7 +19,7 @@
 //   points above the target by the drop, so it also holds fire while a friend the radar tracks is within `clear`
 //   meters of the path to the target, nearer than it (a friend just in front of the target sits under the sight line).
 //   On target means within `size` meters of the aim point (at least `tight` radians); once firing it keeps on out to
-//   twice that, so a barrel wobbling on the edge does not stutter.
+//   twice that, so a barrel wobbling on the edge does not stutter, plus `shake` ticks of its robot's own turn.
 // With `auto` at 0, G switches the turrets on and off (they start on); robots that fly themselves leave it at 1.
 const auto = param('auto', 1, { min: 0, max: 1 });
 const speed = param('speed', 300, { min: 1, max: 5000 }); // m/s, the gun's shell speed (the gun part)
@@ -36,6 +36,7 @@ const repick = param('repick', 0.3, { min: 0, max: 5 }); // s between choosing w
 const damage = param('damage', 5, { min: 0.1, max: 1000 }); // a shell's damage (the gun part)
 const size = param('size', 1, { min: 0.1, max: 10 }); // m off the aim point that still counts as on target
 const tight = param('tight', 0.012, { min: 0.001, max: 0.5 }); // radians: on target at the least this close
+const shake = param('shake', 0, { min: 0, max: 5 }); // ticks of its robot's turn added to the on-target window (the missilenator 1; the walker hit less with it)
 // What breaking each kind of part is worth: disarm it, blow it up, kill or blind it, then ground it.
 // Share of a shell's damage each kind of part takes (the parts' `shellDamage`: frames are armor against guns).
 const SHELL = { frame: 0.25 };
@@ -207,7 +208,9 @@ function aimTurret(name) {
   const err = wrap(want - aim);
   set(name + '.rot', 'turn', clamp(moving / rate + gain * err / rate, -1, 1));
   // On target: within `size` meters of the aim point (or `tight` radians); firing already, twice that.
-  const within = Math.max(tight, Math.atan2(size, l.distance)) * (st.firing ? 2 : 1);
+  // On something turning (Logan: the missilenator shook too much to fire), the barrel swings by its robot's turn each
+  // tick: that much wider, so a barrel sweeping across the aim point fires as it passes.
+  const within = Math.max(tight, Math.atan2(size, l.distance)) * (st.firing ? 2 : 1) + shake * Math.abs(self.angVel) * dt;
   const on = Math.abs(err) < within;
   const side = gun.out.sightSide;
   // Something of ours in the way: its own robot, a friend, or the ground, nearer than the target.

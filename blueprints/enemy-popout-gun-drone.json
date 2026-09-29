@@ -300,7 +300,8 @@
         "above": 5,
         "settle": 0,
         "jitter": 0,
-        "climb": 6
+        "climb": 6,
+        "groundHeight": 25
       }
     },
     {

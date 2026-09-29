@@ -167,7 +167,8 @@
     {
       "id": "turrets",
       "params": {
-        "auto": 1
+        "auto": 1,
+        "shake": 1
       },
       "source": {
         "file": "missilenator.turrets.js"
