@@ -29,20 +29,20 @@ async function pass(charge: unknown, opts: { team?: number; gapY?: number }): Pr
 }
 
 describe('distance charge (Batch)', () => {
-  it('the def: health 60, a quarter of a shell, the heavy warhead blast, no impact fuze, radius 3', () => {
+  it('the def: health 60, a quarter of a shell, the heavy warhead blast, no impact fuze, radius 1.5 (Logan: at 3 m the nearest part took a quarter of a hit)', () => {
     const d = defaultRegistry().get('charge');
-    expect(d).toMatchObject({ health: 60, shellDamage: 0.25, arming: true, charge: { radius: 3 } });
+    expect(d).toMatchObject({ health: 60, shellDamage: 0.25, arming: true, charge: { radius: 1.5 } });
     expect(d.onDestroyed?.explode).toMatchObject({ radius: 4, damage: 250 });
     expect(d.impact).toBeUndefined();
   });
 
-  it('armed, it goes off when an enemy drives within 3 m: one blast, at the radius, and the charge is gone', async () => {
+  it('armed, it goes off when an enemy drives within 1.5 m: one blast, at the radius, and the charge is gone', async () => {
     const w = await pass(CHARGE, {});
     expect(kinds(w, 'explosion')).toHaveLength(1);
     const gone = chargeDestroyed(w);
     expect(gone).toHaveLength(1);
     expect(gone[0]).toMatchObject({ exploded: true });
-    // The car's frame leads its core by 1 m and starts 19 m out at 10 m/s: 3 m out is about 1.6 s (tick 96), well before 3 s.
+    // The car's frame leads its core by 1 m and starts 19 m out at 10 m/s: 1.5 m out is about 1.75 s (tick 105), well before 3 s.
     expect((gone[0] as { tick: number }).tick).toBeLessThan(120);
     expect((gone[0] as { tick: number }).tick).toBeGreaterThan(40);
     w.dispose();
@@ -71,7 +71,8 @@ describe('distance charge (Batch)', () => {
 
   it('arming it (the arm input) lets it go off on the next enemy that comes near', async () => {
     const w = await World.create({ seed: 1, gravityY: 0 }, space);
-    const bp = { format: 1, name: 'charge', grid: ['C  Xd'], legend: UNARMED, bindings: [{ key: 'a', mode: 'pulse', target: 'charge', channel: 'arm', value: 1 }] };
+    // The charge on the side the car comes from: behind the core it would never get within 1.5 m of it.
+    const bp = { format: 1, name: 'charge', grid: ['Xd C'], legend: UNARMED, bindings: [{ key: 'a', mode: 'pulse', target: 'charge', channel: 'arm', value: 1 }] };
     const m = w.spawnBlueprint(bp, { x: 0, y: 130 });
     const car = w.spawnBlueprint(CAR, { x: -20, y: 130 }, { team: 1 });
     w.physics.kick(car.groups[0]?.bodyId as number, 10, 0, 0);
@@ -133,7 +134,7 @@ describe('distance charge (Batch)', () => {
 
   it('a "charge" block needs arming, an explosion, and a positive radius', () => {
     const raw = JSON.parse(JSON.stringify(defaultRegistry().get('charge'))) as Record<string, unknown>;
-    expect(parsePartDef(raw, 'm.json').charge).toEqual({ radius: 3 });
+    expect(parsePartDef(raw, 'm.json').charge).toEqual({ radius: 1.5 });
     expect(() => parsePartDef({ ...raw, arming: undefined }, 'm.json')).toThrow('charge');
     expect(() => parsePartDef({ ...raw, onDestroyed: undefined }, 'm.json')).toThrow('charge');
     expect(() => parsePartDef({ ...raw, charge: { radius: 0 } }, 'm.json')).toThrow();

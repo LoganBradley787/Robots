@@ -16,6 +16,6 @@
   "behavior": "charge",
   "onDestroyed": { "explode": { "radius": 4, "damage": 250, "pushRadius": 6, "push": 50, "lift": 1.5 } },
   "arming": true,
-  "charge": { "radius": 3 },
+  "charge": { "radius": 1.5 },
   "sprite": { "frame": "part.charge", "armedFrame": "part.charge.armed" }
 }

@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "gun-missile",
+  "grid": [
+    ".  M^",
+    "S^ H",
+    ".  C",
+    ".  g",
+    ".  K"
+  ],
+  "legend": {
+    "g": {
+      "part": "heavygyro",
+      "auto": false
+    },
+    "K": {
+      "part": "booster",
+      "rot": 0,
+      "auto": false
+    }
+  },
+  "bindings": [
+    {
+      "key": "f",
+      "mode": "toggle",
+      "target": "booster",
+      "channel": "throttle",
+      "value": 1
+    },
+    {
+      "key": "x",
+      "mode": "pulse",
+      "target": "heavywarhead",
+      "channel": "detonate",
+      "value": 1
+    },
+    {
+      "key": "g",
+      "mode": "script",
+      "script": "guide"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "guide",
+      "params": {
+        "arc": 1,
+        "height": 60,
+        "arcSpeed": 50,
+        "clear": 0.4,
+        "clearDist": 15,
+        "thrust": 400,
+        "gyroTorque": 200
+      },
+      "source": {
+        "file": "gun-missile.guide.js"
+      }
+    }
+  ]
+}

@@ -54,7 +54,7 @@ describe('parts', () => {
     expect(text('swivelthruster')).toContain('swivel 15 deg');
     expect(text('fin')).toMatch(/plate along its N axis/);
     expect(text('fin')).toMatch(/up to 20 degrees/);
-    expect(text('charge')).toMatch(/goes off .* when any part of a robot of another team comes within 3 m/);
+    expect(text('charge')).toMatch(/goes off .* when any part of a robot of another team comes within 1.5 m/);
     expect(text('charge')).toMatch(/destroyed any other way .* it breaks as a dud/);
     expect(text('radio')).toMatch(/shares what its robot's own sensors see with every robot of its team that has a working radio within 1500 m/);
     expect(text('jammer')).toMatch(/jams for 5 s and is then spent and gone; while it jams, within 30 m of the pod a sensor sees nothing/);

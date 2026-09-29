@@ -17,7 +17,10 @@
 //   command; a positive swivel turns it clockwise, as a positive gyro spin does).
 // - A distance charge is armed and set off like a warhead.
 // - A gun in its nose blasts once armed, while its sight shows an enemy within `gunRange` meters.
-// - Fins are left straight: they only keep it pointing along its path.
+// - Fins behind the middle act as a weathervane: straight, they push its nose back onto its path (at 50 m/s and 10
+//   degrees off, harder than the heavy gyro can turn it; Logan: "it cannot steer well at all"). So it angles them to
+//   line up with the air when the nose points where it wants to go: they stop fighting the turn and hold it there.
+//   A fin turns `finDeflect` degrees at most, so past that off its path they still push back, less.
 
 const fuse = param('fuse', 12, { min: 0.5, max: 30 }); // seconds of flight before it detonates
 const thrust = param('thrust', 160, { min: 10, max: 1000 }); // N, the motor's full push (thruster 160, booster 400)
@@ -44,6 +47,7 @@ const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a trac
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
 const gunRange = param('gunRange', 150, { min: 0, max: 300 }); // m: the nose gun blasts at an enemy its sight shows this close
 const swivelShare = param('swivelShare', 1, { min: 0, max: 1 }); // share of the gyro's turn command the thruster swivels by
+const finDeflect = param('finDeflect', 20, { min: 1, max: 90 }); // degrees, the fin part's most deflection
 const SIGHT_ENEMY = 3; // a gun's sightSide when an enemy is on its line
 
 function wrap(a) {
@@ -270,4 +274,9 @@ function tick() {
   set('heavygyro', 'spin', spinCmd);
   // The swivel turns the same way as the gyro; held straight while clearing the launcher.
   set('swivelthruster', 'swivel', clearing ? 0 : swivelShare * spinCmd);
+  // Fins: a fin lies along the air when the body is turned its deflection clockwise of the path (deflect is
+  // counterclockwise positive), so to hold the nose at `want` it deflects by the path's angle less `want`.
+  const speed = Math.hypot(self.vel.x, self.vel.y);
+  const path = speed > 1 ? Math.atan2(self.vel.y, self.vel.x) : nose();
+  set('fin', 'deflect', clamp(wrap(path - want) / (finDeflect * Math.PI / 180), -1, 1));
 }

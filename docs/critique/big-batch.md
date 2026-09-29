@@ -110,6 +110,8 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
   - the missiles blasting on the way in (Debug shows each gun's sight line);
   - whether the swivel makes the turn over the top tighter than a plain missile's;
   - the armor taking gun hits around the bay.
+- **First play (Logan):** it can blast flares out of the sky; it could not steer; the charge did little ("is it less damaging than a regular warhead?"). Fixed: the guide now angles its fins with the turn (they fought the gyro), and the charge's fuze is 1.5 m, not 3 (at 3 m the nearest part took a quarter of a hit). Built `gun-missile` to compare (below).
+- **Gun missile** (`gun-missile-fab-drone`, `enemy-gun-missile-fab-drone`): a plain missile with a gun on its nose, same airframe. Better against guns and still targets, worse against a dodging drone. Try the two against each other.
 
 ## New parts and rules
 
