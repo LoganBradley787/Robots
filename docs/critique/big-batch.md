@@ -100,6 +100,17 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
   - It may be too strong. Nothing on it shoots back at close range, so a gun drone inside 20 m is only answered by copies already in the air.
   - Solar covers about a fifth of what the bays draw; the batteries do the rest (about 100 s of full production).
 
+### 8. Tech fab drone: `tech-fab-drone` (yours) and `enemy-tech-fab-drone` (built after the batch)
+- **What it is:** a fab drone with a 3 by 5 bay, heavy armor plates up both sides of it, and solar panels on top (97 kg). Its bay builds a `tech-missile`: a gun in the nose, a distance charge, fins, a heavy gyro and a swiveling thruster.
+- **Shows:** fins, the swiveling thruster, the distance charge, heavy armor and solar together; a gun on a missile.
+- **Your version:** hold F to fire each missile as it is built (every 5.7 s), H hover, V flares.
+- **Enemy version:** deploy it flipped. Holds 200 m off and fires from 600 m.
+- **Deploy against:** `enemy-gun-drone` (beaten in about 45 s), `enemy-fab-drone` (beaten), a hovering `hunter-drone` (its missiles stripped, core left), `enemy-many-gun-drone` (it loses).
+- **Watch for:**
+  - the missiles blasting on the way in (Debug shows each gun's sight line);
+  - whether the swivel makes the turn over the top tighter than a plain missile's;
+  - the armor taking gun hits around the bay.
+
 ## New parts and rules
 
 All new parts are palette only (no builder key). Every part has health, a build time and crash damage.
@@ -140,7 +151,6 @@ The run report (`pnpm sim run`) now also prints grapples hooking and letting go,
 
 ## Dropped
 
-- **Tech missile drone** (fins, swiveling thruster and a charge on its missiles, plus armor and solar). Its agent committed nothing. The integration session started one (a missile of seeker, charge, core, fin, heavy gyro and swiveling thruster on a hunter drone airframe) and was stopped before it ran. So fins, the swiveling thruster and the charge are covered by unit tests only. This is the robot you described, so it is the first thing to build next.
 - **Grapple drone turrets and a drag-down mode:** turrets dropped because of the rope problem above; it only carries up and lets go.
 - **Walker hip joints:** dropped, rails instead.
 

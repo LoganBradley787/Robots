@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "tech-missile",
+  "grid": [
+    ".  M^ .",
+    ".  Xd S^",
+    ".  C  .",
+    "L^ g  L^",
+    ".  V^ ."
+  ],
+  "legend": {
+    "g": { "part": "heavygyro", "auto": false },
+    "V^": { "part": "swivelthruster", "rot": 0, "auto": false }
+  },
+  "bindings": [
+    { "key": "f", "mode": "toggle", "target": "swivelthruster", "channel": "throttle", "value": 1 },
+    { "key": "x", "mode": "pulse", "target": "charge", "channel": "detonate", "value": 1 },
+    { "key": "g", "mode": "script", "script": "guide" }
+  ],
+  "scripts": [
+    {
+      "id": "guide",
+      "params": { "arc": 1, "height": 60, "arcSpeed": 50, "clear": 0.4, "clearDist": 15, "thrust": 400, "gyroTorque": 200 },
+      "source": { "file": "tech-missile.guide.js" }
+    }
+  ]
+}

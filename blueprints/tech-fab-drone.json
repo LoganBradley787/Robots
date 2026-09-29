@@ -1,0 +1,255 @@
+{
+  "format": 1,
+  "name": "tech-fab-drone",
+  "grid": [
+    ". . . . . s . . . s . . . . .",
+    ". . . . . = . . . = . . . . .",
+    ". . . . . = . . . = . . . . .",
+    ". . . . s = . . . = s . . . .",
+    ". . . . A = . . . = A . . . .",
+    ". . . . A = . . . = A . . . .",
+    ". . s . A = q = = = A . s . .",
+    "a b F c c c F d F e e e F f g",
+    "h i F F F Z Z C Z Z F F F j k",
+    "l m F c c c c n e e e e F o p"
+  ],
+  "legend": {
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "q": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "bay"
+      ],
+      "makes": "tech-missile",
+      "size": [
+        3,
+        5
+      ]
+    },
+    "s": {
+      "part": "solar",
+      "rot": 0
+    },
+    "A": {
+      "part": "armorplate"
+    }
+  },
+  "bindings": [
+    {
+      "key": "h",
+      "mode": "script",
+      "script": "hover"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "hover",
+      "params": {
+        "lean": 60
+      },
+      "source": {
+        "file": "tech-fab-drone.hover.js"
+      }
+    },
+    {
+      "id": "fire",
+      "source": {
+        "file": "tech-fab-drone.fire.js"
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "tech-fab-drone.flares.js"
+      }
+    }
+  ],
+  "recipes": {
+    "tech-missile": {
+      "format": 1,
+      "name": "tech-missile",
+      "grid": [
+        ".  M^ .",
+        ".  Xd S^",
+        ".  C  .",
+        "L^ g  L^",
+        ".  V^ ."
+      ],
+      "legend": {
+        "g": {
+          "part": "heavygyro",
+          "auto": false
+        },
+        "V^": {
+          "part": "swivelthruster",
+          "rot": 0,
+          "auto": false
+        }
+      },
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "swivelthruster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "charge",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 1,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.4,
+            "clearDist": 15,
+            "thrust": 400,
+            "gyroTorque": 200
+          },
+          "source": {
+            "file": "tech-fab-drone.tech-missile.guide.js"
+          }
+        }
+      ]
+    }
+  }
+}
