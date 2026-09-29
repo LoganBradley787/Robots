@@ -253,11 +253,12 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     def.solar = { power: r.positive(so, 'power', 'solar') };
   }
   if (o.charge !== undefined) {
-    const m = r.obj(o.charge, 'charge', ['radius']);
+    const m = r.obj(o.charge, 'charge', ['radius', 'crash']);
     if (def.arming !== true) r.fail('charge', 'a charge needs arming (an "arm" input, an "armed" output, and "arming": true)');
     if (def.onDestroyed?.explode === undefined) r.fail('charge', 'a charge needs "onDestroyed.explode" (the blast it goes off with)');
     if (!def.inputs.some((c) => c.name === 'detonate')) r.fail('charge', 'a charge must have a "detonate" input');
     def.charge = { radius: r.positive(m, 'radius', 'charge') };
+    if (m.crash !== undefined) def.charge.crash = r.positive(m, 'crash', 'charge');
   }
   if (o.smoke !== undefined) {
     const sm = r.obj(o.smoke, 'smoke', ['radius', 'seconds']);

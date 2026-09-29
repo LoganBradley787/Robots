@@ -132,9 +132,26 @@ describe('distance charge (Batch)', () => {
     w.dispose();
   });
 
+  it('armed, a hard hit sets it off (a ram, over 10 m/s); a soft one does not, and unarmed nothing does (Logan: rammed missiles broke their charge as a dud)', async () => {
+    // Dropped onto the ground: from 12 m it lands at about 15 m/s, from 2 m at about 6 m/s. The ground is no enemy, so
+    // only the crash fuze can set it off.
+    const drop = async (legend: Record<string, unknown>, height: number): Promise<{ blasts: number; fired: boolean }> => {
+      const w = await World.create({ seed: 1 }, flat);
+      w.spawnBlueprint({ format: 1, name: 'charge', grid: ['Xd C'], legend }, { x: -100, y: height });
+      for (let i = 0; i < 180; i++) w.step();
+      const out = { blasts: kinds(w, 'explosion').length, fired: chargeDestroyed(w).some((e) => (e as { exploded?: boolean }).exploded === true) };
+      w.dispose();
+      return out;
+    };
+    expect(await drop(ARMED, 12)).toEqual({ blasts: 1, fired: true });
+    expect(await drop(ARMED, 2)).toEqual({ blasts: 0, fired: false });
+    expect(await drop(UNARMED, 12)).toEqual({ blasts: 0, fired: false });
+  });
+
   it('a "charge" block needs arming, an explosion, and a positive radius', () => {
     const raw = JSON.parse(JSON.stringify(defaultRegistry().get('charge'))) as Record<string, unknown>;
-    expect(parsePartDef(raw, 'm.json').charge).toEqual({ radius: 1.5 });
+    expect(parsePartDef(raw, 'm.json').charge).toEqual({ radius: 1.5, crash: 10 });
+    expect(() => parsePartDef({ ...raw, charge: { radius: 1.5, crash: 0 } }, 'm.json')).toThrow();
     expect(() => parsePartDef({ ...raw, arming: undefined }, 'm.json')).toThrow('charge');
     expect(() => parsePartDef({ ...raw, onDestroyed: undefined }, 'm.json')).toThrow('charge');
     expect(() => parsePartDef({ ...raw, charge: { radius: 0 } }, 'm.json')).toThrow();

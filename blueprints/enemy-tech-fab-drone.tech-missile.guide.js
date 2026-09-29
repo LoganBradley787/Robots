@@ -13,14 +13,16 @@
 //   the nose as fast as it can and still stop.
 // Parts are found by type, so it works however the missile was placed on its launcher.
 // Tech missile additions (the seeker guide plus):
-// - A swiveling thruster pushes like a booster and also swivels to help the gyro turn (`swivelShare` of the gyro's
-//   command; a positive swivel turns it clockwise, as a positive gyro spin does).
+// - A swiveling thruster pushes like a booster and also swivels to give the turn what the gyro cannot (a positive
+//   swivel turns it clockwise). Given the gyro's whole command as well, it doubled the turn the guide planned on and
+//   the missile swung back and forth 2 to 4 times a second (Logan: "a very wiggly path"); a plain missile, once.
 // - A distance charge is armed and set off like a warhead.
 // - A gun in its nose blasts once armed, while its sight shows an enemy within `gunRange` meters.
 // - Fins behind the middle act as a weathervane: straight, they push its nose back onto its path (at 50 m/s and 10
-//   degrees off, harder than the heavy gyro can turn it; Logan: "it cannot steer well at all"). So it angles them to
-//   line up with the air when the nose points where it wants to go: they stop fighting the turn and hold it there.
-//   A fin turns `finDeflect` degrees at most, so past that off its path they still push back, less.
+//   degrees off, harder than the heavy gyro can turn it; Logan: "it cannot steer well at all"). Held along the air
+//   they push nothing, so it angles them off that by just what the turn needs beyond the gyro: the torque a fin
+//   gives per radian off the air is 0.6 * area * speed^2 times its arm behind the center of mass. Angled toward the
+//   wanted heading instead, they sprang it back and forth (Logan: "constantly overcorrecting... a very wiggly path").
 
 const fuse = param('fuse', 12, { min: 0.5, max: 30 }); // seconds of flight before it detonates
 const thrust = param('thrust', 160, { min: 10, max: 1000 }); // N, the motor's full push (thruster 160, booster 400)
@@ -46,8 +48,9 @@ const passMass = param('passMass', 25, { min: 0, max: 1000 }); // kg: friendly r
 const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
 const gunRange = param('gunRange', 150, { min: 0, max: 300 }); // m: the nose gun blasts at an enemy its sight shows this close
-const swivelShare = param('swivelShare', 1, { min: 0, max: 1 }); // share of the gyro's turn command the thruster swivels by
+const swivelAngle = param('swivelAngle', 15, { min: 1, max: 90 }); // degrees, the swiveling thruster's most swivel
 const finDeflect = param('finDeflect', 20, { min: 1, max: 90 }); // degrees, the fin part's most deflection
+const finArea = param('finArea', 0.6, { min: 0.01, max: 10 }); // m^2, the fin part's area
 const SIGHT_ENEMY = 3; // a gun's sightSide when an enemy is on its line
 
 function wrap(a) {
@@ -272,11 +275,33 @@ function tick() {
   const spinCmd = clamp(-torque / gyroTorque, -1, 1); // a gyro's spin is clockwise positive
   set('gyro', 'spin', spinCmd);
   set('heavygyro', 'spin', spinCmd);
-  // The swivel turns the same way as the gyro; held straight while clearing the launcher.
-  set('swivelthruster', 'swivel', clearing ? 0 : swivelShare * spinCmd);
-  // Fins: a fin lies along the air when the body is turned its deflection clockwise of the path (deflect is
-  // counterclockwise positive), so to hold the nose at `want` it deflects by the path's angle less `want`.
+  // What the gyro cannot give (counterclockwise positive) goes to the swivel, then what is left to the fins, each
+  // from how much torque it gives per unit of its input. Held straight while clearing the launcher.
   const speed = Math.hypot(self.vel.x, self.vel.y);
-  const path = speed > 1 ? Math.atan2(self.vel.y, self.vel.x) : nose();
-  set('fin', 'deflect', clamp(wrap(path - want) / (finDeflect * Math.PI / 180), -1, 1));
+  const heading = nose();
+  const path = speed > 1 ? Math.atan2(self.vel.y, self.vel.x) : heading;
+  let cx = 0;
+  let cy = 0;
+  let m = 0;
+  for (const p of parts) {
+    m += p.mass;
+    cx += p.mass * p.pos.x;
+    cy += p.mass * p.pos.y;
+  }
+  // How far a part sits behind the center of mass, along the nose.
+  const behind = (p) => (m > 0 ? (cx / m - p.pos.x) * Math.cos(heading) + (cy / m - p.pos.y) * Math.sin(heading) : 0);
+  let rest = clearing ? 0 : torque + spinCmd * gyroTorque;
+  // A swivel of 1 tilts the push `swivelAngle` degrees and turns the missile clockwise: -push * sin * arm counterclockwise.
+  let swivelGain = 0;
+  for (const p of parts) if (p.type === 'swivelthruster') swivelGain += thrust * throttle * Math.sin((swivelAngle * Math.PI) / 180) * behind(p);
+  const swivel = swivelGain > 1 ? clamp(-rest / swivelGain, -1, 1) : 0;
+  set('swivelthruster', 'swivel', swivel);
+  rest += swivel * swivelGain;
+  // Fins: a fin's plate is turned `deflect` counterclockwise from the body's axis, so it lies along the air at
+  // deflect = path - nose; turned u radians less than that, the fins behind the center of mass give k * u
+  // counterclockwise, k = 0.6 * area * speed^2 * arm each.
+  let k = 0;
+  for (const p of parts) if (p.type === 'fin') k += 0.6 * finArea * speed * speed * behind(p);
+  const u = Math.abs(k) < 1 ? 0 : rest / k;
+  set('fin', 'deflect', clamp((wrap(path - heading) - u) / ((finDeflect * Math.PI) / 180), -1, 1));
 }

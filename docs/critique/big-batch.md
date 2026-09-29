@@ -111,6 +111,7 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
   - whether the swivel makes the turn over the top tighter than a plain missile's;
   - the armor taking gun hits around the bay.
 - **First play (Logan):** it can blast flares out of the sky; it could not steer; the charge did little ("is it less damaging than a regular warhead?"). Fixed: the guide now angles its fins with the turn (they fought the gyro), and the charge's fuze is 1.5 m, not 3 (at 3 m the nearest part took a quarter of a hit). Built `gun-missile` to compare (below).
+- **Second play (Logan):** head to head the gun missile won ("total annihilation"); the tech missiles "just bonk" and wiggle. Found: half the charges broke as duds when the missile rammed (the crash broke the charge before anything was within 1.5 m); fixed with a crash fuze on the charge (an armed charge goes off on a hit over 10 m/s, a shell never knocks that hard). The wiggle was mostly the swivel: given the gyro's whole command it doubled the turn, so the missile swung 2 to 4 times a second; now the gyro turns first, the swivel gives only what it cannot, the fins only what is left (about once a second, as a plain missile). Head to head the gun missile still wins 3 of 4 seeds headless.
 - **Gun missile** (`gun-missile-fab-drone`, `enemy-gun-missile-fab-drone`): a plain missile with a gun on its nose, same airframe. Better against guns and still targets, worse against a dodging drone. Try the two against each other.
 
 ## New parts and rules

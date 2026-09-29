@@ -700,6 +700,12 @@ export class World {
         if (!hit) continue;
         // A part that needs arming has its fuze off until it is armed (M10).
         if (part.def.impact && part.armed !== false && hit.dv > part.def.impact.speed) part.health = 0;
+        // An armed charge with a crash fuze goes off on a hard hit (a ram), before crash damage could break it as a dud.
+        const crash = part.def.charge?.crash;
+        if (crash !== undefined && part.armed === true && part.fired !== true && part.health > 0 && hit.dv > crash) {
+          part.fired = true;
+          part.health = 0;
+        }
         const fraction = crashFraction(hit.dv, part.def.crash);
         if (fraction > 0 && part.health > 0) {
           const spread = spreadOf(part.group, hit);

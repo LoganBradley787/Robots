@@ -187,9 +187,12 @@ export interface SolarSpec {
  * A distance charge (Batch): once armed it goes off (its `onDestroyed.explode` blast, then it is gone) when any part of
  * a robot of another team comes within `radius` meters of it, or on a `detonate` pulse. Destroyed any other way (shot,
  * caught in a blast) it breaks without a blast. Needs `arming`, `onDestroyed.explode`, and a `detonate` input.
+ * With `crash`, an armed charge also goes off when its body takes a hit over `crash` m/s (Logan: a tech missile that
+ * rammed its target broke its charge as a dud, "they just bonk"); a shell never knocks a body that hard.
  */
 export interface ChargeSpec {
   radius: number;
+  crash?: number;
 }
 
 /**
