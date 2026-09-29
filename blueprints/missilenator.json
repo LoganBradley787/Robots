@@ -1,0 +1,177 @@
+{
+  "format": 1,
+  "name": "missilenator",
+  "grid": [
+    "a . b . c . d . e",
+    "f . h . i . j . k",
+    "F F F F r F F F F",
+    ". . F H H H F . .",
+    ". . F H H H F . .",
+    ". . F H H H F . .",
+    ". . g L C Q g . .",
+    ". . g L z Q g . .",
+    ". . g L g Q g . .",
+    ". . g L K Q g . ."
+  ],
+  "legend": {
+    "L": {
+      "part": "booster",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "bl"
+      ]
+    },
+    "K": {
+      "part": "booster",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "bc"
+      ]
+    },
+    "Q": {
+      "part": "booster",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "br"
+      ]
+    },
+    "g": {
+      "part": "heavygyro",
+      "auto": false
+    },
+    "z": {
+      "part": "densebattery"
+    },
+    "r": {
+      "part": "radar"
+    },
+    "a": {
+      "part": "gun",
+      "rot": 0,
+      "tags": [
+        "t1.gun"
+      ]
+    },
+    "f": {
+      "part": "rotator",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "t1.rot"
+      ]
+    },
+    "b": {
+      "part": "gun",
+      "rot": 0,
+      "tags": [
+        "t2.gun"
+      ]
+    },
+    "h": {
+      "part": "rotator",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "t2.rot"
+      ]
+    },
+    "c": {
+      "part": "gun",
+      "rot": 0,
+      "tags": [
+        "t3.gun"
+      ]
+    },
+    "i": {
+      "part": "rotator",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "t3.rot"
+      ]
+    },
+    "d": {
+      "part": "gun",
+      "rot": 0,
+      "tags": [
+        "t4.gun"
+      ]
+    },
+    "j": {
+      "part": "rotator",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "t4.rot"
+      ]
+    },
+    "e": {
+      "part": "gun",
+      "rot": 0,
+      "tags": [
+        "t5.gun"
+      ]
+    },
+    "k": {
+      "part": "rotator",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "t5.rot"
+      ]
+    }
+  },
+  "bindings": [
+    {
+      "key": "f",
+      "mode": "toggle",
+      "target": "booster",
+      "channel": "throttle",
+      "value": 1
+    },
+    {
+      "key": "x",
+      "mode": "pulse",
+      "target": "heavywarhead",
+      "channel": "detonate",
+      "value": 1
+    },
+    {
+      "key": "g",
+      "mode": "script",
+      "script": "guide"
+    }
+  ],
+  "scripts": [
+    {
+      "id": "guide",
+      "params": {
+        "arc": 0,
+        "height": 60,
+        "arcSpeed": 50,
+        "clear": 0.6,
+        "clearDist": 30,
+        "thrust": 3600,
+        "gyroTorque": 1800,
+        "fuse": 25,
+        "turnLag": 2.5,
+        "dive": 35
+      },
+      "source": {
+        "file": "missilenator.guide.js"
+      }
+    },
+    {
+      "id": "turrets",
+      "params": {
+        "auto": 1
+      },
+      "source": {
+        "file": "missilenator.turrets.js"
+      }
+    }
+  ]
+}
