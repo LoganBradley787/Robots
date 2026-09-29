@@ -275,7 +275,7 @@ describe('stretchy bays (M12, Logan: sized where placed)', () => {
     const codes = (raw: unknown): string[] => validateBlueprint(raw, registry).issues.filter((i) => i.severity === 'error').map((i) => i.code);
     const sized = (size: unknown): Record<string, unknown> => ({ ...bayBot(), parts: [{ part: 'core', x: 0, y: 0 }, { part: 'densebattery', x: -1, y: 0 }, { part: 'densebattery', x: 1, y: 0 }, { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item', size }] });
     expect(codes(sized([2, 6]))).toEqual([]);
-    expect(codes(sized([9, 6]))).toContain('BAD_SIZE');
+    expect(codes(sized([11, 6]))).toContain('BAD_SIZE'); // 10 wide at most (8 until the missilenator)
     expect(codes(sized([0, 6]))).toContain('BAD_FORMAT');
     expect(codes({ format: 1, name: 'x', parts: [{ part: 'frame', x: 0, y: 0, size: [2, 2] }] })).toContain('BAD_SIZE');
   });

@@ -114,6 +114,14 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
 - **Second play (Logan):** head to head the gun missile won ("total annihilation"); the tech missiles "just bonk" and wiggle. Found: half the charges broke as duds when the missile rammed (the crash broke the charge before anything was within 1.5 m); fixed with a crash fuze on the charge (an armed charge goes off on a hit over 10 m/s, a shell never knocks that hard). The wiggle was mostly the swivel: given the gyro's whole command it doubled the turn, so the missile swung 2 to 4 times a second; now the gyro turns first, the swivel gives only what it cannot, the fins only what is left (about once a second, as a plain missile). Head to head the gun missile still wins 3 of 4 seeds headless.
 - **Gun missile** (`gun-missile-fab-drone`, `enemy-gun-missile-fab-drone`): a plain missile with a gun on its nose, same airframe. Better against guns and still targets, worse against a dodging drone. Try the two against each other.
 
+### 9. Missilenator: `missilenator-silo` (yours) and `enemy-missilenator-silo` (Logan's design)
+- **What it is:** Logan's missilenator (nine boosters, nine heavy warheads, five gun turrets on a crown) plus eight heavy gyros, built by a 407 kg armored ground silo, one every 41 s.
+- **Your version:** hold F to launch each as it is built; G switches the roof turrets.
+- **Enemy version:** deploy anywhere on flat ground, 300 m or more from you. It launches straight at the nearest thing.
+- **Deploy against:** `hunter-drone` (wiped), `enemy-many-gun-drone` (killed), `enemy-gun-drone` (usually dies to the silo's roof turrets first).
+- **Watch for:** the booster columns steering (one side's flames dim as it turns); the crown's turrets shooting flares and missiles on the way in; all nine warheads going off at once.
+- **Known:** it cannot arc over the top (it overshoots), so it always flies straight; a wide drone hit on its side keeps its core out of the blast, so it wrecks by ramming through.
+
 ## New parts and rules
 
 All new parts are palette only (no builder key). Every part has health, a build time and crash damage.

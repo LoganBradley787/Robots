@@ -1,0 +1,277 @@
+{
+  "format": 1,
+  "name": "enemy-missilenator-silo",
+  "grid": [
+    ". . . . s s . . . . . . . . . s s . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    ". . . . A = . . . . . . . . . = A . . . .",
+    "e . . . A = . . . . . . . . . = A . . . i",
+    "f s s s A = q = = = = = = = = = A s s s h",
+    "A A A A A A A A A A A A A A A A A A A A A",
+    "A z z z z F F F F r C F F F F F z z z z A",
+    "A A A A A A A A A A A A A A A A A A A A A"
+  ],
+  "legend": {
+    "A": {
+      "part": "armorplate"
+    },
+    "s": {
+      "part": "solar",
+      "rot": 0
+    },
+    "z": {
+      "part": "densebattery"
+    },
+    "r": {
+      "part": "radar"
+    },
+    "q": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "msl-a"
+      ],
+      "makes": "missilenator",
+      "size": [
+        9,
+        10
+      ]
+    },
+    "e": {
+      "part": "gun",
+      "rot": 0,
+      "tags": [
+        "s1.gun"
+      ]
+    },
+    "f": {
+      "part": "rotator",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "s1.rot"
+      ]
+    },
+    "i": {
+      "part": "gun",
+      "rot": 0,
+      "tags": [
+        "s2.gun"
+      ]
+    },
+    "h": {
+      "part": "rotator",
+      "rot": 0,
+      "auto": false,
+      "tags": [
+        "s2.rot"
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-missilenator-silo.pilot.js"
+      },
+      "params": {
+        "high": -100
+      }
+    },
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-missilenator-silo.turrets.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ],
+  "recipes": {
+    "missilenator": {
+      "format": 1,
+      "name": "missilenator",
+      "grid": [
+        "a . b . c . d . e",
+        "f . h . i . j . k",
+        "F F F F r F F F F",
+        ". . F H H H F . .",
+        ". . F H H H F . .",
+        ". . F H H H F . .",
+        ". . g L C Q g . .",
+        ". . g L z Q g . .",
+        ". . g L g Q g . .",
+        ". . g L K Q g . ."
+      ],
+      "legend": {
+        "L": {
+          "part": "booster",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "bl"
+          ]
+        },
+        "K": {
+          "part": "booster",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "bc"
+          ]
+        },
+        "Q": {
+          "part": "booster",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "br"
+          ]
+        },
+        "g": {
+          "part": "heavygyro",
+          "auto": false
+        },
+        "z": {
+          "part": "densebattery"
+        },
+        "r": {
+          "part": "radar"
+        },
+        "a": {
+          "part": "gun",
+          "rot": 0,
+          "tags": [
+            "t1.gun"
+          ]
+        },
+        "f": {
+          "part": "rotator",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "t1.rot"
+          ]
+        },
+        "b": {
+          "part": "gun",
+          "rot": 0,
+          "tags": [
+            "t2.gun"
+          ]
+        },
+        "h": {
+          "part": "rotator",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "t2.rot"
+          ]
+        },
+        "c": {
+          "part": "gun",
+          "rot": 0,
+          "tags": [
+            "t3.gun"
+          ]
+        },
+        "i": {
+          "part": "rotator",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "t3.rot"
+          ]
+        },
+        "d": {
+          "part": "gun",
+          "rot": 0,
+          "tags": [
+            "t4.gun"
+          ]
+        },
+        "j": {
+          "part": "rotator",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "t4.rot"
+          ]
+        },
+        "e": {
+          "part": "gun",
+          "rot": 0,
+          "tags": [
+            "t5.gun"
+          ]
+        },
+        "k": {
+          "part": "rotator",
+          "rot": 0,
+          "auto": false,
+          "tags": [
+            "t5.rot"
+          ]
+        }
+      },
+      "bindings": [
+        {
+          "key": "f",
+          "mode": "toggle",
+          "target": "booster",
+          "channel": "throttle",
+          "value": 1
+        },
+        {
+          "key": "x",
+          "mode": "pulse",
+          "target": "heavywarhead",
+          "channel": "detonate",
+          "value": 1
+        },
+        {
+          "key": "g",
+          "mode": "script",
+          "script": "guide"
+        }
+      ],
+      "scripts": [
+        {
+          "id": "guide",
+          "params": {
+            "arc": 0,
+            "height": 60,
+            "arcSpeed": 50,
+            "clear": 0.6,
+            "clearDist": 30,
+            "thrust": 3600,
+            "gyroTorque": 1800,
+            "fuse": 25,
+            "turnLag": 2.5,
+            "dive": 35
+          },
+          "source": {
+            "file": "enemy-missilenator-silo.missilenator.guide.js"
+          }
+        },
+        {
+          "id": "turrets",
+          "params": {
+            "auto": 1
+          },
+          "source": {
+            "file": "enemy-missilenator-silo.missilenator.turrets.js"
+          }
+        }
+      ]
+    }
+  }
+}
