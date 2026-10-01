@@ -55,4 +55,29 @@ Branch: `titans` (off `big-batch-fixes`, which has every part: grapple, jammer, 
 
 ## Results
 
-(filled in after each round)
+### Round 1 (2026-10-01, seed 1, both sides, 56 matches; full report in `tournaments/round1/results.md`)
+
+| # | Titan | Wins | Draws | Losses | Points |
+|---|---|---|---|---|---|
+| 1 | `titan-juggernaut` (ground ram) | 13 | 1 | 0 | 13.5 |
+| 2 | `titan-anvil` (flying ram) | 10 | 3 | 1 | 11.5 |
+| 3 | `titan-palisade` (gun wall) | 10 | 0 | 4 | 10 |
+| 4 | `titan-shatter` (splitter) | 5 | 2 | 7 | 6 |
+| 5 | `titan-woodpecker` (volley) | 3 | 5 | 6 | 5.5 |
+| 6 | `titan-mirage` (trickster) | 2 | 6 | 6 | 5 |
+| 7 | `titan-bastion` (fortress) | 2 | 5 | 7 | 4.5 |
+| 8 | `titan-hive` (carrier) | 0 | 0 | 14 | 0 |
+
+- Ramming took first and second. Nothing beat the juggernaut.
+- The gun wall beat every titan that is not a ram, twice each.
+- Hiding the main core on a pod did not work: the rams and the wall found the pods with gun sights. The hiders mostly drew with each other.
+- Speed check: `titan-shatter` 26.7 ms and `titan-woodpecker` 17.1 ms a tick against themselves, over the 16 ms rule. The rest passed (5.3 to 13.9 ms).
+- No script was stopped in any match.
+
+## Round 2 (decided by Logan after round 1)
+
+- **Crash damage becomes local.** A crash used to hurt every part of the body that was hit, however deep, so a heavy ram erased a buried core in one tick. Now the damage falls off with distance from the contact (full at the contact, none past about 6 m), so depth protects. The jolt still sets off impact fuzes and crash fuzes anywhere on the body. This is an engine change for the whole game, not a tournament rule.
+- **Existing parts only, as in round 1.** Every other rule above stands.
+- **3 seeds**, both sides: 168 matches.
+- **Allowed and now known to all:** the two starting robots get ids 1 and 2, and every piece or copy a higher one, so `contacts` with id 1 or 2 is the other titan's main robot (the piece that holds its main core).
+- **Engine speed work merged before the round:** rebuilding a robot on part loss (5 to 8 times cheaper), the sensor pass, radio sharing, the charge check, and the parts list a script re-reads when its robot loses a part.
