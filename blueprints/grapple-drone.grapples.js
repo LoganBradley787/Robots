@@ -3,8 +3,11 @@
 // "on target" means one of the robot's parts sits on that ray: the script scans the robots it tracks and checks
 // where their parts are against each hook's line, so a rope never goes to the ground behind a robot it missed.
 // A hook that would meet a friend of ours first (within `clear` meters of the line) waits.
-// - Player (`auto` 0): F fires every hook that lines up with something within `reach`, R reels every rope in, T pays
-//   them out, X lets go. The debug overlay marks where each hook's line meets what it would hit.
+// - Player (`auto` 0): F throws every hook that lines up with something within `reach`. Reeling in (R), paying out
+//   (T), and letting go (X) are plain bindings on the blueprint (hold, target `hook`, channels `reel` and `release`),
+//   so they show in the controls list; this script leaves those two inputs alone. It writes the key list to the
+//   status once at the start, and says what F did: thrown, or why not (Logan: "its keys are unclear"). The debug
+//   overlay marks where each hook's line meets what it would hit.
 // - AI (`auto` 1, a robot that flies itself): it fires a hook that lines up (at most `ropes` at a time), reels in to
 //   `close` meters, and lets go after carrying. Once every rope is short it holds `hold` seconds (its guns work on what
 //   it holds), then the pilot climbs and this script lets go `carryUp` meters higher than where it began (or after
@@ -39,6 +42,10 @@ function setup() {
   state.scans = 0;
   state.short = undefined;
   state.carryFrom = undefined;
+  if (auto < 0.5) {
+    log('keys: W up, S down, A left, D right, H hover on or off, G guns on or off, V flare');
+    log('ropes: F throw a hook at what lines up (fly over it), R reel in, T pay out, X let go');
+  }
 }
 
 /** A hook's own tag (`hookl`, `hookr`, `hookd`): it names the hook in `set`, and says which way it was built to point. */
@@ -122,6 +129,11 @@ function tick() {
   const carrying = short && time - state.short >= hold;
   if (carrying && state.carryFrom === undefined) state.carryFrom = { y: self.pos.y, time };
 
+  // What F did this press, for the status line (player).
+  const asked = auto < 0.5 && keys.pressed('f');
+  let thrown = 0;
+  let lined = 0;
+  let blocked = 0;
   for (const r of rigs) {
     const { name, st } = r;
     let fire = 0;
@@ -145,9 +157,9 @@ function tick() {
           release = 1;
           state.skip[st.id] = time + spare;
         }
-      } else {
-        reel = (keys.down('r') ? 1 : 0) - (keys.down('t') ? 1 : 0);
-        if (keys.down('x')) release = 1;
+      } else if (!st.checked) {
+        st.checked = true;
+        log(name, 'hooked, rope', r.length.toFixed(0), 'm: R reel in, T pay out, X let go');
       }
     } else if (name === 'hookd' || sides > 0.5) {
       st.checked = false;
@@ -162,16 +174,30 @@ function tick() {
       if (best) {
         st.id = best.c.id;
         mark(r.from.x + Math.cos(r.aim) * best.along, r.from.y + Math.sin(r.aim) * best.along, 'hook');
+        lined++;
         const wants = auto > 0.5 ? held.length < ropes : keys.pressed('f');
-        if (wants && !friendOnLine(r.from, r.aim, best.along) && time - st.last >= retry) {
-          fire = 1;
-          st.last = time;
-          taken.add(best.c.id);
+        if (wants && time - st.last >= retry) {
+          if (friendOnLine(r.from, r.aim, best.along)) blocked++;
+          else {
+            fire = 1;
+            thrown++;
+            st.last = time;
+            taken.add(best.c.id);
+          }
         }
       }
     }
     set(name, 'fire', fire);
-    set(name, 'reel', reel);
-    set(name, 'release', release);
+    // A player's R, T, and X are bindings on these two inputs: only a robot that flies itself drives them from here.
+    if (auto > 0.5) {
+      set(name, 'reel', reel);
+      set(name, 'release', release);
+    }
+  }
+  if (asked && thrown === 0) {
+    if (rigs.length === 0) log('no hooks left');
+    else if (held.length === rigs.length) log('every hook holds something already: X lets go');
+    else if (blocked > 0) log('a friend is in the way of the hook');
+    else if (lined === 0) log('nothing lines up within ' + reach + ' m: fly straight over it, or level with it for a side hook');
   }
 }

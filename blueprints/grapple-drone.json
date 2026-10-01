@@ -2,11 +2,11 @@
   "format": 1,
   "name": "grapple-drone",
   "grid": [
-    ". . c c c c c d e e e e e . .",
+    ". u c c c c c d e e e e e u .",
     ". x A F F Z Z C Z Z F F A y .",
-    ". . F c c c c n e e e e F . .",
+    ". u F c c c c n e e e e F u .",
     ". . q F z a b F f g z F w . .",
-    ". . . . . h i F j k . . . . .",
+    ". . u u . h i F j k . u u . .",
     ". . . . . l m F o p . . . . .",
     ". . . . . . . v . . . . . . ."
   ],
@@ -184,6 +184,14 @@
         "hgun",
         "gund"
       ]
+    },
+    "u": {
+      "part": "propeller",
+      "rot": 180,
+      "tags": [
+        "dprop"
+      ],
+      "auto": false
     }
   },
   "bindings": [
@@ -191,6 +199,27 @@
       "key": "h",
       "mode": "script",
       "script": "hover"
+    },
+    {
+      "key": "r",
+      "mode": "hold",
+      "target": "hook",
+      "channel": "reel",
+      "value": 1
+    },
+    {
+      "key": "t",
+      "mode": "hold",
+      "target": "hook",
+      "channel": "reel",
+      "value": -1
+    },
+    {
+      "key": "x",
+      "mode": "hold",
+      "target": "hook",
+      "channel": "release",
+      "value": 1
     }
   ],
   "scripts": [

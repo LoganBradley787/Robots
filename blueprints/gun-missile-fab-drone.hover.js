@@ -7,6 +7,10 @@
 // overshooting. The weight being off center (one missile gone) is worked out from the parts too, so it never tilts.
 // With a load off center (a turret swung to one side), the side that brakes a lean is not the side that starts it:
 // it plans its braking on the braking side's torque, so it neither overshoots toward the load nor stops short away (M8).
+// Only its own propellers (`lprop`, `rprop`) count: a drone bomb held in the bay has propellers of its own, asleep.
+// Propellers pointing down (tagged `dprop`, off auto controls) are its push downward: S, or holding its height, uses
+// them when cutting the lift is not enough (Logan: the grapple drone "fights S": a robot on its rope that flies itself
+// pushed up under it harder than the drone weighs, and with its lift cut it had nothing left to go down with).
 
 const climb = param('climb', 10, { min: 0.5, max: 30 }); // m/s up or down while W or S is held
 const lift = param('lift', 120, { min: 10, max: 1000 }); // N, one propeller's full push (the propeller part)
@@ -18,6 +22,11 @@ const spare = param('spare', 1, { min: 0, max: 10 }); // m/s^2 of climb it keeps
 const finArea = param('finArea', 0.6, { min: 0, max: 10 }); // m^2, one fin's plate (the fin part)
 const finTurn = param('finTurn', 20, { min: 0, max: 90 }); // degrees a fin's plate turns at full deflect (the fin part)
 const steady = param('steady', 0, { min: 0, max: 1 }); // 1: a turn never takes the propellers below what holds its weight (for a drone that hovers on more than half throttle: it turns slower and keeps its height)
+
+/** One of its own propellers (a copy held in the bay may have its own, asleep). */
+const own = (p) => p.type === 'propeller' && (p.tags.includes('lprop') || p.tags.includes('rprop'));
+/** One of its propellers that point down. */
+const down = (p) => p.type === 'propeller' && p.tags.includes('dprop');
 
 function setup() {
   state.target = self.pos.y; // the height it holds; none while W or S is held
@@ -51,7 +60,7 @@ function body() {
   let right = 0; // lever arms of the propellers right of the center of mass: all at full, the rest off, is the hardest turn
   let left = 0;
   for (const p of parts) {
-    if (p.type !== 'propeller') continue;
+    if (!own(p)) continue;
     const u = along(p) - cu;
     sum += u;
     split += p.tags.includes('rprop') ? u : -u;
@@ -96,10 +105,11 @@ function tick() {
   // Up and down, the same way as leaning (Logan, Gate 6): W and S ask for a climb or sink speed, and it gets there with
   // all the push it has; let go and it stops at the height it can stop at soonest, braking just in time.
   const g = 9.81;
-  const props = parts.filter((p) => p.type === 'propeller').length;
+  const props = parts.filter(own).length;
   // Leaning tips the push sideways: only the upward part of it counts.
   const up = props * lift * Math.max(0.3, Math.cos(self.angle));
   const rise = Math.max(0.5, up / self.mass - g); // the most it can speed up upward (or brake a fall)
+  const push = parts.filter(down).length * lift * Math.max(0.3, Math.cos(self.angle)); // N its down propellers add to its weight
   let climbing = 0;
   if (keys.down('w')) climbing = climb;
   if (keys.down('s')) climbing = -climb;
@@ -115,7 +125,7 @@ function tick() {
     const stop = err > 0 ? g : rise;
     climbing = Math.sign(err) * Math.min(Math.sqrt(2 * margin * stop * Math.abs(err)), 3 * Math.abs(err), climb);
   }
-  const upward = clamp(5 * (climbing - self.vel.y), -g, rise);
+  const upward = clamp(5 * (climbing - self.vel.y), -g - push / self.mass, rise);
   const b = body();
   const air = fins(b);
   const throttle = clamp((self.mass * (g + upward) - air.up) / Math.max(up, 1e-9), 0, 1);
@@ -161,6 +171,8 @@ function tick() {
     const d = Math.abs(diff);
     base = d >= room ? 1 - room : clamp(throttle, d, 1 - d);
   }
+  // Asked to go down faster than falling does: the down propellers give the rest.
+  if (push > 0) set('dprop', 'throttle', clamp((air.up - self.mass * (g + upward)) / push, 0, 1));
   set('lprop', 'throttle', clamp(base - diff, 0, 1));
   set('rprop', 'throttle', clamp(base + diff, 0, 1));
   set('stab', 'spin', gyroTorque > 0 ? clamp(-gyro / gyroTorque, -1, 1) : 0); // the gyro's spin is clockwise positive
