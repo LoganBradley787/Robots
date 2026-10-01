@@ -1,0 +1,33 @@
+{
+ "format": 1,
+ "name": "titan-woodpecker-dart",
+ "autoControls": false,
+ "grid": [
+  "S^",
+  "H",
+  "H",
+  "C",
+  "E",
+  "y",
+  "k"
+ ],
+ "legend": {
+  "y": {
+   "part": "heavygyro",
+   "auto": false
+  },
+  "k": {
+   "part": "booster",
+   "rot": 0,
+   "auto": false
+  }
+ },
+ "scripts": [
+  {
+   "id": "guide",
+   "source": {
+    "file": "titan-woodpecker-dart.guide.js"
+   }
+  }
+ ]
+}

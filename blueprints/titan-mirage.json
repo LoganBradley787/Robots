@@ -1,0 +1,576 @@
+{
+ "format": 1,
+ "name": "titan-mirage",
+ "grid": [
+  ". . . . . . . . . . . . . . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". . j0 j1 j2 j3 j4 j5 j6 j7 j8 j9 j10 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". . j11 j12 j13 j14 j15 j16 j17 j18 j19 j20 j21 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". . j22 j23 j24 j25 j26 j27 j28 j29 j30 j31 j32 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". . j33 j34 j35 j36 j37 j38 j39 j40 j41 j42 j43 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". . j44 j45 j46 j47 j48 j49 j50 j51 j52 j53 j54 . pa pa = ga = = = pa pa = gb = = = pa pa = gc = = = pa pa = gd = = = pa pa = ge = = = pa pa = gf = = = pb pb = gg = = = pb pb = gh = = = pb pb = gi = = = pb pb = gj = = = pb pb = gk = = = pb pb = gl = = = pb pb pb O pb O pb O pb pb .",
+  "ka F F F F A A A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F kb",
+  "ka F Z F Z F A C A F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F kb",
+  "ka Z Z Z Z Z A A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z kb",
+  "ka F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb F kb",
+  "ka F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb F kb",
+  ". F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb F ."
+ ],
+ "legend": {
+  "ka": {
+   "part": "booster",
+   "rot": 270,
+   "tags": [
+    "pf"
+   ],
+   "auto": false
+  },
+  "kb": {
+   "part": "booster",
+   "rot": 90,
+   "tags": [
+    "pr"
+   ],
+   "auto": false
+  },
+  "pa": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "la"
+   ],
+   "auto": false
+  },
+  "pb": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "lb"
+   ],
+   "auto": false
+  },
+  "j0": {
+   "part": "jammer",
+   "tags": [
+    "j0"
+   ]
+  },
+  "j1": {
+   "part": "jammer",
+   "tags": [
+    "j1"
+   ]
+  },
+  "j2": {
+   "part": "jammer",
+   "tags": [
+    "j2"
+   ]
+  },
+  "j3": {
+   "part": "jammer",
+   "tags": [
+    "j3"
+   ]
+  },
+  "j4": {
+   "part": "jammer",
+   "tags": [
+    "j4"
+   ]
+  },
+  "j5": {
+   "part": "jammer",
+   "tags": [
+    "j5"
+   ]
+  },
+  "j6": {
+   "part": "jammer",
+   "tags": [
+    "j6"
+   ]
+  },
+  "j7": {
+   "part": "jammer",
+   "tags": [
+    "j7"
+   ]
+  },
+  "j8": {
+   "part": "jammer",
+   "tags": [
+    "j8"
+   ]
+  },
+  "j9": {
+   "part": "jammer",
+   "tags": [
+    "j9"
+   ]
+  },
+  "j10": {
+   "part": "jammer",
+   "tags": [
+    "j10"
+   ]
+  },
+  "j11": {
+   "part": "jammer",
+   "tags": [
+    "j11"
+   ]
+  },
+  "j12": {
+   "part": "jammer",
+   "tags": [
+    "j12"
+   ]
+  },
+  "j13": {
+   "part": "jammer",
+   "tags": [
+    "j13"
+   ]
+  },
+  "j14": {
+   "part": "jammer",
+   "tags": [
+    "j14"
+   ]
+  },
+  "j15": {
+   "part": "jammer",
+   "tags": [
+    "j15"
+   ]
+  },
+  "j16": {
+   "part": "jammer",
+   "tags": [
+    "j16"
+   ]
+  },
+  "j17": {
+   "part": "jammer",
+   "tags": [
+    "j17"
+   ]
+  },
+  "j18": {
+   "part": "jammer",
+   "tags": [
+    "j18"
+   ]
+  },
+  "j19": {
+   "part": "jammer",
+   "tags": [
+    "j19"
+   ]
+  },
+  "j20": {
+   "part": "jammer",
+   "tags": [
+    "j20"
+   ]
+  },
+  "j21": {
+   "part": "jammer",
+   "tags": [
+    "j21"
+   ]
+  },
+  "j22": {
+   "part": "jammer",
+   "tags": [
+    "j22"
+   ]
+  },
+  "j23": {
+   "part": "jammer",
+   "tags": [
+    "j23"
+   ]
+  },
+  "j24": {
+   "part": "jammer",
+   "tags": [
+    "j24"
+   ]
+  },
+  "j25": {
+   "part": "jammer",
+   "tags": [
+    "j25"
+   ]
+  },
+  "j26": {
+   "part": "jammer",
+   "tags": [
+    "j26"
+   ]
+  },
+  "j27": {
+   "part": "jammer",
+   "tags": [
+    "j27"
+   ]
+  },
+  "j28": {
+   "part": "jammer",
+   "tags": [
+    "j28"
+   ]
+  },
+  "j29": {
+   "part": "jammer",
+   "tags": [
+    "j29"
+   ]
+  },
+  "j30": {
+   "part": "jammer",
+   "tags": [
+    "j30"
+   ]
+  },
+  "j31": {
+   "part": "jammer",
+   "tags": [
+    "j31"
+   ]
+  },
+  "j32": {
+   "part": "jammer",
+   "tags": [
+    "j32"
+   ]
+  },
+  "j33": {
+   "part": "jammer",
+   "tags": [
+    "j33"
+   ]
+  },
+  "j34": {
+   "part": "jammer",
+   "tags": [
+    "j34"
+   ]
+  },
+  "j35": {
+   "part": "jammer",
+   "tags": [
+    "j35"
+   ]
+  },
+  "j36": {
+   "part": "jammer",
+   "tags": [
+    "j36"
+   ]
+  },
+  "j37": {
+   "part": "jammer",
+   "tags": [
+    "j37"
+   ]
+  },
+  "j38": {
+   "part": "jammer",
+   "tags": [
+    "j38"
+   ]
+  },
+  "j39": {
+   "part": "jammer",
+   "tags": [
+    "j39"
+   ]
+  },
+  "j40": {
+   "part": "jammer",
+   "tags": [
+    "j40"
+   ]
+  },
+  "j41": {
+   "part": "jammer",
+   "tags": [
+    "j41"
+   ]
+  },
+  "j42": {
+   "part": "jammer",
+   "tags": [
+    "j42"
+   ]
+  },
+  "j43": {
+   "part": "jammer",
+   "tags": [
+    "j43"
+   ]
+  },
+  "j44": {
+   "part": "jammer",
+   "tags": [
+    "j44"
+   ]
+  },
+  "j45": {
+   "part": "jammer",
+   "tags": [
+    "j45"
+   ]
+  },
+  "j46": {
+   "part": "jammer",
+   "tags": [
+    "j46"
+   ]
+  },
+  "j47": {
+   "part": "jammer",
+   "tags": [
+    "j47"
+   ]
+  },
+  "j48": {
+   "part": "jammer",
+   "tags": [
+    "j48"
+   ]
+  },
+  "j49": {
+   "part": "jammer",
+   "tags": [
+    "j49"
+   ]
+  },
+  "j50": {
+   "part": "jammer",
+   "tags": [
+    "j50"
+   ]
+  },
+  "j51": {
+   "part": "jammer",
+   "tags": [
+    "j51"
+   ]
+  },
+  "j52": {
+   "part": "jammer",
+   "tags": [
+    "j52"
+   ]
+  },
+  "j53": {
+   "part": "jammer",
+   "tags": [
+    "j53"
+   ]
+  },
+  "j54": {
+   "part": "jammer",
+   "tags": [
+    "j54"
+   ]
+  },
+  "ga": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "ga"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gb": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gb"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gc": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gc"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gd": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gd"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "ge": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "ge"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gf": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gf"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gg": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gg"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gh": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gh"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gi": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gi"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gj": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gj"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gk": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gk"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  },
+  "gl": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gl"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    5
+   ]
+  }
+ },
+ "autoControls": false,
+ "scripts": [
+  {
+   "id": "helm",
+   "params": {
+    "pods": 55,
+    "bays": 12
+   },
+   "source": {
+    "file": "titan-mirage.helm.js"
+   }
+  }
+ ],
+ "recipes": {
+  "ghost": {
+   "format": 1,
+   "name": "titan-mirage-ghost",
+   "grid": [
+    "Xd H",
+    "H  C",
+    "y  E",
+    "E  J",
+    "k  k"
+   ],
+   "legend": {
+    "y": {
+     "part": "heavygyro",
+     "rot": 0,
+     "auto": false
+    },
+    "k": {
+     "part": "booster",
+     "rot": 0,
+     "auto": false
+    },
+    "H": {
+     "part": "heavywarhead",
+     "auto": false
+    }
+   },
+   "scripts": [
+    {
+     "id": "guide",
+     "source": {
+      "file": "titan-mirage.ghost.guide.js"
+     }
+    }
+   ]
+  }
+ }
+}

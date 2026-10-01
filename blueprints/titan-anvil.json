@@ -1,0 +1,87 @@
+{
+ "format": 1,
+ "name": "titan-anvil",
+ "grid": [
+  ".  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .  M^ .  .",
+  "M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  O  C  O  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  p  p  p  p  p  p  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  q  q  q  q  q  q  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  p  p  p  p  p  p  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  q  q  q  q  q  q  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  p  p  p  p  p  p  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  q  q  q  q  q  q  A  A  .",
+  "M< A  A  p  p  p  p  p  p  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  q  q  q  q  q  q  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  A  .",
+  "M< A  A  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  A  A  M>",
+  ".  A  A  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  A  A  .",
+  "M< A  A  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  A  A  M>",
+  ".  A  A  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  A  A  .",
+  "M< A  A  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  A  A  M>",
+  ".  A  A  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  A  l  l  l  l  l  l  l  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  r  r  r  A  r  r  r  r  A  A  .",
+  "M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M>",
+  ".  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .",
+  ".  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  ."
+ ],
+ "legend": {
+  "l": {
+   "part": "booster",
+   "rot": 0,
+   "tags": [
+    "la"
+   ],
+   "auto": false
+  },
+  "r": {
+   "part": "booster",
+   "rot": 0,
+   "tags": [
+    "lb"
+   ],
+   "auto": false
+  },
+  "p": {
+   "part": "booster",
+   "rot": 270,
+   "tags": [
+    "pa"
+   ],
+   "auto": false
+  },
+  "q": {
+   "part": "booster",
+   "rot": 90,
+   "tags": [
+    "pb"
+   ],
+   "auto": false
+  }
+ },
+ "autoControls": false,
+ "scripts": [
+  {
+   "id": "pilot",
+   "source": {
+    "file": "titan-anvil.pilot.js"
+   }
+  }
+ ]
+}

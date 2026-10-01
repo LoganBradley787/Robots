@@ -1,3 +1,12 @@
 {
-  "titans": []
+  "titans": [
+    { "name": "titan-hive", "y": 150 },
+    { "name": "titan-bastion" },
+    { "name": "titan-juggernaut" },
+    { "name": "titan-woodpecker" },
+    { "name": "titan-palisade", "y": 150 },
+    { "name": "titan-mirage", "y": 150 },
+    { "name": "titan-shatter", "y": 150 },
+    { "name": "titan-anvil", "y": 60 }
+  ]
 }

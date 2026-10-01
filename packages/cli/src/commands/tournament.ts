@@ -42,6 +42,8 @@ export interface MatchResult {
 export interface TournamentOptions {
   seeds: readonly number[];
   seconds: number;
+  /** The speed checks' length in place of `seconds` (a mirror match is often a draw, so it runs the full time). */
+  speedSeconds?: number;
   /** Duels run at once. The speed checks always run one at a time. */
   jobs: number;
   /** Only the pairings (and speed check) with this titan. */
@@ -160,7 +162,7 @@ export async function runTournament(titans: readonly Titan[], opts: TournamentOp
   const plan = schedule(titans, opts.seeds, opts.only);
   const speed: MatchResult[] = [];
   for (const m of plan.speed) {
-    const r = await run(m, opts);
+    const r = await run(m, { ...opts, seconds: opts.speedSeconds ?? opts.seconds });
     speed.push(r);
     log(progress(speed.length, plan.speed.length, r));
   }

@@ -1,0 +1,35 @@
+{
+ "format": 1,
+ "name": "titan-mirage-ghost",
+ "grid": [
+  "Xd H",
+  "H  C",
+  "y  E",
+  "E  J",
+  "k  k"
+ ],
+ "legend": {
+  "y": {
+   "part": "heavygyro",
+   "rot": 0,
+   "auto": false
+  },
+  "k": {
+   "part": "booster",
+   "rot": 0,
+   "auto": false
+  },
+  "H": {
+   "part": "heavywarhead",
+   "auto": false
+  }
+ },
+ "scripts": [
+  {
+   "id": "guide",
+   "source": {
+    "file": "titan-mirage-ghost.guide.js"
+   }
+  }
+ ]
+}

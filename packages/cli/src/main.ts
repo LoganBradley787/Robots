@@ -61,7 +61,7 @@ commands
                      with a core per team), who won and why, every script that stopped (which, on which robot,
                      when, why), and ms per tick as bench does; exit 1 when a spawn spot is refused
   tournament <roster.json> [--seeds 1,2,3] [--seconds 240] [--jobs <n>] [--out <dir>] [--only <name>]
-                     [--world <path>] [--bounds <x>,<y>]
+                     [--world <path>] [--bounds <x>,<y>] [--speed-seconds <n>]
                      every pair of the roster's titans ({ "titans": [{ "name": "titan-x", "y": 40 }] }, y
                      optional) duels on each seed, both ways round, --jobs at once (default: cores minus 2).
                      First each titan meets a copy of itself, one at a time, as its speed check (average at
@@ -322,6 +322,11 @@ async function tournamentCommand(positional: string[], flags: Map<string, string
     console.error('--seconds must be more than 0 and --jobs a whole number of at least 1');
     return 2;
   }
+  const speedSeconds = flags.has('speed-seconds') ? numberFlag(flags, 'speed-seconds', seconds) : undefined;
+  if (speedSeconds !== undefined && speedSeconds <= 0) {
+    console.error('--speed-seconds must be more than 0');
+    return 2;
+  }
   const only = flags.get('only');
   // Read here so a bad world file stops the run before any duel; the duels get its full path.
   const world = flags.has('world') ? resolveUserPath(flags.get('world') ?? '') : undefined;
@@ -329,7 +334,7 @@ async function tournamentCommand(positional: string[], flags: Map<string, string
   const bounds = boundsFlag(flags);
   if (bounds === null) return 2;
   const out = flags.has('out') ? resolveUserPath(flags.get('out') ?? '') : resolve(REPO_ROOT, 'tournaments/out');
-  const result = await runTournament(titans, { seeds, seconds, jobs, ...(only !== undefined ? { only } : {}), ...(world !== undefined ? { world } : {}), ...(bounds !== undefined ? { bounds } : {}) });
+  const result = await runTournament(titans, { seeds, seconds, jobs, ...(speedSeconds !== undefined ? { speedSeconds } : {}), ...(only !== undefined ? { only } : {}), ...(world !== undefined ? { world } : {}), ...(bounds !== undefined ? { bounds } : {}) });
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, 'results.json'), `${JSON.stringify(result, null, 2)}\n`);
   writeFileSync(resolve(out, 'results.md'), formatResults(result));
