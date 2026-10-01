@@ -773,9 +773,10 @@ export class World {
   /** Removes every part at 0 health (robots in order, parts in blueprint order) and queues its blast if it has one. */
   private destroyDeadParts(): void {
     for (const robot of this.robots) {
-      for (const bp of robot.blueprint.parts) {
-        const part = robot.parts.get(bp.id);
-        if (!part || part.health > 0) continue;
+      // A robot holds its parts in blueprint order (`Robot.parts`), so a small piece of a big robot looks at its own
+      // parts only, not at every part its blueprint ever had.
+      for (const part of robot.parts.values()) {
+        if (part.health > 0) continue;
         const pose = partWorldPose(this, robot, part.id);
         robot.parts.delete(part.id);
         this.dirty.add(robot);
