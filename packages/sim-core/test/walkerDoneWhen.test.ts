@@ -91,6 +91,71 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
     w.dispose();
   });
 
+  // Logan walking it by hand: "W, S and G seem to do nothing". W and S moved the body 0.6 m, and G said nothing.
+  it('W stands it a meter taller and S crouches it, it walks at both heights, and its status lists the keys and says how tall it stands', { timeout: 120_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(blueprint('walker'), { x: -150, y: SPAWN_Y });
+    const status = (): string[] => w.scriptLogs.filter((l) => l.robot === r.id).map((l) => l.text);
+    let tilt = 0;
+    const run = (seconds: number): void => {
+      for (let t = 0; t < seconds * 60; t++) {
+        w.step();
+        tilt = Math.max(tilt, Math.abs(core(w, r).angle));
+      }
+    };
+    const hold = (key: string, seconds: number): void => {
+      w.step([press(r.id, key)]);
+      run(seconds);
+      w.step([lift(r.id, key)]);
+    };
+    run(5);
+    expect(status().join(' ')).toMatch(/D walk right, A walk left, W stand taller, S crouch, G turrets on or off/);
+    const normal = core(w, r).y;
+    // W: up the whole stroke of its lift pistons, a meter, in under two seconds.
+    hold('w', 2);
+    run(2);
+    expect(core(w, r).y).toBeGreaterThan(normal + 0.9);
+    expect(status().at(-1)).toMatch(/legs out 2\.0 of 2 m, as tall as it goes/);
+    const x0 = core(w, r).x;
+    hold('d', 12);
+    run(4);
+    expect(core(w, r).x).toBeGreaterThan(x0 + 5);
+    expect(core(w, r).y).toBeGreaterThan(normal + 0.7);
+    // S: down to where a foot can still lift for a step.
+    hold('s', 3);
+    run(2);
+    expect(core(w, r).y).toBeLessThan(normal - 0.5);
+    expect(status().at(-1)).toMatch(/as low as it can still step/);
+    const x1 = core(w, r).x;
+    hold('a', 12);
+    run(4);
+    expect(core(w, r).x).toBeLessThan(x1 - 5);
+    expect((tilt * 180) / Math.PI).toBeLessThan(8);
+    expect(ownLost(w, r)).toBe(0);
+    w.dispose();
+  });
+
+  it('G switches its turrets off and on, and says so: nothing is fired while they are off', { timeout: 120_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(blueprint('walker'), { x: -150, y: SPAWN_Y });
+    const status = (): string[] => w.scriptLogs.filter((l) => l.robot === r.id).map((l) => l.text);
+    w.step([press(r.id, 'g')]);
+    w.step([lift(r.id, 'g')]);
+    expect(status().at(-1)).toMatch(/turrets off/);
+    // A hunter drone hovering in reach of its guns: left alone.
+    const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -30, y: 40 }, { team: 1 });
+    for (let t = 0; t < 6 * 60; t++) w.step();
+    expect(w.shotsBy(r.id)).toBe(0);
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id)).toEqual([]);
+    w.step([press(r.id, 'g')]);
+    w.step([lift(r.id, 'g')]);
+    expect(status().at(-1)).toMatch(/turrets on/);
+    for (let t = 0; t < 6 * 60; t++) w.step();
+    expect(w.shotsBy(r.id)).toBeGreaterThan(20);
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id).length).toBeGreaterThan(0);
+    w.dispose();
+  });
+
   it('the enemy walker walks toward the nearest enemy, deployed either way round, and stops `range` meters short', { timeout: 120_000 }, async () => {
     for (const flip of [false, true]) {
       const w = await World.create({ seed: 1, scripts: host }, flat);

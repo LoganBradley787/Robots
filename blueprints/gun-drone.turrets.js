@@ -226,6 +226,10 @@ function aimTurret(name) {
 }
 
 function tick() {
-  if (auto < 0.5 && keys.pressed('g')) state.on = !state.on;
+  if (auto < 0.5 && keys.pressed('g')) {
+    state.on = !state.on;
+    // Said in the status: with nothing in range a switched off turret looks the same as one waiting (Logan: "G seems to do nothing").
+    log(state.on ? 'turrets on' : 'turrets off: G switches them back on');
+  }
   for (const name of turrets()) aimTurret(name);
 }
