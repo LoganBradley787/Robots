@@ -66,8 +66,43 @@ function recording(): { host: ScriptHost; calls: Seen[] } {
 
 /** The world's own answers with nothing kept: asked outside the script pass, each is worked out afresh. */
 interface Fresh {
-  contactsFor(robot: Robot, remember: boolean): ScriptContact[];
   ownContacts(robot: Robot, remember: boolean, decoysOut: Map<number, { robot: Robot; partId: string }>): ScriptContact[];
+  workingRadios(robot: Robot): { x: number; y: number; range: number }[];
+}
+
+/**
+ * A robot's contacts by the plain rule, one viewer at a time: its own, then for every teammate in radio reach, in robot
+ * order, each of that teammate's own contacts it does not see itself (the nearest report wins, the earlier on a tie).
+ * `decoys` are the ones reported at a flare.
+ */
+function plainContacts(w: World, robot: Robot): { contacts: ScriptContact[]; decoys: Set<number> } {
+  const fresh = w as unknown as Fresh;
+  const fooled = new Map<number, { robot: Robot; partId: string }>();
+  const own = fresh.ownContacts(robot, false, fooled);
+  const decoys = new Set(fooled.keys());
+  const radios = fresh.workingRadios(robot);
+  if (radios.length === 0) return { contacts: own, decoys };
+  const from = partWorldPose(w, robot, robot.primaryCoreId ?? robot.rootId);
+  const have = new Set(own.map((c) => c.id));
+  const shared = new Map<number, { contact: ScriptContact; decoy: boolean }>();
+  for (const friend of w.robots) {
+    if (friend === robot || friend.team !== robot.team || friend.groups.length === 0) continue;
+    const theirs = fresh.workingRadios(friend);
+    if (!radios.some((a) => theirs.some((b) => Math.hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)))) continue;
+    const theirFooled = new Map<number, { robot: Robot; partId: string }>();
+    for (const c of fresh.ownContacts(friend, false, theirFooled)) {
+      if (c.id === robot.id || have.has(c.id)) continue;
+      const distance = Math.hypot(c.pos.x - from.x, c.pos.y - from.y);
+      const known = shared.get(c.id);
+      if (known && known.contact.distance <= distance) continue;
+      shared.set(c.id, { contact: { ...c, distance, by: ['radio'] }, decoy: theirFooled.has(c.id) });
+    }
+  }
+  for (const [id, s] of shared) if (s.decoy) decoys.add(id);
+  if (shared.size === 0) return { contacts: own, decoys };
+  const out = [...own, ...[...shared.values()].map((s) => s.contact)];
+  out.sort((a, b) => a.distance - b.distance || a.id - b.id);
+  return { contacts: out, decoys };
 }
 
 /** A robot's parts as a scan lists them, from the public pose reader. */
@@ -95,7 +130,7 @@ function stepAndCheck(w: World, calls: Seen[], scripted: Map<string, Robot>, inp
   const expected = new Map<string, { contacts: ScriptContact[]; text: string; scans: Map<number, string> }>();
   for (const [name, robot] of scripted) {
     if (!w.robots.includes(robot) || robot.primaryCoreId === undefined) continue;
-    const contacts = fresh.contactsFor(robot, false);
+    const { contacts } = plainContacts(w, robot);
     const fooled = new Map<number, { robot: Robot; partId: string }>();
     const own = fresh.ownContacts(robot, false, fooled);
     const scans = new Map<number, string>();
@@ -136,9 +171,11 @@ describe('what scripts see while the sensor pass shares its work', () => {
       return r;
     };
     const press = (...on: [string, string][]): Record<string, unknown> => ({ bindings: on.map(([target, channel]) => ({ key: 'v', mode: 'pulse', target, channel, value: 1 })) });
-    // Team 0: radar and radio, radio only, radar only, and one with both that carries a jammer pod.
+    // Team 0: radar and radio (the first one far to the right, so its report of a robot is not the nearest one), radio
+    // only, radar only, and one with both that carries a jammer pod.
+    add(9, 'C  O  N  B', { x: 620, y: 290 }, 0);
     const a = add(1, 'C  O  N  B', { x: 0, y: 300 }, 0);
-    add(2, 'C  N  B', { x: -40, y: 320 }, 0);
+    const blind = add(2, 'C  N  B', { x: -40, y: 320 }, 0);
     add(3, 'C  O  B', { x: 30, y: 280 }, 0);
     const jam = add(4, 'J  C  O  N  B', { x: -300, y: 300 }, 0, press(['jammer', 'ignite']));
     add(5, 'C  O  N  B', { x: 500, y: 350 }, 0);
@@ -148,16 +185,35 @@ describe('what scripts see while the sensor pass shares its work', () => {
     const splitter = add(7, 'O  C  B  D>  F  F  B', { x: 150, y: 260 }, 1, press(['decoupler', 'fire']));
     add(8, 'C  O  N  B', { x: 260, y: 330 }, 1);
     const plain = w.spawnBlueprint({ format: 1, name: 'plain', grid: ['C  B  F'] }, { x: 100, y: 340 }, { team: 1 });
-    // Everything drifts, so a kept answer from the tick before would be wrong.
+    // Everything so far drifts, so a kept answer from the tick before would be wrong.
     w.robots.forEach((r, i) => w.kickRobot(r, 3 - i, i % 3, 0.05 * i));
+    // A teammate out of most radios' reach (1500 m), with a robot only it sees: only those in its reach are told.
+    add(10, 'C  O  N  B', { x: -1700, y: 300 }, 0);
+    const lonely = w.spawnBlueprint({ format: 1, name: 'lonely', grid: ['C  B'] }, { x: -1750, y: 300 }, { team: 1 });
+    // One with a single flare, and a teammate at the edge of radar range (998 m off) that sees it but not its flare
+    // (1001 m): the nearer ones are fooled, this one is not, and a listener takes the nearest report.
+    const oneFlare = add(11, 'C  O  D>  Q>', { x: 200, y: 150 }, 1, press(['flare', 'ignite'], ['decoupler', 'fire']));
+    add(12, 'C  O  N  B', { x: -798, y: 150 }, 0);
     let scans = 0;
     let shared = 0;
+    let farTold = 0;
+    let trueOverFlare = 0;
     for (let t = 0; t < 45; t++) {
-      const inputs = t === 8 ? [{ robot: flarer.id, pressed: ['v'], released: [] }] : t === 14 ? [{ robot: jam.id, pressed: ['v'], released: [] }] : t === 20 ? [{ robot: splitter.id, pressed: ['v'], released: [] }] : [];
+      const inputs = t === 8 ? [flarer, oneFlare].map((r) => ({ robot: r.id, pressed: ['v'], released: [] })) : t === 14 ? [{ robot: jam.id, pressed: ['v'], released: [] }] : t === 20 ? [{ robot: splitter.id, pressed: ['v'], released: [] }] : [];
       if (t === 26) {
         const lost = plain.parts.get('frame@2,0');
         if (lost) lost.health = 0;
       }
+      // The overlay's view, asked for every robot under one shared pass (as the CLI's trace does) or one by one, is
+      // the plain rule's: the same contacts, and the same ones marked as seen at a flare.
+      const plainViews = w.robots.map((r) => {
+        const plain = plainContacts(w, r);
+        return plain.contacts.map((c) => ({ id: c.id, side: c.side, x: c.pos.x, y: c.pos.y, ...(plain.decoys.has(c.id) ? { decoy: true as const } : {}) }));
+      });
+      expect(w.robots.map((r) => w.sensorView(r.id).contacts)).toEqual(plainViews);
+      expect(w.shareSight(() => w.robots.map((r) => w.sensorView(r.id).contacts))).toEqual(plainViews);
+      farTold += w.sensorView(jam.id).contacts.filter((c) => c.id === lonely.id).length;
+      trueOverFlare += w.sensorView(blind.id).contacts.filter((c) => c.id === oneFlare.id && c.decoy !== true).length;
       for (const call of stepAndCheck(w, calls, scripted, inputs)) {
         scans += call.scans.filter((s) => s.text !== 'null').length;
         shared += call.contacts.filter((c) => c.by.join() === 'radio').length;
@@ -170,6 +226,10 @@ describe('what scripts see while the sensor pass shares its work', () => {
     expect(plain.parts.has('frame@2,0')).toBe(false);
     expect(scans).toBeGreaterThan(200);
     expect(shared).toBeGreaterThan(50);
+    // The jammer robot (1400 m from the far teammate) was told of the robot only that one sees; the blind one took the
+    // report of the single-flare robot where it really is over the nearer teammates' report of its flare.
+    expect(farTold).toBeGreaterThan(5);
+    expect(trueOverFlare).toBeGreaterThan(20);
     expect(a.parts.size).toBe(4);
     w.dispose();
   });

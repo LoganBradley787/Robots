@@ -247,7 +247,7 @@ interface OwnSight {
 /**
  * What the sensor pass works out about a robot whoever is looking, kept while one tick's scripts run so every viewer,
  * every radio listener, and every script scanning it pays once. Nothing in it changes while scripts run: they only
- * write channel values and messages. Derived, never hashed; outside `runScripts` there is none and every question is
+ * write channel values and messages. Derived, never hashed; outside `shareSight` there is none and every question is
  * answered afresh.
  */
 interface SightPass {
@@ -261,6 +261,18 @@ interface SightPass {
   /** The JSON text of each contact up to its distance (`contactHead`), and per seen robot the part every viewer shares. */
   heads: Map<ScriptContact, string>;
   middles: Map<Robot, string>;
+  /** Per team, what its radio robots have to tell (`World.teamReports`). */
+  reports: Map<number, Map<number, Report[]>>;
+}
+
+/** One teammate's report of a robot it sees itself, for the radio. */
+interface Report {
+  friend: Robot;
+  /** The friend's place among the robots, and the contact's place in its list: the order a plain walk meets them. */
+  order: number;
+  index: number;
+  contact: ScriptContact;
+  decoy: SeenDecoy | undefined;
 }
 
 export class World {
@@ -379,7 +391,7 @@ export class World {
   private readonly seenDecoys = new Map<number, Map<number, SeenDecoy>>();
   /** Robots each robot's sensors saw when its scripts last ran (its own contacts), for `scan()` (M8). Derived, not hashed. */
   private readonly seen = new Map<number, readonly ScriptContact[]>();
-  /** The sensor pass's shared answers while this tick's scripts run; undefined at any other time. */
+  /** The sensor pass's shared answers while this tick's scripts run (`shareSight`); undefined at any other time. */
   private pass: SightPass | undefined;
   /** The marks each robot's scripts made when they last ran, by script (M8). For the overlay and reports; not hashed. */
   private readonly scriptMarks = new Map<number, { script: string; marks: ScriptMark[] }[]>();
@@ -1458,9 +1470,18 @@ export class World {
    * channel values, and write the script layer. A crash disables only that script; the world keeps stepping.
    */
   private runScripts(): void {
-    this.pass = { refs: new Map(), sensors: new Map(), radios: new Map(), own: new Map(), scans: new Map(), scanTexts: new Map(), heads: new Map(), middles: new Map() };
+    this.shareSight(() => this.runEveryScript());
+  }
+
+  /**
+   * Runs `read` with the sensor pass's answers shared between everything it asks (as they are while scripts run), for
+   * a caller that asks `sensorView` of many robots between two steps (the CLI's trace). `read` must not change the world.
+   */
+  shareSight<T>(read: () => T): T {
+    if (this.pass) return read();
+    this.pass = { refs: new Map(), sensors: new Map(), radios: new Map(), own: new Map(), scans: new Map(), scanTexts: new Map(), heads: new Map(), middles: new Map(), reports: new Map() };
     try {
-      this.runEveryScript();
+      return read();
     } finally {
       this.pass = undefined;
     }
@@ -1868,38 +1889,74 @@ export class World {
   private withRadio(robot: Robot, own: ScriptContact[], radios: RadioPose[], decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
     const from = partWorldPose(this, robot, robot.primaryCoreId ?? robot.rootId);
     const have = new Set(own.map((c) => c.id));
-    const shared = new Map<number, { contact: ScriptContact; decoy?: SeenDecoy }>();
-    for (const friend of this.robots) {
-      if (friend === robot || friend.team !== robot.team || friend.groups.length === 0) continue;
-      const theirs = this.workingRadios(friend);
-      // In reach when some pair of working radios is within both ranges.
-      if (!radios.some((a) => theirs.some((b) => Math.hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)))) continue;
-      const fooled = new Map<number, SeenDecoy>();
-      for (const c of this.ownContacts(friend, false, fooled)) {
-        if (c.id === robot.id || have.has(c.id)) continue;
-        const distance = Math.hypot(c.pos.x - from.x, c.pos.y - from.y);
-        const known = shared.get(c.id);
-        if (known && known.contact.distance <= distance) continue;
-        const contact = { ...c, distance, by: ['radio'] };
-        const head = this.pass?.heads.get(c);
-        if (head !== undefined) this.pass?.heads.set(contact, head);
-        shared.set(c.id, { contact, decoy: fooled.get(c.id) });
+    const reach = new Map<Robot, boolean>();
+    const inReach = (friend: Robot): boolean => {
+      let near = reach.get(friend);
+      if (near === undefined) {
+        const theirs = this.workingRadios(friend);
+        // In reach when some pair of working radios is within both ranges.
+        near = radios.some((a) => theirs.some((b) => Math.hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)));
+        reach.set(friend, near);
       }
+      return near;
+    };
+    const shared: { first: Report; contact: ScriptContact; decoy: SeenDecoy | undefined }[] = [];
+    for (const [id, reports] of this.teamReports(robot.team)) {
+      if (id === robot.id || have.has(id)) continue;
+      // The reports of one robot, teammates in robot order: the nearest wins, the earlier one on a tie.
+      let first: Report | undefined;
+      let best: Report | undefined;
+      let least = 0;
+      for (const r of reports) {
+        if (r.friend === robot || !inReach(r.friend)) continue;
+        first ??= r;
+        const distance = Math.hypot(r.contact.pos.x - from.x, r.contact.pos.y - from.y);
+        if (best && least <= distance) continue;
+        best = r;
+        least = distance;
+      }
+      if (!first || !best) continue;
+      const contact = { ...best.contact, distance: least, by: ['radio'] };
+      const head = this.pass?.heads.get(best.contact);
+      if (head !== undefined) this.pass?.heads.set(contact, head);
+      shared.push({ first, contact, decoy: best.decoy });
     }
-    if (shared.size === 0) return own;
-    for (const [id, s] of shared) if (s.decoy) decoysOut?.set(id, s.decoy);
-    const out = [...own, ...[...shared.values()].map((s) => s.contact)];
+    if (shared.length === 0) return own;
+    // In the order a walk over the teammates, then over each one's contacts, first comes to them.
+    shared.sort((a, b) => a.first.order - b.first.order || a.first.index - b.first.index);
+    for (const s of shared) if (s.decoy) decoysOut?.set(s.contact.id, s.decoy);
+    const out = [...own, ...shared.map((s) => s.contact)];
     out.sort((a, b) => a.distance - b.distance || a.id - b.id);
+    return out;
+  }
+
+  /**
+   * What a team's robots with a working radio see with their own sensors, by the robot seen, each list in robot
+   * order: every listener of the team picks from the same lists (see `withRadio`).
+   */
+  private teamReports(team: number): Map<number, Report[]> {
+    const known = this.pass?.reports.get(team);
+    if (known) return known;
+    const out = new Map<number, Report[]>();
+    this.robots.forEach((friend, order) => {
+      if (friend.team !== team || friend.groups.length === 0 || this.workingRadios(friend).length === 0) return;
+      const sight = this.sightOf(friend);
+      sight.contacts.forEach((contact, index) => {
+        let list = out.get(contact.id);
+        if (!list) {
+          list = [];
+          out.set(contact.id, list);
+        }
+        list.push({ friend, order, index, contact, decoy: sight.fooled?.get(contact.id) });
+      });
+    });
+    this.pass?.reports.set(team, out);
     return out;
   }
 
   /** What the robot's own sensors see (see contactsFor). */
   private ownContacts(robot: Robot, remember: boolean, decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
-    let sight = this.pass?.own.get(robot);
-    if (!sight) {
-      sight = this.lookAround(robot);
-      this.pass?.own.set(robot, sight);
-    }
+    const sight = this.sightOf(robot);
     if (remember) {
       this.seen.delete(robot.id);
       this.seenDecoys.delete(robot.id);
@@ -1910,6 +1967,14 @@ export class World {
     }
     if (decoysOut && sight.fooled) for (const [id, d] of sight.fooled) decoysOut.set(id, d);
     return sight.contacts;
+  }
+
+  private sightOf(robot: Robot): OwnSight {
+    const known = this.pass?.own.get(robot);
+    if (known) return known;
+    const out = this.lookAround(robot);
+    this.pass?.own.set(robot, out);
+    return out;
   }
 
   /** One look with the robot's own sensors: the same for its scripts, a radio friend, and the overlay. */

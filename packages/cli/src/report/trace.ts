@@ -295,8 +295,10 @@ export class Tracer {
   private traceSight(tickTime: number): void {
     const w = this.world;
     const lostAfter = Math.max(1, Math.round(0.25 / w.dt));
-    for (const r of w.robots) {
-      const view = w.sensorView(r.id);
+    // One sensor pass for all of them: each robot's place, sensors, and radio friends are worked out once.
+    const views = w.shareSight(() => w.robots.map((r) => w.sensorView(r.id)));
+    for (const [i, r] of w.robots.entries()) {
+      const view = views[i] ?? { sensors: [], contacts: [] };
       const known = this.sight.get(r.id) ?? new Map<number, number>();
       if (view.sensors.length === 0 && known.size === 0) continue;
       this.sight.set(r.id, known);
