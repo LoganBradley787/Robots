@@ -24,8 +24,9 @@ describe('missilenator, done when', () => {
     // Built in about 41 s; it flies 400 m in under 10.
     for (let t = 0; t < 55 * 60; t++) w.step();
     expect(w.events.filter((e) => e.kind === 'released' && e.robot === silo.id)).toHaveLength(1);
-    // Rammed and blown apart: every part at once (a robot destroyed whole logs no coreLost, so count its parts).
+    // Rammed and blown apart: every part, and its core with them.
     expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id).length).toBeGreaterThanOrEqual(60);
+    expect(w.events.filter((e) => e.kind === 'coreLost' && e.robot === hunter.id)).toHaveLength(1);
     // The silo is untouched and never tips.
     expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === silo.id)).toHaveLength(0);
     w.dispose();

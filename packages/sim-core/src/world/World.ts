@@ -71,7 +71,10 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'split'; pieces: number[] }
   /** A decoupler fired; `x`, `y` is the middle of its release face. */
   | { tick: number; robot: number; kind: 'decoupled'; part: string; x: number; y: number }
-  /** A robot's active core was destroyed: nobody controls it any more and it keeps its last input. */
+  /**
+   * A robot's active core was destroyed: nobody controls it any more and it keeps its last input. Once per core, also
+   * when the whole robot went in the same step (then `removed` follows on the same tick).
+   */
   | { tick: number; robot: number; kind: 'coreLost' }
   /** A piece broke off with exactly one core, which woke up and can be controlled. */
   | { tick: number; robot: number; kind: 'coreWoke'; from: number }
@@ -822,6 +825,8 @@ export class World {
         robot,
       );
       if (pieces.length === 0) {
+        // Wiped whole in one step (a big blast): its core went with the rest, so it is lost here as it is when it goes alone.
+        if (controller) this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'coreLost' });
         this.removeRobot(robot);
         continue;
       }
