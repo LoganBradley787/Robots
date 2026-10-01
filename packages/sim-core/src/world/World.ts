@@ -11,7 +11,7 @@ import { drainContainers, fillContainers, grantFactor, poolTotals, type Containe
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
-import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, numberCount, put, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
+import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
@@ -205,6 +205,11 @@ export interface WorldOptions {
    * (`assembly/rebuild.ts`). The outcome must be the same either way; a test runs both and compares.
    */
   fullRebuild?: boolean;
+  /**
+   * Tests only: a changed robot's scripts are handed its whole parts layout again, never a patch on the one they hold
+   * (`script/frame.ts`, `layoutPatch`). What a script sees must be the same either way; a test runs both and compares.
+   */
+  fullLayouts?: boolean;
 }
 
 /** A body's state with the cosine and sine of its angle, read once per tick for all its parts. */
@@ -222,6 +227,8 @@ interface ScriptFeed {
   chunk: number;
   mass: number;
   layout: ScriptLayout;
+  /** The layout's entries, kept so the next layout can be handed over as a patch on this one. */
+  rows: LayoutPart[];
   parts: { id: string; part: PartInstance; in: readonly string[]; out: readonly string[] }[];
   numbers: Float64Array;
 }
@@ -304,6 +311,7 @@ export class World {
   private readonly scriptHost: ScriptHost | undefined;
   private readonly scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
   private readonly fullRebuild: boolean;
+  private readonly fullLayouts: boolean;
   private readonly feeds = new WeakMap<Robot, ScriptFeed>();
   /** Every robot in `robots`, by id (M9: lookups on every tick without scanning the list). */
   private readonly byId = new Map<number, Robot>();
@@ -414,6 +422,7 @@ export class World {
     this.scriptHost = opts.scripts;
     if (opts.scriptProbe) this.scriptProbe = opts.scriptProbe;
     this.fullRebuild = opts.fullRebuild === true;
+    this.fullLayouts = opts.fullLayouts === true;
     this.rng = new Prng(opts.seed);
     this.gravityY = opts.gravityY ?? -9.81;
     this.physics = new PhysicsWorld(this.gravityY, this.dt);
@@ -1556,7 +1565,7 @@ export class World {
     const key = `${robot.version}:${coreId}`;
     let feed = this.feeds.get(robot);
     if (!feed || feed.key !== key || !this.fillFeed(robot, feed)) {
-      feed = this.buildFeed(robot, key);
+      feed = this.buildFeed(robot, key, feed);
       if (!this.fillFeed(robot, feed)) throw new Error(`script layout of ${robot.name} did not match right after it was built`);
     }
     const inbox = (robot.parts.get(coreId)?.inbox ?? []).filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown }));
@@ -1577,7 +1586,7 @@ export class World {
   }
 
   /** A new layout for the robot's controlled chunk, with the values present on each part right now. */
-  private buildFeed(robot: Robot, key: string): ScriptFeed {
+  private buildFeed(robot: Robot, key: string, last?: ScriptFeed): ScriptFeed {
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const chunk = chunkIndex(robot, coreId);
     const chans = this.channels.get(robot.id);
@@ -1597,7 +1606,17 @@ export class World {
     // The robot's mass only changes when it is rebuilt, which makes a new layout.
     let mass = 0;
     for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
-    const feed: ScriptFeed = { key, chunk, mass, layout: { id: ++this.layouts, json: layoutJson(layout) }, parts, numbers: new Float64Array(numberCount(layout)) };
+    // The whole layout as text is only made when a script needs it: one that holds the last layout takes the patch.
+    let json: string | undefined;
+    const patch = last && !this.fullLayouts ? layoutPatch(last.rows, layout) : undefined;
+    const handed: ScriptLayout = {
+      id: ++this.layouts,
+      get json() {
+        return (json ??= layoutJson(layout));
+      },
+      ...(last && patch !== undefined ? { patch: { from: last.layout.id, json: patch } } : {}),
+    };
+    const feed: ScriptFeed = { key, chunk, mass, layout: handed, rows: layout, parts, numbers: new Float64Array(numberCount(layout)) };
     this.feeds.set(robot, feed);
     return feed;
   }

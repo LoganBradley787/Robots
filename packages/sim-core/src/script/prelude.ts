@@ -86,14 +86,18 @@ export const PRELUDE = String.raw`
     }
     if (writes.length < 1000) writes[writes.length] = [String(target), String(channel), value];
   };
-  function matches(r, target) {
-    return r.type === target || r.tags.indexOf(target) >= 0;
-  }
+  // The first part, in parts order, of that type or with that tag that has the value: looked up in the parts kept per
+  // type and tag (below), not by walking every part. A part's in and out cannot be replaced, so reading them off the
+  // part is reading the real ones.
   globalThis.get = function (target, channel) {
-    for (var i = 0; i < rows.length; i++) {
-      var r = rows[i];
-      if (matches(r, target) && hasOwn.call(r.inO, channel)) return r.inO[channel];
-      if (matches(r, target) && hasOwn.call(r.outO, channel)) return r.outO[channel];
+    if (typeof target !== 'string') return undefined;
+    if (index === null) buildIndex();
+    var bucket = index[target];
+    if (bucket === undefined) return undefined;
+    for (var i = 0; i < bucket.length; i++) {
+      var o = bucket[i];
+      if (hasOwn.call(o.in, channel)) return o.in[channel];
+      if (hasOwn.call(o.out, channel)) return o.out[channel];
     }
     return undefined;
   };
@@ -127,36 +131,133 @@ export const PRELUDE = String.raw`
   var freeze = Object.freeze;
   var seal = Object.seal;
   var defineProperty = Object.defineProperty;
+  var create = Object.create;
+  // Built-ins taken with their receiver bound, so nothing a script does to Array.prototype, String.prototype, or
+  // Function.prototype reaches them.
+  var bind = Function.prototype.call.bind(Function.prototype.bind);
+  var call = Function.prototype.call;
+  var indexOf = bind(call, Array.prototype.indexOf);
+  var copyWithin = bind(call, Array.prototype.copyWithin);
+  var repeat = bind(call, String.prototype.repeat);
   var fixed = ['id', 'type', 'tags', 'pos', 'mass', 'in', 'out'];
+  var lock = { writable: false, configurable: false };
+  // The parts by type and by tag, each list in parts order, for get(): null until a get() needs it, then kept up to
+  // date as the layout is patched (or dropped, when a patch moves parts about, and built again on the next get()).
+  var index = null;
   /** '{"a":0,"b":0}' for the names, so parse makes the object with its keys in order. */
   function zeros(names) {
     var text = '{';
     for (var j = 0; j < names.length; j++) text += (j > 0 ? ',' : '') + stringify(names[j]) + ':0';
     return text + '}';
   }
+  /** '[null,null,...]' with n nulls: parse makes an array whose every index is its own, ready to be filled. */
+  function nullsFor(n) {
+    return n === 0 ? '[]' : '[' + repeat('null,', n - 1) + 'null]';
+  }
+  /** One part from its layout entry: [id, type, tags, mass, in names, out names]. */
+  function makeRow(l) {
+    var inO = parse(zeros(l[4]));
+    var outO = parse(zeros(l[5]));
+    var pos = { x: 0, y: 0 };
+    var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
+    var o = { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO };
+    // Only the numbers change from tick to tick: nothing can be replaced, added, or deleted, so the refill always
+    // reaches what the script sees and a script's own writes last one tick at most.
+    for (var j = 0; j < fixed.length; j++) defineProperty(o, fixed[j], lock);
+    seal(o);
+    seal(pos);
+    seal(inO);
+    seal(outO);
+    r.o = o;
+    return r;
+  }
   function setLayout(json) {
     var list = parse(json);
-    nulls = '[';
-    for (var i = 0; i < list.length; i++) nulls += i > 0 ? ',null' : 'null';
-    nulls += ']';
+    nulls = nullsFor(list.length);
     rows = parse(nulls);
-    for (var i = 0; i < list.length; i++) {
-      var l = list[i];
-      var inO = parse(zeros(l[4]));
-      var outO = parse(zeros(l[5]));
-      var pos = { x: 0, y: 0 };
-      var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
-      var o = { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO };
-      // Only the numbers change from tick to tick: nothing can be replaced, added, or deleted, so the refill always
-      // reaches what the script sees and a script's own writes last one tick at most.
-      for (var j = 0; j < fixed.length; j++) defineProperty(o, fixed[j], { writable: false, configurable: false });
-      seal(o);
-      seal(pos);
-      seal(inO);
-      seal(outO);
-      r.o = o;
-      rows[i] = r;
+    for (var i = 0; i < list.length; i++) rows[i] = makeRow(list[i]);
+    index = null;
+  }
+  function put(key, o) {
+    var bucket = index[key];
+    if (bucket === undefined) index[key] = [o];
+    else if (bucket[bucket.length - 1] !== o) bucket[bucket.length] = o;
+  }
+  function addIndex(r) {
+    put(r.type, r.o);
+    var tags = r.tags;
+    for (var j = 0; j < tags.length; j++) put(tags[j], r.o);
+  }
+  function buildIndex() {
+    index = create(null);
+    for (var i = 0; i < rows.length; i++) addIndex(rows[i]);
+  }
+  /** Takes a part out of one list, or puts another in its place. */
+  function swap(bucket, o, other) {
+    var at = indexOf(bucket, o);
+    if (at < 0) return;
+    if (other !== null) {
+      bucket[at] = other;
+      return;
     }
+    copyWithin(bucket, at, at + 1);
+    bucket.length = bucket.length - 1;
+  }
+  function reindex(r, other) {
+    swap(index[r.type], r.o, other);
+    var tags = r.tags;
+    for (var j = 0; j < tags.length; j++) swap(index[tags[j]], r.o, other);
+  }
+  // The layout after the robot changed, as a patch on the one held (frame.ts, layoutPatch): the parts that are as
+  // they were keep their objects, so nothing is made again for them. A kept part object stays live across the change.
+  function patchLayout(json) {
+    var p = parse(json);
+    var n = p[0];
+    var ops = p[2];
+    var live = index !== null;
+    if (p[1] === 2) {
+      // Only parts gone: the rest close up in place, last gap first.
+      for (var i = ops.length - 1; i >= 0; i--) {
+        var gap = ops[i];
+        if (live) for (var j = gap[0]; j < gap[1]; j++) reindex(rows[j], null);
+        copyWithin(rows, gap[0], gap[1]);
+      }
+      rows.length = n;
+      nulls = nullsFor(n);
+      return;
+    }
+    // Kept parts in their old order with new ones only after them (p[1] is 1): the lists for get() follow along.
+    live = live && p[1] === 1;
+    var text = nullsFor(n);
+    var next = parse(text);
+    var k = 0;
+    var seen = 0;
+    for (var i = 0; i < ops.length; i++) {
+      var op = ops[i];
+      if (typeof op[0] === 'number') {
+        // Old parts op[0] up to op[1], as they are.
+        if (live) for (var j = seen; j < op[0]; j++) reindex(rows[j], null);
+        for (var j = op[0]; j < op[1]; j++) next[k++] = rows[j];
+        seen = op[1];
+      } else {
+        var r = makeRow(op);
+        if (live) {
+          if (op.length > 6) {
+            // The old part op[6] with other values present: the new one stands where it stood.
+            for (var j = seen; j < op[6]; j++) reindex(rows[j], null);
+            reindex(rows[op[6]], r.o);
+            seen = op[6] + 1;
+          } else {
+            addIndex(r);
+          }
+        }
+        next[k++] = r;
+      }
+    }
+    if (live) for (var j = seen; j < rows.length; j++) reindex(rows[j], null);
+    else index = null;
+    rows = next;
+    nulls = text;
   }
   function load(buf, extras) {
     var f = new F64(buf);
@@ -236,6 +337,7 @@ export const PRELUDE = String.raw`
   }
   return {
     layout: function (json) { setLayout(json); return ''; },
+    patch: function (json) { patchLayout(json); return ''; },
     setup: function (buf, extras) {
       load(buf, extras);
       globalThis.state = {};

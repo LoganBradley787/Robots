@@ -14,7 +14,13 @@ import type { ScriptContact, ScriptInput } from './types';
 export interface ScriptLayout {
   /** Unique per world and layout: a script re-reads the layout only when this changes. */
   id: number;
+  /** The whole layout (`layoutJson`). */
   json: string;
+  /**
+   * The same layout as a patch on layout `from` (`layoutPatch`), for a script that holds that one: it keeps the part
+   * objects of every part that is as it was and makes only the others. A script holding any other layout reads `json`.
+   */
+  patch?: { from: number; json: string };
 }
 
 export interface ScriptFrame {
@@ -42,6 +48,80 @@ export const PART_FIXED = 3;
 
 export function layoutJson(parts: readonly LayoutPart[]): string {
   return JSON.stringify(parts.map((p) => [p.id, p.type, p.tags, p.mass, p.in, p.out]));
+}
+
+function sameNames(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+/** How far ahead a part is looked for in the old layout before the old ids are put in a map. */
+const PATCH_LOOK = 32;
+
+/**
+ * `now` as a patch on `old`, for a script that holds `old`: JSON text `[parts, mode, ops]`.
+ * - Mode 2: only parts gone. `ops` is the gaps, each `[from, to]` of old indexes (to not included), in order.
+ * - Otherwise `ops` builds the new list in order: `[from, to]` keeps those old parts as they are, and a layout entry
+ *   (`[id, type, tags, mass, in, out]`, as in `layoutJson`) makes a part. An entry with a seventh item, an old index,
+ *   is that old part with other values present: same id, type, and tags, standing where it stood.
+ *   Mode 1 says the kept and replaced parts are in their old order and every other new part comes after them all (so
+ *   what a script keeps per type and tag can follow along); mode 0 says nothing.
+ * A part is kept only when every field of its entry is equal, so the patched layout is the new one, field for field.
+ * Undefined when nothing of `old` is kept (the whole layout is then no more work).
+ */
+export function layoutPatch(old: readonly LayoutPart[], now: readonly LayoutPart[]): string | undefined {
+  let ids: Map<string, number> | undefined;
+  /** Where the part is in `old`, at `from` or later: looked for a little way ahead first (a lost part leaves a small gap). */
+  const find = (id: string, from: number): number => {
+    if (!ids) {
+      const end = Math.min(old.length, from + PATCH_LOOK);
+      for (let j = from; j < end; j++) if (old[j]?.id === id) return j;
+      if (end === old.length) return -1;
+      ids = new Map();
+      for (let j = 0; j < old.length; j++) ids.set((old[j] as LayoutPart).id, j);
+    }
+    return ids.get(id) ?? -1;
+  };
+  const ops: (number[] | unknown[])[] = [];
+  const gaps: number[][] = [];
+  let next = 0;
+  let kept = 0;
+  let made = 0;
+  /** Whether a part that was never in `old` (or moved) has been made yet: nothing kept may come after one. */
+  let fresh = false;
+  let ordered = true;
+  let run: number[] | undefined;
+  for (const p of now) {
+    const k = find(p.id, next);
+    const was = k >= 0 ? (old[k] as LayoutPart) : undefined;
+    const sameShape = was !== undefined && was.type === p.type && sameNames(was.tags, p.tags);
+    // A part behind where the walk has got to has moved: it is made anew, like one that was never there.
+    if (was && sameShape && k >= next && was.mass === p.mass && sameNames(was.in, p.in) && sameNames(was.out, p.out)) {
+      if (fresh) ordered = false;
+      if (k > next) gaps.push([next, k]);
+      if (run && run[1] === k) run[1] = k + 1;
+      else ops.push((run = [k, k + 1]));
+      next = k + 1;
+      kept++;
+      continue;
+    }
+    run = undefined;
+    made++;
+    const entry: unknown[] = [p.id, p.type, p.tags, p.mass, p.in, p.out];
+    if (was && sameShape && k >= next) {
+      if (fresh) ordered = false;
+      if (k > next) gaps.push([next, k]);
+      entry.push(k);
+      next = k + 1;
+    } else {
+      fresh = true;
+    }
+    ops.push(entry);
+  }
+  if (kept === 0) return undefined;
+  if (next < old.length) gaps.push([next, old.length]);
+  return JSON.stringify(made === 0 ? [now.length, 2, gaps] : [now.length, ordered ? 1 : 0, ops]);
 }
 
 /** How many numbers a layout needs. */

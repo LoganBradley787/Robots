@@ -66,7 +66,7 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
           handles.push(h);
           return h;
         };
-        const entries = { layout: fn('layout'), setup: fn('setup'), tick: fn('tick'), specs: fn('specs'), hasTick: fn('hasTick'), inspect: fn('inspect') };
+        const entries = { layout: fn('layout'), patch: fn('patch'), setup: fn('setup'), tick: fn('tick'), specs: fn('specs'), hasTick: fn('hasTick'), inspect: fn('inspect') };
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
         const user = run(c, meter, () => c.evalCode(source, opts.name), true);
         if (!user.ok) return fail(user.error);
@@ -150,7 +150,7 @@ class QuickJsInstance implements ScriptInstance {
   private readonly handles: QuickJSHandle[];
   private readonly services: { current?: ScriptServices };
   private disposed = false;
-  /** The layout this script last read (M9); a frame with another id sends its layout first. */
+  /** The layout this script last read (M9); a frame with another id sends its layout first, as a patch on this one when it has one. */
   private layoutId: number | undefined;
 
   constructor(
@@ -205,8 +205,10 @@ class QuickJsInstance implements ScriptInstance {
     try {
       this.meter.arm(this.limits.budgetPerTick);
       if (frame.layout.id !== this.layoutId) {
-        const text = ctx.newString(frame.layout.json);
-        const r = run(ctx, this.meter, () => ctx.callFunction(this.entries.layout, ctx.undefined, text));
+        // A patch on the layout this script holds when there is one, else the whole layout.
+        const patch = frame.layout.patch !== undefined && frame.layout.patch.from === this.layoutId ? frame.layout.patch.json : undefined;
+        const text = ctx.newString(patch ?? frame.layout.json);
+        const r = run(ctx, this.meter, () => ctx.callFunction(patch === undefined ? this.entries.layout : this.entries.patch, ctx.undefined, text));
         text.dispose();
         if (!r.ok) return r;
         this.layoutId = frame.layout.id;
@@ -227,6 +229,7 @@ class QuickJsInstance implements ScriptInstance {
 
 interface Entries {
   layout: QuickJSHandle;
+  patch: QuickJSHandle;
   setup: QuickJSHandle;
   tick: QuickJSHandle;
   inspect: QuickJSHandle;
