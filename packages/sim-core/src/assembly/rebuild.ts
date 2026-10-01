@@ -1,9 +1,7 @@
-import type { Blueprint, PlacedPart } from '../blueprint/types';
+import type { Blueprint } from '../blueprint/types';
 import type { BodyId, PhysicsWorld } from '../physics/PhysicsWorld';
-import type { PartRegistry } from '../parts/registry';
-import type { Face } from '../parts/types';
 import type { BodyGroup, PartInstance, Robot } from '../world/Robot';
-import { assembleLinked, isCore, type AssemblyLinks, type GroupPlan } from './assemble';
+import { assembleParts, type AssemblyLinks, type GroupPlan } from './assemble';
 import { buildBodies, type GroupPose } from './build';
 
 /** A body's pose and motion; velocity is the center of mass's. */
@@ -20,7 +18,6 @@ export interface BodyMotion {
 
 export interface RebuildHost {
   physics: PhysicsWorld;
-  registry: PartRegistry;
   tick: number;
   /** A body's motion, counting a kick it was given earlier this tick (Rapier reports it only after a step). */
   motion(body: BodyId): BodyMotion;
@@ -84,7 +81,7 @@ interface Piece {
  * wakes that core (`04`: a dormant core wakes when its sub-assembly splits off). The robot itself never wakes a
  * dormant core: shoot the pilot and the jet does not fly by its missiles (Q1).
  *
- * The pieces come from `assemble`, except for a robot that only lost parts and provably stays as it was (`stillWhole`):
+ * The pieces come from assembling its live parts (`assembleParts`), except for a robot that only lost parts and provably stays as it was (`stillWhole`):
  * its body groups are its old ones less the lost parts. Either way the same bodies are made in the same order.
  */
 export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
@@ -107,7 +104,7 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
   const active = robot.primaryCoreId !== undefined && all.has(robot.primaryCoreId) ? robot.primaryCoreId : undefined;
   const before = host.full === true ? undefined : kept.get(robot);
   const whole = before === undefined ? undefined : stillWhole(robot, before, active);
-  const pieces = whole !== undefined ? [whole] : assemblePieces(host, robot, active);
+  const pieces = whole !== undefined ? [whole] : assemblePieces(robot, active);
   if (host.tally) host.tally[whole !== undefined ? 'whole' : 'assembled']++;
 
   /** Where a part is now, from the body it was on. */
@@ -176,57 +173,46 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
   return out;
 }
 
-/** The pieces of a robot worked out from scratch: `assemble` on its live parts, the piece it keeps first. */
-function assemblePieces(host: RebuildHost, robot: Robot, active: string | undefined): Piece[] {
-  const { registry } = host;
-  const all = robot.parts;
-  const live = robot.blueprint.parts.filter((p) => all.has(p.id));
-  const cut = new Map<string, readonly Face[]>();
-  // Parts holding with their grips (M12: a fabricator bay with a finished item in it).
-  const holding = new Set<string>();
-  for (const p of all.values()) {
-    if (p.cut && p.cut.length > 0) cut.set(p.id, p.cut);
-    if (p.holding === true) holding.add(p.id);
-  }
-  const whole: Blueprint = { ...robot.blueprint, parts: live };
-
-  const pieceOf = (pieceParts: PlacedPart[], isKept: boolean): { rootId: string; cores: number } => {
+/**
+ * The pieces of a robot worked out from scratch: its live parts assembled, the piece it keeps first. The parts are
+ * taken as the robot holds them, which is blueprint order (`Robot.parts`).
+ */
+function assemblePieces(robot: Robot, active: string | undefined): Piece[] {
+  const live = [...robot.parts.values()];
+  const assembled = (pieceParts: PartInstance[], isKept: boolean): { piece: Piece; chunkOf: Int32Array; chunks: number } => {
     let cores = 0;
     let firstCore: string | undefined;
     for (const p of pieceParts) {
-      if (!isCore(p, registry)) continue;
+      if (p.def.role !== 'core') continue;
       cores++;
       firstCore ??= p.id;
     }
-    return { rootId: isKept && active !== undefined ? active : (firstCore ?? (pieceParts[0]?.id as string)), cores };
-  };
-  const assembled = (pieceParts: PlacedPart[], isKept: boolean): { piece: Piece; sets: string[][] } => {
-    const { rootId, cores } = pieceOf(pieceParts, isKept);
-    const { plan, links } = assembleLinked({ ...whole, parts: pieceParts }, registry, rootId, cut, holding);
-    const piece: Piece = { ids: pieceParts.map((p) => p.id), groups: plan.groups, rootId, cores };
-    if (links !== undefined && plan.chunks.length === 1) piece.keep = keepFor(robot.blueprint, pieceParts, all, registry, links, plan.groups.length);
-    return { piece, sets: plan.chunks.map((c) => c.partIds) };
+    const rootId = isKept && active !== undefined ? active : (firstCore ?? (pieceParts[0]?.id as string));
+    const a = assembleParts(pieceParts, rootId);
+    const piece: Piece = { ids: pieceParts.map((p) => p.id), groups: a.groups, rootId, cores };
+    if (a.links !== undefined && a.chunks.length === 1) piece.keep = keepFor(robot.blueprint, pieceParts, a.links, a.groups.length);
+    return { piece, chunkOf: a.chunkOf, chunks: a.chunks.length };
   };
 
   // The usual rebuild leaves one piece: assembled as that piece (rooted at its own root), it needs no second pass.
   const first = assembled(live, true);
-  const sets = first.sets;
-  if (sets.length === 1) return [first.piece];
+  if (first.chunks === 1) return [first.piece];
 
-  const setOf = new Map<string, number>();
-  sets.forEach((ids, i) => {
-    for (const id of ids) setOf.set(id, i);
+  const members: PartInstance[][] = [];
+  for (let c = 0; c < first.chunks; c++) members.push([]);
+  let keep = -1;
+  live.forEach((p, i) => {
+    const c = first.chunkOf[i] as number;
+    (members[c] as PartInstance[]).push(p);
+    if (p.id === active) keep = c;
   });
-  let keep = active === undefined ? -1 : (setOf.get(active) ?? -1);
-  if (keep < 0) keep = sets.reduce((best, ids, i) => (ids.length > (sets[best]?.length ?? 0) ? i : best), 0);
-  const members: PlacedPart[][] = sets.map(() => []);
-  for (const p of live) (members[setOf.get(p.id) as number] as PlacedPart[]).push(p);
-  const order = [keep, ...sets.map((_, i) => i).filter((i) => i !== keep)];
-  return order.map((i) => assembled(members[i] as PlacedPart[], i === keep).piece);
+  if (keep < 0) keep = members.reduce((best, list, i) => (list.length > (members[best]?.length ?? 0) ? i : best), 0);
+  const order = [keep, ...members.map((_, i) => i).filter((i) => i !== keep)];
+  return order.map((i) => assembled(members[i] as PartInstance[], i === keep).piece);
 }
 
 /** What a robot keeps of a piece just assembled (`Kept`, less its bodies). */
-function keepFor(blueprint: Blueprint, pieceParts: readonly PlacedPart[], all: ReadonlyMap<string, PartInstance>, registry: PartRegistry, links: AssemblyLinks, groupCount: number): Omit<Kept, 'bodies'> {
+function keepFor(blueprint: Blueprint, pieceParts: readonly PartInstance[], links: AssemblyLinks, groupCount: number): Omit<Kept, 'bodies'> {
   const n = pieceParts.length;
   const core = new Uint8Array(n);
   const cuts = new Uint8Array(n);
@@ -234,10 +220,9 @@ function keepFor(blueprint: Blueprint, pieceParts: readonly PlacedPart[], all: R
   const groups: number[][] = [];
   for (let g = 0; g < groupCount; g++) groups.push([]);
   pieceParts.forEach((p, i) => {
-    const inst = all.get(p.id);
-    if (isCore(p, registry)) core[i] = 1;
-    cuts[i] = inst?.cut?.length ?? 0;
-    if (inst?.holding === true) holding[i] = 1;
+    if (p.def.role === 'core') core[i] = 1;
+    cuts[i] = p.cut?.length ?? 0;
+    if (p.holding === true) holding[i] = 1;
     (groups[links.groupOf[i] as number] as number[]).push(i);
   });
   return { blueprint, ids: pieceParts.map((p) => p.id), here: new Uint8Array(n).fill(1), left: n, links, core, cuts, holding, groups, mark: new Int32Array(n), stamp: 0 };

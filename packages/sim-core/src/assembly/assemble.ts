@@ -1,8 +1,8 @@
 import { footprintOf } from '../parts/footprint';
 import type { Blueprint, PlacedPart } from '../blueprint/types';
-import { faceDir, opposite, rotateCell, rotateFace, type Cell } from '../parts/faces';
+import { opposite, rotateCell, rotateFace, type Cell } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
-import type { Face } from '../parts/types';
+import type { Face, FootprintCell, PartDef, Rotation } from '../parts/types';
 
 export interface AttachEdge {
   /** Part ids; `a` comes before `b` in blueprint order. */
@@ -64,16 +64,49 @@ export function rootPartId(bp: Blueprint, registry: PartRegistry): string | unde
 const FACE_SLOT: Readonly<Record<Face, number>> = { N: 0, E: 1, S: 2, W: 3 };
 
 /**
- * How the parts hold together, as `assemble` found it, by part index (blueprint order). A rebuilt robot keeps it to
- * tell quickly whether it is still one piece after losing parts (`rebuild.ts`).
+ * What assembly needs to know of a part: a blueprint's placed part with its def looked up, or a live part of a robot
+ * (a `PartInstance` is one), so a rebuild assembles its parts as they are.
+ */
+export interface AssemblyPart {
+  id: string;
+  def: PartDef;
+  x: number;
+  y: number;
+  rot: Rotation;
+  /** Its cells when they differ from its def's (a stretchy part placed at another size). */
+  footprint?: FootprintCell[];
+  /** Faces (after rotation) it no longer attaches through. */
+  cut?: readonly Face[];
+  /** Whether its grips hold (M12). */
+  holding?: boolean;
+}
+
+/**
+ * How the parts hold together, as assembly found it, by part index (the order they were given in). A rebuilt robot
+ * keeps it to tell quickly whether it is still one piece after losing parts (`rebuild.ts`).
  */
 export interface AssemblyLinks {
-  /** The parts each part is welded to, in blueprint order: every attached neighbor except across a joint part's mount face. */
+  /** The parts each part is welded to: every attached neighbor except across a joint part's mount face. */
   welds: number[][];
   /** 1 for a joint part whose mount face is attached, and for the part it is mounted on. */
   jointed: Uint8Array;
   /** Each part's body group. */
   groupOf: Int32Array;
+}
+
+/** What `assembleParts` works out: the plan's chunks and groups, and the rest by part index. */
+export interface Assembly {
+  chunks: ChunkPlan[];
+  groups: GroupPlan[];
+  lockedJoints: string[];
+  /** Each part's chunk. */
+  chunkOf: Int32Array;
+  /** Attached pairs of parts in the order they were found, flat: `a, b, a, b`, each `a` before its `b`. */
+  pairs: number[];
+  /** Attached faces per part. */
+  attached: Int32Array;
+  /** Left out when a joint is locked: such a robot is always worked out in full. */
+  links?: AssemblyLinks;
 }
 
 /**
@@ -83,91 +116,122 @@ export interface AssemblyLinks {
  * longer attach (fired decouplers); parts in `holding` (M12) attach through their grips as well as their faces.
  */
 export function assemble(bp: Blueprint, registry: PartRegistry, rootId: string | undefined = rootPartId(bp, registry), cut?: CutFaces, holding?: ReadonlySet<string>): AssemblyPlan {
-  return assembleLinked(bp, registry, rootId, cut, holding).plan;
+  const parts: AssemblyPart[] = bp.parts.map((p) => {
+    const def = registry.get(p.part);
+    const gone = cut?.get(p.id);
+    return { id: p.id, def, x: p.x, y: p.y, rot: p.rot, footprint: footprintOf(def, p.size), ...(gone ? { cut: gone } : {}), holding: holding?.has(p.id) === true };
+  });
+  const a = assembleParts(parts, rootId);
+  const edges: AttachEdge[] = [];
+  for (let i = 0; i < a.pairs.length; i += 2) edges.push({ a: (parts[a.pairs[i] as number] as AssemblyPart).id, b: (parts[a.pairs[i + 1] as number] as AssemblyPart).id });
+  const attachedFaces = new Map<string, number>();
+  parts.forEach((p, i) => attachedFaces.set(p.id, a.attached[i] as number));
+  return { edges, chunks: a.chunks, groups: a.groups, attachedFaces, lockedJoints: a.lockedJoints };
 }
 
 /**
- * `assemble`, plus the links it found (left out when a joint is locked: such a robot is always worked out in full).
- * Works by part index and numbered cells, not id strings: a robot of thousands of parts is assembled every time it
- * splits (`test/reference/assembleReference.ts` is the plain version it must agree with).
+ * Assembly itself, on parts already looked up. It works by part index and numbered cells, not id strings: a robot of
+ * thousands of parts is assembled every time it splits (`test/reference/assembleReference.ts` is the plain version it
+ * must agree with).
  */
-export function assembleLinked(bp: Blueprint, registry: PartRegistry, rootId: string | undefined, cut?: CutFaces, holding?: ReadonlySet<string>): { plan: AssemblyPlan; links?: AssemblyLinks } {
-  const parts = bp.parts;
+export function assembleParts(parts: readonly AssemblyPart[], rootId: string | undefined): Assembly {
   const n = parts.length;
-  const idOf = (i: number): string => (parts[i] as PlacedPart).id;
+  const idOf = (i: number): string => (parts[i] as AssemblyPart).id;
 
-  // Every part's cells, and the box around them all.
-  const cells: { cell: Cell; faces: Face[] }[][] = [];
+  // Every part's cells in one list (a part's are side by side), and the box around them all.
+  const cellX: number[] = [];
+  const cellY: number[] = [];
+  const cellFaces: (readonly Face[])[] = [];
+  const cellPart: number[] = [];
+  /** Each def cell's faces turned to each rotation: most parts share a handful of them. */
+  const turned = new Map<FootprintCell, (readonly Face[] | undefined)[]>();
   let minX = Infinity;
+  let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
-  for (const p of parts) {
-    const gone = cut?.get(p.id);
-    const own = partCells(p, registry, holding?.has(p.id) === true);
-    const list = gone === undefined ? own : own.map((c) => ({ cell: c.cell, faces: c.faces.filter((f) => !gone.includes(f)) }));
-    cells.push(list);
-    for (const { cell } of list) {
-      if (cell.x < minX) minX = cell.x;
-      if (cell.y < minY) minY = cell.y;
-      if (cell.y > maxY) maxY = cell.y;
+  for (let i = 0; i < n; i++) {
+    const p = parts[i] as AssemblyPart;
+    const gone = p.cut !== undefined && p.cut.length > 0 ? p.cut : undefined;
+    for (const fc of p.footprint ?? p.def.footprint) {
+      let faces: readonly Face[];
+      if (p.holding === true && fc.grips) {
+        // A holding part's grips (M12) attach like faces.
+        faces = [...fc.faces, ...fc.grips].map((f) => rotateFace(f, p.rot));
+      } else if (p.rot === 0) faces = fc.faces;
+      else {
+        let byRot = turned.get(fc);
+        if (!byRot) turned.set(fc, (byRot = []));
+        faces = byRot[p.rot / 90] ??= fc.faces.map((f) => rotateFace(f, p.rot));
+      }
+      if (gone) faces = faces.filter((f) => !gone.includes(f));
+      const single = fc.x === 0 && fc.y === 0;
+      const off = single ? fc : rotateCell(fc, p.rot);
+      const x = p.x + off.x;
+      const y = p.y + off.y;
+      cellX.push(x);
+      cellY.push(y);
+      cellFaces.push(faces);
+      cellPart.push(i);
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
     }
   }
   // A cell's number: its own for every cell in the box and one step outside it, so a neighbor's is one sum away.
-  const rows = maxY - minY + 3;
-  const cellNumber = (c: Cell): number => (c.x - minX + 1) * rows + (c.y - minY + 1);
-  const byCell = new Map<number, number>();
-  const cellPart: number[] = [];
-  const cellFaces: Face[][] = [];
-  for (let i = 0; i < n; i++) {
-    for (const { cell, faces } of cells[i] as { cell: Cell; faces: Face[] }[]) {
-      byCell.set(cellNumber(cell), cellPart.length);
-      cellPart.push(i);
-      cellFaces.push(faces);
-    }
+  // The cell at each number is in a table when the box is not much bigger than the robot, else in a map.
+  const cellCount = cellPart.length;
+  const rows = cellCount === 0 ? 1 : maxY - minY + 3;
+  const cols = cellCount === 0 ? 1 : maxX - minX + 3;
+  const table = cols * rows <= 8 * cellCount + 4096 ? new Int32Array(cols * rows).fill(-1) : undefined;
+  const sparse = table ? undefined : new Map<number, number>();
+  const numberOf = (c: number): number => ((cellX[c] as number) - minX + 1) * rows + ((cellY[c] as number) - minY + 1);
+  for (let c = 0; c < cellCount; c++) {
+    if (table) table[numberOf(c)] = c;
+    else sparse?.set(numberOf(c), c);
   }
-  /** A joint part's mount face after rotation, or undefined for welded parts. */
-  const mount: (Face | undefined)[] = parts.map((p) => {
-    const joint = registry.get(p.part).joint;
-    return joint === undefined ? undefined : rotateFace(joint.mountFace, p.rot);
-  });
-  const jointParts: number[] = [];
-  mount.forEach((m, i) => {
-    if (m !== undefined) jointParts.push(i);
-  });
+  const step: Readonly<Record<Face, number>> = { N: 1, S: -1, E: rows, W: -rows };
 
-  const edges: AttachEdge[] = [];
+  /** A joint part's mount face after rotation, or undefined for welded parts. */
+  const mount: (Face | undefined)[] = [];
+  const jointParts: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const p = parts[i] as AssemblyPart;
+    const joint = p.def.joint;
+    mount.push(joint === undefined ? undefined : rotateFace(joint.mountFace, p.rot));
+    if (joint !== undefined) jointParts.push(i);
+  }
+
+  const pairs: number[] = [];
   /** An edge's number: `a * n + b` for parts `a` before `b`. */
   const edgeNumber = (x: number, y: number): number => (x < y ? x * n + y : y * n + x);
-  const edgeSeen = new Set<number>();
-  const neighbors: number[][] = parts.map(() => []);
+  const neighbors: number[][] = [];
+  for (let i = 0; i < n; i++) neighbors.push([]);
   const attached = new Int32Array(n);
   /** Part across each attached face (four slots a part), for finding a joint part's parent; -1 for none. */
   const across = new Int32Array(n * 4).fill(-1);
   /** Edges that cross a joint part's mount face: the joint itself, not a weld. */
   const jointEdges = new Set<number>();
 
-  for (let i = 0; i < n; i++) {
-    for (const { cell, faces } of cells[i] as { cell: Cell; faces: Face[] }[]) {
-      const here = cellNumber(cell);
-      for (const f of faces) {
-        const d = faceDir(f);
-        const there = byCell.get(here + d.x * rows + d.y);
-        if (there === undefined) continue;
-        const j = cellPart[there] as number;
-        if (j === i || !(cellFaces[there] as Face[]).includes(opposite(f))) continue;
-        attached[i] = (attached[i] as number) + 1;
-        across[i * 4 + FACE_SLOT[f]] = j;
-        const key = edgeNumber(i, j);
-        if (mount[i] === f) jointEdges.add(key);
-        if (edgeSeen.has(key)) continue;
-        edgeSeen.add(key);
-        edges.push(i < j ? { a: idOf(i), b: idOf(j) } : { a: idOf(j), b: idOf(i) });
-        (neighbors[i] as number[]).push(j);
-        (neighbors[j] as number[]).push(i);
-      }
+  for (let c = 0; c < cellCount; c++) {
+    const i = cellPart[c] as number;
+    const here = numberOf(c);
+    const mine = neighbors[i] as number[];
+    for (const f of cellFaces[c] as readonly Face[]) {
+      const there = table ? (table[here + step[f]] as number) : (sparse?.get(here + step[f]) ?? -1);
+      if (there < 0) continue;
+      const j = cellPart[there] as number;
+      if (j === i || !(cellFaces[there] as readonly Face[]).includes(opposite(f))) continue;
+      attached[i] = (attached[i] as number) + 1;
+      across[i * 4 + FACE_SLOT[f]] = j;
+      if (mount[i] === f) jointEdges.add(edgeNumber(i, j));
+      // Each edge is found from both ends, and from every cell of a part with several; it counts once.
+      if (mine.includes(j)) continue;
+      pairs.push(i < j ? i : j, i < j ? j : i);
+      mine.push(j);
+      (neighbors[j] as number[]).push(i);
     }
   }
-  for (const list of neighbors) list.sort((x, y) => x - y);
   /** The part a joint part is mounted on, or -1. */
   const parentOfPart = (i: number): number => across[i * 4 + FACE_SLOT[mount[i] as Face]] as number;
 
@@ -277,11 +341,8 @@ export function assembleLinked(bp: Blueprint, registry: PartRegistry, rootId: st
     return { partIds: members.map(idOf), groups: gs };
   });
 
-  const attachedFaces = new Map<string, number>();
-  for (let i = 0; i < n; i++) attachedFaces.set(idOf(i), attached[i] as number);
-  const plan: AssemblyPlan = { edges, chunks, groups, attachedFaces, lockedJoints };
-  if (lockedJoints.length > 0) return { plan };
-
+  const out: Assembly = { chunks, groups, lockedJoints, chunkOf: label, pairs, attached };
+  if (lockedJoints.length > 0) return out;
   // No joint was locked, so `jointEdges` is still every joint as first found.
   const jointed = new Uint8Array(n);
   for (const key of jointEdges) {
@@ -289,5 +350,6 @@ export function assembleLinked(bp: Blueprint, registry: PartRegistry, rootId: st
     jointed[key % n] = 1;
   }
   const welds = jointEdges.size === 0 ? neighbors : neighbors.map((list, i) => list.filter((j) => !jointEdges.has(edgeNumber(i, j))));
-  return { plan, links: { welds, jointed, groupOf } };
+  out.links = { welds, jointed, groupOf };
+  return out;
 }

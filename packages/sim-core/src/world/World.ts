@@ -807,7 +807,6 @@ export class World {
       const pieces = rebuildRobot(
         {
           physics: this.physics,
-          registry: this.registry,
           tick: this.tickCount,
           motion: (body) => this.motion(body),
           kick: (body, vx, vy, w) => this.pendingKicks.set(body, { vx, vy, w }),
@@ -1235,6 +1234,7 @@ export class World {
     const cores = [...(robot.blueprint.cores ?? []), ...(result.blueprint.cores ?? []).filter((k) => !oldCores.has(k.core))];
     robot.blueprint = { ...robot.blueprint, parts: [...robot.blueprint.parts, ...added], ...(cores.length > 0 ? { cores } : {}) };
     const origin = robot.parts.get(group.originId);
+    // New parts go last in the blueprint and last in the robot: `Robot.parts` stays in blueprint order.
     for (const p of added) {
       const def = this.registry.get(p.part);
       const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: bay.group, localX: p.x - (origin?.x ?? bay.x), localY: p.y - (origin?.y ?? bay.y) };

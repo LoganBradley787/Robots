@@ -192,4 +192,19 @@ describe('assemble agrees with the reference (rewritten for speed)', () => {
     // The grids do reach the hard cases.
     expect(locked).toBeGreaterThan(20);
   });
+
+  it('on a big hollow ring on wheels (so sparse its cells are looked up in a map, not a table)', () => {
+    const size = 120;
+    const grid: string[] = [];
+    for (let y = 0; y < size; y++) {
+      const row: string[] = [];
+      for (let x = 0; x < size; x++) row.push(y === 0 || y === size - 1 || x === 0 || x === size - 1 ? (x === 0 && y === 5 ? 'C' : x === size - 1 && y % 9 === 4 ? 'R>' : 'F') : x === size - 2 && y % 9 === 4 ? 'F' : '.');
+      grid.push(row.join(' '));
+    }
+    grid.push(Array.from({ length: size }, (_, x) => (x % 10 === 3 ? 'W' : '.')).join(' '));
+    const r = expandBlueprint({ format: 1, name: 'ring', grid });
+    if (!r.blueprint) throw new Error(JSON.stringify(r.issues));
+    expect(assemble(r.blueprint, reg).groups.length).toBeGreaterThan(12);
+    check(r.blueprint, new Prng(3), 'ring');
+  });
 });

@@ -47,6 +47,8 @@ async function pair(file: WorldFile, opts: { gravityY?: number }, spawn: (w: Wor
   const check = (): void => {
     expect(kept.hash()).toBe(full.hash());
     expect(kept.robots.map(shape)).toEqual(full.robots.map(shape));
+    // A robot holds its parts in blueprint order: rebuilds assemble them as held.
+    for (const r of kept.robots) expect([...r.parts.keys()]).toEqual(r.blueprint.parts.map((q) => q.id).filter((id) => r.parts.has(id)));
     expect(full.rebuilds.whole).toBe(0);
   };
   check();
