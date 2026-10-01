@@ -135,10 +135,10 @@ function stepAndCheck(w: World, calls: Seen[], scripted: Map<string, Robot>, inp
     const own = fresh.ownContacts(robot, false, fooled);
     const scans = new Map<number, string>();
     for (const c of contacts) {
-      const mine = own.some((o) => o.id === c.id);
+      const itself = own.some((o) => o.id === c.id);
       const decoy = fooled.get(c.id);
       const target = decoy ? decoy.robot : w.robots.find((r) => r.id === c.id);
-      scans.set(c.id, mine && target ? JSON.stringify(scanOf(w, target, decoy?.partId)) : 'null');
+      scans.set(c.id, itself && target ? JSON.stringify(scanOf(w, target, decoy?.partId)) : 'null');
     }
     expected.set(name, { contacts: JSON.parse(JSON.stringify(contacts)) as ScriptContact[], text: JSON.stringify(contacts), scans });
   }

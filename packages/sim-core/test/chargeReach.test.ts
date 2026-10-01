@@ -55,10 +55,10 @@ function shouldGoOff(w: World, self: Robot, at: { x: number; y: number }): boole
  * (the columns between), clear of every cell in the world and of each other.
  */
 function spotsAround(w: World, subject: Robot, taken: { x: number; y: number }[]): { x: number; y: number }[] {
-  const mine = cellsOf(w, subject);
+  const own = cellsOf(w, subject);
   const all = w.robots.flatMap((r) => cellsOf(w, r));
-  const xs = mine.map((c) => c.x);
-  const ys = mine.map((c) => c.y);
+  const xs = own.map((c) => c.x);
+  const ys = own.map((c) => c.y);
   const found: { x: number; y: number }[] = [];
   const nearest = (cells: { x: number; y: number }[], x: number, y: number): number => Math.sqrt(Math.min(...cells.map((c) => (c.x - x) ** 2 + (c.y - y) ** 2)));
   // Columns far enough apart for a charge each, so the spots end up on every side.
@@ -66,7 +66,7 @@ function spotsAround(w: World, subject: Robot, taken: { x: number; y: number }[]
   for (let x = Math.min(...xs) - 3; x <= Math.max(...xs) + 3; x += 1.45, column++) {
     const [lo, hi] = column % 2 === 0 ? [1.42, 1.47] : [1.53, 1.62];
     for (let y = Math.min(...ys) - 3; y <= Math.max(...ys) + 3; y += 0.013) {
-      const d = nearest(mine, x, y);
+      const d = nearest(own, x, y);
       if (d <= lo || d >= hi) continue;
       // Two cells this far apart never overlap, whatever their angles.
       if (nearest(all, x, y) < 1.42 || (taken.length > 0 && nearest(taken, x, y) < 1.42)) continue;
