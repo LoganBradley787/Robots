@@ -44,8 +44,8 @@ Updated: 2026-09-28, by an Opus 5.5 session, end of M13 (guns)
 - M13: a turret fires out to 250 m but its sight sees only 150 m, so a friend beyond 150 m on the line is not seen (none were hit in the tests).
 - M13: shells do not hit each other and do not bounce.
 - M10: replays recorded before M10 do not replay exactly (their warheads were live from the start); `pnpm sim replay` says MISMATCH.
-- M12: a copy with no motor stays in a bay pointing up and blocks the next build (the push out is 4 N s).
-- M12: any piece that lands in an open bay's hollow (debris from a nearby blast) blocked it for the rest of the fight. Fixed in the big batch (bayclear): a bay pushes pieces with no core out after 1 s. A piece with a live core (a copy with no motor) is still left alone.
+- M12: a copy with no motor stays in a bay pointing up and blocks the next build (the push out is 4 N s). Fixed (open items): 10 s after it was let go (the bay def's `clearAfter`) the bay gives up on a copy still in its hollow and pushes it out as it does a piece with no core.
+- M12: any piece that lands in an open bay's hollow (debris from a nearby blast) blocked it for the rest of the fight. Fixed in the big batch (bayclear): a bay pushes pieces with no core out after 1 s. A piece with a live core is still left alone, unless it is a copy that never got out of its bay (above).
 - M12: `canPlace` probes each cell with 0.5 half extents (colliders are 0.49); unchanged, noted for multi-cell parts.
 - M11: flare racks stick out 2 cells a side and soak up side hits (a drone bomb homes on the nearest part it scans). Gate 10 question.
 - M11: a drone bomb (brakes at 7 m/s^2) overshoots a flare thrown toward it; flares against it work popped early, or with flying off.

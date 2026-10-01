@@ -28,7 +28,7 @@
   "powerDraw": 400,
   "acts": "N",
   "behavior": "fabricate",
-  "fabricate": { "joulesPerKg": 40, "secondsPerKg": 0.6, "separation": 4 },
+  "fabricate": { "joulesPerKg": 40, "secondsPerKg": 0.6, "separation": 4, "clearAfter": 10 },
   "stretch": { "shape": "cup", "min": [1, 1], "max": [10, 10], "massPerCell": 1 },
   "sprite": {
     "frame": "part.fabbay",

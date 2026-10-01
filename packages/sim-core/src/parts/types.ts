@@ -221,11 +221,14 @@ export interface GrappleSpec {
  * A fabricator (M12): it builds copies of a blueprint (the part's `makes`) inside its hollow, out of its robot's
  * energy: `joulesPerKg` of the copy's mass plus what its containers hold, over `secondsPerKg` of its mass. Its grips
  * hold the finished copy until its `release` input lets it go, pushed out along `acts` with `separation` N s.
+ * `clearAfter` (seconds, optional): a copy with a live core still in the hollow that long after it was let go is given
+ * up on, and from then on the bay pushes it out like a piece with no core. Without it such a copy blocks the bay.
  */
 export interface FabricateSpec {
   joulesPerKg: number;
   secondsPerKg: number;
   separation: number;
+  clearAfter?: number;
 }
 
 /**
