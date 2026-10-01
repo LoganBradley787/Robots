@@ -1,4 +1,4 @@
-import type { ScriptInput } from './types';
+import type { ScriptContact, ScriptInput } from './types';
 
 /**
  * How a tick's input crosses into a script (M9). Parsing JSON text into part objects inside the sandbox was most of
@@ -68,11 +68,42 @@ export function putHead(numbers: Float64Array, input: Pick<ScriptInput, 'frame' 
   return ok;
 }
 
-/** Keys, contacts, and inbox as JSON, or '' when all three are empty (the usual case). */
-export function extrasJson(input: Pick<ScriptInput, 'keys' | 'contacts' | 'inbox'>): string {
+/**
+ * Keys, contacts, and inbox as JSON, or '' when all three are empty (the usual case). `contacts`, when given, is
+ * `JSON.stringify(input.contacts)` already made (the world builds it from pieces it keeps, `contactHead`).
+ */
+export function extrasJson(input: Pick<ScriptInput, 'keys' | 'contacts' | 'inbox'>, contacts?: string): string {
   const k = input.keys;
   if (k.down.length === 0 && k.pressed.length === 0 && k.released.length === 0 && input.contacts.length === 0 && input.inbox.length === 0) return '';
-  return JSON.stringify([k, input.contacts, input.inbox]);
+  if (contacts === undefined) return JSON.stringify([k, input.contacts, input.inbox]);
+  return `[${JSON.stringify(k)},${contacts},${JSON.stringify(input.inbox)}]`;
+}
+
+/** A number as JSON writes it: `null` when it is not finite. */
+function jsonNumber(v: number): string {
+  return v - v === 0 ? String(v) : 'null';
+}
+
+function jsonPoint(p: { x: number; y: number }): string {
+  return `{"x":${jsonNumber(p.x)},"y":${jsonNumber(p.y)}}`;
+}
+
+/**
+ * The middle of a contact's JSON text, from `core` to `parts`: what is the same for every viewer of that robot, so
+ * the world writes it once per tick however many robots see it (the numbers are most of the work).
+ */
+export function contactMiddle(c: Pick<ScriptContact, 'core' | 'pos' | 'vel' | 'center' | 'mass' | 'parts'>): string {
+  return `"core":${c.core ? 'true' : 'false'},"pos":${jsonPoint(c.pos)},"vel":${jsonPoint(c.vel)},"center":${jsonPoint(c.center)},"mass":${jsonNumber(c.mass)},"parts":${jsonNumber(c.parts)}`;
+}
+
+/** A contact's JSON text up to its distance, around its middle. `side` is one of three plain words. */
+export function contactHead(id: number, side: ScriptContact['side'], middle: string): string {
+  return `{"id":${jsonNumber(id)},"side":"${side}",${middle},"distance":`;
+}
+
+/** The rest: with `contactHead` exactly `JSON.stringify(contact)`. */
+export function contactJson(head: string, distance: number, by: readonly string[]): string {
+  return `${head}${jsonNumber(distance)},"by":${JSON.stringify(by)}}`;
 }
 
 /**

@@ -38,8 +38,9 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         const services: { current?: ScriptServices } = {};
         const scan = c.newFunction('scan', (idHandle) => {
           const id = c.typeof(idHandle) === 'number' ? c.getNumber(idHandle) : Number.NaN;
-          const found = Number.isInteger(id) ? (services.current?.scan(id) ?? null) : null;
-          return c.newString(JSON.stringify(found));
+          const now = services.current;
+          if (!now || !Number.isInteger(id)) return c.newString('null');
+          return c.newString(now.scanJson ? now.scanJson(id) : JSON.stringify(now.scan(id) ?? null));
         });
         c.setProp(c.global, '__scan', scan);
         scan.dispose();
