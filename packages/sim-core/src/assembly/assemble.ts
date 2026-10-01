@@ -60,164 +60,234 @@ export function rootPartId(bp: Blueprint, registry: PartRegistry): string | unde
   return bp.primaryCore ?? bp.parts.find((p) => isCore(p, registry))?.id ?? bp.parts[0]?.id;
 }
 
+/** A face's slot in a part's row of `across`. */
+const FACE_SLOT: Readonly<Record<Face, number>> = { N: 0, E: 1, S: 2, W: 3 };
+
+/**
+ * How the parts hold together, as `assemble` found it, by part index (blueprint order). A rebuilt robot keeps it to
+ * tell quickly whether it is still one piece after losing parts (`rebuild.ts`).
+ */
+export interface AssemblyLinks {
+  /** The parts each part is welded to, in blueprint order: every attached neighbor except across a joint part's mount face. */
+  welds: number[][];
+  /** 1 for a joint part whose mount face is attached, and for the part it is mounted on. */
+  jointed: Uint8Array;
+  /** Each part's body group. */
+  groupOf: Int32Array;
+}
+
 /**
  * Pure assembly: attachment graph, chunks (connected sets), and body groups (joint parts are their own body).
- * Assumes a blueprint without overlaps or unknown parts; the validator checks those first.
+ * Assumes a blueprint without overlaps, unknown parts, or repeated ids; the validator checks those first.
  * All iteration is in blueprint order so the result, and the physics built from it, is deterministic. `cut` faces no
  * longer attach (fired decouplers); parts in `holding` (M12) attach through their grips as well as their faces.
  */
 export function assemble(bp: Blueprint, registry: PartRegistry, rootId: string | undefined = rootPartId(bp, registry), cut?: CutFaces, holding?: ReadonlySet<string>): AssemblyPlan {
-  const order = new Map(bp.parts.map((p, i) => [p.id, i]));
-  const byCell = new Map<string, { id: string; faces: Face[] }>();
-  const cellsOf = (p: PlacedPart): { cell: Cell; faces: Face[] }[] => {
+  return assembleLinked(bp, registry, rootId, cut, holding).plan;
+}
+
+/**
+ * `assemble`, plus the links it found (left out when a joint is locked: such a robot is always worked out in full).
+ * Works by part index and numbered cells, not id strings: a robot of thousands of parts is assembled every time it
+ * splits (`test/reference/assembleReference.ts` is the plain version it must agree with).
+ */
+export function assembleLinked(bp: Blueprint, registry: PartRegistry, rootId: string | undefined, cut?: CutFaces, holding?: ReadonlySet<string>): { plan: AssemblyPlan; links?: AssemblyLinks } {
+  const parts = bp.parts;
+  const n = parts.length;
+  const idOf = (i: number): string => (parts[i] as PlacedPart).id;
+
+  // Every part's cells, and the box around them all.
+  const cells: { cell: Cell; faces: Face[] }[][] = [];
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of parts) {
     const gone = cut?.get(p.id);
-    const cells = partCells(p, registry, holding?.has(p.id) === true);
-    return gone === undefined ? cells : cells.map((c) => ({ cell: c.cell, faces: c.faces.filter((f) => !gone.includes(f)) }));
-  };
-  for (const p of bp.parts) {
-    for (const { cell, faces } of cellsOf(p)) byCell.set(`${cell.x},${cell.y}`, { id: p.id, faces });
+    const own = partCells(p, registry, holding?.has(p.id) === true);
+    const list = gone === undefined ? own : own.map((c) => ({ cell: c.cell, faces: c.faces.filter((f) => !gone.includes(f)) }));
+    cells.push(list);
+    for (const { cell } of list) {
+      if (cell.x < minX) minX = cell.x;
+      if (cell.y < minY) minY = cell.y;
+      if (cell.y > maxY) maxY = cell.y;
+    }
+  }
+  // A cell's number: its own for every cell in the box and one step outside it, so a neighbor's is one sum away.
+  const rows = maxY - minY + 3;
+  const cellNumber = (c: Cell): number => (c.x - minX + 1) * rows + (c.y - minY + 1);
+  const byCell = new Map<number, number>();
+  const cellPart: number[] = [];
+  const cellFaces: Face[][] = [];
+  for (let i = 0; i < n; i++) {
+    for (const { cell, faces } of cells[i] as { cell: Cell; faces: Face[] }[]) {
+      byCell.set(cellNumber(cell), cellPart.length);
+      cellPart.push(i);
+      cellFaces.push(faces);
+    }
   }
   /** A joint part's mount face after rotation, or undefined for welded parts. */
-  const mountOf = (id: string): Face | undefined => {
-    const p = bp.parts[order.get(id) ?? -1];
-    const joint = p === undefined ? undefined : registry.get(p.part).joint;
-    return p === undefined || joint === undefined ? undefined : rotateFace(joint.mountFace, p.rot);
-  };
+  const mount: (Face | undefined)[] = parts.map((p) => {
+    const joint = registry.get(p.part).joint;
+    return joint === undefined ? undefined : rotateFace(joint.mountFace, p.rot);
+  });
+  const jointParts: number[] = [];
+  mount.forEach((m, i) => {
+    if (m !== undefined) jointParts.push(i);
+  });
 
   const edges: AttachEdge[] = [];
-  const edgeKeys = new Set<string>();
-  const neighbors = new Map<string, string[]>(bp.parts.map((p) => [p.id, []]));
-  const attachedFaces = new Map<string, number>(bp.parts.map((p) => [p.id, 0]));
-  /** Part across each attached face, keyed `id|face`, for finding a joint part's parent. */
-  const across = new Map<string, string>();
+  /** An edge's number: `a * n + b` for parts `a` before `b`. */
+  const edgeNumber = (x: number, y: number): number => (x < y ? x * n + y : y * n + x);
+  const edgeSeen = new Set<number>();
+  const neighbors: number[][] = parts.map(() => []);
+  const attached = new Int32Array(n);
+  /** Part across each attached face (four slots a part), for finding a joint part's parent; -1 for none. */
+  const across = new Int32Array(n * 4).fill(-1);
   /** Edges that cross a joint part's mount face: the joint itself, not a weld. */
-  const jointEdges = new Set<string>();
+  const jointEdges = new Set<number>();
 
-  for (const p of bp.parts) {
-    for (const { cell, faces } of cellsOf(p)) {
+  for (let i = 0; i < n; i++) {
+    for (const { cell, faces } of cells[i] as { cell: Cell; faces: Face[] }[]) {
+      const here = cellNumber(cell);
       for (const f of faces) {
         const d = faceDir(f);
-        const other = byCell.get(`${cell.x + d.x},${cell.y + d.y}`);
-        if (!other || other.id === p.id || !other.faces.includes(opposite(f))) continue;
-        attachedFaces.set(p.id, (attachedFaces.get(p.id) ?? 0) + 1);
-        across.set(`${p.id}|${f}`, other.id);
-        const [a, b] = (order.get(p.id) ?? 0) < (order.get(other.id) ?? 0) ? [p.id, other.id] : [other.id, p.id];
-        const key = `${a}|${b}`;
-        if (mountOf(p.id) === f) jointEdges.add(key);
-        if (edgeKeys.has(key)) continue;
-        edgeKeys.add(key);
-        edges.push({ a, b });
-        neighbors.get(a)?.push(b);
-        neighbors.get(b)?.push(a);
+        const there = byCell.get(here + d.x * rows + d.y);
+        if (there === undefined) continue;
+        const j = cellPart[there] as number;
+        if (j === i || !(cellFaces[there] as Face[]).includes(opposite(f))) continue;
+        attached[i] = (attached[i] as number) + 1;
+        across[i * 4 + FACE_SLOT[f]] = j;
+        const key = edgeNumber(i, j);
+        if (mount[i] === f) jointEdges.add(key);
+        if (edgeSeen.has(key)) continue;
+        edgeSeen.add(key);
+        edges.push(i < j ? { a: idOf(i), b: idOf(j) } : { a: idOf(j), b: idOf(i) });
+        (neighbors[i] as number[]).push(j);
+        (neighbors[j] as number[]).push(i);
       }
     }
   }
-  for (const list of neighbors.values()) list.sort((x, y) => (order.get(x) ?? 0) - (order.get(y) ?? 0));
+  for (const list of neighbors) list.sort((x, y) => x - y);
+  /** The part a joint part is mounted on, or -1. */
+  const parentOfPart = (i: number): number => across[i * 4 + FACE_SLOT[mount[i] as Face]] as number;
 
-  const components = (include: (id: string) => boolean, follow: (a: string, b: string) => boolean): string[][] => {
-    const seen = new Set<string>();
-    const out: string[][] = [];
-    for (const p of bp.parts) {
-      if (seen.has(p.id) || !include(p.id)) continue;
-      const comp: string[] = [];
-      const queue = [p.id];
-      seen.add(p.id);
-      while (queue.length > 0) {
-        const id = queue.shift() as string;
-        comp.push(id);
-        for (const n of neighbors.get(id) ?? []) {
-          if (seen.has(n) || !include(n) || !follow(id, n)) continue;
-          seen.add(n);
-          queue.push(n);
+  // Connected sets, each in blueprint order, the sets in the order of their first parts. `welded` leaves out joints.
+  const label = new Int32Array(n);
+  const queue = new Int32Array(n);
+  const components = (welded: boolean): number[][] => {
+    label.fill(-1);
+    const skipJoints = welded && jointEdges.size > 0;
+    let count = 0;
+    for (let start = 0; start < n; start++) {
+      if ((label[start] as number) >= 0) continue;
+      label[start] = count;
+      queue[0] = start;
+      for (let head = 0, tail = 1; head < tail; head++) {
+        const i = queue[head] as number;
+        for (const j of neighbors[i] as number[]) {
+          if ((label[j] as number) >= 0 || (skipJoints && jointEdges.has(edgeNumber(i, j)))) continue;
+          label[j] = count;
+          queue[tail++] = j;
         }
       }
-      comp.sort((x, y) => (order.get(x) ?? 0) - (order.get(y) ?? 0));
-      out.push(comp);
+      count++;
     }
+    const out: number[][] = [];
+    for (let c = 0; c < count; c++) out.push([]);
+    for (let i = 0; i < n; i++) (out[label[i] as number] as number[]).push(i);
     return out;
   };
-
-  const edgeKey = (x: string, y: string): string => ((order.get(x) ?? 0) < (order.get(y) ?? 0) ? `${x}|${y}` : `${y}|${x}`);
 
   // Body groups: parts connect through every edge except a joint part's mount face. A wheel (only a mount face) is a
   // group of its own; a rotator's group is the rotator plus what it carries on its other faces.
   const lockedJoints: string[] = [];
-  let groupParts: string[][] = [];
-  const groupOf = new Map<string, number>();
+  const isLocked = new Uint8Array(n);
+  let groupParts: number[][] = [];
+  let groupOf = new Int32Array(0);
   const regroup = (): void => {
-    groupParts = components(
-      () => true,
-      (a, b) => !jointEdges.has(edgeKey(a, b)),
-    );
-    groupOf.clear();
-    groupParts.forEach((ids, i) => ids.forEach((id) => groupOf.set(id, i)));
+    groupParts = components(true);
+    groupOf = label.slice();
   };
   regroup();
   // A joint whose two sides are welded together another way cannot turn, and a group hanging from two joints would
   // close a loop (multibodies are trees). Weld those joints (blueprint order decides which joint of a loop survives)
   // and group again until none are left.
   for (;;) {
-    const parentOf = new Map<number, string>();
-    let locked: string | undefined;
-    for (const p of bp.parts) {
-      const mount = mountOf(p.id);
-      const parentId = mount === undefined || lockedJoints.includes(p.id) ? undefined : across.get(`${p.id}|${mount}`);
-      if (parentId === undefined) continue;
-      const g = groupOf.get(p.id) ?? -1;
-      if (groupOf.get(parentId) === g || parentOf.has(g)) {
-        locked = p.id;
-        jointEdges.delete(edgeKey(p.id, parentId));
+    /** The joint part each group hangs from, by group. */
+    const hangsFrom = new Map<number, number>();
+    let locked = -1;
+    for (const i of jointParts) {
+      const parent = isLocked[i] === 1 ? -1 : parentOfPart(i);
+      if (parent < 0) continue;
+      const g = groupOf[i] as number;
+      if (groupOf[parent] === g || hangsFrom.has(g)) {
+        locked = i;
+        jointEdges.delete(edgeNumber(i, parent));
         break;
       }
-      parentOf.set(g, p.id);
+      hangsFrom.set(g, i);
     }
     // Two groups hanging from each other through two joints is a loop too.
-    for (let g = 0; locked === undefined && g < groupParts.length; g++) {
+    for (let g = 0; locked < 0 && g < groupParts.length; g++) {
+      if (!hangsFrom.has(g)) continue;
       const seen = new Set<number>();
       let cur = g;
-      while (locked === undefined && parentOf.has(cur)) {
-        const jointId = parentOf.get(cur) as string;
+      while (locked < 0 && hangsFrom.has(cur)) {
+        const jointPart = hangsFrom.get(cur) as number;
         if (seen.has(cur)) {
-          locked = jointId;
-          jointEdges.delete(edgeKey(jointId, across.get(`${jointId}|${mountOf(jointId) as Face}`) as string));
+          locked = jointPart;
+          jointEdges.delete(edgeNumber(jointPart, parentOfPart(jointPart)));
         }
         seen.add(cur);
-        cur = groupOf.get(across.get(`${jointId}|${mountOf(jointId) as Face}`) as string) ?? -1;
+        cur = groupOf[parentOfPart(jointPart)] as number;
       }
     }
-    if (locked === undefined) break;
-    lockedJoints.push(locked);
+    if (locked < 0) break;
+    lockedJoints.push(idOf(locked));
+    isLocked[locked] = 1;
     regroup();
   }
 
-  const groups: GroupPlan[] = groupParts.map((ids, index) => {
-    const jointPart = ids.find((id) => {
-      const mount = mountOf(id);
-      const parentId = mount === undefined ? undefined : across.get(`${id}|${mount}`);
-      return parentId !== undefined && !lockedJoints.includes(id);
-    });
+  // Each group's joint part: its first part (blueprint order) mounted on a parent by a joint that still turns.
+  const jointOf = new Int32Array(groupParts.length).fill(-1);
+  for (const i of jointParts) {
+    const g = groupOf[i] as number;
+    if (isLocked[i] === 0 && parentOfPart(i) >= 0 && (jointOf[g] as number) < 0) jointOf[g] = i;
+  }
+  const rootIndex = rootId === undefined ? -1 : parts.findIndex((p) => p.id === rootId);
+  const groups: GroupPlan[] = groupParts.map((members, index) => {
+    const jointPart = jointOf[index] as number;
     // A jointed group's origin is its joint part: the joint anchors at the child's origin.
-    const originId = jointPart ?? (rootId !== undefined && ids.includes(rootId) ? rootId : (ids[0] as string));
-    const g: GroupPlan = { index, partIds: ids, originId };
-    if (jointPart !== undefined) {
-      const parentId = across.get(`${jointPart}|${mountOf(jointPart) as Face}`) as string;
-      g.joint = { partId: jointPart, parentGroup: groupOf.get(parentId) ?? -1 };
-    }
+    const origin = jointPart >= 0 ? jointPart : rootIndex >= 0 && groupOf[rootIndex] === index ? rootIndex : (members[0] as number);
+    const g: GroupPlan = { index, partIds: members.map(idOf), originId: idOf(origin) };
+    if (jointPart >= 0) g.joint = { partId: idOf(jointPart), parentGroup: groupOf[parentOfPart(jointPart)] as number };
     return g;
   });
 
-  const chunks: ChunkPlan[] = components(
-    () => true,
-    () => true,
-  ).map((ids) => {
+  const lastIn = new Int32Array(groupParts.length).fill(-1);
+  const chunks: ChunkPlan[] = components(false).map((members, chunk) => {
     const gs: number[] = [];
-    for (const id of ids) {
-      const g = groupOf.get(id) ?? -1;
-      if (!gs.includes(g)) gs.push(g);
+    for (const i of members) {
+      const g = groupOf[i] as number;
+      if (lastIn[g] === chunk) continue;
+      lastIn[g] = chunk;
+      gs.push(g);
     }
     gs.sort((x, y) => x - y);
-    return { partIds: ids, groups: gs };
+    return { partIds: members.map(idOf), groups: gs };
   });
 
-  return { edges, chunks, groups, attachedFaces, lockedJoints };
+  const attachedFaces = new Map<string, number>();
+  for (let i = 0; i < n; i++) attachedFaces.set(idOf(i), attached[i] as number);
+  const plan: AssemblyPlan = { edges, chunks, groups, attachedFaces, lockedJoints };
+  if (lockedJoints.length > 0) return { plan };
+
+  // No joint was locked, so `jointEdges` is still every joint as first found.
+  const jointed = new Uint8Array(n);
+  for (const key of jointEdges) {
+    jointed[Math.floor(key / n)] = 1;
+    jointed[key % n] = 1;
+  }
+  const welds = jointEdges.size === 0 ? neighbors : neighbors.map((list, i) => list.filter((j) => !jointEdges.has(edgeNumber(i, j))));
+  return { plan, links: { welds, jointed, groupOf } };
 }
