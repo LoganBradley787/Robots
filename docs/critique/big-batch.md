@@ -29,7 +29,8 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
 ### 1. Grapple drone: `grapple-drone` (yours) and `enemy-grapple-drone`
 - **What it is:** the gun drone's airframe (69 kg) with three grapples (left, right, and one straight down under the middle), four fixed guns and two armor plates. No turrets, on purpose (below).
 - **Shows:** grapple, heavy armor, crash damage (it carries things up 40 m and lets go).
-- **Your version:** W S A D fly, H toggles the hover, F fires every grapple that has an enemy part lined up within 50 m, R reels in, T pays out, X lets go (hold it a moment), V flares, G switches the guns. Fly straight over something to hook it with the middle grapple.
+- **Your version:** W S A D fly, H toggles the hover, F throws every grapple that has an enemy part lined up within 50 m, R reels in, T pays out, X lets go, V flares, G switches the guns. Fly straight over something to hook it with the middle grapple.
+- **By hand (Logan): "it fights S", "its keys are unclear".** S was fought by what it held: a robot that flies itself (the enemy drone) pushes up under it harder than the drone weighs, and with its lift cut it had nothing to go down with (carried up at 9 m/s with S held). Fixed: eight propellers pointing down that the hover uses on S and to hold its height (77 kg now). Keys: R, T, and X are plain bindings; the status lists the keys at the start, says when a hook takes, and says why an F did nothing (nothing lined up).
 - **Deploy against:** `hunter-drone` or the plain `drone`, 120 m away. It hooks at about 7 s, reels to 6 m, shoots what hangs under it, climbs and drops it. It wrecked a hunter in 16 s and beat `enemy-gun-drone` up close.
 - **Watch for:**
   - Starting 250 m apart it loses to the gun drone. It never gets a hook into `enemy-fab-drone` (that one holds 200 m off). It is a close-range hunter.
@@ -39,7 +40,8 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
 ### 2. Walker: `walker` (yours) and `enemy-walker`
 - **What it is:** a 254 kg, 23 wide ground robot on four legs. Each leg is two pistons: one slides a carriage along a rail, the other stands a column of armor plates on the ground. It trots about 0.7 m/s. Four gun turrets on two masts, a radar, armor on the front and roof.
 - **Shows:** pistons (8 of them, under real load), heavy armor, rotators holding a gun steady while the body rocks.
-- **Your version:** D and A walk, W and S raise and lower the body, G switches the turrets. It needs about 3 s to stand up after deploy.
+- **Your version:** D and A walk, W stands it taller and S crouches it, G switches the turrets. It needs about 3 s to stand up after deploy.
+- **By hand (Logan): "W, S and G seem to do nothing".** W and S moved the body 0.6 m at 0.5 m/s: now the lift pistons' whole stroke, a meter up and 0.6 m down at 0.8 m/s, and it walks at both ends. G did switch the turrets, with nothing to show for it: it now says `turrets off` or `turrets on` in the status, where the key list is too.
 - **Enemy version:** walks toward the nearest enemy until 120 m off sideways, then stands and shoots. Deploy it facing the enemy (armor in front).
 - **Deploy against:** `enemy-gun-drone`, `enemy-drone`, `enemy-fab-drone`. Deploy in open ground left of the boxes (x below -20): it cannot step over a box.
 - **Watch for:**
@@ -103,7 +105,8 @@ Which robot shows which new part or rule. Fins, the swiveling thruster and the c
 ### 8. Tech fab drone: `tech-fab-drone` (yours) and `enemy-tech-fab-drone` (built after the batch)
 - **What it is:** a fab drone with a 3 by 5 bay, heavy armor plates up both sides of it, and solar panels on top (97 kg). Its bay builds a `tech-missile`: a gun in the nose, a distance charge, fins, a heavy gyro and a swiveling thruster.
 - **Shows:** fins, the swiveling thruster, the distance charge, heavy armor and solar together; a gun on a missile.
-- **Your version:** hold F to fire each missile as it is built (every 5.7 s), H hover, V flares.
+- **Your version:** W S climb and sink, A D lean, hold F to fire each missile as it is built (every 5.7 s), H hover, V flares.
+- **By hand (Logan): "it sinks while W is held", "nothing tracked".** At 105 kg with a missile in the bay it leaned 60 degrees on A and D, where its 14 propellers hold 86 kg, so it sank whatever W did; every swing from one lean to the other cost 4 to 9 m more; and the fins of the missile in its bay caught the wind and tipped it. Fixed in the hover: it leans about 30 degrees, keeps the throttle that holds its weight through a turn, and allows for those fins. "Nothing tracked" could not be made to happen with an enemy in view: it comes when the target is on your own side (deployed as Yours), has no core (a wall), is past 1000 m, or the radar is gone, and the line stayed in the status after later shots. F now says which, says what it fired at, and a fresh press sends one at a wall or wreck. The gun missile fab drone had both faults and has both fixes.
 - **Enemy version:** deploy it flipped. Holds 200 m off and fires from 600 m.
 - **Deploy against:** `enemy-gun-drone` (beaten in about 45 s), `enemy-fab-drone` (beaten), a hovering `hunter-drone` (its missiles stripped, core left), `enemy-many-gun-drone` (it loses).
 - **Watch for:**
