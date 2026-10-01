@@ -2,7 +2,7 @@ import { partMass } from '../parts/footprint';
 import type { JointId, PhysicsWorld } from '../physics/PhysicsWorld';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { BodyGroup, PartInstance } from '../world/Robot';
-import type { AssemblyPlan, GroupPlan } from './assemble';
+import type { GroupPlan } from './assemble';
 
 /**
  * Friction of a part cell with no `collider.friction` of its own: steel sliding on ground (Rapier's default is 0.5).
@@ -34,7 +34,7 @@ export interface GroupPose {
 export function buildBodies(
   physics: PhysicsWorld,
   parts: ReadonlyMap<string, PartInstance>,
-  plan: AssemblyPlan,
+  plan: { groups: GroupPlan[] },
   pose: (group: GroupPlan) => GroupPose,
 ): BodyGroup[] {
   const part = (id: string): PartInstance => {
@@ -115,7 +115,7 @@ export function buildBodies(
 }
 
 /** Groups ordered so every joint's parent comes before its child (breadth first from the roots, then group order). */
-function treeOrder(plan: AssemblyPlan): GroupPlan[] {
+function treeOrder(plan: { groups: GroupPlan[] }): GroupPlan[] {
   const out: GroupPlan[] = [];
   const placed = new Set<number>();
   let frontier = plan.groups.filter((g) => !g.joint);

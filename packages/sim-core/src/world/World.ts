@@ -165,6 +165,11 @@ export interface WorldOptions {
    * so a test can compare it with what the scripts actually see. Costs a full old-style input per call.
    */
   scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
+  /**
+   * Tests only: every rebuild works a robot's pieces out from scratch, never from what it kept of its last rebuild
+   * (`assembly/rebuild.ts`). The outcome must be the same either way; a test runs both and compares.
+   */
+  fullRebuild?: boolean;
 }
 
 /** A body's state with the cosine and sine of its angle, read once per tick for all its parts. */
@@ -209,6 +214,7 @@ export class World {
   readonly events: WorldEvent[] = [];
   private readonly scriptHost: ScriptHost | undefined;
   private readonly scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
+  private readonly fullRebuild: boolean;
   private readonly feeds = new WeakMap<Robot, ScriptFeed>();
   /** Every robot in `robots`, by id (M9: lookups on every tick without scanning the list). */
   private readonly byId = new Map<number, Robot>();
@@ -233,6 +239,11 @@ export class World {
   private pendingClearDebris = false;
   /** Robots whose parts or faces changed this tick and must be rebuilt in the damage phase. */
   private readonly dirty = new Set<Robot>();
+  /**
+   * Rebuilds so far, by how the robot's pieces were found (`assembly/rebuild.ts`): `whole` for a robot that only lost
+   * parts and stayed as it was, `assembled` for one worked out from scratch. Reporting only, not hashed.
+   */
+  readonly rebuilds = { whole: 0, assembled: 0 };
   /** Blasts waiting because the per-tick cap was reached. Simulation state, hashed. */
   private queuedBlasts: QueuedBlast[] = [];
   /**
@@ -311,6 +322,7 @@ export class World {
     this.seed = opts.seed;
     this.scriptHost = opts.scripts;
     if (opts.scriptProbe) this.scriptProbe = opts.scriptProbe;
+    this.fullRebuild = opts.fullRebuild === true;
     this.rng = new Prng(opts.seed);
     this.gravityY = opts.gravityY ?? -9.81;
     this.physics = new PhysicsWorld(this.gravityY, this.dt);
@@ -804,6 +816,8 @@ export class World {
             this.lastKicks.delete(body);
           },
           newRobotId: () => this.nextRobotId++,
+          full: this.fullRebuild,
+          tally: this.rebuilds,
         },
         robot,
       );
