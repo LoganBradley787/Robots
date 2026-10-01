@@ -369,10 +369,11 @@ async function boot(): Promise<void> {
       const left = await load(a, false);
       const right = await load(b, true);
       setMode(enterWorld({ ...modes, paused: true, pausedBeforeBuilder: true }));
-      // The right one first: the camera follows the last robot spawned, and the left one is the one to watch come.
-      worldScreen.spawn(right, { x: 400, y: height(right, 400, query.get('yb')) }, 2);
-      worldScreen.spawn(left, { x: -400, y: height(left, -400, query.get('ya')) }, 1);
-      notify(store, `${a} (left) against ${b} (right), 800 m apart. Paused: press play to start.`);
+      // Teams as `pnpm sim duel` gives them: the left one is yours (team 0), so its script log shows. The right one
+      // first: the camera follows the last robot spawned.
+      worldScreen.spawn(right, { x: 400, y: height(right, 400, query.get('yb')) }, 1);
+      worldScreen.spawn(left, { x: -400, y: height(left, -400, query.get('ya')) }, 0);
+      notify(store, `${a} (left, yours: its script log shows) against ${b} (right), 800 m apart. Paused: press play to start.`);
     };
     go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
   }
