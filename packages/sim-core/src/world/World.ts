@@ -165,6 +165,11 @@ export interface WorldOptions {
    * so a test can compare it with what the scripts actually see. Costs a full old-style input per call.
    */
   scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
+  /**
+   * Tests only: every rebuild works a robot's pieces out from scratch, never from what it kept of its last rebuild
+   * (`assembly/rebuild.ts`). The outcome must be the same either way; a test runs both and compares.
+   */
+  fullRebuild?: boolean;
 }
 
 /** A body's state with the cosine and sine of its angle, read once per tick for all its parts. */
@@ -209,6 +214,7 @@ export class World {
   readonly events: WorldEvent[] = [];
   private readonly scriptHost: ScriptHost | undefined;
   private readonly scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
+  private readonly fullRebuild: boolean;
   private readonly feeds = new WeakMap<Robot, ScriptFeed>();
   /** Every robot in `robots`, by id (M9: lookups on every tick without scanning the list). */
   private readonly byId = new Map<number, Robot>();
@@ -233,6 +239,11 @@ export class World {
   private pendingClearDebris = false;
   /** Robots whose parts or faces changed this tick and must be rebuilt in the damage phase. */
   private readonly dirty = new Set<Robot>();
+  /**
+   * Rebuilds so far, by how the robot's pieces were found (`assembly/rebuild.ts`): `whole` for a robot that only lost
+   * parts and stayed as it was, `assembled` for one worked out from scratch. Reporting only, not hashed.
+   */
+  readonly rebuilds = { whole: 0, assembled: 0 };
   /** Blasts waiting because the per-tick cap was reached. Simulation state, hashed. */
   private queuedBlasts: QueuedBlast[] = [];
   /**
@@ -311,6 +322,7 @@ export class World {
     this.seed = opts.seed;
     this.scriptHost = opts.scripts;
     if (opts.scriptProbe) this.scriptProbe = opts.scriptProbe;
+    this.fullRebuild = opts.fullRebuild === true;
     this.rng = new Prng(opts.seed);
     this.gravityY = opts.gravityY ?? -9.81;
     this.physics = new PhysicsWorld(this.gravityY, this.dt);
@@ -761,9 +773,10 @@ export class World {
   /** Removes every part at 0 health (robots in order, parts in blueprint order) and queues its blast if it has one. */
   private destroyDeadParts(): void {
     for (const robot of this.robots) {
-      for (const bp of robot.blueprint.parts) {
-        const part = robot.parts.get(bp.id);
-        if (!part || part.health > 0) continue;
+      // A robot holds its parts in blueprint order (`Robot.parts`), so a small piece of a big robot looks at its own
+      // parts only, not at every part its blueprint ever had.
+      for (const part of robot.parts.values()) {
+        if (part.health > 0) continue;
         const pose = partWorldPose(this, robot, part.id);
         robot.parts.delete(part.id);
         this.dirty.add(robot);
@@ -795,7 +808,6 @@ export class World {
       const pieces = rebuildRobot(
         {
           physics: this.physics,
-          registry: this.registry,
           tick: this.tickCount,
           motion: (body) => this.motion(body),
           kick: (body, vx, vy, w) => this.pendingKicks.set(body, { vx, vy, w }),
@@ -804,6 +816,8 @@ export class World {
             this.lastKicks.delete(body);
           },
           newRobotId: () => this.nextRobotId++,
+          full: this.fullRebuild,
+          tally: this.rebuilds,
         },
         robot,
       );
@@ -1221,6 +1235,7 @@ export class World {
     const cores = [...(robot.blueprint.cores ?? []), ...(result.blueprint.cores ?? []).filter((k) => !oldCores.has(k.core))];
     robot.blueprint = { ...robot.blueprint, parts: [...robot.blueprint.parts, ...added], ...(cores.length > 0 ? { cores } : {}) };
     const origin = robot.parts.get(group.originId);
+    // New parts go last in the blueprint and last in the robot: `Robot.parts` stays in blueprint order.
     for (const p of added) {
       const def = this.registry.get(p.part);
       const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: bay.group, localX: p.x - (origin?.x ?? bay.x), localY: p.y - (origin?.y ?? bay.y) };

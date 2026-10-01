@@ -99,6 +99,7 @@ export interface Robot {
   spawnY: number;
   /** Which side the robot fights for (M8). 0 is the player's, 1 the enemy; a number so more sides need no new format. Pieces keep their parent's. */
   team: number;
+  /** Its live parts, in blueprint order: rebuilds and the state hash go by this order. */
   parts: Map<string, PartInstance>;
   groups: BodyGroup[];
   chunks: Chunk[];
