@@ -344,6 +344,60 @@ describe('rebuilding a robot that lost parts', () => {
     p.dispose();
   });
 
+  it('random robots with turrets, pistons, wheels, and decouplers, taken apart a part at a time', async () => {
+    const rng = new Prng(31);
+    const pick = (n: number): number => Math.floor(rng.next() * n);
+    let whole = 0;
+    let assembled = 0;
+    let moved = 0;
+    for (let k = 0; k < 30; k++) {
+      // A body of frames, things standing on its roof (a rotator or a piston with a frame or two on it), a rotator
+      // with a frame on its right side, wheels under it.
+      const w = 4 + pick(6);
+      const h = 2 + pick(3);
+      const top: string[] = Array.from({ length: w + 2 }, () => '.');
+      const stand: string[] = Array.from({ length: w + 2 }, () => '.');
+      for (let x = 0; x < w; x += 3) {
+        if (rng.next() < 0.4) continue;
+        stand[x] = rng.next() < 0.7 ? 'R' : 'I^';
+        top[x] = 'F';
+        if (rng.next() < 0.4) top[x + 1] = 'F';
+      }
+      const rows = [top, stand];
+      const side = pick(h);
+      for (let y = 0; y < h; y++) {
+        const row: string[] = [];
+        for (let x = 0; x < w; x++) row.push(rng.next() < 0.08 ? 'D' : rng.next() < 0.08 ? 'B' : 'F');
+        row.push(y === side ? 'R>' : '.', y === side ? 'F' : '.');
+        rows.push(row);
+      }
+      (rows[2 + pick(h)] as string[])[pick(w)] = 'C';
+      rows.push(Array.from({ length: w + 2 }, (_, x) => (x < w && rng.next() < 0.4 ? 'W' : '.')));
+      const blueprint = { format: 1, name: `random-${k}`, grid: rows.map((r) => r.join(' ')) };
+      const p = await pair(space, { gravityY: 0 }, (world) => {
+        world.kickRobot(world.spawnBlueprint(blueprint, { x: 0, y: 20 }), 1, 0.5, 0.3);
+      });
+      for (let t = 0; t < 80 && p.kept.robots.length > 0; t++) {
+        const all = p.kept.robots.flatMap((r) => ids(r).map((id) => ({ robot: r.id, id })));
+        const origins = (): string[] => (p.kept.robots[0]?.groups ?? []).map((g) => g.originId);
+        const was = origins();
+        const one = all[pick(all.length)];
+        if (one) p.lose(one.robot, one.id);
+        const before = p.kept.rebuilds.whole;
+        p.step();
+        // A robot found whole whose bodies changed places: the same origins in another order.
+        const now = origins();
+        if (p.kept.rebuilds.whole > before && was.join(' ') !== now.join(' ') && [...was].sort().join(' ') === [...now].sort().join(' ')) moved++;
+      }
+      whole += p.kept.rebuilds.whole;
+      assembled += p.kept.rebuilds.assembled;
+      p.dispose();
+    }
+    expect(whole).toBeGreaterThan(200);
+    expect(assembled).toBeGreaterThan(200);
+    expect(moved).toBeGreaterThan(0);
+  }, 60000);
+
   it('a long fight with random damage ends the same both ways', async () => {
     const bindings = [
       { key: 'f', mode: 'hold', target: 'gun', channel: 'fire', value: 1 },

@@ -81,8 +81,9 @@ interface Piece {
  * wakes that core (`04`: a dormant core wakes when its sub-assembly splits off). The robot itself never wakes a
  * dormant core: shoot the pilot and the jet does not fly by its missiles (Q1).
  *
- * The pieces come from assembling its live parts (`assembleParts`), except for a robot that only lost parts and provably stays as it was (`stillWhole`):
- * its body groups are its old ones less the lost parts. Either way the same bodies are made in the same order.
+ * The pieces come from assembling its live parts (`assembleParts`), except for a robot that only lost parts and
+ * provably stays as it was (`stillWhole`): its body groups are its old ones less the lost parts. Either way the same
+ * bodies are made in the same order, so the two give the same world (`test/rebuild.test.ts` compares them).
  */
 export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
   const { physics } = host;
@@ -229,7 +230,7 @@ function keepFor(blueprint: Blueprint, pieceParts: readonly PartInstance[], link
 }
 
 /**
- * The one piece of a robot that only lost parts since it was last rebuilt and is provably as `assemble` would find
+ * The one piece of a robot that only lost parts since it was last rebuilt and is provably as assembling it would find
  * it: still one piece, with its old body groups less the lost parts. Undefined when that is not certain, and then the
  * robot is assembled in full. Updates `k` to the robot as it is now.
  *
@@ -291,7 +292,7 @@ function stillWhole(robot: Robot, k: Kept, active: string | undefined): Piece | 
     if (unreached > 0) return undefined;
   }
 
-  // The piece: every live part, rooted as `assemble` is asked to root it.
+  // The piece: every live part, rooted as an assembled piece is (`assemblePieces`).
   const live: string[] = [];
   let cores = 0;
   let firstCore = -1;
@@ -313,7 +314,7 @@ function stillWhole(robot: Robot, k: Kept, active: string | undefined): Piece | 
     const was = robot.groups[old] as BodyGroup;
     const members = k.groups[old] as number[];
     const partIds = lostIn.has(old) ? members.map((i) => ids[i] as string) : was.partIds;
-    // A jointed group's origin is its joint part, as in `assemble`.
+    // A jointed group's origin is its joint part, as in `assembleParts`.
     const g: GroupPlan = { index, partIds, originId: was.joint?.partId ?? (partIds.includes(rootId) ? rootId : (partIds[0] as string)) };
     if (was.joint) g.joint = { partId: was.joint.partId, parentGroup: newIndex.get(was.joint.parentGroup) as number };
     return g;
