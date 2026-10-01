@@ -123,8 +123,9 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
   const out: Robot[] = [];
   for (const piece of pieces) {
     const { ids, rootId } = piece;
-    const parts = new Map<string, PartInstance>();
-    for (const id of ids) parts.set(id, all.get(id) as PartInstance);
+    // A robot found whole keeps its map of parts: the lost ones are out of it already, and the rest are in order.
+    const parts = whole !== undefined ? all : new Map<string, PartInstance>();
+    if (whole === undefined) for (const id of ids) parts.set(id, all.get(id) as PartInstance);
     // Each new body's pose and the old body its origin part was on, read before the new bodies take the parts over.
     const poses = piece.groups.map((g) => poseOf(g.originId) as GroupPose);
     const from = piece.groups.map((g) => motions.get(all.get(g.originId)?.group ?? -1));

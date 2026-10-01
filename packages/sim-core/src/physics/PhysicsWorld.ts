@@ -157,8 +157,6 @@ export class PhysicsWorld {
   private readonly prev = new Map<BodyId, BodyState>();
   /** Bodies that hang on a joint (wheels): no spin drag. */
   private readonly jointChildren = new Set<BodyId>();
-  /** Robot cells (owned colliders) per body, for air drag. */
-  private readonly cells = new Map<BodyId, number>();
   /** Bodies with forces or torques added for the next step; cleared after it. */
   private readonly forced = new Set<BodyId>();
   private readonly joints = new Map<JointId, JointEntry>();
@@ -168,6 +166,13 @@ export class PhysicsWorld {
   private readonly byHandle = new Map<number, BodyId>();
   /** Rapier colliders carry no user data, so owners (part ids) live here, keyed by the opaque handle. */
   private readonly owners = new Map<number, string>();
+  /**
+   * Each body's owned colliders (their handles): its robot cells, counted for air drag, and forgotten with the body
+   * without asking Rapier for each (a body can have thousands).
+   */
+  private readonly owned = new Map<BodyId, number[]>();
+  /** The joints (turning and sliding) at each body, as parent or child, to forget them with it. */
+  private readonly jointsAt = new Map<BodyId, JointId[]>();
   /** Invisible bodies that exist for another body (its multibody root, its joint pivot), removed with it. */
   private readonly helpers = new Map<BodyId, BodyId[]>();
   private nextId: BodyId = 1;
@@ -211,7 +216,9 @@ export class PhysicsWorld {
     const collider = this.world.createCollider(desc, this.body(bodyId));
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
-      this.cells.set(bodyId, (this.cells.get(bodyId) ?? 0) + 1);
+      const list = this.owned.get(bodyId);
+      if (list) list.push(collider.handle);
+      else this.owned.set(bodyId, [collider.handle]);
     }
   }
 
@@ -220,20 +227,20 @@ export class PhysicsWorld {
     for (const h of this.helpers.get(id) ?? []) this.removeBody(h);
     this.helpers.delete(id);
     const body = this.body(id);
-    for (let i = 0; i < body.numColliders(); i++) {
-      const handle = body.collider(i).handle;
-      this.owners.delete(handle);
+    for (const handle of this.owned.get(id) ?? []) this.owners.delete(handle);
+    this.owned.delete(id);
+    for (const jointId of this.jointsAt.get(id) ?? []) {
+      this.joints.delete(jointId);
+      this.sliders.delete(jointId);
     }
-    for (const [jointId, j] of this.joints) if (j.parent === id || j.child === id) this.joints.delete(jointId);
+    this.jointsAt.delete(id);
     // Rapier drops a body's impulse joints with it; forget ours.
     for (const [ropeId, r] of this.ropes) if (r.a === id || r.b === id) this.ropes.delete(ropeId);
-    for (const [jointId, j] of this.sliders) if (j.parent === id || j.child === id) this.sliders.delete(jointId);
     this.byHandle.delete(body.handle);
     this.world.removeRigidBody(body);
     this.bodies.delete(id);
     this.prev.delete(id);
     this.jointChildren.delete(id);
-    this.cells.delete(id);
     this.forced.delete(id);
   }
 
@@ -249,6 +256,14 @@ export class PhysicsWorld {
     this.addHelper(id, root);
     const weld = this.world.createMultibodyJoint(RAPIER.JointData.fixed({ x: 0, y: 0 }, angle, { x: 0, y: 0 }, 0), this.body(root), this.body(id), true);
     weld.setContactsEnabled(false);
+  }
+
+  private noteJoint(jointId: JointId, parent: BodyId, child: BodyId): void {
+    for (const body of [parent, child]) {
+      const list = this.jointsAt.get(body);
+      if (list) list.push(jointId);
+      else this.jointsAt.set(body, [jointId]);
+    }
   }
 
   private addHelper(owner: BodyId, helper: BodyId): void {
@@ -402,6 +417,7 @@ export class PhysicsWorld {
     joint.setContactsEnabled(false);
     this.jointChildren.add(child);
     const id = this.nextJointId++;
+    this.noteJoint(id, parent, child);
     this.joints.set(id, { parent, child, kind: 'velocity', factor: motor?.factor ?? 0, damping: 0, target: motor?.targetVelocity ?? 0, rate: 0, maxTorque: motor?.maxTorque ?? 0, integralGain: 0, integral: 0 });
     return id;
   }
@@ -429,6 +445,7 @@ export class PhysicsWorld {
     const joint = this.world.createMultibodyJoint(data, from, this.body(child), true);
     joint.setContactsEnabled(false);
     const id = this.nextJointId++;
+    this.noteJoint(id, parent, child);
     this.sliders.set(id, { parent, child, anchorParent, axis, target: e, rate: 0, stiffness: 0, damping: 0, maxForce: 0, integral: 0 });
     return id;
   }
@@ -762,7 +779,8 @@ export class PhysicsWorld {
       this.body(sl.parent).addForceAtPoint({ x: -force * st.ax, y: -force * st.ay }, { x: st.px, y: st.py }, true);
       this.forced.add(sl.parent).add(sl.child);
     }
-    for (const [id, cells] of this.cells) {
+    for (const [id, handles] of this.owned) {
+      const cells = handles.length;
       const b = this.body(id);
       if (b.isSleeping()) continue;
       const v = b.linvel();
