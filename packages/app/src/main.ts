@@ -6,6 +6,7 @@ import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
 import { controlsOf, withControls } from './builder/coreControls';
 import flatJson from '../../../worlds/flat.json';
+import arenaJson from '../../../worlds/arena.json';
 import { Renderer } from './render/Renderer';
 import { loadTextures } from './render/assets';
 import { Hud } from './app/Hud';
@@ -38,7 +39,11 @@ async function boot(): Promise<void> {
   // The script sandbox (QuickJS in WASM, the browser build of the same engine the CLI uses).
   // Wrapped in a timer (M9) for the debug overlay's perf readout; the sim never sees the clock.
   const { host: scriptHost, clock: scriptClock } = timedHost(await createQuickJsHost(quickjsBrowser));
-  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(flatJson), hud, scriptHost, scriptClock);
+  // `?duel=a,b` (the titans tournament): the two blueprints fight on the arena (the flat world without its boxes), as
+  // `pnpm sim duel` sets them up. `&ya=` and `&yb=` are their cores' heights (resting on the ground when left out).
+  const query = new URLSearchParams(window.location.search);
+  const duel = (query.get('duel') ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '');
+  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock);
 
   const registry = defaultRegistry();
   const blank = blankBlueprint('untitled');
@@ -347,6 +352,30 @@ async function boot(): Promise<void> {
     store.set({ mode: next.mode });
   };
   setMode(toggleMode(modes)); // the app opens in the builder
+  if (duel.length === 2) {
+    const [a, b] = duel as [string, string];
+    const load = async (name: string, flip: boolean): Promise<unknown> => {
+      const bp = await doc.loadForPlacing(`${name}.json`);
+      if (!bp) throw new Error(`duel: no blueprint named ${name}`);
+      return orientRaw(toFileJson({ ...bp, scripts: (bp.scripts ?? []).map((sc) => ({ ...sc, enabled: true })) }, registry, { inlineScripts: true }), { flip }, registry);
+    };
+    // The lowest core height the world takes it at, from the ground up, unless the page address gives one.
+    const height = (raw: unknown, x: number, given: string | null): number => {
+      if (given !== null && Number.isFinite(Number(given))) return Number(given);
+      for (let y = 0.5; y < 200; y += 0.05) if (worldScreen.world.canPlace(raw, { x, y }).ok) return y;
+      throw new Error('duel: no room to spawn on the ground');
+    };
+    const go = async (): Promise<void> => {
+      const left = await load(a, false);
+      const right = await load(b, true);
+      setMode(enterWorld({ ...modes, paused: true, pausedBeforeBuilder: true }));
+      // The right one first: the camera follows the last robot spawned, and the left one is the one to watch come.
+      worldScreen.spawn(right, { x: 400, y: height(right, 400, query.get('yb')) }, 2);
+      worldScreen.spawn(left, { x: -400, y: height(left, -400, query.get('ya')) }, 1);
+      notify(store, `${a} (left) against ${b} (right), 800 m apart. Paused: press play to start.`);
+    };
+    go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+  }
 
   const canvas = renderer.app.canvas;
   const cellOf = (e: PointerEvent): { x: number; y: number } => {
