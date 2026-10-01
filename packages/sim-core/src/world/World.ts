@@ -112,6 +112,41 @@ function footprintPoses(origin: { x: number; y: number; angle: number }, part: P
   });
 }
 
+/** A box around a body's part cells, in the body's own frame (meters from its origin cell). */
+interface HullBox {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+/** See `World.hull`. */
+interface Hull {
+  standIns: boolean;
+  /** By body group index; undefined for a group with no parts. */
+  boxes: (HullBox | undefined)[];
+  body: (group: number) => BodyPose;
+}
+
+/** Added to a charge's radius for the box check only, so rounding can never hide a cell the exact check would find. */
+const CHARGE_SLACK = 0.01;
+
+function growBox(box: HullBox, x: number, y: number): void {
+  if (x < box.minX) box.minX = x;
+  if (x > box.maxX) box.maxX = x;
+  if (y < box.minY) box.minY = y;
+  if (y > box.maxY) box.maxY = y;
+}
+
+/** Whether the point is inside the box grown by `reach` on every side. Outside it, no cell in the box is within `reach` of the point. */
+function nearBox(box: HullBox, body: BodyPose, at: { x: number; y: number }, reach: number): boolean {
+  const dx = at.x - body.s.x;
+  const dy = at.y - body.s.y;
+  const lx = body.c * dx + body.n * dy;
+  const ly = body.c * dy - body.n * dx;
+  return lx >= box.minX - reach && lx <= box.maxX + reach && ly >= box.minY - reach && ly <= box.maxY + reach;
+}
+
 /** A burning decoy as a sensor sees it (M11): where it is, which piece holds it, and how it moves. */
 const NO_DECOYS: readonly SeenDecoy[] = [];
 
@@ -733,6 +768,9 @@ export class World {
       }
     }
     if (!charges) return;
+    // What each robot is to a charge, worked out once on first use however many charges ask.
+    const hulls = new Map<Robot, Hull>();
+    const nearBody: boolean[] = [];
     for (const { robot, part } of charges) {
       const radius = part.def.charge?.radius ?? 0;
       const at = partWorldPose(this, robot, part.id);
@@ -740,12 +778,29 @@ export class World {
       const near = (): boolean => {
         for (const other of this.robots) {
           if (other === robot) continue;
+          let hull = hulls.get(other);
+          if (!hull) {
+            hull = this.hull(other);
+            hulls.set(other, hull);
+          }
+          // Nothing of it can count: its own parts are a friend's or nobody's, and it carries no flare standing in for another robot.
+          if (!hull.standIns && (other.team === robot.team || !this.controllers.has(other.id))) continue;
+          // Only the bodies whose box (around their parts' cells) comes within the radius can have a cell in range.
+          let any = false;
+          for (let g = 0; g < hull.boxes.length; g++) {
+            const box = hull.boxes[g];
+            const close = box !== undefined && nearBox(box, hull.body(g), at, radius + CHARGE_SLACK);
+            nearBody[g] = close;
+            any ||= close;
+          }
+          if (!any) continue;
           for (const p of other.parts.values()) {
-            if (!other.groups[p.group]) continue;
+            if (!other.groups[p.group] || nearBody[p.group] !== true) continue;
             const decoy = (p.burn ?? 0) > 0 && p.decoyOf !== undefined && p.decoyOf !== other.id ? this.byId.get(p.decoyOf) : undefined;
             const seen = decoy ?? other;
             if (seen === robot || seen.team === robot.team || !this.controllers.has(seen.id)) continue;
-            const pose = partWorldPose(this, other, p.id);
+            const b = hull.body(p.group);
+            const pose = { x: b.s.x + b.c * p.localX - b.n * p.localY, y: b.s.y + b.n * p.localX + b.c * p.localY, angle: b.s.angle };
             const cells = (p.footprint ?? p.def.footprint).length === 1 ? [pose] : footprintPoses(pose, p);
             if (cells.some((c) => (c.x - at.x) ** 2 + (c.y - at.y) ** 2 <= sq)) return true;
           }
@@ -756,6 +811,45 @@ export class World {
       part.fired = true;
       part.health = 0;
     }
+  }
+
+  /**
+   * A robot as the charge check sees it: per body, the box around its parts' cells in the body's own frame (so a
+   * charge far from every box skips the robot without looking at a part), each body's state read once, and whether
+   * any of its parts is a burning flare standing in for another robot.
+   */
+  private hull(robot: Robot): Hull {
+    const boxes: (HullBox | undefined)[] = [];
+    let standIns = false;
+    for (const p of robot.parts.values()) {
+      if ((p.burn ?? 0) > 0 && p.decoyOf !== undefined && p.decoyOf !== robot.id) standIns = true;
+      if (!robot.groups[p.group]) continue;
+      let box = boxes[p.group];
+      if (!box) {
+        box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+        boxes[p.group] = box;
+      }
+      const cells = p.footprint ?? p.def.footprint;
+      if (cells.length === 1) {
+        growBox(box, p.localX, p.localY);
+      } else {
+        for (const fc of cells) {
+          const o = rotateCell(fc, p.rot);
+          growBox(box, p.localX + o.x, p.localY + o.y);
+        }
+      }
+    }
+    const bodies: (BodyPose | undefined)[] = [];
+    const body = (group: number): BodyPose => {
+      let b = bodies[group];
+      if (!b) {
+        const s = this.physics.state(robot.groups[group]?.bodyId ?? 0);
+        b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+        bodies[group] = b;
+      }
+      return b;
+    };
+    return { standIns, boxes, body };
   }
 
   /** Removes every part at 0 health (robots in order, parts in blueprint order) and queues its blast if it has one. */
