@@ -45,7 +45,7 @@ export const PRELUDE = String.raw`
   globalThis.contacts = [];
   globalThis.inbox = [];
   globalThis.send = function (to, data) {
-    if (sends >= 16 || !hostSend) return false;
+    if (sends >= 32 || !hostSend) return false;
     // Counted before the data is turned into text: a toJSON on it could call send() again.
     sends++;
     var text;

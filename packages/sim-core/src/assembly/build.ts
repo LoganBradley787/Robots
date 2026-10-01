@@ -1,8 +1,8 @@
 import { partMass } from '../parts/footprint';
-import type { JointId, PhysicsWorld } from '../physics/PhysicsWorld';
+import type { JointId, PhysicsWorld, ShapeSpec } from '../physics/PhysicsWorld';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { BodyGroup, PartInstance } from '../world/Robot';
-import type { AssemblyPlan, GroupPlan } from './assemble';
+import type { GroupPlan } from './assemble';
 
 /**
  * Friction of a part cell with no `collider.friction` of its own: steel sliding on ground (Rapier's default is 0.5).
@@ -17,6 +17,9 @@ export const PART_FRICTION = 0.3;
  * a missile released from its rail stuck to the rail and the rotator it sat by (M6).
  */
 export const CELL_HALF = 0.49;
+
+/** A part cell's box. */
+const BOX: ShapeSpec = { shape: 'box', hx: CELL_HALF, hy: CELL_HALF };
 
 /** World pose of a group's origin cell center and its body angle. */
 export interface GroupPose {
@@ -34,7 +37,7 @@ export interface GroupPose {
 export function buildBodies(
   physics: PhysicsWorld,
   parts: ReadonlyMap<string, PartInstance>,
-  plan: AssemblyPlan,
+  plan: { groups: GroupPlan[] },
   pose: (group: GroupPlan) => GroupPose,
 ): BodyGroup[] {
   const part = (id: string): PartInstance => {
@@ -54,17 +57,14 @@ export function buildBodies(
       const def = p.def;
       const cells = p.footprint ?? def.footprint;
       const cellMass = partMass(def, cells) / cells.length;
+      const ball = def.collider?.shape === 'ball' ? def.collider : undefined;
+      const shape: ShapeSpec = ball ? { shape: 'ball', radius: ball.radius ?? 0.5 } : BOX;
+      const friction = ball ? ball.friction : (def.collider?.friction ?? PART_FRICTION);
       for (const fc of cells) {
-        const off = rotateCell(fc, p.rot);
-        const offsetX = p.x + off.x - origin.x;
-        const offsetY = p.y + off.y - origin.y;
-        const place = { offsetX, offsetY, mass: cellMass };
+        // A part's own cell needs no turning (most parts are one cell: a big robot has thousands of them).
+        const off = fc.x === 0 && fc.y === 0 ? fc : rotateCell(fc, p.rot);
         // Cells are squares, so boxes need no rotation; keeping angle 0 avoids trig in collider poses.
-        if (def.collider?.shape === 'ball') {
-          physics.addCollider(bodyId, { shape: 'ball', radius: def.collider.radius ?? 0.5 }, { ...place, friction: def.collider.friction }, id);
-        } else {
-          physics.addCollider(bodyId, { shape: 'box', hx: CELL_HALF, hy: CELL_HALF }, { ...place, friction: def.collider?.friction ?? PART_FRICTION }, id);
-        }
+        physics.addCollider(bodyId, shape, { offsetX: p.x + off.x - origin.x, offsetY: p.y + off.y - origin.y, mass: cellMass, friction }, id);
       }
       p.group = g.index;
       p.localX = p.x - origin.x;
@@ -115,7 +115,7 @@ export function buildBodies(
 }
 
 /** Groups ordered so every joint's parent comes before its child (breadth first from the roots, then group order). */
-function treeOrder(plan: AssemblyPlan): GroupPlan[] {
+function treeOrder(plan: { groups: GroupPlan[] }): GroupPlan[] {
   const out: GroupPlan[] = [];
   const placed = new Set<number>();
   let frontier = plan.groups.filter((g) => !g.joint);

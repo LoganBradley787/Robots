@@ -1,5 +1,5 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
-import { BLUEPRINT_DIR, DEFAULT_WORLD, readBlueprint, readJson, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
+import { BLUEPRINT_DIR, DEFAULT_WORLD, readBlueprint, readJson, REPO_ROOT, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
@@ -9,12 +9,15 @@ import { formatReplay, replayCommand } from './commands/replay';
 import { placeCommand } from './commands/place';
 import { mirrorCommand } from './commands/mirror';
 import { formatParts, partRows } from './commands/parts';
-import { existsSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { defaultRegistry, isRotation, orientRaw, type Rotation } from '@robots/sim-core';
 import { parseTeam } from './spawnSpec';
 import { parseDrop } from './drops';
 import { bench, BENCH_SCENES, formatBench, type BenchScene } from './commands/bench';
+import { duel, formatDuel, SpawnRefused, type Bounds, type DuelEntry } from './commands/duel';
+import { formatResults, parseRoster, rankingTable, runTournament, speedTable } from './commands/tournament';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
 
@@ -46,9 +49,29 @@ commands
   mirror <bp> [--axis <half cells>] [--save <name>] [--force]
                      print the blueprint flipped left to right (x becomes axis - x; the default axis keeps it
                      in place). --save works as for place
+  duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>] [--seconds <n>] [--world <path>] [--bounds <x>,<y>] [--json]
+                     a match between two robots that run themselves (docs/plans/titans-tournament.md), in
+                     worlds/arena.json: <a> with its main core at x -400 on team 0, <b> at x 400 on team 1 and
+                     flipped, every script on, no keys. --ya and --yb are the main cores' heights (default: on
+                     the ground; at most 150). A side loses when its main core is destroyed, or goes out of
+                     bounds: past x -1000 or 1000 or above y 250 (--bounds 800,200 for others, --bounds off
+                     for none). Other cores, and copies its fabricator bays make, do not count. Runs --seconds
+                     (default 240) or until 2 s after a loss; both lost by then is a draw, and so is time
+                     running out. Prints a row every 10 s (starting cores alive, starting parts left, robots
+                     with a core per team), who won and why, every script that stopped (which, on which robot,
+                     when, why), and ms per tick as bench does; exit 1 when a spawn spot is refused
+  tournament <roster.json> [--seeds 1,2,3] [--seconds 240] [--jobs <n>] [--out <dir>] [--only <name>]
+                     [--world <path>] [--bounds <x>,<y>] [--speed-seconds <n>]
+                     every pair of the roster's titans ({ "titans": [{ "name": "titan-x", "y": 40 }] }, y
+                     optional) duels on each seed, both ways round, --jobs at once (default: cores minus 2).
+                     First each titan meets a copy of itself, one at a time, as its speed check (average at
+                     most 16 ms per tick; a 95th percentile over 33 is a warning). Writes results.json and
+                     results.md (ranking with 1 point a win and a half a draw, pair by pair, speed, what beat
+                     each titan, scripts that stopped) to --out (default tournaments/out). --only <name> runs
+                     just that titan's pairings
 
 flags
-  --world <path>     world json (default: worlds/flat.json)
+  --world <path>     world json (default: worlds/flat.json; for duel and tournament, worlds/arena.json)
   --seconds <n>      simulated seconds (default: 5)
   --seed <n>         world seed (default: 1)
   --x <n> --y <n>    where the core lands (default: the world spawn point)
@@ -144,6 +167,8 @@ async function main(): Promise<number> {
   }
   if (command === 'mirror') return mirror(positional, flags);
   if (command === 'bench') return benchCommand(positional, flags);
+  if (command === 'duel') return duelCommand(positional, flags);
+  if (command === 'tournament') return tournamentCommand(positional, flags);
   if (!['run', 'show', 'validate', 'determinism'].includes(command)) {
     console.log(USAGE);
     return 2;
@@ -230,6 +255,90 @@ async function benchCommand(positional: string[], flags: Map<string, string>): P
   }
   const rows = await bench({ scene: scene as BenchScene, ...(n !== undefined ? { n } : {}), ...(flags.has('seconds') ? { seconds: numberFlag(flags, 'seconds', 5) } : {}) });
   console.log(flags.has('json') ? rows.map((r) => JSON.stringify(r)).join('\n') : formatBench(rows));
+  return 0;
+}
+
+async function duelCommand(positional: string[], flags: Map<string, string>): Promise<number> {
+  const [, aArg, bArg] = positional;
+  if (aArg === undefined || bArg === undefined) {
+    console.error('duel needs two blueprints: pnpm sim duel enemy-gun-drone enemy-walker');
+    return 2;
+  }
+  const seconds = numberFlag(flags, 'seconds', 240);
+  if (seconds <= 0) {
+    console.error(`--seconds must be more than 0, got ${seconds}`);
+    return 2;
+  }
+  const entry = (arg: string, height: string): DuelEntry => {
+    const loaded = readBlueprint(resolveBlueprint(arg));
+    for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to ${arg}`);
+    return { name: basename(arg, '.json'), raw: loaded.raw, ...(flags.has(height) ? { y: numberFlag(flags, height, 0) } : {}) };
+  };
+  const bounds = boundsFlag(flags);
+  if (bounds === null) return 2;
+  try {
+    const r = await duel(entry(aArg, 'ya'), entry(bArg, 'yb'), { seed: seedFlag(flags), seconds, ...(flags.has('world') ? { file: loadWorld(flags) } : {}), ...(bounds !== undefined ? { bounds } : {}) });
+    console.log(flags.has('json') ? JSON.stringify(r) : formatDuel(r));
+    return 0;
+  } catch (e) {
+    if (e instanceof InvalidBlueprint || e instanceof SpawnRefused) {
+      console.error(e.message);
+      return 1;
+    }
+    throw e;
+  }
+}
+
+/** `--bounds 1000,250` (how far to either side, how high), or `--bounds off`. Undefined without the flag, null when it cannot be read. */
+function boundsFlag(flags: Map<string, string>): Bounds | false | undefined | null {
+  const raw = flags.get('bounds');
+  if (raw === undefined) return undefined;
+  if (raw.trim() === 'off') return false;
+  const [x, y, ...rest] = raw.split(',').map((v) => (v.trim() === '' ? Number.NaN : Number(v)));
+  if (x === undefined || y === undefined || rest.length > 0 || !(x > 0) || !(y > 0)) {
+    console.error(`--bounds must be two numbers above 0 like 1000,250 (how far to either side, how high), or off; got ${raw}`);
+    return null;
+  }
+  return { x, y };
+}
+
+async function tournamentCommand(positional: string[], flags: Map<string, string>): Promise<number> {
+  const [, rosterArg] = positional;
+  if (rosterArg === undefined) {
+    console.error('tournament needs a roster file: pnpm sim tournament tournaments/titans.json');
+    return 2;
+  }
+  const titans = parseRoster(readJson(resolveUserPath(rosterArg)));
+  // A missing blueprint stops the run here, before any duel.
+  for (const t of titans) resolveBlueprint(t.name);
+  const seeds = (flags.get('seeds') ?? '1,2,3').split(',').map((s) => (s.trim() === '' ? Number.NaN : Number(s)));
+  if (seeds.length === 0 || seeds.some((s) => !Number.isInteger(s) || s < 0 || s > 0xffffffff)) {
+    console.error(`--seeds must be whole numbers with commas between, like 1,2,3; got ${flags.get('seeds') ?? ''}`);
+    return 2;
+  }
+  const seconds = numberFlag(flags, 'seconds', 240);
+  const jobs = numberFlag(flags, 'jobs', Math.max(1, availableParallelism() - 2));
+  if (seconds <= 0 || !Number.isInteger(jobs) || jobs < 1) {
+    console.error('--seconds must be more than 0 and --jobs a whole number of at least 1');
+    return 2;
+  }
+  const speedSeconds = flags.has('speed-seconds') ? numberFlag(flags, 'speed-seconds', seconds) : undefined;
+  if (speedSeconds !== undefined && speedSeconds <= 0) {
+    console.error('--speed-seconds must be more than 0');
+    return 2;
+  }
+  const only = flags.get('only');
+  // Read here so a bad world file stops the run before any duel; the duels get its full path.
+  const world = flags.has('world') ? resolveUserPath(flags.get('world') ?? '') : undefined;
+  if (world !== undefined) loadWorld(flags);
+  const bounds = boundsFlag(flags);
+  if (bounds === null) return 2;
+  const out = flags.has('out') ? resolveUserPath(flags.get('out') ?? '') : resolve(REPO_ROOT, 'tournaments/out');
+  const result = await runTournament(titans, { seeds, seconds, jobs, ...(speedSeconds !== undefined ? { speedSeconds } : {}), ...(only !== undefined ? { only } : {}), ...(world !== undefined ? { world } : {}), ...(bounds !== undefined ? { bounds } : {}) });
+  mkdirSync(out, { recursive: true });
+  writeFileSync(resolve(out, 'results.json'), `${JSON.stringify(result, null, 2)}\n`);
+  writeFileSync(resolve(out, 'results.md'), formatResults(result));
+  console.log(['', ...rankingTable(result), '', ...speedTable(result), '', `${result.matches.length} matches in ${result.wallSeconds.toFixed(0)} s. Wrote ${resolve(out, 'results.md')} and results.json`].join('\n'));
   return 0;
 }
 

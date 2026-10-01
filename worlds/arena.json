@@ -1,0 +1,6 @@
+{
+  "name": "arena",
+  "ground": { "width": 4000, "thickness": 2 },
+  "spawn": { "x": 0, "y": 6 },
+  "boxes": []
+}

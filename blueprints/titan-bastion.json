@@ -1,0 +1,283 @@
+{
+ "format": 1,
+ "name": "titan-bastion",
+ "autoControls": false,
+ "grid": [
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . O . . . O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . O . . . O . .",
+  ". . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . P P P = . = Pc = . = Pb Pb Pb . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . F F F = ja = F = jb = F F F . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . = . = . . Z kg F F F F C F F F F kg Z . . = . = . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = da = A = db = A = dc = A = dd = A = de = A = df = A . . . . . . . . = jl = . . . . . . . . kd . . . . . . . . = jr = . . . . . . . . A = dl = A = dk = A = dj = A = di = A = dh = A = dg = A . . . A . .",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z mc Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A",
+  "A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A"
+ ],
+ "legend": {
+  "mc": {
+   "part": "core",
+   "tags": [
+    "base"
+   ]
+  },
+  "P": {
+   "part": "propeller",
+   "auto": false,
+   "tags": [
+    "pa"
+   ]
+  },
+  "Pb": {
+   "part": "propeller",
+   "auto": false,
+   "tags": [
+    "pb"
+   ]
+  },
+  "Pc": {
+   "part": "propeller",
+   "auto": false,
+   "tags": [
+    "pc"
+   ]
+  },
+  "kg": {
+   "part": "heavygyro",
+   "auto": false,
+   "tags": [
+    "kg"
+   ]
+  },
+  "kd": {
+   "part": "decoupler",
+   "rot": 0,
+   "tags": [
+    "kd"
+   ]
+  },
+  "ja": {
+   "part": "fabbay",
+   "tags": [
+    "ja"
+   ],
+   "makes": "pod",
+   "size": [
+    1,
+    1
+   ]
+  },
+  "jb": {
+   "part": "fabbay",
+   "tags": [
+    "jb"
+   ],
+   "makes": "pod",
+   "size": [
+    1,
+    1
+   ]
+  },
+  "jl": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.jl"
+   ],
+   "makes": "pod",
+   "size": [
+    1,
+    1
+   ]
+  },
+  "jr": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.jr"
+   ],
+   "makes": "pod",
+   "size": [
+    1,
+    1
+   ]
+  },
+  "da": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.da"
+   ],
+   "makes": "dart"
+  },
+  "db": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.db"
+   ],
+   "makes": "dart"
+  },
+  "dc": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.dc"
+   ],
+   "makes": "dart"
+  },
+  "dd": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.dd"
+   ],
+   "makes": "dart"
+  },
+  "de": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.de"
+   ],
+   "makes": "dart"
+  },
+  "df": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.df"
+   ],
+   "makes": "dart"
+  },
+  "dg": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.dg"
+   ],
+   "makes": "dart"
+  },
+  "dh": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.dh"
+   ],
+   "makes": "dart"
+  },
+  "di": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.di"
+   ],
+   "makes": "dart"
+  },
+  "dj": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.dj"
+   ],
+   "makes": "dart"
+  },
+  "dk": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.dk"
+   ],
+   "makes": "dart"
+  },
+  "dl": {
+   "part": "fabbay",
+   "tags": [
+    "base",
+    "base.dl"
+   ],
+   "makes": "dart"
+  }
+ },
+ "primaryCore": "core@50,7",
+ "scripts": [
+  {
+   "id": "keep",
+   "source": {
+    "file": "titan-bastion.keep.js"
+   }
+  }
+ ],
+ "cores": {
+  "core@34,2": {
+   "scope": "base",
+   "scripts": [
+    {
+     "id": "pilot",
+     "source": {
+      "file": "titan-bastion.base.pilot.js"
+     }
+    }
+   ]
+  }
+ },
+ "recipes": {
+  "dart": {
+   "format": 1,
+   "name": "dart",
+   "grid": [
+    "S",
+    "H",
+    "C",
+    "g",
+    "K"
+   ],
+   "legend": {
+    "K": {
+     "part": "booster",
+     "rot": 0,
+     "auto": false
+    },
+    "g": {
+     "part": "heavygyro",
+     "auto": false
+    },
+    "S": {
+     "part": "seeker",
+     "rot": 0
+    }
+   },
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 1,
+      "height": 60,
+      "arcSpeed": 50,
+      "clear": 0.4,
+      "clearDist": 15,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 14
+     },
+     "source": {
+      "file": "titan-bastion.dart.guide.js"
+     }
+    }
+   ]
+  },
+  "pod": {
+   "format": 1,
+   "name": "pod",
+   "autoControls": false,
+   "grid": [
+    "J"
+   ]
+  }
+ }
+}

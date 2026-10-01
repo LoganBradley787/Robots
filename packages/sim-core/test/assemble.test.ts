@@ -3,6 +3,8 @@ import { expandBlueprint } from '../src/blueprint/expand';
 import type { Blueprint } from '../src/blueprint/types';
 import { assemble } from '../src/assembly/assemble';
 import { defaultRegistry } from '../src/parts/registry';
+import { Prng } from '../src/rng/Prng';
+import { assembleReference } from './reference/assembleReference';
 
 const reg = defaultRegistry();
 
@@ -122,5 +124,87 @@ describe('assemble on live parts (M6)', () => {
         if (g.joint) expect(g.originId, f).toBe(g.joint.partId);
       }
     }
+  });
+});
+
+describe('assemble agrees with the reference (rewritten for speed)', () => {
+  const FACES = ['N', 'E', 'S', 'W'] as const;
+  /** The same plan from both, for the blueprint as it is and with random parts lost, faces cut, and bays holding. */
+  function check(whole: Blueprint, rng: Prng, label: string): void {
+    for (let round = 0; round < 6; round++) {
+      const parts = round === 0 ? whole.parts : whole.parts.filter(() => rng.next() > 0.15 * round);
+      const live: Blueprint = { ...whole, parts };
+      const cut = new Map<string, ('N' | 'E' | 'S' | 'W')[]>();
+      const holding = new Set<string>();
+      if (round > 1) {
+        for (const p of parts) {
+          if (rng.next() < 0.1) cut.set(p.id, FACES.filter(() => rng.next() < 0.4));
+          if (rng.next() < 0.5 && reg.get(p.part).fabricate) holding.add(p.id);
+        }
+      }
+      const root = round % 2 === 0 ? undefined : parts[Math.floor(rng.next() * parts.length)]?.id;
+      const fast = root === undefined ? assemble(live, reg, undefined, cut, holding) : assemble(live, reg, root, cut, holding);
+      const plain = root === undefined ? assembleReference(live, reg, undefined, cut, holding) : assembleReference(live, reg, root, cut, holding);
+      expect(fast.edges, label).toEqual(plain.edges);
+      expect(fast.chunks, label).toEqual(plain.chunks);
+      expect(fast.groups, label).toEqual(plain.groups);
+      expect([...fast.attachedFaces], label).toEqual([...plain.attachedFaces]);
+      expect(fast.lockedJoints, label).toEqual(plain.lockedJoints);
+    }
+  }
+
+  it('on every shipped blueprint and its recipes, whole and damaged', async () => {
+    const { readdirSync, readFileSync } = await import('node:fs');
+    const dir = new URL('../../../blueprints/', import.meta.url);
+    const rng = new Prng(7);
+    let checked = 0;
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.json'))) {
+      const r = expandBlueprint(JSON.parse(readFileSync(new URL(f, dir), 'utf8')));
+      if (!r.blueprint) continue;
+      for (const b of [r.blueprint, ...(r.blueprint.recipes ?? []).map((x) => x.blueprint)]) {
+        check(b, rng, f);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(60);
+  });
+
+  it('on random grids: loose pieces, joints in loops, rotators on rotators, pistons, decouplers', () => {
+    const tokens = ['F', 'F', 'F', 'F', 'C', 'B', '.', '.', 'W', 'W^', 'W<', 'W>', 'R', 'Rv', 'R<', 'R>', 'I^', 'Iv', 'I<', 'I>', 'D', 'Dv', 'D<', 'D>', 'T^', 'Tv', 'M^', 'P'];
+    const rng = new Prng(11);
+    let locked = 0;
+    for (let k = 0; k < 300; k++) {
+      const w = 2 + Math.floor(rng.next() * 9);
+      const h = 1 + Math.floor(rng.next() * 8);
+      // Few joint parts on some grids, many on others.
+      const plain = rng.next();
+      const grid: string[] = [];
+      for (let y = 0; y < h; y++) {
+        const row: string[] = [];
+        for (let x = 0; x < w; x++) row.push(rng.next() < plain ? 'F' : (tokens[Math.floor(rng.next() * tokens.length)] as string));
+        grid.push(row.join(' '));
+      }
+      const r = expandBlueprint({ format: 1, name: 'random', grid });
+      if (!r.blueprint || r.blueprint.parts.length === 0) continue;
+      check(r.blueprint, rng, grid.join('/'));
+      if (assemble(r.blueprint, reg).lockedJoints.length > 0) locked++;
+    }
+    // The grids do reach the hard cases.
+    expect(locked).toBeGreaterThan(20);
+  });
+
+  it('on a big hollow ring on wheels (so sparse its cells are looked up in a map, not a table)', () => {
+    const size = 120;
+    const grid: string[] = [];
+    for (let y = 0; y < size; y++) {
+      const row: string[] = [];
+      for (let x = 0; x < size; x++) row.push(y === 0 || y === size - 1 || x === 0 || x === size - 1 ? (x === 0 && y === 5 ? 'C' : x === size - 1 && y % 9 === 4 ? 'R>' : 'F') : x === size - 2 && y % 9 === 4 ? 'F' : '.');
+      grid.push(row.join(' '));
+    }
+    grid.push(Array.from({ length: size }, (_, x) => (x % 10 === 3 ? 'W' : '.')).join(' '));
+    const r = expandBlueprint({ format: 1, name: 'ring', grid });
+    if (!r.blueprint) throw new Error(JSON.stringify(r.issues));
+    expect(assemble(r.blueprint, reg).groups.length).toBeGreaterThan(12);
+    check(r.blueprint, new Prng(3), 'ring');
   });
 });

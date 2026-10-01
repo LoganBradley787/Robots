@@ -1,0 +1,1850 @@
+{
+ "format": 1,
+ "name": "titan-shatter",
+ "autoControls": false,
+ "grid": [
+  ".    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .",
+  ".    q1   .    q2   .    .    q3   .    q4   .    .    q5   .    q6   .    .    q7   .    q8   .    .    q9   .    q10  .    .    q11  .    q12  .    .    q13  .    q14  .    .    q15  .    q16  .",
+  ".    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .",
+  ".    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .",
+  ".    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .",
+  ".    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .",
+  "q20  q21  .    q21  q22  q23  q21  .    q21  q24  q25  q21  .    q21  q26  q27  q21  .    q21  q28  q29  q21  .    q21  q30  q31  q21  .    q21  q32  q33  q21  .    q21  q34  q35  q21  .    q21  q36",
+  "q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37",
+  "q37  q38  q39  q40  q37  q41  q42  q43  q37  q44  q45  q46  q47  q37  q48  q49  q50  q51  q52  q37  q53  q54  q55  q56  q57  q37  q58  q59  q60  q61  q62  q37  q63  q64  q65  q37  q66  q67  q68  q37",
+  "q37  q69  q70  q71  q37  q72  q73  q74  q37  q75  q76  q77  q78  q79  q80  q80  q80  q80  q81  q82  q83  q80  q80  q80  q80  q79  q84  q85  q86  q87  q88  q37  q89  q90  q91  q37  q92  q93  q94  q37",
+  "q37  q95  q95  q95  q37  q95  q95  q95  q37  q95  q95  q95  q95  q37  q95  q95  q95  q95  q95  q37  q96  q96  q96  q96  q96  q37  q96  q96  q96  q96  q96  q37  q96  q96  q96  q37  q96  q96  q96  q37",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
+  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
+  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    ."
+ ],
+ "legend": {
+  "q0": {
+   "part": "charge",
+   "rot": 0
+  },
+  "q1": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d0"
+   ]
+  },
+  "q2": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d1"
+   ]
+  },
+  "q3": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d2"
+   ]
+  },
+  "q4": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d3"
+   ]
+  },
+  "q5": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d4"
+   ]
+  },
+  "q6": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d5"
+   ]
+  },
+  "q7": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d6"
+   ]
+  },
+  "q8": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d7"
+   ]
+  },
+  "q9": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d8"
+   ]
+  },
+  "q10": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d9"
+   ]
+  },
+  "q11": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d10"
+   ]
+  },
+  "q12": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d11"
+   ]
+  },
+  "q13": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d12"
+   ]
+  },
+  "q14": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d13"
+   ]
+  },
+  "q15": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d14"
+   ]
+  },
+  "q16": {
+   "part": "core",
+   "rot": 0,
+   "tags": [
+    "d15"
+   ]
+  },
+  "q17": {
+   "part": "radar",
+   "rot": 0
+  },
+  "q18": {
+   "part": "cell",
+   "rot": 0
+  },
+  "q19": {
+   "part": "heavygyro",
+   "rot": 0,
+   "auto": false
+  },
+  "q20": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g0"
+   ]
+  },
+  "q21": {
+   "part": "booster",
+   "rot": 0,
+   "auto": false
+  },
+  "q22": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g1"
+   ]
+  },
+  "q23": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g2"
+   ]
+  },
+  "q24": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g3"
+   ]
+  },
+  "q25": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g4"
+   ]
+  },
+  "q26": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g5"
+   ]
+  },
+  "q27": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g6"
+   ]
+  },
+  "q28": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g7"
+   ]
+  },
+  "q29": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g8"
+   ]
+  },
+  "q30": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g9"
+   ]
+  },
+  "q31": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g10"
+   ]
+  },
+  "q32": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g11"
+   ]
+  },
+  "q33": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g12"
+   ]
+  },
+  "q34": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g13"
+   ]
+  },
+  "q35": {
+   "part": "decoupler",
+   "rot": 270,
+   "tags": [
+    "g14"
+   ]
+  },
+  "q36": {
+   "part": "decoupler",
+   "rot": 90,
+   "tags": [
+    "g15"
+   ]
+  },
+  "q37": {
+   "part": "frame",
+   "rot": 0
+  },
+  "q38": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam21"
+   ]
+  },
+  "q39": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam22"
+   ]
+  },
+  "q40": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam23"
+   ]
+  },
+  "q41": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam24"
+   ]
+  },
+  "q42": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam25"
+   ]
+  },
+  "q43": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam26"
+   ]
+  },
+  "q44": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam27"
+   ]
+  },
+  "q45": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam28"
+   ]
+  },
+  "q46": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam29"
+   ]
+  },
+  "q47": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam30"
+   ]
+  },
+  "q48": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam31"
+   ]
+  },
+  "q49": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam32"
+   ]
+  },
+  "q50": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam33"
+   ]
+  },
+  "q51": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam34"
+   ]
+  },
+  "q52": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam35"
+   ]
+  },
+  "q53": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam36"
+   ]
+  },
+  "q54": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam37"
+   ]
+  },
+  "q55": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam38"
+   ]
+  },
+  "q56": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam39"
+   ]
+  },
+  "q57": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam40"
+   ]
+  },
+  "q58": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam41"
+   ]
+  },
+  "q59": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam42"
+   ]
+  },
+  "q60": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam43"
+   ]
+  },
+  "q61": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam44"
+   ]
+  },
+  "q62": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam45"
+   ]
+  },
+  "q63": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam46"
+   ]
+  },
+  "q64": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam47"
+   ]
+  },
+  "q65": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam48"
+   ]
+  },
+  "q66": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam49"
+   ]
+  },
+  "q67": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam50"
+   ]
+  },
+  "q68": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam51"
+   ]
+  },
+  "q69": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam0"
+   ]
+  },
+  "q70": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam1"
+   ]
+  },
+  "q71": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam2"
+   ]
+  },
+  "q72": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam3"
+   ]
+  },
+  "q73": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam4"
+   ]
+  },
+  "q74": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam5"
+   ]
+  },
+  "q75": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam6"
+   ]
+  },
+  "q76": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam7"
+   ]
+  },
+  "q77": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam8"
+   ]
+  },
+  "q78": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam9"
+   ]
+  },
+  "q79": {
+   "part": "armorplate",
+   "rot": 0
+  },
+  "q80": {
+   "part": "densebattery",
+   "rot": 0
+  },
+  "q81": {
+   "part": "radar",
+   "rot": 0,
+   "tags": [
+    "eye"
+   ]
+  },
+  "q82": {
+   "part": "core",
+   "rot": 0
+  },
+  "q83": {
+   "part": "heavygyro",
+   "rot": 0,
+   "tags": [
+    "stab"
+   ],
+   "auto": false
+  },
+  "q84": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam10"
+   ]
+  },
+  "q85": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam11"
+   ]
+  },
+  "q86": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam12"
+   ]
+  },
+  "q87": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam13"
+   ]
+  },
+  "q88": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam14"
+   ]
+  },
+  "q89": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam15"
+   ]
+  },
+  "q90": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam16"
+   ]
+  },
+  "q91": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam17"
+   ]
+  },
+  "q92": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam18"
+   ]
+  },
+  "q93": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam19"
+   ]
+  },
+  "q94": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam20"
+   ]
+  },
+  "q95": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "lp"
+   ],
+   "auto": false
+  },
+  "q96": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "rp"
+   ],
+   "auto": false
+  },
+  "q97": {
+   "part": "decoupler",
+   "rot": 0,
+   "tags": [
+    "split"
+   ]
+  },
+  "q98": {
+   "part": "gun",
+   "rot": 90,
+   "tags": [
+    "gunA"
+   ]
+  },
+  "q99": {
+   "part": "rotator",
+   "rot": 90,
+   "tags": [
+    "rotA"
+   ],
+   "auto": false
+  },
+  "q100": {
+   "part": "rotator",
+   "rot": 270,
+   "tags": [
+    "rotB"
+   ],
+   "auto": false
+  },
+  "q101": {
+   "part": "gun",
+   "rot": 270,
+   "tags": [
+    "gunB"
+   ]
+  }
+ },
+ "primaryCore": "core@19,33",
+ "bindings": [],
+ "scripts": [
+  {
+   "id": "king",
+   "params": {
+    "pods": 52,
+    "darts": 16
+   },
+   "source": {
+    "file": "titan-shatter.king.js"
+   }
+  }
+ ],
+ "cores": {
+  "core@8,30": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 0
+     },
+     "source": {
+      "file": "titan-shatter.g0.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,30": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 1
+     },
+     "source": {
+      "file": "titan-shatter.g1.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,30": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 2
+     },
+     "source": {
+      "file": "titan-shatter.g2.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,28": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 3
+     },
+     "source": {
+      "file": "titan-shatter.g3.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,28": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 4
+     },
+     "source": {
+      "file": "titan-shatter.g4.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,28": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 5
+     },
+     "source": {
+      "file": "titan-shatter.g5.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,26": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 6
+     },
+     "source": {
+      "file": "titan-shatter.g6.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,26": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 7
+     },
+     "source": {
+      "file": "titan-shatter.g7.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,26": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 8
+     },
+     "source": {
+      "file": "titan-shatter.g8.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,24": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 9
+     },
+     "source": {
+      "file": "titan-shatter.g9.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,24": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 10
+     },
+     "source": {
+      "file": "titan-shatter.g10.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,24": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 11
+     },
+     "source": {
+      "file": "titan-shatter.g11.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,22": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 12
+     },
+     "source": {
+      "file": "titan-shatter.g12.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,22": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 13
+     },
+     "source": {
+      "file": "titan-shatter.g13.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,22": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 14
+     },
+     "source": {
+      "file": "titan-shatter.g14.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,20": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 15
+     },
+     "source": {
+      "file": "titan-shatter.g15.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,20": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 16
+     },
+     "source": {
+      "file": "titan-shatter.g16.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,20": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 17
+     },
+     "source": {
+      "file": "titan-shatter.g17.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,18": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 18
+     },
+     "source": {
+      "file": "titan-shatter.g18.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,18": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 19
+     },
+     "source": {
+      "file": "titan-shatter.g19.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,18": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 20
+     },
+     "source": {
+      "file": "titan-shatter.g20.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,16": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 21
+     },
+     "source": {
+      "file": "titan-shatter.g21.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,16": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 22
+     },
+     "source": {
+      "file": "titan-shatter.g22.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,16": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 23
+     },
+     "source": {
+      "file": "titan-shatter.g23.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,14": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 24
+     },
+     "source": {
+      "file": "titan-shatter.g24.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,14": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 25
+     },
+     "source": {
+      "file": "titan-shatter.g25.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,14": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 26
+     },
+     "source": {
+      "file": "titan-shatter.g26.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,12": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 27
+     },
+     "source": {
+      "file": "titan-shatter.g27.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,12": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 28
+     },
+     "source": {
+      "file": "titan-shatter.g28.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,12": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 29
+     },
+     "source": {
+      "file": "titan-shatter.g29.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,10": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 30
+     },
+     "source": {
+      "file": "titan-shatter.g30.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,10": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 31
+     },
+     "source": {
+      "file": "titan-shatter.g31.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,10": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 32
+     },
+     "source": {
+      "file": "titan-shatter.g32.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,8": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 33
+     },
+     "source": {
+      "file": "titan-shatter.g33.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,8": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 34
+     },
+     "source": {
+      "file": "titan-shatter.g34.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,8": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 35
+     },
+     "source": {
+      "file": "titan-shatter.g35.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,6": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 36
+     },
+     "source": {
+      "file": "titan-shatter.g36.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,6": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 37
+     },
+     "source": {
+      "file": "titan-shatter.g37.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,6": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 38
+     },
+     "source": {
+      "file": "titan-shatter.g38.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,4": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 39
+     },
+     "source": {
+      "file": "titan-shatter.g39.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,4": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 40
+     },
+     "source": {
+      "file": "titan-shatter.g40.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,4": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 41
+     },
+     "source": {
+      "file": "titan-shatter.g41.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,2": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 42
+     },
+     "source": {
+      "file": "titan-shatter.g42.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,2": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 43
+     },
+     "source": {
+      "file": "titan-shatter.g43.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,2": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 44
+     },
+     "source": {
+      "file": "titan-shatter.g44.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@8,0": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 45
+     },
+     "source": {
+      "file": "titan-shatter.g45.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@19,0": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 46
+     },
+     "source": {
+      "file": "titan-shatter.g46.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@31,0": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "pilot",
+     "params": {
+      "slot": 47
+     },
+     "source": {
+      "file": "titan-shatter.g47.pilot.js"
+     }
+    }
+   ]
+  },
+  "core@1,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 45,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d0.guide.js"
+     }
+    }
+   ]
+  },
+  "core@3,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 44,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d1.guide.js"
+     }
+    }
+   ]
+  },
+  "core@6,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 41,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d2.guide.js"
+     }
+    }
+   ]
+  },
+  "core@8,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 40,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d3.guide.js"
+     }
+    }
+   ]
+  },
+  "core@11,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 37,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d4.guide.js"
+     }
+    }
+   ]
+  },
+  "core@13,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 36,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d5.guide.js"
+     }
+    }
+   ]
+  },
+  "core@16,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 33,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d6.guide.js"
+     }
+    }
+   ]
+  },
+  "core@18,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 32,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d7.guide.js"
+     }
+    }
+   ]
+  },
+  "core@21,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 29,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d8.guide.js"
+     }
+    }
+   ]
+  },
+  "core@23,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 28,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d9.guide.js"
+     }
+    }
+   ]
+  },
+  "core@26,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 25,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d10.guide.js"
+     }
+    }
+   ]
+  },
+  "core@28,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 24,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d11.guide.js"
+     }
+    }
+   ]
+  },
+  "core@31,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 21,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d12.guide.js"
+     }
+    }
+   ]
+  },
+  "core@33,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 20,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d13.guide.js"
+     }
+    }
+   ]
+  },
+  "core@36,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 17,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d14.guide.js"
+     }
+    }
+   ]
+  },
+  "core@38,41": {
+   "autoControls": false,
+   "bindings": [],
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "clear": 0.3,
+      "clearDist": 16,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 16,
+      "minMass": 10,
+      "passBy": 12,
+      "passMass": 20
+     },
+     "source": {
+      "file": "titan-shatter.d15.guide.js"
+     }
+    }
+   ]
+  }
+ }
+}

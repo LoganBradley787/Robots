@@ -1,0 +1,523 @@
+{
+ "format": 1,
+ "name": "titan-hive",
+ "grid": [
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . m1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . m12 . . .",
+  ". . . q1 . l l l l l l l l l l l l l l l l l l l l l l l l l l l l = ba = = bb = = bc = = bd = = be = = bf = = bg = = bh = = bi = = bj = = bk = = bl = = bm = = bn = = bo = = bp = r r r r r r r r r r r r r r r r r r r r r r r r r r r r . q12 . . .",
+  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
+  "m13 q13 A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z A C A Z N Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A q14 m14",
+  ". . A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A . .",
+  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
+  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r F . .",
+  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r F . .",
+  ". . . . . . . . . . . . q2 . . . . . . . . . q3 . . . . . . . . . q4 . . . . . . . . . q5 . . . . . . . . . q6 . . . . . . . . . q7 . . . . . . . . . q8 . . . . . . . . . q9 . . . . . . . . . q10 . . . . . . . . . q11 . . . . . . . . . . .",
+  ". . . . . . . . . . . . m2 . . . . . . . . . m3 . . . . . . . . . m4 . . . . . . . . . m5 . . . . . . . . . m6 . . . . . . . . . m7 . . . . . . . . . m8 . . . . . . . . . m9 . . . . . . . . . m10 . . . . . . . . . m11 . . . . . . . . . . ."
+ ],
+ "legend": {
+  "l": {
+   "part": "propeller",
+   "tags": [
+    "lprop"
+   ],
+   "auto": false
+  },
+  "r": {
+   "part": "propeller",
+   "tags": [
+    "rprop"
+   ],
+   "auto": false
+  },
+  "q1": {
+   "part": "rotator",
+   "rot": 0,
+   "tags": [
+    "tur1",
+    "tur1.rot"
+   ],
+   "auto": false
+  },
+  "m1": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "tur1",
+    "tur1.gun"
+   ]
+  },
+  "q2": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur2",
+    "tur2.rot"
+   ],
+   "auto": false
+  },
+  "m2": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur2",
+    "tur2.gun"
+   ]
+  },
+  "q3": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur3",
+    "tur3.rot"
+   ],
+   "auto": false
+  },
+  "m3": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur3",
+    "tur3.gun"
+   ]
+  },
+  "q4": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur4",
+    "tur4.rot"
+   ],
+   "auto": false
+  },
+  "m4": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur4",
+    "tur4.gun"
+   ]
+  },
+  "q5": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur5",
+    "tur5.rot"
+   ],
+   "auto": false
+  },
+  "m5": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur5",
+    "tur5.gun"
+   ]
+  },
+  "q6": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur6",
+    "tur6.rot"
+   ],
+   "auto": false
+  },
+  "m6": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur6",
+    "tur6.gun"
+   ]
+  },
+  "q7": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur7",
+    "tur7.rot"
+   ],
+   "auto": false
+  },
+  "m7": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur7",
+    "tur7.gun"
+   ]
+  },
+  "q8": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur8",
+    "tur8.rot"
+   ],
+   "auto": false
+  },
+  "m8": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur8",
+    "tur8.gun"
+   ]
+  },
+  "q9": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur9",
+    "tur9.rot"
+   ],
+   "auto": false
+  },
+  "m9": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur9",
+    "tur9.gun"
+   ]
+  },
+  "q10": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur10",
+    "tur10.rot"
+   ],
+   "auto": false
+  },
+  "m10": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur10",
+    "tur10.gun"
+   ]
+  },
+  "q11": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "tur11",
+    "tur11.rot"
+   ],
+   "auto": false
+  },
+  "m11": {
+   "part": "gun",
+   "rot": 180,
+   "tags": [
+    "tur11",
+    "tur11.gun"
+   ]
+  },
+  "q12": {
+   "part": "rotator",
+   "rot": 0,
+   "tags": [
+    "tur12",
+    "tur12.rot"
+   ],
+   "auto": false
+  },
+  "m12": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "tur12",
+    "tur12.gun"
+   ]
+  },
+  "ba": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayA"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bb": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayB"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bc": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayC"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bd": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayD"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "be": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayE"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bf": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayF"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bg": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayG"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bh": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayH"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bi": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayI"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bj": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayJ"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bk": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayK"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bl": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayL"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bm": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayM"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bn": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayN"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bo": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayO"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "bp": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayP"
+   ],
+   "makes": "dart",
+   "size": [
+    1,
+    7
+   ]
+  },
+  "q13": {
+   "part": "rotator",
+   "rot": 90,
+   "tags": [
+    "tur13",
+    "tur13.rot"
+   ],
+   "auto": false
+  },
+  "m13": {
+   "part": "gun",
+   "rot": 90,
+   "tags": [
+    "tur13",
+    "tur13.gun"
+   ]
+  },
+  "q14": {
+   "part": "rotator",
+   "rot": 270,
+   "tags": [
+    "tur14",
+    "tur14.rot"
+   ],
+   "auto": false
+  },
+  "m14": {
+   "part": "gun",
+   "rot": 270,
+   "tags": [
+    "tur14",
+    "tur14.gun"
+   ]
+  }
+ },
+ "scripts": [
+  {
+   "id": "pilot",
+   "params": {},
+   "source": {
+    "file": "titan-hive.pilot.js"
+   }
+  }
+ ],
+ "recipes": {
+  "dart": {
+   "format": 1,
+   "name": "titan-hive-dart",
+   "grid": [
+    "S^",
+    "H",
+    "H",
+    "C",
+    "E",
+    "g",
+    "k"
+   ],
+   "legend": {
+    "g": {
+     "part": "heavygyro",
+     "rot": 0,
+     "auto": false
+    },
+    "k": {
+     "part": "booster",
+     "rot": 0,
+     "auto": false
+    }
+   },
+   "scripts": [
+    {
+     "id": "guide",
+     "params": {
+      "arc": 0,
+      "height": 60,
+      "arcSpeed": 60,
+      "clear": 0.4,
+      "clearDist": 18,
+      "thrust": 400,
+      "gyroTorque": 200,
+      "fuse": 13,
+      "acquire": 150
+     },
+     "source": {
+      "file": "titan-hive.dart.guide.js"
+     }
+    }
+   ]
+  }
+ }
+}

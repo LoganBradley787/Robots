@@ -79,15 +79,15 @@ describe('messages between cores (M8)', () => {
         if (frame === 0) {
           var big = ''; for (var i = 0; i < 1100; i++) big += 'x';
           log(send('dart1', big));
-          for (var j = 0; j < 20; j++) send('dart1', j);
+          for (var j = 0; j < 40; j++) send('dart1', j);
         }
       }`;
     const pad = w.spawnBlueprint(launcher(pilot, DART), { x: 0, y: 100 });
     w.step();
     expect(logs(w, pad.id)).toEqual(['false']);
-    // 16 send calls a tick at most, the refused big one included (counted before its data is turned into text, so a
-    // toJSON cannot send more): 0 to 14 arrive.
-    expect(pad.parts.get('core@3,0')?.inbox?.map((m) => m.data)).toEqual(Array.from({ length: 15 }, (_, i) => String(i)));
+    // 32 send calls a tick at most, the refused big one included (counted before its data is turned into text, so a
+    // toJSON cannot send more): 0 to 30 are sent, and a core keeps the last 16 waiting, 15 to 30.
+    expect(pad.parts.get('core@3,0')?.inbox?.map((m) => m.data)).toEqual(Array.from({ length: 16 }, (_, i) => String(i + 15)));
     const again = await World.create({ seed: 1, scripts: host }, space);
     const quiet = again.spawnBlueprint(launcher('function tick() {}', DART), { x: 0, y: 100 });
     again.step();

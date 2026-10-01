@@ -1,0 +1,44 @@
+{
+ "format": 1,
+ "name": "titan-hive-dart",
+ "grid": [
+  "S^",
+  "H",
+  "H",
+  "C",
+  "E",
+  "g",
+  "k"
+ ],
+ "legend": {
+  "g": {
+   "part": "heavygyro",
+   "rot": 0,
+   "auto": false
+  },
+  "k": {
+   "part": "booster",
+   "rot": 0,
+   "auto": false
+  }
+ },
+ "scripts": [
+  {
+   "id": "guide",
+   "params": {
+    "arc": 0,
+    "height": 60,
+    "arcSpeed": 60,
+    "clear": 0.4,
+    "clearDist": 18,
+    "thrust": 400,
+    "gyroTorque": 200,
+    "fuse": 13,
+    "acquire": 150
+   },
+   "source": {
+    "file": "titan-hive-dart.guide.js"
+   }
+  }
+ ]
+}
