@@ -23,7 +23,7 @@ export interface ScriptLimits {
  * Starting limits (`04`). The stack is 256 KB, not 512: at 512 deep recursion overflowed the host's own stack before
  * QuickJS's check fired (the research spike also used 256).
  */
-export const DEFAULT_LIMITS: ScriptLimits = { budgetPerTick: 50, memoryBytes: 16 * 1024 * 1024, stackBytes: 256 * 1024 };
+export const DEFAULT_LIMITS: ScriptLimits = { budgetPerTick: 200, memoryBytes: 16 * 1024 * 1024, stackBytes: 256 * 1024 };
 
 /** One `set(target, channel, value)` from a script. */
 export interface ScriptWrite {

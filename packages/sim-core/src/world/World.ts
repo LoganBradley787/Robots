@@ -133,7 +133,7 @@ const SHELL_SWEEP = 600;
 export const MAX_BLASTS_PER_TICK = 100;
 
 /** Messages a robot's scripts may send per tick, all together (M8 review). */
-export const SENDS_PER_TICK = 32;
+export const SENDS_PER_TICK = 64;
 
 interface QueuedBlast {
   robot: number;
@@ -1562,7 +1562,7 @@ export class World {
     });
     const part = target === undefined ? undefined : robot.parts.get(target);
     if (!part) return false;
-    // At most SENDS_PER_TICK per robot per tick, whatever its scripts do (each script has its own cap of 16 too).
+    // At most SENDS_PER_TICK per robot per tick, whatever its scripts do (each script has its own cap of 32 too).
     const count = this.sendsThisTick.tick === this.tickCount ? (this.sendsThisTick.counts.get(robot.id) ?? 0) : 0;
     if (this.sendsThisTick.tick !== this.tickCount) this.sendsThisTick = { tick: this.tickCount, counts: new Map() };
     if (count >= SENDS_PER_TICK) return false;
