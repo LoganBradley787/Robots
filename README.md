@@ -17,9 +17,9 @@ This was a fun project I made with Claude in my spare time.
 - **Robots that build robots.** A fabricator bay builds a copy of another blueprint from the robot's energy and lets it go.
 - **Titans.** Eight huge robots that run themselves (800 to 5200 parts each), built for a round robin tournament. The rules, both result tables, and notes from watching the fights are in `docs/plans/titans-tournament.md`.
 
-![A 20 tonne machine riding up onto a ground base](docs/images/titan-ram.png)
+![A 20 tonne machine with a tall mast driving at a ground base](docs/images/titan-ram.png)
 
-*The tournament winner, a 5165 part machine on wheels, arriving at a base that has roped itself to the ground.*
+*The tournament winner, a 20 tonne machine of 5165 parts, closing on that base at 55 m/s while the darts land on its nose. Its mast carries a gun deck 110 m up.*
 
 ![The builder with a twelve turret drone open](docs/images/builder.png)
 
