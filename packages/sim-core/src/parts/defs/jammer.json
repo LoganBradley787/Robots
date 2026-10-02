@@ -9,6 +9,6 @@
   "inputs": [{ "name": "ignite", "min": 0, "max": 1, "default": 0 }],
   "outputs": [{ "name": "jamming", "min": 0, "max": 1, "default": 0 }],
   "powerDraw": 0,
-  "jammer": { "radius": 30, "seconds": 5 },
+  "jammer": { "radius": 30, "seconds": 5, "near": 150 },
   "sprite": { "frame": "part.jammer", "litFrame": "part.jammer.lit" }
 }

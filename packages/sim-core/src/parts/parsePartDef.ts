@@ -228,10 +228,10 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     def.decoy = { burn: r.positive(d, 'burn', 'decoy') };
   }
   if (o.jammer !== undefined) {
-    const j = r.obj(o.jammer, 'jammer', ['radius', 'seconds']);
+    const j = r.obj(o.jammer, 'jammer', ['radius', 'seconds', 'near']);
     if (!def.inputs.some((c) => c.name === 'ignite')) r.fail('jammer', 'a jammer must have an "ignite" input');
     if (!def.outputs.some((c) => c.name === 'jamming')) r.fail('jammer', 'a jammer must have a "jamming" output');
-    def.jammer = { radius: r.positive(j, 'radius', 'jammer'), seconds: r.positive(j, 'seconds', 'jammer') };
+    def.jammer = { radius: r.positive(j, 'radius', 'jammer'), seconds: r.positive(j, 'seconds', 'jammer'), ...(j.near !== undefined ? { near: r.positive(j, 'near', 'jammer') } : {}) };
   }
   if (o.gun !== undefined) {
     const g = r.obj(o.gun, 'gun', ['speed', 'damage', 'rate', 'life', 'recoil', 'range', 'spread']);

@@ -83,23 +83,39 @@ describe('jammer pod (Batch)', () => {
     w.dispose();
   });
 
-  it('inside a bubble: a sensor sees nothing, however near or far the target', async () => {
+  it('inside a bubble: a sensor sees nothing further than 150 m, and what is nearer it still sees (Logan: up close a jam does nothing)', async () => {
     const w = await world();
     const eye = w.spawnBlueprint(EYE_POD, { x: 0, y: 100 });
     const near = w.spawnBlueprint(PLAIN, { x: 10, y: 100 }, { team: 1 });
+    const mid = w.spawnBlueprint(PLAIN, { x: 140, y: 100 }, { team: 1 });
+    const past = w.spawnBlueprint(PLAIN, { x: 165, y: 100 }, { team: 1 });
     const far = w.spawnBlueprint(PLAIN, { x: 300, y: 100 }, { team: 1 });
     for (let i = 0; i < 5; i++) w.step();
-    expect(ids(w, eye)).toEqual([near.id, far.id]);
+    expect(ids(w, eye)).toEqual([near.id, mid.id, past.id, far.id]);
     light(w, eye);
-    expect(ids(w, eye)).toEqual([]);
+    expect(ids(w, eye)).toEqual([near.id, mid.id]);
     w.dispose();
   });
 
-  it('scripts get no contacts inside a bubble', async () => {
+  it('outside a bubble: a sensor within 150 m of a hidden robot sees it, one further off does not, and when the jam ends both do', async () => {
+    const w = await world();
+    const pod = w.spawnBlueprint(POD_BOT, { x: 0, y: 100 }, { team: 1 });
+    const close = w.spawnBlueprint(EYE, { x: 120, y: 100 });
+    const away = w.spawnBlueprint(EYE, { x: 200, y: 100 });
+    for (let i = 0; i < 5; i++) w.step();
+    light(w, pod);
+    expect(ids(w, close)).toContain(pod.id);
+    expect(ids(w, away)).not.toContain(pod.id);
+    for (let i = 0; i < TICKS + 5; i++) w.step();
+    expect(ids(w, away)).toContain(pod.id);
+    w.dispose();
+  });
+
+  it('scripts get no contacts inside a bubble (of what is further than 150 m)', async () => {
     const w = await world();
     const src = 'function tick() { log(contacts.length); }';
     const eye = w.spawnBlueprint({ ...EYE_POD, scripts: [{ id: 'look', source: src }] }, { x: 0, y: 100 });
-    w.spawnBlueprint(PLAIN, { x: 100, y: 100 }, { team: 1 });
+    w.spawnBlueprint(PLAIN, { x: 200, y: 100 }, { team: 1 });
     for (let i = 0; i < 10; i++) w.step();
     light(w, eye);
     for (let i = 0; i < 10; i++) w.step();
@@ -145,18 +161,18 @@ describe('jammer pod (Batch)', () => {
   it('let go, the bubble stays with the pod: it blinds the robot that released it while near, and hides the pod', async () => {
     const w = await world();
     const bot = w.spawnBlueprint(LAUNCHER, { x: 0, y: 100 });
-    const other = w.spawnBlueprint(EYE, { x: 300, y: 100 }, { team: 1 });
-    const target = w.spawnBlueprint(PLAIN, { x: 100, y: 100 }, { team: 1 });
+    const other = w.spawnBlueprint(EYE, { x: 400, y: 100 }, { team: 1 });
+    const target = w.spawnBlueprint(PLAIN, { x: 200, y: 100 }, { team: 1 });
     for (let i = 0; i < 5; i++) w.step();
     expect(ids(w, bot)).toContain(target.id);
     light(w, bot);
     const piece = w.robots.find((r) => r.parts.has('jammer@4,0') && r.id !== bot.id);
     if (!piece) throw new Error('the pod did not split off');
     expect(w.partOutput(piece.id, 'jammer@4,0', 'jamming')).toBe(1);
-    // Within 30 m of the pod, the launcher's radar sees nothing; the far eye does not see the pod's piece.
+    // Within 30 m of the pod, the launcher's radar sees nothing (past 150 m); the far eye does not see the pod's piece.
     const podAt = partWorldPose(w, piece, 'jammer@4,0');
     expect(Math.hypot(partWorldPose(w, bot, 'radar@0,0').x - podAt.x, 0)).toBeLessThan(30);
-    expect(ids(w, bot)).toEqual([]);
+    expect(ids(w, bot)).toEqual([piece.id]);
     expect(ids(w, other)).not.toContain(piece.id);
     expect(ids(w, other)).toContain(target.id);
     w.dispose();
@@ -218,10 +234,14 @@ describe('jammer pod (Batch)', () => {
     expect(await make()).toBe(await make());
   });
 
-  it('the def parses: 30 m, 5 s, and needs ignite and jamming', () => {
-    expect(defaultRegistry().get('jammer')).toMatchObject({ mass: 0.5, health: 10, jammer: { radius: 30, seconds: 5 } });
+  it('the def parses: 30 m, 5 s, seen through within 150 m, and needs ignite and jamming', () => {
+    expect(defaultRegistry().get('jammer')).toMatchObject({ mass: 0.5, health: 10, jammer: { radius: 30, seconds: 5, near: 150 } });
     const raw = { id: 'j', name: 'J', footprint: [{ x: 0, y: 0, faces: ['S'] }], mass: 1, health: 5, symmetry: 4, inputs: [], outputs: [], powerDraw: 0, jammer: { radius: 30, seconds: 5 }, sprite: { frame: 'part.jammer' } };
     expect(() => parsePartDef(raw, 'j.json')).toThrow(/ignite/);
     expect(() => parsePartDef({ ...raw, inputs: [{ name: 'ignite', min: 0, max: 1, default: 0 }] }, 'j.json')).toThrow(/jamming/);
+    // A def without `near` is never seen through, as before; a near of 0 is refused.
+    const whole = { ...raw, inputs: [{ name: 'ignite', min: 0, max: 1, default: 0 }], outputs: [{ name: 'jamming', min: 0, max: 1, default: 0 }] };
+    expect(parsePartDef(whole, 'j.json').jammer).toEqual({ radius: 30, seconds: 5 });
+    expect(() => parsePartDef({ ...whole, jammer: { radius: 30, seconds: 5, near: 0 } }, 'j.json')).toThrow();
   });
 });

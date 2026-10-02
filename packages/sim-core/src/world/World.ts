@@ -13,7 +13,7 @@ import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
 import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
-import { jammed, type JamBubble } from '../sensors/jam';
+import { jammed, jamNear, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
@@ -696,7 +696,7 @@ export class World {
         if (!part || !spec || (part.burn ?? 0) <= 0 || !r.groups[part.group]) continue;
         this.jammers.add(part);
         const pose = partWorldPose(this, r, part.id);
-        out.push({ x: pose.x, y: pose.y, radius: spec.radius });
+        out.push({ x: pose.x, y: pose.y, radius: spec.radius, ...(spec.near !== undefined ? { near: spec.near } : {}) });
       }
     }
     const bubbles = out.length === 0 ? undefined : out;
@@ -1931,10 +1931,11 @@ export class World {
       // A sensor works only once it has been powered (the behavior sets `sensing` each tick); before its first tick it sees nothing.
       if (!p || !spec || p.sensing !== true) continue;
       const pose = partWorldPose(this, robot, id);
-      // Batch: a sensor inside a jammer's bubble sees nothing.
-      if (bubbles && jammed(bubbles, pose)) continue;
+      // Batch: a sensor inside a jammer's bubble sees nothing. Titans: but for what is within the bubble's `near` of it.
+      const near = bubbles ? jamNear(bubbles, pose) : undefined;
+      if (near !== undefined && !(near > 0)) continue;
       const d = faceDir(rotateFace(p.def.acts ?? 'N', p.rot));
-      out.push({ id, x: pose.x, y: pose.y, facing: pose.angle + Math.atan2(d.y, d.x), cone: spec.cone, range: spec.range });
+      out.push({ id, x: pose.x, y: pose.y, facing: pose.angle + Math.atan2(d.y, d.x), cone: spec.cone, range: spec.range, ...(near !== undefined ? { jamNear: near } : {}) });
     }
     return out;
   }
@@ -2139,8 +2140,9 @@ export class World {
         // One still on the robot it stands in for is just part of it (lit, not let go yet).
         if (d.robot === other) continue;
         const dist = Math.hypot(d.pos.x - from.x, d.pos.y - from.y);
-        if (dist >= best || (bubbles && jammed(bubbles, d.pos))) continue;
-        const b = sensors.filter((s) => sees(s, d.pos, terrain, this.clouds)).map((s) => s.id);
+        if (dist >= best) continue;
+        const hid = bubbles ? jamNear(bubbles, d.pos) : undefined;
+        const b = sensors.filter((s) => throughJam(s, d.pos, hid) && sees(s, d.pos, terrain, this.clouds)).map((s) => s.id);
         if (b.length === 0) continue;
         at = d;
         by = b;
@@ -2148,8 +2150,9 @@ export class World {
       }
       if (!at) {
         // Batch: a robot whose reference point is inside a jammer's bubble is hidden from every sensor outside it.
-        if (bubbles && jammed(bubbles, ref.pos)) continue;
-        by = sensors.filter((s) => sees(s, ref.pos, terrain, this.clouds)).map((s) => s.id);
+        // Titans: but for a sensor within the bubble's `near` of it.
+        const hid = bubbles ? jamNear(bubbles, ref.pos) : undefined;
+        by = sensors.filter((s) => throughJam(s, ref.pos, hid) && sees(s, ref.pos, terrain, this.clouds)).map((s) => s.id);
         if (by.length === 0) continue;
       }
       const pos = at ? at.pos : ref.pos;
@@ -2735,4 +2738,14 @@ function poolContainers(robot: Robot, chunk: number): Container[] {
     if (p?.stored !== undefined && p.def.resource?.kind === 'energy') out.push({ id, stored: p.stored, capacity: p.def.resource.capacity });
   }
   return out;
+}
+
+/**
+ * Titans: whether a jam lets this sensor see the point. Unjammed both ways it does; a sensor in a bubble sees only
+ * within its `jamNear`, and a point in a bubble (`hid`: that bubble's `near`) is seen only from that near.
+ */
+function throughJam(s: SensorPose, p: { x: number; y: number }, hid: number | undefined): boolean {
+  if (s.jamNear === undefined && hid === undefined) return true;
+  const d = Math.hypot(p.x - s.x, p.y - s.y);
+  return (s.jamNear === undefined || d <= s.jamNear) && (hid === undefined || d <= hid);
 }

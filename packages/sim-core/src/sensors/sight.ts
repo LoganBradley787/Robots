@@ -10,6 +10,8 @@ export interface SensorPose {
   /** Degrees; 360 sees all around. */
   cone: number;
   range: number;
+  /** Titans: the sensor is inside a jammer's bubble and sees only what is within this many meters of it. */
+  jamNear?: number;
 }
 
 /**

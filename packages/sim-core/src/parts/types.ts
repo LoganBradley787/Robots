@@ -147,10 +147,13 @@ export interface DecoySpec {
  * A jammer pod (Batch): once its `ignite` input goes above 0.5 it jams for `seconds`, then is gone (quietly, like a
  * flare burning out). While it jams, a bubble of `radius` meters around it blinds sensors both ways: a sensor inside
  * sees nothing, and a sensor outside sees no robot whose reference point is inside. Gun sights are not sensors.
+ * Titans (Logan): up close it does nothing. A sensor within `near` meters of what it looks at sees it through the
+ * bubble, whichever of the two is inside (absent: never).
  */
 export interface JammerSpec {
   radius: number;
   seconds: number;
+  near?: number;
 }
 
 /**

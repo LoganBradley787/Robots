@@ -119,10 +119,10 @@ describe('spotter and artillery (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the spotter drops a jammer when an enemy is within 60 m, and it vanishes from the enemy’s sensors for 5 s', { timeout: 60_000 }, async () => {
+  it('the spotter drops a jammer when an enemy is within 250 m, and it vanishes from the enemy’s sensors for 5 s (a jam is seen through within 150 m, so the enemy is 200 m off)', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const spot = w.spawnBlueprint(blueprint('enemy-spotter'), { x: 200, y: 25 }, { team: 1 });
-    const enemy = w.spawnBlueprint(blueprint('enemy-drone', { minRange: 5000 }), { x: 150, y: 25 });
+    const enemy = w.spawnBlueprint(blueprint('enemy-drone', { minRange: 5000 }), { x: 0, y: 25 });
     w.step();
     expect(seen(w, enemy)).toContain(spot.id);
     for (let t = 0; t < 30; t++) w.step();
@@ -137,7 +137,7 @@ describe('spotter and artillery (Batch), done when', () => {
 
   it('a jammed spotter goes quiet on the radio, and the artillery holds where it is and picks the target up again after (integration: radio, jammer)', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
-    // The artillery far off with no sensor, the spotter close to a parked car (30 m: inside the jammer's 60 m).
+    // The artillery far off with no sensor, the spotter close to a parked car (30 m: inside the jammer's 250 m).
     const art = w.spawnBlueprint(blueprint('enemy-artillery'), { x: 500, y: 20 }, { team: 1 });
     w.spawnBlueprint(blueprint('enemy-spotter', { standoff: 30 }), { x: -70, y: 25 }, { team: 1 });
     const car = w.spawnBlueprint(blueprint('car'), { x: -100, y: 1.45 });
