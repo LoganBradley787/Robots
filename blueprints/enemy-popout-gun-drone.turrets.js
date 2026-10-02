@@ -47,6 +47,9 @@ const lossOpen = param('lossOpen', 0, { min: 0, max: 1 }); // 1: the doors also 
 const slide = param('slide', 1, { min: 0, max: 10 }); // s the plates need to clear the barrels before hidden guns start
 const tight = param('tight', 0.012, { min: 0.001, max: 0.5 }); // radians: on target at the least this close
 const shake = param('shake', 0, { min: 0, max: 5 }); // ticks of its robot's turn added to the on-target window (the missilenator 1; the walker hit less with it)
+const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is weighed only near its closest part
+const band = param('band', 4, { min: 0.5, max: 50 }); // m behind a huge robot's closest part that are weighed
+const most = param('most', 150, { min: 10, max: 2000 }); // parts of a huge robot weighed at most
 // What breaking each kind of part is worth: disarm it, blow it up, kill or blind it, then ground it.
 // Share of a shell's damage each kind of part takes (the parts' `shellDamage`: frames are armor against guns).
 const SHELL = { frame: 0.25, armorplate: 0.1 };
@@ -118,8 +121,25 @@ function scanned(id) {
  * that robot within half a cell of the line in front of it. Undefined when it cannot be scanned.
  */
 function bestPart(target, from) {
-  const list = scanned(target.id);
+  let list = scanned(target.id);
   if (!list || list.length === 0) return undefined;
+  // A huge robot (a titan of thousands of parts; weighing every part against every other ran over the script's
+  // budget and the turrets stopped for good): only the parts within `band` m of its part nearest this turret are
+  // weighed, `most` of them at most. Whatever is in front of one of those is nearer still, so it is in the set too.
+  if (list.length > huge) {
+    let near = Infinity;
+    for (const p of list) {
+      const d = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);
+      if (d < near) near = d;
+    }
+    const cut = [];
+    for (const p of list) {
+      if (Math.hypot(p.pos.x - from.x, p.pos.y - from.y) > near + band) continue;
+      cut[cut.length] = p;
+      if (cut.length >= most) break;
+    }
+    list = cut;
+  }
   // Best first by what each could score with nothing in front of it; stop once none left can beat the best.
   const shells = (p) => Math.ceil(p.health / (damage * (SHELL[p.type] ?? 1)));
   const order = list.map((p) => ({ p, bound: (WORTH[p.type] ?? 1) / shells(p) }));
