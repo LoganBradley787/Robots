@@ -1,4 +1,4 @@
-import { DEFAULT_LEGEND, hollowCells, type PartDef, type PartRegistry } from '@robots/sim-core';
+import { CRASH_REACH, CRASH_SAFE, DEFAULT_LEGEND, hollowCells, type PartDef, type PartRegistry } from '@robots/sim-core';
 
 export interface PartRow {
   /** The builder key that picks it (1 to 9, 0, -). */
@@ -132,6 +132,7 @@ export function formatParts(rows: readonly PartRow[]): string {
   const out = [
     'Parts, in builder palette order. One cell is 1 m. Faces are at rotation 0 (N up); rotations are counterclockwise.',
     'Legend arrows point the way a part acts (T^ pushes up, D> releases right, W sits below what it mounts to).',
+    `Crash damage: a hit that changes a body's speed by more than ${CRASH_SAFE} m/s in one step hurts the parts near where it lands, most at the contact and none past ${CRASH_REACH} m from it (armor that deep protects).`,
     '',
     line(head),
   ];

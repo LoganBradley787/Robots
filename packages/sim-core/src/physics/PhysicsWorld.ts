@@ -702,6 +702,31 @@ export class PhysicsWorld {
     return out.sort((a, b) => a.distance - b.distance || a.body - b.body || (a.owner ?? '').localeCompare(b.owner ?? ''));
   }
 
+  /**
+   * Titans: where the body's part colliders touched anything on the last step (Rapier's solver contact points, world
+   * frame), each with the unit direction the touch pushed the body. Rapier keeps them for multibody links too (it is
+   * the contact force events that it leaves out for links). In the order of the body's colliders, then Rapier's
+   * contact graph, stable for a given world. Colliders created since the step have none yet.
+   */
+  contactPoints(id: BodyId): { x: number; y: number; nx: number; ny: number }[] {
+    const out: { x: number; y: number; nx: number; ny: number }[] = [];
+    for (const handle of this.owned.get(id) ?? []) {
+      const collider = this.world.getCollider(handle);
+      this.world.contactPairsWith(collider, (other) => {
+        this.world.contactPair(collider, other, (manifold, flipped) => {
+          // The normal points from the pair's first collider to its second; flipped means ours is the second.
+          const n = manifold.normal();
+          const sign = flipped ? 1 : -1;
+          for (let i = 0; i < manifold.numSolverContacts(); i++) {
+            const p = manifold.solverContactPoint(i);
+            if (p) out.push({ x: p.x, y: p.y, nx: sign * n.x, ny: sign * n.y });
+          }
+        });
+      });
+    }
+    return out;
+  }
+
   /** Owners of every collider that has one, in creation order. */
   colliderOwners(): string[] {
     return [...this.owners.values()];

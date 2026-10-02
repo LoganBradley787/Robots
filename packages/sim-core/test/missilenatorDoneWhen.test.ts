@@ -24,8 +24,11 @@ describe('missilenator, done when', () => {
     // Built in about 41 s; it flies 400 m in under 10.
     for (let t = 0; t < 55 * 60; t++) w.step();
     expect(w.events.filter((e) => e.kind === 'released' && e.robot === silo.id)).toHaveLength(1);
-    // Rammed and blown apart: every part at once (a robot destroyed whole logs no coreLost, so count its parts).
-    expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id).length).toBeGreaterThanOrEqual(60);
+    // Rammed and blown apart: most of its 69 parts, its core among them. Titans: 60 or more before (68, every part at
+    // once), when the ram's crash hurt the whole body; crash damage is local now, so the parts over 6 m from where it
+    // hit are left to the blasts, and 52 go.
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id).length).toBeGreaterThanOrEqual(45);
+    expect(w.robots.find((r) => r.id === hunter.id)?.primaryCoreId).toBeUndefined();
     // The silo is untouched and never tips.
     expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === silo.id)).toHaveLength(0);
     w.dispose();

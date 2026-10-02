@@ -20,6 +20,7 @@ export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './contro
 export type { RobotInput, ControlledPart, ControlState } from './control/types';
 export { World, activeControls } from './world/World';
 export type { WorldOptions, SpawnOptions, SpawnRecord, WorldEvent, ScriptLog } from './world/World';
+export { CRASH_REACH, CRASH_SAFE } from './world/crash';
 export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec, SpriteSpec, PartDef, AutoControlSpec } from './parts/types';
 export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians, isRotation } from './parts/faces';
 export { parsePartDef, PartDefError } from './parts/parsePartDef';
