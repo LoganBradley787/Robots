@@ -81,3 +81,8 @@ Branch: `titans` (off `big-batch-fixes`, which has every part: grapple, jammer, 
 - **3 seeds**, both sides: 168 matches.
 - **Allowed and now known to all:** the two starting robots get ids 1 and 2, and every piece or copy a higher one, so `contacts` with id 1 or 2 is the other titan's main robot (the piece that holds its main core).
 - **Engine speed work merged before the round:** rebuilding a robot on part loss (5 to 8 times cheaper), the sensor pass, radio sharing, the charge check, and the parts list a script re-reads when its robot loses a part.
+
+## Watch notes for the next rebuild (Logan watching in the browser, round 2 builds)
+
+- **`titan-bastion` against `titan-juggernaut`:** while the juggernaut drives in, the bastion's darts fly off to the far side of it, not at it. Likely cause (from the dart guide, not traced): `lead` 1 aims ahead of a tracked robot by its speed times the time to go, and at 45 m/s with several seconds to go that point is 100 to 200 m past it. Once it stops against the base they land on it. When it backs away they land where it was. When it retires to the far corner they run out their 12 s `fuse` and go off in the air about 40 cells short.
+- **`titan-juggernaut` against a roped base:** one push, one back-off, one run at 30 m/s (slow to turn and to get going at 20.4 t), then it retires to the far corner for good and the match is a draw. Its mast was cut off by darts on the way. Logan: "show some gumption".
