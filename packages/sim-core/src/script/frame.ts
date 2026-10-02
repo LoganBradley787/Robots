@@ -50,7 +50,9 @@ export function layoutJson(parts: readonly LayoutPart[]): string {
   return JSON.stringify(parts.map((p) => [p.id, p.type, p.tags, p.mass, p.in, p.out]));
 }
 
-function sameNames(a: readonly string[], b: readonly string[]): boolean {
+/** Whether two lists of names (tags, or the values present) are the same names in the same order. */
+export function sameNames(a: readonly string[], b: readonly string[]): boolean {
+  if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
@@ -95,9 +97,9 @@ export function layoutPatch(old: readonly LayoutPart[], now: readonly LayoutPart
   for (const p of now) {
     const k = find(p.id, next);
     const was = k >= 0 ? (old[k] as LayoutPart) : undefined;
-    const sameShape = was !== undefined && was.type === p.type && sameNames(was.tags, p.tags);
+    const sameShape = was !== undefined && was !== p && was.type === p.type && sameNames(was.tags, p.tags);
     // A part behind where the walk has got to has moved: it is made anew, like one that was never there.
-    if (was && sameShape && k >= next && was.mass === p.mass && sameNames(was.in, p.in) && sameNames(was.out, p.out)) {
+    if (was && k >= next && (was === p || (sameShape && was.mass === p.mass && sameNames(was.in, p.in) && sameNames(was.out, p.out)))) {
       if (fresh) ordered = false;
       if (k > next) gaps.push([next, k]);
       if (run && run[1] === k) run[1] = k + 1;

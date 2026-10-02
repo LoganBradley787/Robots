@@ -11,7 +11,7 @@ import { drainContainers, fillContainers, grantFactor, poolTotals, type Containe
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
-import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
+import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
@@ -219,16 +219,26 @@ interface BodyPose {
   n: number;
 }
 
+/** No names: shared by every part with no values present. Never written to. */
+const NO_NAMES: string[] = [];
+
+/** How far ahead a part is looked for in the last layout when a new one is built. */
+const FEED_LOOK = 64;
+
 /** A robot's script layout (M9, `script/frame.ts`), kept until the robot changes. */
 interface ScriptFeed {
   /** `Robot.version` and the core the scripts run on. */
   key: string;
   /** The chunk the scripts see (the core's), and the robot's mass: both fixed until the robot is rebuilt. */
   chunk: number;
+  /** The scope the core's controls see tags through (`scopedView`), if any. */
+  scope: string | undefined;
   mass: number;
   layout: ScriptLayout;
   /** The layout's entries, kept so the next layout can be handed over as a patch on this one. */
   rows: LayoutPart[];
+  /** The chunk's energy container parts, in part order: its pool is added up from these, not by walking every part. */
+  pool: PartInstance[];
   parts: { id: string; part: PartInstance; in: readonly string[]; out: readonly string[] }[];
   numbers: Float64Array;
 }
@@ -1594,14 +1604,38 @@ export class World {
     const pool = this.lazyPool(robot, chunk);
     const parts: ScriptFeed['parts'] = [];
     const layout: LayoutPart[] = [];
+    const containers: PartInstance[] = [];
+    // A part that was in the last layout keeps its entry when its values present are the same, and its tags and mass
+    // (fixed for a part under one scope) either way. Parts keep their order from one layout to the next, so the same
+    // part is at, or a little after, where the walk has got to in the last one.
+    const lastParts = last && last.scope === scope ? last.parts : undefined;
+    let at = 0;
     for (const id of robot.chunks[chunk]?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
-      const ins = [...(chans?.get(id)?.keys() ?? [])];
-      const outs: string[] = [];
-      for (const o of p.def.outputs) if (this.outputOf(p, o.name, pool) !== undefined) outs.push(o.name);
-      parts.push({ id, part: p, in: ins, out: outs });
-      layout.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: partMass(p.def, p.footprint), in: ins, out: outs });
+      if (p.def.resource?.kind === 'energy') containers.push(p);
+      let was = -1;
+      if (lastParts) {
+        const end = Math.min(lastParts.length, at + FEED_LOOK);
+        for (let k = at; k < end; k++) {
+          if (lastParts[k]?.part !== p) continue;
+          was = k;
+          at = k + 1;
+          break;
+        }
+      }
+      // Only a part with inputs has values (a controller keeps none for the others).
+      const ins = p.def.inputs.length === 0 ? NO_NAMES : [...(chans?.get(id)?.keys() ?? [])];
+      let outs: string[] = NO_NAMES;
+      for (const o of p.def.outputs) {
+        if (this.outputOf(p, o.name, pool) === undefined) continue;
+        if (outs === NO_NAMES) outs = [];
+        outs.push(o.name);
+      }
+      const old = was >= 0 ? last?.rows[was] : undefined;
+      const kept = old !== undefined && sameNames(old.in, ins) && sameNames(old.out, outs);
+      parts.push(kept ? (lastParts?.[was] as ScriptFeed['parts'][number]) : { id, part: p, in: ins, out: outs });
+      layout.push(kept ? old : { id, type: p.def.id, tags: old ? old.tags : [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: old ? old.mass : partMass(p.def, p.footprint), in: ins, out: outs });
     }
     // The robot's mass only changes when it is rebuilt, which makes a new layout.
     let mass = 0;
@@ -1616,7 +1650,7 @@ export class World {
       },
       ...(last && patch !== undefined ? { patch: { from: last.layout.id, json: patch } } : {}),
     };
-    const feed: ScriptFeed = { key, chunk, mass, layout: handed, rows: layout, parts, numbers: new Float64Array(numberCount(layout)) };
+    const feed: ScriptFeed = { key, chunk, scope, mass, layout: handed, rows: layout, pool: containers, parts, numbers: new Float64Array(numberCount(layout)) };
     this.feeds.set(robot, feed);
     return feed;
   }
@@ -1629,7 +1663,17 @@ export class World {
   private fillFeed(robot: Robot, feed: ScriptFeed): boolean {
     const chans = this.channels.get(robot.id);
     const n = feed.numbers;
-    const pool = this.lazyPool(robot, feed.chunk);
+    // The chunk's pool, added up on first use from the containers the feed kept (the same parts in the same order as a
+    // walk over the chunk finds, as long as the feed matches the robot, which this checks part by part).
+    let totals: { stored: number; capacity: number } | undefined;
+    const pool = (): { stored: number; capacity: number } => {
+      if (!totals) {
+        const held: Container[] = [];
+        for (const p of feed.pool) if (p.stored !== undefined && p.def.resource) held.push({ id: p.id, stored: p.stored, capacity: p.def.resource.capacity });
+        totals = poolTotals(held);
+      }
+      return totals;
+    };
     const bodies: (BodyPose | undefined)[] = [];
     const bodyOf = (group: number): BodyPose => {
       let b = bodies[group];
@@ -1649,7 +1693,8 @@ export class World {
       ok = put(n, k++, s.x + c * part.localX - sn * part.localY) && ok;
       ok = put(n, k++, s.y + sn * part.localX + c * part.localY) && ok;
       ok = put(n, k++, s.angle) && ok;
-      const values = chans?.get(fp.id);
+      // Only a part with inputs has values (a controller keeps none for the others).
+      const values = part.def.inputs.length === 0 ? undefined : chans?.get(fp.id);
       if ((values?.size ?? 0) !== fp.in.length) return false;
       if (values) {
         let j = 0;
@@ -1817,10 +1862,10 @@ export class World {
   private readSensors(robot: Robot): SensorPose[] {
     const coreId = robot.primaryCoreId;
     if (coreId === undefined || !this.controllers.has(robot.id)) return [];
-    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const out: SensorPose[] = [];
     const bubbles = this.jamBubbles();
-    for (const id of chunk?.partIds ?? []) {
+    for (const kept of eyesOf(robot, coreId).sensors) {
+      const id = kept.id;
       const p = robot.parts.get(id);
       const spec = p?.def.sensor;
       // A sensor works only once it has been powered (the behavior sets `sensing` each tick); before its first tick it sees nothing.
@@ -1898,10 +1943,10 @@ export class World {
   private readRadios(robot: Robot): RadioPose[] {
     const coreId = robot.primaryCoreId;
     if (coreId === undefined || !this.controllers.has(robot.id)) return [];
-    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const out: RadioPose[] = [];
     const bubbles = this.jamBubbles();
-    for (const id of chunk?.partIds ?? []) {
+    for (const kept of eyesOf(robot, coreId).radios) {
+      const id = kept.id;
       const p = robot.parts.get(id);
       const spec = p?.def.radio;
       if (!p || !spec || p.sensing !== true) continue;
@@ -2586,6 +2631,27 @@ function chunkIndex(robot: Robot, partId: string): number {
     chunkMaps.set(robot, m);
   }
   return m.of.get(partId) ?? 0;
+}
+
+/** A robot's sensor and radio parts in the chunk its core controls, in part order, kept until the robot is rebuilt. */
+const eyes = new WeakMap<Robot, { version: number; coreId: string; chunks: Robot['chunks']; sensors: PartInstance[]; radios: PartInstance[] }>();
+
+/** The parts of the core's chunk that are sensors and that are radios: found once per rebuild, not by walking every part each tick. */
+function eyesOf(robot: Robot, coreId: string): { sensors: readonly PartInstance[]; radios: readonly PartInstance[] } {
+  let e = eyes.get(robot);
+  if (!e || e.version !== robot.version || e.coreId !== coreId || e.chunks !== robot.chunks) {
+    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+    const sensors: PartInstance[] = [];
+    const radios: PartInstance[] = [];
+    for (const id of chunk?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      if (p?.def.sensor) sensors.push(p);
+      if (p?.def.radio) radios.push(p);
+    }
+    e = { version: robot.version, coreId, chunks: robot.chunks, sensors, radios };
+    eyes.set(robot, e);
+  }
+  return e;
 }
 
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */

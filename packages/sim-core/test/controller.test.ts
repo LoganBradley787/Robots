@@ -155,6 +155,30 @@ describe('Controller script layer', () => {
 });
 
 describe('Controller.restrict (M6)', () => {
+  it('a script write reaches the same parts whether its target was written to before or not, and only parts still there', () => {
+    const c = new Controller([], parts);
+    // The first write finds the target's parts; later ones use what was found.
+    for (let tick = 0; tick < 3; tick++) {
+      c.scriptWrite('wheels', 'speed', 0.5);
+      c.scriptWrite('wheel@4,0', 'speed', -1);
+      c.scriptWrite('thruster', 'throttle', 0.25);
+      c.scriptWrite('wheels', 'throttle', 0.75);
+      c.scriptWrite('nothing', 'speed', 1);
+      expect(values(c)).toEqual({ 'wheel@0,0': { speed: 0.5 }, 'wheel@4,0': { speed: -1 }, 'thruster@2,0': { throttle: 0.75 } });
+      c.endTick();
+    }
+    // A wheel breaks off: a write to its tag, or to its id, no longer reaches it.
+    c.restrict(new Set(['wheel@0,0', 'thruster@2,0', 'frame@1,1']));
+    c.scriptWrite('wheels', 'speed', 0.5);
+    c.scriptWrite('wheel@4,0', 'speed', -1);
+    expect(values(c)).toEqual({ 'wheel@0,0': { speed: 0.5 }, 'thruster@2,0': { throttle: 0 } });
+    c.endTick();
+    // More targets than it keeps: it starts over and still answers the same.
+    for (let i = 0; i < 2500; i++) c.scriptWrite(`made-up-${i}`, 'speed', 1);
+    c.scriptWrite('wheels', 'speed', 0.25);
+    expect(values(c)).toEqual({ 'wheel@0,0': { speed: 0.25 }, 'thruster@2,0': { throttle: 0 } });
+  });
+
   it('drops keys whose parts all broke off', () => {
     const c = new Controller(
       [
