@@ -174,15 +174,15 @@ describe('SideWatch: the starting robot followed through splits', () => {
       check();
       expect(a.lost || b.lost).toBe(false);
 
-      // Ours: the main core's whole half goes. The robot is removed (a `removed` event, never `coreLost`), and though
-      // the piece and its core fight on, the side has lost.
+      // Ours: the main core's whole half goes. The robot is removed (`coreLost`, then `removed`: a robot wiped whole
+      // logs its core too now), and though the piece and its core fight on, the side has lost.
       kill(ours);
       // Theirs: the piece's core goes. That is not the main core, so the side is still in.
       kill(piece(theirs), [piece(theirs)?.primaryCoreId ?? '']);
       world.step();
       check();
       expect(world.robots).not.toContain(ours);
-      expect(world.events.some((e) => e.kind === 'coreLost' && e.robot === ours.id)).toBe(false);
+      expect(world.events.some((e) => e.kind === 'coreLost' && e.robot === ours.id)).toBe(true);
       expect(a.count(world)).toEqual({ cores: 1, parts: 2, share: 0.4, robots: 1 });
       expect(a.lostTick).toBe(world.tick);
       expect(a.lostBy).toBe('core');
