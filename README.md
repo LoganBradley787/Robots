@@ -15,11 +15,10 @@ This was a fun project I made with Claude in my spare time.
 - **Scripts.** A robot can run small JavaScript programs in a sandbox. Each program runs once per tick and reads the robot's sensors as input. The enemy robots use scripts to fly, aim their guns, and build copies of other robots.
 - **Headless runner.** Everything the app does can also run from the command line, so you can build and test a robot without opening a browser.
 - **Fabricator bay.** A fabricator bay is a part that uses its robot's energy to build a copy of another blueprint, then releases that copy into the world.
-- **Titans.** The titans are eight very large robots (800 to 5200 parts each) that run without a player. They were built for a round-robin tournament. The rules and the results are in `docs/plans/titans-tournament.md`.
 
 ![A machine with a tall mast moves toward a ground base](docs/images/titan-ram.png)
 
-*The tournament winner, a 20 tonne robot with 5165 parts, drives toward the base at 55 m/s while darts hit its front. Its mast holds a gun deck 110 m above the ground.*
+*A 20 tonne robot with 5165 parts drives toward a base at 55 m/s while missiles hit its thick armored shell.*
 
 ![The builder with a drone that has twelve turrets](docs/images/builder.png)
 
