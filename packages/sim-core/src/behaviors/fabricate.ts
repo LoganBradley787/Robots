@@ -5,7 +5,7 @@ import type { Behavior } from './registry';
  * spread over the build time (at most its `powerDraw`; a costlier build takes longer) and advances `progress` (0 to 1)
  * by what it is granted, so a brownout slows it and an empty pool stops it. At 1 it finishes: the world adds the
  * copy to the robot, held by its grips (it waits while anything is still in its hollow). Holding, `release` above
- * 0.5 lets the copy go.
+ * 0.5 lets the copy go. Not holding, it keeps an eye on the copy it let go until that is out of its hollow (Batch).
  */
 export const fabricate: Behavior = {
   config: [],
@@ -16,6 +16,7 @@ export const fabricate: Behavior = {
       if (ctx.value('release') <= 0.5) return undefined;
       return { load: 0, run: () => ctx.release() };
     }
+    ctx.watch();
     const job = ctx.job();
     if (!job) return undefined;
     if ((part.progress ?? 0) >= 1) return { load: 0, run: () => ctx.finish() };

@@ -2,7 +2,9 @@
  * Batch: a fabricator bay clears its hollow. A finished build waits while anything is in the bay's hollow; a piece
  * with no core in it (debris from a blast, a copy whose core is gone) would block the bay for the rest of the fight,
  * so after this long the bay pushes such a piece out along its `acts` face, every tick, until it is clear. A piece with
- * a live core is never pushed: it may be a copy on its way out.
+ * a live core is never pushed: it may be a copy on its way out. The one exception is a copy the bay let go that never
+ * got out: still in the hollow after the def's `fabricate.clearAfter` seconds (wedged, out of energy, its script gave
+ * up), it is given up on and counts as a piece with no core from then on, for any bay.
  */
 export const BAY_CLEAR_AFTER_S = 1;
 
@@ -12,4 +14,9 @@ export const BAY_CLEAR_SPEED = 2;
 /** Ticks a bay waits on a coreless blocker before it starts pushing. */
 export function bayClearAfterTicks(dt: number): number {
   return Math.max(1, Math.round(BAY_CLEAR_AFTER_S / dt));
+}
+
+/** Ticks a copy has to leave the hollow after it is let go (`seconds` is the def's `fabricate.clearAfter`). */
+export function copyLeaveTicks(seconds: number, dt: number): number {
+  return Math.max(1, Math.round(seconds / dt));
 }

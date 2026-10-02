@@ -83,7 +83,9 @@ function details(d: PartDef): string[] {
     const hollow = hollowCells(d);
     const w = Math.max(...hollow.map((c) => c.x)) - Math.min(...hollow.map((c) => c.x)) + 1;
     const h = Math.max(...hollow.map((c) => c.y)) - Math.min(...hollow.map((c) => c.y)) + 1;
-    out.push(`fabricator: builds its recipe (the part's "makes") in its hollow (${w} by ${h} by default): ${d.fabricate.joulesPerKg} J per kg plus what its containers hold, ${d.fabricate.secondsPerKg} s per kg for parts with no build time of their own (a recipe takes the sum over its parts; longer if its draw of ${d.powerDraw} J/s cannot pay for that); starts the next as soon as its hollow is clear; release lets the finished one go (pushed out ${d.fabricate.separation} N s along its ${d.acts ?? 'N'} face); outputs ready, progress (0 to 1), built`);
+    const after = d.fabricate.clearAfter;
+    const stuck = after === undefined ? 'a copy with a live core that never leaves the hollow blocks it for good' : `a copy still in the hollow ${after} s after it was let go is given up on and pushed out, as a piece with no core is after 1 s in the way`;
+    out.push(`fabricator: builds its recipe (the part's "makes") in its hollow (${w} by ${h} by default): ${d.fabricate.joulesPerKg} J per kg plus what its containers hold, ${d.fabricate.secondsPerKg} s per kg for parts with no build time of their own (a recipe takes the sum over its parts; longer if its draw of ${d.powerDraw} J/s cannot pay for that); starts the next as soon as its hollow is clear; release lets the finished one go (pushed out ${d.fabricate.separation} N s along its ${d.acts ?? 'N'} face); ${stuck}; outputs ready, progress (0 to 1), built`);
   }
   if (d.build !== undefined) out.push(`build time: ${d.build} s in a fabricator (a part without one takes the bay's seconds per kg times its mass)`);
   if (d.decoy) out.push(`decoy: lit for good once its ignite input goes above 0.5 (a key or a script), it burns ${d.decoy.burn} s and is gone; while it burns, every sensor that sees it takes it for the robot it was part of when lit (contacts and scan report that robot at the flare); burning reads 1`);

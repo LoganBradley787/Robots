@@ -31,10 +31,10 @@ import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face, JammerSpec } from '../parts/types';
 import type { PartInstance, Robot } from './Robot';
-import { BAY_CLEAR_SPEED, bayClearAfterTicks } from './bayclear';
+import { BAY_CLEAR_SPEED, bayClearAfterTicks, copyLeaveTicks } from './bayclear';
 import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
-import type { Binding, Blueprint, CoreControls, ScriptSpec } from '../blueprint/types';
+import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
 import { Grapples, type GrappleHost } from './grapple';
 
@@ -71,7 +71,10 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'split'; pieces: number[] }
   /** A decoupler fired; `x`, `y` is the middle of its release face. */
   | { tick: number; robot: number; kind: 'decoupled'; part: string; x: number; y: number }
-  /** A robot's active core was destroyed: nobody controls it any more and it keeps its last input. */
+  /**
+   * A robot's active core was destroyed: nobody controls it any more and it keeps its last input. Once per core, also
+   * when the whole robot went in the same step (then `removed` follows on the same tick).
+   */
   | { tick: number; robot: number; kind: 'coreLost' }
   /** A piece broke off with exactly one core, which woke up and can be controlled. */
   | { tick: number; robot: number; kind: 'coreWoke'; from: number }
@@ -93,6 +96,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'released'; part: string; scope: string }
   /** M12: a fabricator finished a build but cannot place it yet (`why`); it tries every tick. Once per wait. */
   | { tick: number; robot: number; kind: 'buildBlocked'; part: string; why: string }
+  /** Batch: the copy (`scope`) a fabricator let go never left its hollow; from now on bays push it out like a piece with no core. */
+  | { tick: number; robot: number; kind: 'copyStuck'; part: string; scope: string }
   /** Batch: a grapple's hook caught something (`to` is the robot it caught, 0 for the ground or a loose body) and tied a rope of `length` meters. */
   | { tick: number; robot: number; kind: 'hooked'; part: string; to: number; length: number }
   /** Batch: a grapple's rope is gone: released on purpose, or lost (either end's part was destroyed). */
@@ -406,6 +411,18 @@ export class World {
    * bay pushes it out. Simulation state, hashed only while any is set.
    */
   private readonly clearing = new WeakMap<PartInstance, number>();
+  /**
+   * Batch: the copy a bay let go that has not left its hollow yet (only for a def with `fabricate.clearAfter`): the tick
+   * it was let go, its scope, and its parts. Dropped as soon as the copy is out, so one that flies back in later is
+   * never taken for it. Simulation state, hashed only while any is set.
+   */
+  private readonly leaving = new WeakMap<PartInstance, { since: number; scope: string; parts: readonly PartInstance[] }>();
+  /**
+   * Batch: the parts of copies that never got out of their bay in time. A piece whose active core is one of them is
+   * pushed out of a hollow like a piece with no core, for good (pushed out, it may fall back in). Simulation state,
+   * hashed per part; none adds nothing.
+   */
+  private readonly stuckCopies = new WeakSet<PartInstance>();
   /** Robots that grew parts this tick (M12: a fabricator finished): their controller is rebuilt with the rebuild. */
   private readonly grown = new Set<Robot>();
   /** Each robot blueprint's fabricator jobs by part (M12), worked out once per blueprint object. Derived. */
@@ -991,6 +1008,8 @@ export class World {
         robot,
       );
       if (pieces.length === 0) {
+        // Wiped whole in one step (a big blast): its core went with the rest, so it is lost here as it is when it goes alone.
+        if (controller) this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'coreLost' });
         this.removeRobot(robot);
         continue;
       }
@@ -1373,15 +1392,8 @@ export class World {
     if (!this.controllers.has(robot.id)) return;
     const where = recipePlacement(placed, recipe.blueprint, this.registry);
     if (!where.ok) return this.blocked(robot, bay, where.error);
-    // The hollow must be empty: probe each of its cells with a ball a little smaller than a cell (any tilt).
-    const pose = partWorldPose(this, robot, bay.id);
-    const c = Math.cos(pose.angle);
-    const s = Math.sin(pose.angle);
-    const probes = hollowAt(placed, bay.def).map((h) => {
-      const dx = h.x - placed.x;
-      const dy = h.y - placed.y;
-      return { x: pose.x + c * dx - s * dy, y: pose.y + s * dx + c * dy, shape: { shape: 'ball' as const, radius: 0.45 } };
-    });
+    // The hollow must be empty.
+    const probes = this.hollowProbes(robot, bay, placed);
     if (this.physics.overlapsShapes(probes)) {
       this.clearHollow(robot, bay, probes);
       return this.blocked(robot, bay, 'something is in its hollow');
@@ -1433,16 +1445,62 @@ export class World {
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'built', part: bay.id, recipe: recipe.name, scope });
   }
 
+  /** A bay's hollow as probes: a ball a little smaller than a cell on each of its cells (any tilt). */
+  private hollowProbes(robot: Robot, bay: PartInstance, placed: PlacedPart): { x: number; y: number; shape: ShapeSpec }[] {
+    const pose = partWorldPose(this, robot, bay.id);
+    const c = Math.cos(pose.angle);
+    const s = Math.sin(pose.angle);
+    return hollowAt(placed, bay.def).map((h) => {
+      const dx = h.x - placed.x;
+      const dy = h.y - placed.y;
+      return { x: pose.x + c * dx - s * dy, y: pose.y + s * dx + c * dy, shape: { shape: 'ball' as const, radius: 0.45 } };
+    });
+  }
+
+  /** Batch: whether the robot's active core belongs to a copy that never got out of its bay (`stuckCopies`). */
+  private gaveUpOn(robot: Robot): boolean {
+    const core = robot.parts.get(robot.primaryCoreId ?? '');
+    return core !== undefined && this.stuckCopies.has(core);
+  }
+
+  /**
+   * Batch: a bay keeps an eye on the copy it let go, every tick until the copy is out of its hollow. One whose live core
+   * is still in there after the def's `clearAfter` seconds never got out (wedged, out of energy, its script gave up):
+   * the bay gives up on it, and it is pushed out as a piece with no core is (`clearHollow`). A copy that got out in time
+   * is forgotten, so flying back through the hollow later does it no harm; one whose core is gone is a piece with no
+   * core already.
+   */
+  private watchLeaving(robot: Robot, bay: PartInstance): void {
+    const out = this.leaving.get(bay);
+    const after = bay.def.fabricate?.clearAfter;
+    if (!out || after === undefined) return;
+    const placed = robot.blueprint.parts.find((p) => p.id === bay.id);
+    const bodies = placed && robot.groups[bay.group] ? this.physics.overlappingBodies(this.hollowProbes(robot, bay, placed)) : [];
+    const inside =
+      bodies.length > 0 &&
+      this.robots.some((other) => {
+        if (other === robot || !this.controllers.has(other.id)) return false;
+        const core = other.parts.get(other.primaryCoreId ?? '');
+        return core !== undefined && out.parts.includes(core) && other.groups.some((g) => bodies.includes(g.bodyId));
+      });
+    if (inside && this.tickCount - out.since < copyLeaveTicks(after, this.dt)) return;
+    this.leaving.delete(bay);
+    if (!inside) return;
+    for (const p of out.parts) this.stuckCopies.add(p);
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'copyStuck', part: bay.id, scope: out.scope });
+  }
+
   /**
    * Batch: a bay held up by pieces with no core (debris, a spent copy) pushes them out along its `acts` face once they
    * have been in the way for a second, every tick until clear. A piece with a live core is left alone (it may be a copy
-   * leaving), and a bay whose only blocker is one of those never starts the clock.
+   * leaving), and a bay whose only blocker is one of those never starts the clock. A copy a bay gave up on
+   * (`watchLeaving`) is pushed like a piece with no core.
    */
   private clearHollow(robot: Robot, bay: PartInstance, probes: readonly { x: number; y: number; shape: ShapeSpec }[]): void {
     const bodies = this.physics.overlappingBodies(probes);
     const loose: { part: PartInstance; mass: number }[] = [];
     for (const other of this.robots) {
-      if (other === robot || this.controllers.has(other.id)) continue;
+      if (other === robot || (this.controllers.has(other.id) && !this.gaveUpOn(other))) continue;
       for (const g of other.groups) {
         const part = other.parts.get(g.originId);
         if (part && bodies.includes(g.bodyId)) loose.push({ part, mass: this.physics.massProperties(g.bodyId).mass });
@@ -1484,6 +1542,8 @@ export class World {
     const scope = bay.holds ?? '';
     delete bay.holds;
     const held = [...robot.parts.values()].filter((p) => p.tags[0] === scope);
+    // Batch: the bay watches the copy until it is out of the hollow (`watchLeaving`).
+    if (spec.clearAfter !== undefined && held.length > 0) this.leaving.set(bay, { since: this.tickCount, scope, parts: held });
     const d = faceDir(rotateFace(bay.def.acts ?? 'N', bay.rot));
     const s = this.physics.state(robot.groups[bay.group]?.bodyId ?? 0);
     const c = Math.cos(s.angle);
@@ -2251,6 +2311,7 @@ export class World {
           job: () => this.jobOf(robot, part),
           finish: () => this.finishBuild(robot, part),
           release: () => this.releaseBuild(robot, part),
+          watch: () => this.watchLeaving(robot, part),
         };
         const action = behavior.plan(ctx);
         // A load that is not a number (a hand-made def dividing by zero) must never reach the pool: NaN would stick.
@@ -2431,14 +2492,26 @@ export class World {
       h.addF64(p.jy);
       if (p.quiet) h.addInt(1);
     }
-    // Batch: bays waiting on loose pieces. None adds nothing, so worlds without a blocked bay hash as before.
+    // Batch: bays waiting on loose pieces, bays watching a copy leave, and the parts of copies that never got out. None
+    // adds nothing, so worlds without a blocked bay or a copy still in its bay hash as before.
     for (const robot of this.robots) {
       for (const part of robot.parts.values()) {
         const since = this.clearing.get(part);
-        if (since === undefined) continue;
-        h.addString('clearing');
-        h.addString(part.id);
-        h.addInt(since);
+        if (since !== undefined) {
+          h.addString('clearing');
+          h.addString(part.id);
+          h.addInt(since);
+        }
+        const out = this.leaving.get(part);
+        if (out) {
+          h.addString('leaving');
+          h.addString(part.id);
+          h.addInt(out.since);
+        }
+        if (this.stuckCopies.has(part)) {
+          h.addString('stuck');
+          h.addString(part.id);
+        }
       }
     }
     // Batch: how long each broken-off piece has rested decides when it fades. None adds nothing.

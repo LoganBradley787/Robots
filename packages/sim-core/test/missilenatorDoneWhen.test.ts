@@ -17,7 +17,7 @@ const bpFile = (file: string): string => readFileSync(new URL(`../../../blueprin
 const blueprint = (name: string): unknown => resolveScripts(JSON.parse(bpFile(`${name}.json`)), bpFile).raw;
 
 describe('missilenator, done when', () => {
-  it('the enemy silo builds a missilenator in its 9 wide bay, lets it go at a hovering hunter drone 400 m off, and it wrecks it', { timeout: 120_000 }, async () => {
+  it('the enemy silo builds a missilenator in its 10 wide bay, lets it go at a hovering hunter drone 400 m off, and it wrecks it', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: 0, y: 40 });
     const silo = w.spawnBlueprint(blueprint('enemy-missilenator-silo'), { x: 400, y: 1.55 }, { team: 1 });
@@ -29,6 +29,7 @@ describe('missilenator, done when', () => {
     // hit are left to the blasts, and 52 go.
     expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id).length).toBeGreaterThanOrEqual(45);
     expect(w.robots.find((r) => r.id === hunter.id)?.primaryCoreId).toBeUndefined();
+    expect(w.events.filter((e) => e.kind === 'coreLost' && e.robot === hunter.id)).toHaveLength(1);
     // The silo is untouched and never tips.
     expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === silo.id)).toHaveLength(0);
     w.dispose();

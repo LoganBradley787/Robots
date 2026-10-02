@@ -34,6 +34,8 @@ export interface BehaviorContext {
   finish(): void;
   /** M12: lets go of the copy the part holds, pushing it out along the part's `acts`. */
   release(): void;
+  /** Batch: checks on the copy the part last let go: one that is still in its hollow after the def's `clearAfter` is given up on. */
+  watch(): void;
 }
 
 export interface Behavior {

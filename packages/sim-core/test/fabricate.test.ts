@@ -44,7 +44,7 @@ const BUILD_S = 4.1;
 describe('fabricator bay: the part and recipes (M12)', () => {
   it('the bay: a 3 by 6 U whose five-cell hollow fits a missile-up; the costs come from the recipe', () => {
     const bay = registry.get('fabbay');
-    expect(bay.fabricate).toEqual({ joulesPerKg: 40, secondsPerKg: 0.6, separation: 4 });
+    expect(bay.fabricate).toEqual({ joulesPerKg: 40, secondsPerKg: 0.6, separation: 4, clearAfter: 10 });
     expect(hollowCells(bay)).toEqual([1, 2, 3, 4, 5].map((y) => ({ x: 0, y })));
     const v = validateBlueprint(missileUp, registry);
     const stats = recipeStats(v.blueprint!, registry);

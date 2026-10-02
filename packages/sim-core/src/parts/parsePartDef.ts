@@ -295,12 +295,14 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (Math.abs(def.mass - def.stretch.massPerCell * def.footprint.length) > 1e-9) r.fail('stretch', `its mass must be massPerCell times its default cells (${def.stretch.massPerCell * def.footprint.length})`);
   }
   if (o.fabricate !== undefined) {
-    const f = r.obj(o.fabricate, 'fabricate', ['joulesPerKg', 'secondsPerKg', 'separation']);
+    const f = r.obj(o.fabricate, 'fabricate', ['joulesPerKg', 'secondsPerKg', 'separation', 'clearAfter']);
     if (!def.footprint.some((c) => (c.grips ?? []).length > 0)) r.fail('fabricate', 'a fabricator needs grips to hold what it builds');
     if (def.acts === undefined) r.fail('fabricate', 'a fabricator needs "acts" (the way it lets things go)');
     if (!def.inputs.some((c) => c.name === 'release')) r.fail('fabricate', 'a fabricator must have a "release" input');
     for (const out of ['ready', 'progress', 'built']) if (!def.outputs.some((c) => c.name === out)) r.fail('fabricate', `a fabricator must have a "${out}" output`);
     def.fabricate = { joulesPerKg: r.positive(f, 'joulesPerKg', 'fabricate'), secondsPerKg: r.positive(f, 'secondsPerKg', 'fabricate'), separation: r.positive(f, 'separation', 'fabricate') };
+    // Batch: seconds after which a copy that never left the hollow is pushed out (without it: it blocks the bay).
+    if (f.clearAfter !== undefined) def.fabricate.clearAfter = r.positive(f, 'clearAfter', 'fabricate');
   }
   // Batch: seconds a fabricator needs to build one of this part (without it: the bay's secondsPerKg times its mass).
   if (o.build !== undefined) def.build = r.positive(o, 'build', '');

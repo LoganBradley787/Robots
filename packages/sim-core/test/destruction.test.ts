@@ -150,6 +150,46 @@ describe('destruction: splitting (M6)', () => {
     w.dispose();
   });
 
+  it('a robot wiped whole in one step loses its core once, then is removed', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint({ format: 1, name: 'pair', grid: ['C  F'] }, { x: 0, y: 3 });
+    for (const id of [...r.parts.keys()]) destroy(r, id);
+    w.step();
+    expect(w.robots).toEqual([]);
+    const mine = w.events.filter((e) => e.robot === r.id).map((e) => e.kind);
+    expect(mine).toEqual(['partDestroyed', 'partDestroyed', 'coreLost', 'removed']);
+    for (let i = 0; i < 10; i++) w.step();
+    expect(w.events.filter((e) => e.kind === 'coreLost')).toHaveLength(1);
+    w.dispose();
+  });
+
+  it('a blast that takes every part at once logs coreLost for that robot only', async () => {
+    const w = await World.create({ seed: 1 }, space);
+    const near = w.spawnBlueprint({ format: 1, name: 'near', grid: ['C  F'] }, { x: 0, y: 3 });
+    const far = w.spawnBlueprint({ format: 1, name: 'far', grid: ['C  F'] }, { x: -30, y: 3 });
+    const charge = w.spawnBlueprint({ format: 1, name: 'blast', parts: [{ part: 'heavywarhead', x: 0, y: 0, armed: true }] }, { x: 0.5, y: 4.5 });
+    destroy(charge, 'heavywarhead@0,0');
+    w.step();
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === near.id)).toHaveLength(2);
+    expect(w.events.filter((e) => e.kind === 'coreLost')).toEqual([{ tick: 0, robot: near.id, kind: 'coreLost' }]);
+    expect(w.robots).toEqual([far]);
+    expect(w.canControl(far.id)).toBe(true);
+    w.dispose();
+  });
+
+  it('a robot that lost its core earlier and is wiped later logs coreLost only the first time', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const car = w.spawnBlueprint(LONGCAR, { x: -100, y: 1.5 });
+    destroy(car, 'core@0,1');
+    w.step();
+    expect(w.events.filter((e) => e.kind === 'coreLost')).toHaveLength(1);
+    for (const r of [...w.robots]) for (const id of [...r.parts.keys()]) destroy(r, id);
+    w.step();
+    expect(w.robots).toEqual([]);
+    expect(w.events.filter((e) => e.kind === 'coreLost')).toEqual([{ tick: 0, robot: car.id, kind: 'coreLost' }]);
+    w.dispose();
+  });
+
   it('a rebuilt robot mid-tumble keeps its angle and its wheels', async () => {
     const w = await World.create({ seed: 1, gravityY: 0 }, space);
     const car = w.spawnBlueprint(LONGCAR, { x: 0, y: 20 });

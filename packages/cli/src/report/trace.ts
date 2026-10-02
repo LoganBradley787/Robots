@@ -190,8 +190,12 @@ export class Tracer {
         case 'buildBlocked':
           push(e.robot, 'buildBlocked', `${e.part} cannot build: ${e.why}`);
           break;
+        case 'copyStuck':
+          push(e.robot, 'copyStuck', `${e.part} gave up on ${e.scope}: it never left the hollow, so the bay pushes it out like a piece with no core`);
+          break;
         case 'coreLost':
-          push(e.robot, 'coreLost', 'lost its core: nobody controls it now, its inputs stay as they were');
+          // Wiped whole in one step, there is nothing left to keep going (`removed` follows).
+          push(e.robot, 'coreLost', w.robots.some((r) => r.id === e.robot) ? 'lost its core: nobody controls it now, its inputs stay as they were' : 'lost its core with every other part');
           break;
         case 'removed':
           push(e.robot, 'removed', 'is gone');
