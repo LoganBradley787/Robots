@@ -100,6 +100,8 @@ export class WorldScreen {
   onView?: (v: WorldView) => void;
   /** Called with a short message when something worth telling happens (a robot runs out of energy). */
   onNotice?: (message: string) => void;
+  /** Called after every simulated tick (the duel view judges the match here). */
+  afterStep?: () => void;
   /** How many world events have been shown. */
   private eventCursor = 0;
   private lastView = '';
@@ -456,6 +458,7 @@ export class WorldScreen {
       const t = performance.now();
       this.world.step(i === 0 ? this.keys.drain() : []);
       simMs += performance.now() - t;
+      this.afterStep?.();
       if (this.world.tick % 60 === 0) this.lastHash = this.world.hash();
     });
     // Ticks it had no room for are dropped: the stepper already counted their time as spent.

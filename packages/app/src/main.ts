@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, createQuickJsHost, orientRaw, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
+import { addTagToParts, createQuickJsHost, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
@@ -371,8 +371,39 @@ async function boot(): Promise<void> {
       setMode(enterWorld({ ...modes, paused: true, pausedBeforeBuilder: true }));
       // Teams and order as `pnpm sim duel` gives them, so the fight is the same one: the left one first (robot 1,
       // team 0: yours, so the camera follows it and its script log shows), then the right one (robot 2, team 1).
-      worldScreen.spawn(left, { x: -400, y: height(left, -400, query.get('ya')) }, 0);
-      worldScreen.spawn(right, { x: 400, y: height(right, 400, query.get('yb')) }, 1);
+      const ra = worldScreen.spawn(left, { x: -400, y: height(left, -400, query.get('ya')) }, 0);
+      const rb = worldScreen.spawn(right, { x: 400, y: height(right, 400, query.get('yb')) }, 1);
+      // The match as `pnpm sim duel` judges it: a titan loses when its main core is destroyed or goes past x 1000 or
+      // above y 250; both lost within 2 s, or 240 s gone with both alive, is a draw. The world runs on after the result.
+      const world = worldScreen.world;
+      const sides = [ra, rb].map((robot, i) => ({ name: i === 0 ? a : b, main: robot.parts.get(robot.primaryCoreId ?? ''), holder: robot, lost: undefined as string | undefined, tick: 0 }));
+      let over = false;
+      worldScreen.afterStep = () => {
+        if (over || worldScreen.world !== world) return;
+        const t = (world.tick / 60).toFixed(1);
+        for (const side of sides) {
+          const main = side.main;
+          if (side.lost !== undefined) continue;
+          const holder = main && main.health > 0 ? world.robots.find((r) => r.parts.get(main.id) === main) : undefined;
+          if (!main || !holder) {
+            side.lost = `its main core was destroyed at ${t} s`;
+          } else {
+            const pose = partWorldPose(world, holder, main.id);
+            if (Math.abs(pose.x) > 1000 || pose.y > 250) side.lost = `its main core went out of bounds at ${t} s, at (${pose.x.toFixed(0)}, ${pose.y.toFixed(0)})`;
+          }
+          if (side.lost !== undefined) side.tick = world.tick;
+        }
+        const [sa, sb] = sides as [(typeof sides)[number], (typeof sides)[number]];
+        const first = Math.min(sa.lost !== undefined ? sa.tick : Infinity, sb.lost !== undefined ? sb.tick : Infinity);
+        if (first !== Infinity && world.tick >= first + 120) {
+          over = true;
+          if (sa.lost !== undefined && sb.lost !== undefined) notify(store, `Draw: both lost within 2 s (${sa.name}: ${sa.lost}; ${sb.name}: ${sb.lost}). The world runs on.`);
+          else notify(store, `${sa.lost !== undefined ? sb.name : sa.name} wins: ${sa.lost !== undefined ? sa.name : sb.name} lost, ${sa.lost ?? sb.lost}. The world runs on.`);
+        } else if (first === Infinity && world.tick >= 240 * 60) {
+          over = true;
+          notify(store, 'Draw: 240 s gone with both main cores alive. The world runs on.');
+        }
+      };
       notify(store, `${a} (left, yours: its script log shows) against ${b} (right), 800 m apart. Paused: press play to start.`);
     };
     go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
