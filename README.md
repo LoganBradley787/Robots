@@ -87,7 +87,7 @@ Turn the mouse wheel to zoom. Drag to move the view.
 - `packages/cli` contains the headless runner.
 - `blueprints/` contains each robot as a JSON file and its script files.
 - `worlds/` contains the terrain files.
-- `docs/` contains the documents. The design documents are in `docs/design/`. Start with `00-index.md`. The plans are in `docs/plans/`.
+- `docs/` contains the documents. The design documents are in `docs/design/`. Start with `00-index.md`.
 - `docs/claude-robot-playbook.md` tells you how to make robots.
 
 Parts are data: to add a part, you add a definition file, and the engine code never refers to a part by name.

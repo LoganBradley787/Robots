@@ -1,8 +1,8 @@
 # Robots: 2D robot sandbox
 
-Browser, TypeScript, Rapier 2D (WASM, deterministic), PixiJS, Vite. See `docs/design/` for the design and `docs/handoff-2026-09-22.md` for the original vision.
+Browser, TypeScript, Rapier 2D (WASM, deterministic), PixiJS, Vite. See `docs/design/` for the design.
 
-Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`, except a request to build a robot (next paragraph).
+The working notes (`docs/START-HERE.md`, `docs/status.md`, `docs/ideas.md`, `docs/plans/`, `docs/critique/`, `docs/research/`) are kept on Logan's machine and are not in the repository. When they are present in the checkout, every session starts by reading `docs/START-HERE.md`, then `docs/status.md`, except a request to build a robot (next paragraph). A fresh worktree does not have them: read them from the main checkout.
 
 **Asked to build a robot** ("build me a drone with missiles")? Read `docs/claude-robot-playbook.md` and follow its loop: write the blueprint in `blueprints/`, check it with `pnpm sim validate`, `show`, and `run`, and hand it over when it works. That work skips `START-HERE.md`, `status.md`, and the milestone plan.
 
@@ -32,4 +32,4 @@ Every session starts by reading `docs/START-HERE.md`, then `docs/status.md`, exc
 - Package manager: pnpm workspace. Tests: Vitest, focused on `sim-core`. TypeScript 7 (strict by default, `types` must be listed explicitly).
 - Coordinates in `sim-core` are physics coordinates: meters, x right, y up. Grid cells are integers in the same frame. Rendering flips y.
 - Rotations are 0, 90, 180, 270 degrees counterclockwise.
-- Docs live in `docs/design/` (numbered), research in `docs/research/`, milestone plans in `docs/plans/`.
+- Design docs live in `docs/design/` (numbered). Research (`docs/research/`) and milestone plans (`docs/plans/`) are working notes, kept locally.

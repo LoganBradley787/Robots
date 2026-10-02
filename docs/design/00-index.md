@@ -2,6 +2,8 @@
 
 Read in order. Status lines at the top of each doc say whether it is draft, proposed, or approved.
 
+These docs refer to working notes (`docs/plans/`, `docs/research/`, `docs/critique/`, `docs/status.md`, `docs/ideas.md`, `docs/questions-pending.md`). Those notes are not part of the repository.
+
 - `01-architecture.md`: layers, module map, tick order, determinism rules, events.
 - `02-parts-and-blueprints.md`: PartDef schema, starting parts, blueprint JSON with ASCII grid, default legend, validator.
 - `03-assembly-physics-destruction.md`: attachment graph vs body partition, compound bodies, joints, forces, damage pipeline, splitting, explosions.

@@ -10,3 +10,12 @@ coverage/
 replays/*
 !replays/.gitkeep
 .playwright-mcp/
+# Working notes (plans, play notes, research, status): kept on the machine, not in the repository.
+docs/plans/
+docs/critique/
+docs/research/
+docs/status.md
+docs/ideas.md
+docs/questions-pending.md
+docs/START-HERE.md
+docs/handoff-*.md

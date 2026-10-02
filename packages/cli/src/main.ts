@@ -34,7 +34,7 @@ commands
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
   replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
                      ends in the same state (exit 1 on mismatch)
-  tune               measure the driving targets (docs/plans/M3-control.md) on test robots
+  tune               measure the driving targets on test robots
   place <target> <source> --at x,y [--rot 90] [--mirror] [--save <name>] [--force]
                      place a copy of <source> on <target> with its root part at cell (x, y) of <target>'s
                      grid (x right, y up, the bottom row is y 0), as the builder's Blueprints palette does.
@@ -50,7 +50,7 @@ commands
                      print the blueprint flipped left to right (x becomes axis - x; the default axis keeps it
                      in place). --save works as for place
   duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>] [--seconds <n>] [--world <path>] [--bounds <x>,<y>] [--json]
-                     a match between two robots that run themselves (docs/plans/titans-tournament.md), in
+                     a match between two robots that run themselves (the rules: tournaments/README.md), in
                      worlds/arena.json: <a> with its main core at x -400 on team 0, <b> at x 400 on team 1 and
                      flipped, every script on, no keys. --ya and --yb are the main cores' heights (default: on
                      the ground; at most 150). A side loses when its main core is destroyed, or goes out of

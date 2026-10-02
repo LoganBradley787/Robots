@@ -1,6 +1,6 @@
 # Tournaments
 
-Rosters for `pnpm sim tournament <roster.json>`. The rules are in `docs/plans/titans-tournament.md`.
+Rosters for `pnpm sim tournament <roster.json>`. The rules: two robots that run themselves spawn 800 m apart on `worlds/arena.json`. A robot loses when its main core is destroyed, or goes past x 1000 either way or above y 250. Time running out (240 s) is a draw. Every pair meets on every seed, both ways round.
 
 - A roster is `{ "titans": [{ "name": "titan-x", "y": 40 }] }`: `name` is a blueprint in `blueprints/`, `y` its main core's spawn height (left out: on the ground).
 - `pnpm sim duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>]` runs one match and prints who won and why; `pnpm sim help` has every flag.
