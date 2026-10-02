@@ -151,6 +151,78 @@ describe('grapple drone (Batch), done when', () => {
     w2.dispose();
   });
 
+  // Logan flying it by hand: "it fights S" and "its keys are unclear".
+  it('the player version: S sinks it and W lifts it with nothing on its ropes', { timeout: 60_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -150, y: 60 });
+    for (let t = 0; t < 120; t++) w.step();
+    expect(Math.abs(coreOf(w, me).y - 60)).toBeLessThan(0.3);
+    w.step(press(me.id, 's'));
+    for (let t = 0; t < 180; t++) w.step();
+    w.step(lift(me.id, 's'));
+    for (let t = 0; t < 180; t++) w.step();
+    const low = coreOf(w, me).y;
+    expect(low).toBeLessThan(35);
+    // Let go, it stays down there.
+    for (let t = 0; t < 120; t++) w.step();
+    expect(Math.abs(coreOf(w, me).y - low)).toBeLessThan(0.3);
+    w.step(press(me.id, 'w'));
+    for (let t = 0; t < 120; t++) w.step();
+    w.step(lift(me.id, 'w'));
+    expect(coreOf(w, me).y).toBeGreaterThan(low + 15);
+    w.dispose();
+  });
+
+  it('the player version: S sinks it with a robot on its rope that flies itself and pushes up under it', { timeout: 60_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -150, y: 50 });
+    // The enemy drone wants a spot above what it tracks, and its 14 propellers lift more than the grapple drone weighs.
+    const target = w.spawnBlueprint(blueprint('enemy-drone'), { x: -150, y: 32 }, { team: 1 });
+    // Guns off, so what it holds stays whole.
+    w.step(press(me.id, 'g'));
+    w.step(lift(me.id, 'g'));
+    for (let t = 0; t < 120; t++) w.step();
+    w.step(press(me.id, 'f'));
+    w.step(lift(me.id, 'f'));
+    w.step(press(me.id, 'r'));
+    for (let t = 0; t < 240; t++) w.step();
+    w.step(lift(me.id, 'r'));
+    expect(w.partOutput(me.id, DOWN, 'hooked')).toBe(1);
+    expect(w.events.filter((e) => e.kind === 'hooked')).toMatchObject([{ robot: me.id, part: DOWN, to: target.id }]);
+    expect(w.partOutput(me.id, DOWN, 'length') ?? 99).toBeLessThan(8);
+    // Hands off it holds its height (it was carried up at 9 m/s and more, with nothing that pushes down).
+    for (let t = 0; t < 180; t++) w.step();
+    const held = coreOf(w, me).y;
+    expect(Math.abs(held - 50)).toBeLessThan(4);
+    // S takes both down.
+    w.step(press(me.id, 's'));
+    for (let t = 0; t < 240; t++) w.step();
+    w.step(lift(me.id, 's'));
+    expect(coreOf(w, me).y).toBeLessThan(held - 15);
+    expect(coreOf(w, target).y).toBeLessThan(held - 15);
+    expect(w.partOutput(me.id, DOWN, 'hooked')).toBe(1);
+    w.dispose();
+  });
+
+  it('the player version: its status lists the keys, and F with nothing lined up says so', { timeout: 60_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -150, y: 50 });
+    w.step();
+    const status = (): string[] => w.scriptLogs.filter((l) => l.robot === me.id).map((l) => l.text);
+    expect(status().join(' ')).toMatch(/W up, S down, A left, D right/);
+    expect(status().join(' ')).toMatch(/F throw a hook.*R reel in, T pay out, X let go/);
+    for (let t = 0; t < 60; t++) w.step();
+    w.step(press(me.id, 'f'));
+    w.step(lift(me.id, 'f'));
+    expect(status().at(-1)).toMatch(/nothing lines up/);
+    expect(w.events.filter((e) => e.kind === 'hooked')).toEqual([]);
+    // The enemy version flies itself and writes no key list.
+    const ai = w.spawnBlueprint(blueprint('enemy-grapple-drone'), { x: 300, y: 50 }, { team: 1 });
+    for (let t = 0; t < 5; t++) w.step();
+    expect(w.scriptLogs.filter((l) => l.robot === ai.id && /keys|ropes/.test(l.text))).toEqual([]);
+    w.dispose();
+  });
+
   it('deterministic: the same fight gives the same hash', { timeout: 120_000 }, async () => {
     const run = async (): Promise<string> => {
       const w = await World.create({ seed: 3, scripts: host }, flat);

@@ -1,4 +1,4 @@
-import { autoBindings, buildSeconds, defaultRegistry, recipeStats, staticStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
+import { autoBindings, buildSeconds, defaultRegistry, keysScriptsRead, recipeStats, staticStats, formatIssues, rootPartId, toGrid, validateBlueprint, type Binding, type GridForm, type ScriptSpec } from '@robots/sim-core';
 
 /** Human and AI readable summary: grid, legend, mass, static center of mass, and body structure. */
 export function showBlueprint(blueprint: unknown): { ok: boolean; text: string } {
@@ -89,7 +89,10 @@ function controlLines(bindings: readonly Binding[], scripts: readonly ScriptSpec
     for (const sc of scripts) {
       const params = Object.entries(sc.params).map(([k, v]) => `${k}=${v}`);
       const where = sc.file ?? (typeof sc.source === 'string' ? 'inline' : sc.source.file);
-      out.push(`    ${sc.id}: ${sc.enabled ? 'on' : 'off until its key is pressed'}, ${where}${params.length > 0 ? `, params ${params.join(' ')}` : ''}`);
+      // Keys the script reads itself (`keys.down('w')`): they are controls too, with no binding to list them.
+      const read = typeof sc.source === 'string' ? keysScriptsRead([sc.source]) : { keys: new Set<string>(), any: false };
+      const keys = read.any ? ', reads keys (any)' : read.keys.size > 0 ? `, reads keys ${[...read.keys].map((k) => k.toUpperCase()).join(' ')}` : '';
+      out.push(`    ${sc.id}: ${sc.enabled ? 'on' : 'off until its key is pressed'}, ${where}${params.length > 0 ? `, params ${params.join(' ')}` : ''}${keys}`);
     }
   }
   return out;

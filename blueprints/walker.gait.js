@@ -1,4 +1,4 @@
-// Walker gait (Batch): D and A walk right and left, W and S raise and lower the body. Four legs on rails: each leg is a
+// Walker gait (Batch): D and A walk right and left, W stands it taller and S crouches it. Four legs on rails: each leg is a
 // horizontal piston (`drive`, a carriage sliding along the body, three armor plates on its far side to weigh it down)
 // carrying a vertical piston (`lift`) that stands a column of armor plates on the ground. The legs walk in two groups (the
 // 1st and 3rd along the robot, then the 2nd and 4th), a trot. One half step:
@@ -9,12 +9,16 @@
 // (that is why every leg is armor plates: light heads made the body bounce off the ground). Left and right come from
 // where the parts are (the plates on a carriage lie on the side it slides toward), not from their tags, so it walks
 // deployed flipped too. `state.want` is the direction (1 right, -1 left, 0 stand); the callers set it.
+// W and S use the lift pistons' whole stroke: from a foot's lift (`raise`, so it can still step) to all 2 m, a meter
+// over where it starts, at `heightSpeed`. Logan: "W and S seem to do nothing": they moved it 0.6 m at 0.5 m/s and said
+// nothing. The key list goes to the status at the start, and how tall it stands each time W or S is let go.
 const stand0 = param('stand', 1, { min: 0.3, max: 1.6 }); // m the lift pistons are extended while standing (the body's height over the lowest it can go)
 const raise = param('raise', 0.4, { min: 0.1, max: 1.5 }); // m a swinging foot is drawn up
 const used = param('used', 2, { min: 0.5, max: 2 }); // m of the drive pistons' stroke a step uses
 const liftSpeed = param('liftSpeed', 0.8, { min: 0.1, max: 1 }); // share of the pistons' top speed for lifting and lowering feet
 const fwdSpeed = param('fwdSpeed', 0.85, { min: 0.1, max: 1 }); // share of the pistons' top speed for the swing stroke
 const upSpeed = param('upSpeed', 0.4, { min: 0.1, max: 1 }); // share of the pistons' top speed for standing up from the ground
+const heightSpeed = param('heightSpeed', 0.8, { min: 0.1, max: 1.5 }); // m/s the body rises on W and sinks on S
 const STROKE = 2; // both kinds of piston, m
 const TOP = 1.5; // the pistons' top speed, m/s
 const tLift = raise / (liftSpeed * TOP) + 0.1; // s to draw the swinging feet up
@@ -26,6 +30,7 @@ function setup() {
   state.up = false;
   state.active = false;
   state.want = 0;
+  log('keys: D walk right, A walk left, W stand taller, S crouch, G turrets on or off');
 }
 
 /** Which way a carriage slides on its rail (+1 toward +x): the way its shoe plates lie from it (tags do not flip, positions do). */
@@ -123,7 +128,11 @@ function walk() {
 
 function tick() {
   state.want = (keys.down('d') ? 1 : 0) - (keys.down('a') ? 1 : 0);
-  if (keys.down('w')) state.stand = Math.min(1.6, state.stand + 0.5 * dt);
-  if (keys.down('s')) state.stand = Math.max(0.3, state.stand - 0.5 * dt);
+  if (keys.down('w')) state.stand = Math.min(STROKE, state.stand + heightSpeed * dt);
+  if (keys.down('s')) state.stand = Math.max(raise, state.stand - heightSpeed * dt);
+  if (keys.released('w') || keys.released('s')) {
+    const at = state.stand >= STROKE ? ', as tall as it goes' : state.stand <= raise ? ', as low as it can still step' : '';
+    log('legs out ' + state.stand.toFixed(1) + ' of ' + STROKE + ' m' + at);
+  }
   walk();
 }

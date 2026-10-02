@@ -207,6 +207,17 @@ describe('validate and show', () => {
     expect(text).toContain('    g script guide');
     expect(text).toContain('    guide: on, launcher.missile1.guide.js');
   });
+
+  it('show lists the keys a script reads itself next to it, so every key of a robot is in its controls', () => {
+    const text = showBlueprint(readBlueprint(resolveBlueprint('grapple-drone')).raw).text;
+    expect(text).toContain('    hover: on, grapple-drone.hover.js, params lean=60, reads keys W S A D');
+    expect(text).toContain('    grapples: on, grapple-drone.grapples.js, params auto=0, reads keys F');
+    expect(text).toContain('    r hold hook reel 1');
+    expect(text).toContain('    t hold hook reel -1');
+    expect(text).toContain('    x hold hook release 1');
+    // A script that reads no key says nothing more.
+    expect(showBlueprint(readBlueprint(resolveBlueprint('enemy-drone')).raw).text).not.toContain('reads keys W');
+  });
 });
 
 describe('blueprint files', () => {
