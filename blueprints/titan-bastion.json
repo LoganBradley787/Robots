@@ -3,91 +3,43 @@
  "name": "titan-bastion",
  "autoControls": false,
  "grid": [
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . O . . . O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . O . . . O . .",
-  ". . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . .",
-  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
-  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
-  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . P P P = . = Pc = . = Pb Pb Pb . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
-  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . . . . . . F F F = ja = F = jb = F F F . . . . . . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
-  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . . . . . . = . = . . Z kg F F F F C F F F F kg Z . . = . = . . . . . . . . A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
-  ". . A . . . A = da = A = db = A = dc = A = dd = A = de = A = df = A . . . . . . . . = jl = . . . . . . . . kd . . . . . . . . = jr = . . . . . . . . A = dl = A = dk = A = dj = A = di = A = dh = A = dg = A . . . A . .",
-  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
-  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
-  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
-  "A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z mc Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A",
-  "A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A",
-  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A"
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . m1 . . . . m2 . . . . m3 . . . . m4 . . . . m5 . . . . m6 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . r1 . . . . r2 . . . . r3 . . . . r4 . . . . r5 . . . . r6 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . O . . . O . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . O . . . O . .",
+  ". . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . . . . . . . . . . . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . .",
+  ". . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . . = . = . . = . = . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . .",
+  ". . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . . = jr = . . = jl = . A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A = . = A . . . A . .",
+  ". . A . . . A = da = A = db = A = dc = A = dd = A = de = A = df = A = dg = A = dh = A = di = A = dj = A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A = dt = A = ds = A = dr = A = dq = A = dp = A = do = A = dn = A = dm = A = dl = A = dk = A . . . A . .",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A C A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A",
+  "A A A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A A A",
+  "A A A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A A A",
+  "A A A A Z Z Z Z Z Z a1 Z Z Z Z a2 Z Z Z Z a3 Z Z Z Z a4 Z Z Z Z a5 Z Z Z Z a6 Z Z Z Z a7 Z Z Z Z a8 Z Z Z A a9 A A A A a10 A A A A a11 A A A A a12 A A A A A A A A A a13 A A A A a14 A A A A a15 A A A A a16 A Z Z Z a17 Z Z Z Z a18 Z Z Z Z a19 Z Z Z Z a20 Z Z Z Z a21 Z Z Z Z a22 Z Z Z Z a23 Z Z Z Z a24 Z Z Z Z Z Z A A A A",
+  "A A A A A A A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A A A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A . A A A A A A A A A A"
  ],
  "legend": {
-  "mc": {
-   "part": "core",
-   "tags": [
-    "base"
-   ]
-  },
-  "P": {
-   "part": "propeller",
-   "auto": false,
-   "tags": [
-    "pa"
-   ]
-  },
-  "Pb": {
-   "part": "propeller",
-   "auto": false,
-   "tags": [
-    "pb"
-   ]
-  },
-  "Pc": {
-   "part": "propeller",
-   "auto": false,
-   "tags": [
-    "pc"
-   ]
-  },
-  "kg": {
-   "part": "heavygyro",
-   "auto": false,
-   "tags": [
-    "kg"
-   ]
-  },
-  "kd": {
-   "part": "decoupler",
-   "rot": 0,
-   "tags": [
-    "kd"
-   ]
-  },
-  "ja": {
-   "part": "fabbay",
-   "tags": [
-    "ja"
-   ],
-   "makes": "pod",
-   "size": [
-    1,
-    1
-   ]
-  },
-  "jb": {
-   "part": "fabbay",
-   "tags": [
-    "jb"
-   ],
-   "makes": "pod",
-   "size": [
-    1,
-    1
-   ]
-  },
   "jl": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.jl"
+    "jl"
    ],
    "makes": "pod",
    "size": [
@@ -98,8 +50,7 @@
   "jr": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.jr"
+    "jr"
    ],
    "makes": "pod",
    "size": [
@@ -107,125 +58,464 @@
     1
    ]
   },
+  "a1": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an1"
+   ]
+  },
+  "a2": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an2"
+   ]
+  },
+  "a3": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an3"
+   ]
+  },
+  "a4": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an4"
+   ]
+  },
+  "a5": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an5"
+   ]
+  },
+  "a6": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an6"
+   ]
+  },
+  "a7": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an7"
+   ]
+  },
+  "a8": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an8"
+   ]
+  },
+  "a9": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an9"
+   ]
+  },
+  "a10": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an10"
+   ]
+  },
+  "a11": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an11"
+   ]
+  },
+  "a12": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an12"
+   ]
+  },
+  "a13": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an13"
+   ]
+  },
+  "a14": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an14"
+   ]
+  },
+  "a15": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an15"
+   ]
+  },
+  "a16": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an16"
+   ]
+  },
+  "a17": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an17"
+   ]
+  },
+  "a18": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an18"
+   ]
+  },
+  "a19": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an19"
+   ]
+  },
+  "a20": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an20"
+   ]
+  },
+  "a21": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an21"
+   ]
+  },
+  "a22": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an22"
+   ]
+  },
+  "a23": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an23"
+   ]
+  },
+  "a24": {
+   "part": "grapple",
+   "rot": 180,
+   "auto": false,
+   "tags": [
+    "anchor",
+    "an24"
+   ]
+  },
+  "r1": {
+   "part": "rotator",
+   "rot": 0,
+   "auto": false,
+   "tags": [
+    "t1.rot"
+   ]
+  },
+  "m1": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "t1.gun"
+   ]
+  },
+  "r2": {
+   "part": "rotator",
+   "rot": 0,
+   "auto": false,
+   "tags": [
+    "t2.rot"
+   ]
+  },
+  "m2": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "t2.gun"
+   ]
+  },
+  "r3": {
+   "part": "rotator",
+   "rot": 0,
+   "auto": false,
+   "tags": [
+    "t3.rot"
+   ]
+  },
+  "m3": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "t3.gun"
+   ]
+  },
+  "r4": {
+   "part": "rotator",
+   "rot": 0,
+   "auto": false,
+   "tags": [
+    "t4.rot"
+   ]
+  },
+  "m4": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "t4.gun"
+   ]
+  },
+  "r5": {
+   "part": "rotator",
+   "rot": 0,
+   "auto": false,
+   "tags": [
+    "t5.rot"
+   ]
+  },
+  "m5": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "t5.gun"
+   ]
+  },
+  "r6": {
+   "part": "rotator",
+   "rot": 0,
+   "auto": false,
+   "tags": [
+    "t6.rot"
+   ]
+  },
+  "m6": {
+   "part": "gun",
+   "rot": 0,
+   "tags": [
+    "t6.gun"
+   ]
+  },
   "da": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.da"
+    "da"
    ],
    "makes": "dart"
   },
   "db": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.db"
+    "db"
    ],
    "makes": "dart"
   },
   "dc": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.dc"
+    "dc"
    ],
    "makes": "dart"
   },
   "dd": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.dd"
+    "dd"
    ],
    "makes": "dart"
   },
   "de": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.de"
+    "de"
    ],
    "makes": "dart"
   },
   "df": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.df"
+    "df"
    ],
    "makes": "dart"
   },
   "dg": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.dg"
+    "dg"
    ],
    "makes": "dart"
   },
   "dh": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.dh"
+    "dh"
    ],
    "makes": "dart"
   },
   "di": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.di"
+    "di"
    ],
    "makes": "dart"
   },
   "dj": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.dj"
+    "dj"
    ],
    "makes": "dart"
   },
   "dk": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.dk"
+    "dk"
    ],
    "makes": "dart"
   },
   "dl": {
    "part": "fabbay",
    "tags": [
-    "base",
-    "base.dl"
+    "dl"
+   ],
+   "makes": "dart"
+  },
+  "dm": {
+   "part": "fabbay",
+   "tags": [
+    "dm"
+   ],
+   "makes": "dart"
+  },
+  "dn": {
+   "part": "fabbay",
+   "tags": [
+    "dn"
+   ],
+   "makes": "dart"
+  },
+  "do": {
+   "part": "fabbay",
+   "tags": [
+    "do"
+   ],
+   "makes": "dart"
+  },
+  "dp": {
+   "part": "fabbay",
+   "tags": [
+    "dp"
+   ],
+   "makes": "dart"
+  },
+  "dq": {
+   "part": "fabbay",
+   "tags": [
+    "dq"
+   ],
+   "makes": "dart"
+  },
+  "dr": {
+   "part": "fabbay",
+   "tags": [
+    "dr"
+   ],
+   "makes": "dart"
+  },
+  "ds": {
+   "part": "fabbay",
+   "tags": [
+    "ds"
+   ],
+   "makes": "dart"
+  },
+  "dt": {
+   "part": "fabbay",
+   "tags": [
+    "dt"
    ],
    "makes": "dart"
   }
  },
- "primaryCore": "core@50,7",
  "scripts": [
   {
-   "id": "keep",
+   "id": "pilot",
+   "params": {
+    "anchors": 24
+   },
    "source": {
-    "file": "titan-bastion.keep.js"
+    "file": "titan-bastion.pilot.js"
    }
   }
  ],
- "cores": {
-  "core@34,2": {
-   "scope": "base",
-   "scripts": [
-    {
-     "id": "pilot",
-     "source": {
-      "file": "titan-bastion.base.pilot.js"
-     }
-    }
-   ]
-  }
- },
  "recipes": {
   "dart": {
    "format": 1,

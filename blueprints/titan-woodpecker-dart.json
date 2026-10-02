@@ -3,11 +3,11 @@
  "name": "titan-woodpecker-dart",
  "autoControls": false,
  "grid": [
-  "S^",
   "H",
   "H",
   "C",
   "E",
+  "N",
   "y",
   "k"
  ],

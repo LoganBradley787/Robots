@@ -1,18 +1,25 @@
 // Guide of every titan-woodpecker dart (the ones standing on the rack and the ones the bays build). Lean on purpose:
-// hundreds fly at once, so it never loops over parts and keeps its seeker off until the end.
+// hundreds fly at once, so it never loops over parts.
 // - setup() reads the base's message: the target's point and speed, its id, and how far its parts reach from its core
 //   (l, r, d, u, so the dart knows where the target's edge is). With no message it stays a dud and flies up and away.
 // - It climbs `climb` m straight up, then steers its speed onto the line to where the target will be: it pushes along
 //   the line, cancels its speed across the line (no harder than `acrossMax`), and holds itself up against gravity.
 // - `top` in the message (a target wider than it is tall): it flies level `over` m above the target and then down
 //   to it at a slope of `loft`, so it lands on the roof at a slant: a wide base is thin from above.
+// - Round 2, following a target that moves: the dart has a radio and no sensor of its own. The keep's radar sees the
+//   whole arena and the radio shares it, so the dart takes the target's real point and speed all the way in. The
+//   radio is switched on one tick in `every` (each dart on its own beat) to keep the cost down, and one tick in
+//   `everyNear` once it is within `nearDist` m. Between two looks it carries the last point on by its speed.
+// - What it follows: the robot it was sent at, else the other side's main robot (the two that start a match are
+//   robots 1 and 2), whatever the message said. A sighting is believed however far it is from the point sent at
+//   launch: round 1's darts flew to where a rammer had been standing.
+// - It arms its heads within `armDist` m of the edge of the real robot (as last seen), or of the point it was sent to
+//   when it never saw one, so a shell that finds it on the way only breaks it.
 // - It ends itself when it is spent (`life` s, or nearly out of energy) or has flown past its point.
-// - Within `look` m of the point it switches its seeker on. If it sees the robot it was sent at, it takes that
-//   robot's point and speed from then on. A flare or a robot too far from the point is ignored (`trust` m).
-// - It arms its heads only within `armDist` m of the target's edge, so a shell that finds it on the way only breaks it.
 const climb = param('climb', 9, { min: 0, max: 100 }); // m straight up before it turns
-const look = param('look', 280, { min: 0, max: 300 }); // m from the point where the seeker goes on
-const trust = param('trust', 60, { min: 1, max: 500 }); // m: a sighting further than this from the expected point is not believed
+const every = param('every', 20, { min: 1, max: 60 }); // ticks between two looks through the radio, far out
+const everyNear = param('everyNear', 3, { min: 1, max: 60 }); // the same, close in
+const nearDist = param('nearDist', 160, { min: 0, max: 1000 }); // m from the target where it looks more often
 const armDist = param('armDist', 30, { min: 1, max: 300 }); // m from the target's edge where the heads arm
 const kp = param('kp', 4, { min: 0, max: 50 });
 const kd = param('kd', 1.3, { min: 0, max: 50 });
@@ -33,6 +40,9 @@ function setup() {
   state.a0 = self.angle;
   state.armed = false;
   state.best = Infinity;
+  state.beat = Math.floor(random() * 60);
+  state.n = 0;
+  state.seen = false;
 }
 
 function steer(want, full) {
@@ -44,55 +54,68 @@ function steer(want, full) {
   set('booster', 'throttle', Math.abs(err) < 0.9 ? full : 0.3);
 }
 
+// The robot to follow among what the radio shares: the one it was sent at, else the other side's main robot.
+function sighting(id) {
+  let main = null;
+  for (const c of contacts) {
+    if (c.side !== 'enemy') continue;
+    if (c.id === id) return c;
+    if (c.id <= 2 && c.core) main = c;
+  }
+  return main;
+}
+
 function tick() {
   const t = state.t;
+  state.n++;
   if (!t) {
     // Knocked loose with no target: fly up and away from the base, unarmed.
-    set('seeker', 'on', 0);
+    set('radio', 'on', 0);
     steer(state.a0, 1);
     return;
   }
   const px = self.pos.x;
   const py = self.pos.y;
+  // A look now and then. The radio works the tick after it is switched on.
+  if (contacts.length > 0) {
+    const c = sighting(t.id);
+    if (c) {
+      if (t.blind || c.id !== t.id) {
+        // First real sighting of a robot the base could not name: a guess at its size, and at it from the side.
+        t.id = c.id;
+        t.blind = 0;
+        t.l = t.r = 20;
+        t.d = t.u = 10;
+        t.top = 0;
+      }
+      t.x = c.pos.x;
+      t.y = c.pos.y;
+      t.vx = c.vel.x;
+      t.vy = c.vel.y;
+      state.at = time;
+      state.seen = true;
+    }
+  }
   if (py - state.y0 < climb && time - state.born < 1.5) {
-    set('seeker', 'on', 0);
+    set('radio', 'on', 0);
     steer(state.a0, 1);
     return;
   }
   // Where the target is now, by its last known point and speed (at most 12 s of guessing).
   const age = Math.min(time - state.at, 12);
-  let tx = t.x + t.vx * age;
-  let ty = t.y + t.vy * age;
+  const tx = t.x + t.vx * age;
+  const ty = t.y + t.vy * age;
   let dx = tx - px;
   let dy = ty - py;
-  let dist = Math.sqrt(dx * dx + dy * dy);
+  const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < state.best) state.best = dist;
   if (time - state.born > life || self.energy.stored < 25 || (state.best < 60 && dist > state.best + 120)) {
     set('heavywarhead', 'arm', 1);
     set('heavywarhead', 'detonate', 1);
     return;
   }
-  const near = dist < look;
-  set('seeker', 'on', near && !t.blind ? 1 : 0);
-  if (near && !t.blind) {
-    for (const c of contacts) {
-      if (c.id !== t.id || c.side !== 'enemy') continue;
-      const ex = c.pos.x - tx;
-      const ey = c.pos.y - ty;
-      if (ex * ex + ey * ey > trust * trust) break;
-      t.x = c.pos.x;
-      t.y = c.pos.y;
-      t.vx = c.vel.x;
-      t.vy = c.vel.y;
-      state.at = time;
-      tx = t.x;
-      ty = t.y;
-      dx = tx - px;
-      dy = ty - py;
-      dist = Math.sqrt(dx * dx + dy * dy);
-      break;
-    }
-  }
+  const beat = dist < nearDist ? everyNear : every;
+  set('radio', 'on', (state.n + state.beat) % beat === 0 ? 1 : 0);
   if (!state.armed && px > tx - t.l - armDist && px < tx + t.r + armDist && py > ty - t.d - armDist && py < ty + t.u + armDist) {
     set('heavywarhead', 'arm', 1);
     state.armed = true;

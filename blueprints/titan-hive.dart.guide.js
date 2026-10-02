@@ -39,6 +39,7 @@ const proximity = param('proximity', 2, { min: 0, max: 10 }); // m: goes off thi
 const passBy = param('passBy', 15, { min: 0, max: 50 }); // m it keeps over a friendly robot's core on its way (a drone may be 15 wide)
 const passMass = param('passMass', 25, { min: 0, max: 1000 }); // kg: friendly robots this heavy or more are flown over (drones, not other missiles)
 const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
+const armDist = param('armDist', 140, { min: 5, max: 2000 }); // m from the point it flies to: it arms inside this
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
 
 function wrap(a) {
@@ -97,6 +98,7 @@ function warheadAt() {
 function boom() {
   set('warhead', 'detonate', 1);
   set('heavywarhead', 'detonate', 1);
+  set('charge', 'detonate', 1);
 }
 
 /** Meters from where it was let go, counted from a launcher that keeps moving at the speed it had (`lv` in the message). */
@@ -158,9 +160,13 @@ function tick() {
   // Armed (M10) once clear of its launcher, and only when it was launched at something (a message with a point) or
   // tracks an enemy: safe while it rides on a launcher and while it clears it, and a missile knocked loose by a hit
   // (no message) stays a dud unless it finds a target.
-  if (!state.armed && (state.launched || seen) && time - state.start >= clear && away() >= (state.clearDist || clearDist)) {
+  // Round 2: armed only near where it is going (`armDist` m from the point), so darts that bump each other on the way
+  // do nothing, and a shell on the way breaks a dart without a blast.
+  const nearPoint = state.point && Math.hypot(state.point.x - self.pos.x, state.point.y - self.pos.y) < armDist;
+  if (!state.armed && (state.launched || seen) && nearPoint && time - state.start >= clear && away() >= (state.clearDist || clearDist)) {
     set('warhead', 'arm', 1);
     set('heavywarhead', 'arm', 1);
+    set('charge', 'arm', 1);
     state.armed = true;
   }
   if (seen) {

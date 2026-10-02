@@ -2,242 +2,368 @@
  "format": 1,
  "name": "titan-palisade",
  "grid": [
-  ". . fp12 . . pap12 pap12 pap12 pap12 pbp12 pbp12 pbp12 pbp12 . . . .",
-  ". . fp12 zp12 zp12 fp12 fp12 fp12 fp12 fp12 fp12 fp12 fp12 fp12 . fp12 g3_p12",
-  ". . tap12 . . . . . . . . . . fp12 . fp12 g3_p12",
-  ". . fp12 . . . . . . . . . . fp12 r3_p12 fp12 g3_p12",
-  ". . tbp12 . . . . . . . . . . fp12 . fp12 g3_p12",
-  ". . fp12 . . . . . . . . . . fp12 . fp12 g3_p12",
-  ". . tap12 . . pap12 pap12 pap12 pap12 pbp12 pbp12 pbp12 pbp12 fp12 . . .",
-  ". . fp12 zp12 zp12 zp12 fp12 cp12 op12 fp12 fp12 fp12 fp12 fp12 . fp12 g2_p12",
-  ". . fp12 . . . . . . . . . . fp12 . fp12 g2_p12",
-  "g4_p12 r4_p12 fp12 . . . . . . . . . . fp12 r2_p12 fp12 g2_p12",
-  ". . fp12 . . . . . . . . . . fp12 . fp12 g2_p12",
-  ". . tap12 . . . . . . . . . . fp12 . fp12 g2_p12",
-  ". . fp12 . . pap12 pap12 pap12 pap12 pbp12 pbp12 pbp12 pbp12 fp12 . . .",
-  ". . fp12 zp12 zp12 fp12 fp12 fp12 fp12 fp12 fp12 fp12 fp12 fp12 . fp12 g1_p12",
-  ". . tbp12 . . . . . . . . . . fp12 . fp12 g1_p12",
-  ". . fp12 . . . . . . . . . . fp12 r1_p12 fp12 g1_p12",
-  ". . tap12 . . . . . . . . . . fp12 . fp12 g1_p12",
-  ". . fp12 . . . . . . . . . . fp12 . fp12 g1_p12",
-  ". . dp11 . . . . . . . . . . . . . .",
-  ". . fp11 . . pap11 pap11 pap11 pap11 pbp11 pbp11 pbp11 pbp11 . . . .",
-  ". . fp11 zp11 zp11 fp11 fp11 fp11 fp11 fp11 fp11 fp11 fp11 fp11 . fp11 g3_p11",
-  ". . tap11 . . . . . . . . . . fp11 . fp11 g3_p11",
-  ". . fp11 . . . . . . . . . . fp11 r3_p11 fp11 g3_p11",
-  ". . tbp11 . . . . . . . . . . fp11 . fp11 g3_p11",
-  ". . fp11 . . . . . . . . . . fp11 . fp11 g3_p11",
-  ". . tap11 . . pap11 pap11 pap11 pap11 pbp11 pbp11 pbp11 pbp11 fp11 . . .",
-  ". . fp11 zp11 zp11 zp11 fp11 cp11 op11 fp11 fp11 fp11 fp11 fp11 . fp11 g2_p11",
-  ". . fp11 . . . . . . . . . . fp11 . fp11 g2_p11",
-  "g4_p11 r4_p11 fp11 . . . . . . . . . . fp11 r2_p11 fp11 g2_p11",
-  ". . fp11 . . . . . . . . . . fp11 . fp11 g2_p11",
-  ". . tap11 . . . . . . . . . . fp11 . fp11 g2_p11",
-  ". . fp11 . . pap11 pap11 pap11 pap11 pbp11 pbp11 pbp11 pbp11 fp11 . . .",
-  ". . fp11 zp11 zp11 fp11 fp11 fp11 fp11 fp11 fp11 fp11 fp11 fp11 . fp11 g1_p11",
-  ". . tbp11 . . . . . . . . . . fp11 . fp11 g1_p11",
-  ". . fp11 . . . . . . . . . . fp11 r1_p11 fp11 g1_p11",
-  ". . tap11 . . . . . . . . . . fp11 . fp11 g1_p11",
-  ". . fp11 . . . . . . . . . . fp11 . fp11 g1_p11",
-  ". . dp10 . . . . . . . . . . . . . .",
-  ". . fp10 . . pap10 pap10 pap10 pap10 pbp10 pbp10 pbp10 pbp10 . . . .",
-  ". . fp10 zp10 zp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 . fp10 g3_p10",
-  ". . tap10 . . . . . . . . . . fp10 . fp10 g3_p10",
-  ". . fp10 . . . . . . . . . . fp10 r3_p10 fp10 g3_p10",
-  ". . tbp10 . . . . . . . . . . fp10 . fp10 g3_p10",
-  ". . fp10 . . . . . . . . . . fp10 . fp10 g3_p10",
-  ". . tap10 . . pap10 pap10 pap10 pap10 pbp10 pbp10 pbp10 pbp10 fp10 . . .",
-  ". . fp10 zp10 zp10 zp10 fp10 cp10 op10 fp10 fp10 fp10 fp10 fp10 . fp10 g2_p10",
-  ". . fp10 . . . . . . . . . . fp10 . fp10 g2_p10",
-  "g4_p10 r4_p10 fp10 . . . . . . . . . . fp10 r2_p10 fp10 g2_p10",
-  ". . fp10 . . . . . . . . . . fp10 . fp10 g2_p10",
-  ". . tap10 . . . . . . . . . . fp10 . fp10 g2_p10",
-  ". . fp10 . . pap10 pap10 pap10 pap10 pbp10 pbp10 pbp10 pbp10 fp10 . . .",
-  ". . fp10 zp10 zp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 . fp10 g1_p10",
-  ". . tbp10 . . . . . . . . . . fp10 . fp10 g1_p10",
-  ". . fp10 . . . . . . . . . . fp10 r1_p10 fp10 g1_p10",
-  ". . tap10 . . . . . . . . . . fp10 . fp10 g1_p10",
-  ". . fp10 . . . . . . . . . . fp10 . fp10 g1_p10",
-  ". . dp9 . . . . . . . . . . . . . .",
-  ". . fp9 . . pap9 pap9 pap9 pap9 pbp9 pbp9 pbp9 pbp9 . . . .",
-  ". . fp9 zp9 zp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 . fp9 g3_p9",
-  ". . tap9 . . . . . . . . . . fp9 . fp9 g3_p9",
-  ". . fp9 . . . . . . . . . . fp9 r3_p9 fp9 g3_p9",
-  ". . tbp9 . . . . . . . . . . fp9 . fp9 g3_p9",
-  ". . fp9 . . . . . . . . . . fp9 . fp9 g3_p9",
-  ". . tap9 . . pap9 pap9 pap9 pap9 pbp9 pbp9 pbp9 pbp9 fp9 . . .",
-  ". . fp9 zp9 zp9 zp9 fp9 cp9 op9 fp9 fp9 fp9 fp9 fp9 . fp9 g2_p9",
-  ". . fp9 . . . . . . . . . . fp9 . fp9 g2_p9",
-  "g4_p9 r4_p9 fp9 . . . . . . . . . . fp9 r2_p9 fp9 g2_p9",
-  ". . fp9 . . . . . . . . . . fp9 . fp9 g2_p9",
-  ". . tap9 . . . . . . . . . . fp9 . fp9 g2_p9",
-  ". . fp9 . . pap9 pap9 pap9 pap9 pbp9 pbp9 pbp9 pbp9 fp9 . . .",
-  ". . fp9 zp9 zp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 . fp9 g1_p9",
-  ". . tbp9 . . . . . . . . . . fp9 . fp9 g1_p9",
-  ". . fp9 . . . . . . . . . . fp9 r1_p9 fp9 g1_p9",
-  ". . tap9 . . . . . . . . . . fp9 . fp9 g1_p9",
-  ". . fp9 . . . . . . . . . . fp9 . fp9 g1_p9",
-  ". . dp8 . . . . . . . . . . . . . .",
-  ". . fp8 . . pap8 pap8 pap8 pap8 pbp8 pbp8 pbp8 pbp8 . . . .",
-  ". . fp8 zp8 zp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 . fp8 g3_p8",
-  ". . tap8 . . . . . . . . . . fp8 . fp8 g3_p8",
-  ". . fp8 . . . . . . . . . . fp8 r3_p8 fp8 g3_p8",
-  ". . tbp8 . . . . . . . . . . fp8 . fp8 g3_p8",
-  ". . fp8 . . . . . . . . . . fp8 . fp8 g3_p8",
-  ". . tap8 . . pap8 pap8 pap8 pap8 pbp8 pbp8 pbp8 pbp8 fp8 . . .",
-  ". . fp8 zp8 zp8 zp8 fp8 cp8 op8 fp8 fp8 fp8 fp8 fp8 . fp8 g2_p8",
-  ". . fp8 . . . . . . . . . . fp8 . fp8 g2_p8",
-  "g4_p8 r4_p8 fp8 . . . . . . . . . . fp8 r2_p8 fp8 g2_p8",
-  ". . fp8 . . . . . . . . . . fp8 . fp8 g2_p8",
-  ". . tap8 . . . . . . . . . . fp8 . fp8 g2_p8",
-  ". . fp8 . . pap8 pap8 pap8 pap8 pbp8 pbp8 pbp8 pbp8 fp8 . . .",
-  ". . fp8 zp8 zp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 . fp8 g1_p8",
-  ". . tbp8 . . . . . . . . . . fp8 . fp8 g1_p8",
-  ". . fp8 . . . . . . . . . . fp8 r1_p8 fp8 g1_p8",
-  ". . tap8 . . . . . . . . . . fp8 . fp8 g1_p8",
-  ". . fp8 . . . . . . . . . . fp8 . fp8 g1_p8",
-  ". . d . . . . . . . . . . . . . .",
-  ". . f pa pa pa pa pa pb pb pb pb pb . . . .",
-  ". . tb f f f a f f f f f f . . . .",
-  "g2_ r2_ f f z a c a z o z f f r1_ g1_ . .",
-  ". . ta f f f a f f f f f f . . . .",
-  ". . tb . . . r3_ . . . . . . . . . .",
-  ". . tb . . . g3_ . . . . . . . . . .",
-  ". . dp7 . . . . . . . . . . . . . .",
-  ". . fp7 . . pap7 pap7 pap7 pap7 pbp7 pbp7 pbp7 pbp7 . . . .",
-  ". . fp7 zp7 zp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 . fp7 g3_p7",
-  ". . tap7 . . . . . . . . . . fp7 . fp7 g3_p7",
-  ". . fp7 . . . . . . . . . . fp7 r3_p7 fp7 g3_p7",
-  ". . tbp7 . . . . . . . . . . fp7 . fp7 g3_p7",
-  ". . fp7 . . . . . . . . . . fp7 . fp7 g3_p7",
-  ". . tap7 . . pap7 pap7 pap7 pap7 pbp7 pbp7 pbp7 pbp7 fp7 . . .",
-  ". . fp7 zp7 zp7 zp7 fp7 cp7 op7 fp7 fp7 fp7 fp7 fp7 . fp7 g2_p7",
-  ". . fp7 . . . . . . . . . . fp7 . fp7 g2_p7",
-  "g4_p7 r4_p7 fp7 . . . . . . . . . . fp7 r2_p7 fp7 g2_p7",
-  ". . fp7 . . . . . . . . . . fp7 . fp7 g2_p7",
-  ". . tap7 . . . . . . . . . . fp7 . fp7 g2_p7",
-  ". . fp7 . . pap7 pap7 pap7 pap7 pbp7 pbp7 pbp7 pbp7 fp7 . . .",
-  ". . fp7 zp7 zp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 . fp7 g1_p7",
-  ". . tbp7 . . . . . . . . . . fp7 . fp7 g1_p7",
-  ". . fp7 . . . . . . . . . . fp7 r1_p7 fp7 g1_p7",
-  ". . tap7 . . . . . . . . . . fp7 . fp7 g1_p7",
-  ". . fp7 . . . . . . . . . . fp7 . fp7 g1_p7",
-  ". . dp6 . . . . . . . . . . . . . .",
-  ". . fp6 . . pap6 pap6 pap6 pap6 pbp6 pbp6 pbp6 pbp6 . . . .",
-  ". . fp6 zp6 zp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 . fp6 g3_p6",
-  ". . tap6 . . . . . . . . . . fp6 . fp6 g3_p6",
-  ". . fp6 . . . . . . . . . . fp6 r3_p6 fp6 g3_p6",
-  ". . tbp6 . . . . . . . . . . fp6 . fp6 g3_p6",
-  ". . fp6 . . . . . . . . . . fp6 . fp6 g3_p6",
-  ". . tap6 . . pap6 pap6 pap6 pap6 pbp6 pbp6 pbp6 pbp6 fp6 . . .",
-  ". . fp6 zp6 zp6 zp6 fp6 cp6 op6 fp6 fp6 fp6 fp6 fp6 . fp6 g2_p6",
-  ". . fp6 . . . . . . . . . . fp6 . fp6 g2_p6",
-  "g4_p6 r4_p6 fp6 . . . . . . . . . . fp6 r2_p6 fp6 g2_p6",
-  ". . fp6 . . . . . . . . . . fp6 . fp6 g2_p6",
-  ". . tap6 . . . . . . . . . . fp6 . fp6 g2_p6",
-  ". . fp6 . . pap6 pap6 pap6 pap6 pbp6 pbp6 pbp6 pbp6 fp6 . . .",
-  ". . fp6 zp6 zp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 . fp6 g1_p6",
-  ". . tbp6 . . . . . . . . . . fp6 . fp6 g1_p6",
-  ". . fp6 . . . . . . . . . . fp6 r1_p6 fp6 g1_p6",
-  ". . tap6 . . . . . . . . . . fp6 . fp6 g1_p6",
-  ". . fp6 . . . . . . . . . . fp6 . fp6 g1_p6",
-  ". . dp5 . . . . . . . . . . . . . .",
-  ". . fp5 . . pap5 pap5 pap5 pap5 pbp5 pbp5 pbp5 pbp5 . . . .",
-  ". . fp5 zp5 zp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 . fp5 g3_p5",
-  ". . tap5 . . . . . . . . . . fp5 . fp5 g3_p5",
-  ". . fp5 . . . . . . . . . . fp5 r3_p5 fp5 g3_p5",
-  ". . tbp5 . . . . . . . . . . fp5 . fp5 g3_p5",
-  ". . fp5 . . . . . . . . . . fp5 . fp5 g3_p5",
-  ". . tap5 . . pap5 pap5 pap5 pap5 pbp5 pbp5 pbp5 pbp5 fp5 . . .",
-  ". . fp5 zp5 zp5 zp5 fp5 cp5 op5 fp5 fp5 fp5 fp5 fp5 . fp5 g2_p5",
-  ". . fp5 . . . . . . . . . . fp5 . fp5 g2_p5",
-  "g4_p5 r4_p5 fp5 . . . . . . . . . . fp5 r2_p5 fp5 g2_p5",
-  ". . fp5 . . . . . . . . . . fp5 . fp5 g2_p5",
-  ". . tap5 . . . . . . . . . . fp5 . fp5 g2_p5",
-  ". . fp5 . . pap5 pap5 pap5 pap5 pbp5 pbp5 pbp5 pbp5 fp5 . . .",
-  ". . fp5 zp5 zp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 . fp5 g1_p5",
-  ". . tbp5 . . . . . . . . . . fp5 . fp5 g1_p5",
-  ". . fp5 . . . . . . . . . . fp5 r1_p5 fp5 g1_p5",
-  ". . tap5 . . . . . . . . . . fp5 . fp5 g1_p5",
-  ". . fp5 . . . . . . . . . . fp5 . fp5 g1_p5",
-  ". . dp4 . . . . . . . . . . . . . .",
-  ". . fp4 . . pap4 pap4 pap4 pap4 pbp4 pbp4 pbp4 pbp4 . . . .",
-  ". . fp4 zp4 zp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 . fp4 g3_p4",
-  ". . tap4 . . . . . . . . . . fp4 . fp4 g3_p4",
-  ". . fp4 . . . . . . . . . . fp4 r3_p4 fp4 g3_p4",
-  ". . tbp4 . . . . . . . . . . fp4 . fp4 g3_p4",
-  ". . fp4 . . . . . . . . . . fp4 . fp4 g3_p4",
-  ". . tap4 . . pap4 pap4 pap4 pap4 pbp4 pbp4 pbp4 pbp4 fp4 . . .",
-  ". . fp4 zp4 zp4 zp4 fp4 cp4 op4 fp4 fp4 fp4 fp4 fp4 . fp4 g2_p4",
-  ". . fp4 . . . . . . . . . . fp4 . fp4 g2_p4",
-  "g4_p4 r4_p4 fp4 . . . . . . . . . . fp4 r2_p4 fp4 g2_p4",
-  ". . fp4 . . . . . . . . . . fp4 . fp4 g2_p4",
-  ". . tap4 . . . . . . . . . . fp4 . fp4 g2_p4",
-  ". . fp4 . . pap4 pap4 pap4 pap4 pbp4 pbp4 pbp4 pbp4 fp4 . . .",
-  ". . fp4 zp4 zp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 . fp4 g1_p4",
-  ". . tbp4 . . . . . . . . . . fp4 . fp4 g1_p4",
-  ". . fp4 . . . . . . . . . . fp4 r1_p4 fp4 g1_p4",
-  ". . tap4 . . . . . . . . . . fp4 . fp4 g1_p4",
-  ". . fp4 . . . . . . . . . . fp4 . fp4 g1_p4",
-  ". . dp3 . . . . . . . . . . . . . .",
-  ". . fp3 . . pap3 pap3 pap3 pap3 pbp3 pbp3 pbp3 pbp3 . . . .",
-  ". . fp3 zp3 zp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 . fp3 g3_p3",
-  ". . tap3 . . . . . . . . . . fp3 . fp3 g3_p3",
-  ". . fp3 . . . . . . . . . . fp3 r3_p3 fp3 g3_p3",
-  ". . tbp3 . . . . . . . . . . fp3 . fp3 g3_p3",
-  ". . fp3 . . . . . . . . . . fp3 . fp3 g3_p3",
-  ". . tap3 . . pap3 pap3 pap3 pap3 pbp3 pbp3 pbp3 pbp3 fp3 . . .",
-  ". . fp3 zp3 zp3 zp3 fp3 cp3 op3 fp3 fp3 fp3 fp3 fp3 . fp3 g2_p3",
-  ". . fp3 . . . . . . . . . . fp3 . fp3 g2_p3",
-  "g4_p3 r4_p3 fp3 . . . . . . . . . . fp3 r2_p3 fp3 g2_p3",
-  ". . fp3 . . . . . . . . . . fp3 . fp3 g2_p3",
-  ". . tap3 . . . . . . . . . . fp3 . fp3 g2_p3",
-  ". . fp3 . . pap3 pap3 pap3 pap3 pbp3 pbp3 pbp3 pbp3 fp3 . . .",
-  ". . fp3 zp3 zp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 . fp3 g1_p3",
-  ". . tbp3 . . . . . . . . . . fp3 . fp3 g1_p3",
-  ". . fp3 . . . . . . . . . . fp3 r1_p3 fp3 g1_p3",
-  ". . tap3 . . . . . . . . . . fp3 . fp3 g1_p3",
-  ". . fp3 . . . . . . . . . . fp3 . fp3 g1_p3",
-  ". . dp2 . . . . . . . . . . . . . .",
-  ". . fp2 . . pap2 pap2 pap2 pap2 pbp2 pbp2 pbp2 pbp2 . . . .",
-  ". . fp2 zp2 zp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 . fp2 g3_p2",
-  ". . tap2 . . . . . . . . . . fp2 . fp2 g3_p2",
-  ". . fp2 . . . . . . . . . . fp2 r3_p2 fp2 g3_p2",
-  ". . tbp2 . . . . . . . . . . fp2 . fp2 g3_p2",
-  ". . fp2 . . . . . . . . . . fp2 . fp2 g3_p2",
-  ". . tap2 . . pap2 pap2 pap2 pap2 pbp2 pbp2 pbp2 pbp2 fp2 . . .",
-  ". . fp2 zp2 zp2 zp2 fp2 cp2 op2 fp2 fp2 fp2 fp2 fp2 . fp2 g2_p2",
-  ". . fp2 . . . . . . . . . . fp2 . fp2 g2_p2",
-  "g4_p2 r4_p2 fp2 . . . . . . . . . . fp2 r2_p2 fp2 g2_p2",
-  ". . fp2 . . . . . . . . . . fp2 . fp2 g2_p2",
-  ". . tap2 . . . . . . . . . . fp2 . fp2 g2_p2",
-  ". . fp2 . . pap2 pap2 pap2 pap2 pbp2 pbp2 pbp2 pbp2 fp2 . . .",
-  ". . fp2 zp2 zp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 . fp2 g1_p2",
-  ". . tbp2 . . . . . . . . . . fp2 . fp2 g1_p2",
-  ". . fp2 . . . . . . . . . . fp2 r1_p2 fp2 g1_p2",
-  ". . tap2 . . . . . . . . . . fp2 . fp2 g1_p2",
-  ". . fp2 . . . . . . . . . . fp2 . fp2 g1_p2",
-  ". . dp1 . . . . . . . . . . . . . .",
-  ". . fp1 . . pap1 pap1 pap1 pap1 pbp1 pbp1 pbp1 pbp1 . . . .",
-  ". . fp1 zp1 zp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 . fp1 g3_p1",
-  ". . tap1 . . . . . . . . . . fp1 . fp1 g3_p1",
-  ". . fp1 . . . . . . . . . . fp1 r3_p1 fp1 g3_p1",
-  ". . tbp1 . . . . . . . . . . fp1 . fp1 g3_p1",
-  ". . fp1 . . . . . . . . . . fp1 . fp1 g3_p1",
-  ". . tap1 . . pap1 pap1 pap1 pap1 pbp1 pbp1 pbp1 pbp1 fp1 . . .",
-  ". . fp1 zp1 zp1 zp1 fp1 cp1 op1 fp1 fp1 fp1 fp1 fp1 . fp1 g2_p1",
-  ". . fp1 . . . . . . . . . . fp1 . fp1 g2_p1",
-  "g4_p1 r4_p1 fp1 . . . . . . . . . . fp1 r2_p1 fp1 g2_p1",
-  ". . fp1 . . . . . . . . . . fp1 . fp1 g2_p1",
-  ". . tap1 . . . . . . . . . . fp1 . fp1 g2_p1",
-  ". . fp1 . . pap1 pap1 pap1 pap1 pbp1 pbp1 pbp1 pbp1 fp1 . . .",
-  ". . fp1 zp1 zp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 . fp1 g1_p1",
-  ". . tbp1 . . . . . . . . . . fp1 . fp1 g1_p1",
-  ". . fp1 . . . . . . . . . . fp1 r1_p1 fp1 g1_p1",
-  ". . tap1 . . . . . . . . . . fp1 . fp1 g1_p1",
-  ". . fp1 . . . . . . . . . . fp1 . fp1 g1_p1"
+  ". . . fp10 . pap10 pap10 pap10 pap10 pap10 pbp10 pbp10 pbp10 pbp10 . . . .",
+  ". . . fp10 zp10 zp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 . fp10 g3_p10",
+  ". . . tbp10 . . . . . . . . . . fp10 . fp10 g3_p10",
+  ". . . fp10 . . . . . . . . . . fp10 r3_p10 fp10 g3_p10",
+  ". . . tap10 . . . . . . . . . . fp10 . fp10 g3_p10",
+  ". . . fp10 . . . . . . . . . . fp10 . fp10 g3_p10",
+  ". . . fp10 . pap10 pap10 pap10 pap10 pap10 pbp10 pbp10 pbp10 pbp10 fp10 . . .",
+  ". . . fp10 zp10 zp10 zp10 zp10 cp10 op10 fp10 fp10 fp10 fp10 fp10 . fp10 g2_p10",
+  ". . . tbp10 . . . . . . . . . . fp10 . fp10 g2_p10",
+  ". g4_p10 r4_p10 fp10 . . . . . . . . . . fp10 r2_p10 fp10 g2_p10",
+  ". . . tap10 . . . . . . . . . . fp10 . fp10 g2_p10",
+  ". . . fp10 . . . . . . . . . . fp10 . fp10 g2_p10",
+  ". . . fp10 . pap10 pap10 pap10 pap10 pap10 pbp10 pbp10 pbp10 pbp10 fp10 . . .",
+  ". . . fp10 zp10 zp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 . fp10 g1_p10",
+  ". . . tbp10 . . . . . . . . . . fp10 . fp10 g1_p10",
+  ". . . fp10 . . . . . . . . . . fp10 r1_p10 fp10 g1_p10",
+  ". . . tap10 . . . . . . . . . . fp10 . fp10 g1_p10",
+  ". . . fp10 . . . . . . . . . . fp10 . fp10 g1_p10",
+  ". . . dp9 . . . . . . . . . . . . . .",
+  ". . . fp9 . pap9 pap9 pap9 pap9 pap9 pbp9 pbp9 pbp9 pbp9 . . . .",
+  ". . . fp9 zp9 zp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 . fp9 g3_p9",
+  ". . . tbp9 . . . . . . . . . . fp9 . fp9 g3_p9",
+  ". . . fp9 . . . . . . . . . . fp9 r3_p9 fp9 g3_p9",
+  ". . . tap9 . . . . . . . . . . fp9 . fp9 g3_p9",
+  ". . . fp9 . . . . . . . . . . fp9 . fp9 g3_p9",
+  ". . . fp9 . pap9 pap9 pap9 pap9 pap9 pbp9 pbp9 pbp9 pbp9 fp9 . . .",
+  ". . . fp9 zp9 zp9 zp9 zp9 cp9 op9 fp9 fp9 fp9 fp9 fp9 . fp9 g2_p9",
+  ". . . tbp9 . . . . . . . . . . fp9 . fp9 g2_p9",
+  ". g4_p9 r4_p9 fp9 . . . . . . . . . . fp9 r2_p9 fp9 g2_p9",
+  ". . . tap9 . . . . . . . . . . fp9 . fp9 g2_p9",
+  ". . . fp9 . . . . . . . . . . fp9 . fp9 g2_p9",
+  ". . . fp9 . pap9 pap9 pap9 pap9 pap9 pbp9 pbp9 pbp9 pbp9 fp9 . . .",
+  ". . . fp9 zp9 zp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 fp9 . fp9 g1_p9",
+  ". . . tbp9 . . . . . . . . . . fp9 . fp9 g1_p9",
+  ". . . fp9 . . . . . . . . . . fp9 r1_p9 fp9 g1_p9",
+  ". . . tap9 . . . . . . . . . . fp9 . fp9 g1_p9",
+  ". . . fp9 . . . . . . . . . . fp9 . fp9 g1_p9",
+  ". . . dp8 . . . . . . . . . . . . . .",
+  ". . . fp8 . pap8 pap8 pap8 pap8 pap8 pbp8 pbp8 pbp8 pbp8 . . . .",
+  ". . . fp8 zp8 zp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 . fp8 g3_p8",
+  ". . . tbp8 . . . . . . . . . . fp8 . fp8 g3_p8",
+  ". . . fp8 . . . . . . . . . . fp8 r3_p8 fp8 g3_p8",
+  ". . . tap8 . . . . . . . . . . fp8 . fp8 g3_p8",
+  ". . . fp8 . . . . . . . . . . fp8 . fp8 g3_p8",
+  ". . . fp8 . pap8 pap8 pap8 pap8 pap8 pbp8 pbp8 pbp8 pbp8 fp8 . . .",
+  ". . . fp8 zp8 zp8 zp8 zp8 cp8 op8 fp8 fp8 fp8 fp8 fp8 . fp8 g2_p8",
+  ". . . tbp8 . . . . . . . . . . fp8 . fp8 g2_p8",
+  ". g4_p8 r4_p8 fp8 . . . . . . . . . . fp8 r2_p8 fp8 g2_p8",
+  ". . . tap8 . . . . . . . . . . fp8 . fp8 g2_p8",
+  ". . . fp8 . . . . . . . . . . fp8 . fp8 g2_p8",
+  ". . . fp8 . pap8 pap8 pap8 pap8 pap8 pbp8 pbp8 pbp8 pbp8 fp8 . . .",
+  ". . . fp8 zp8 zp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 fp8 . fp8 g1_p8",
+  ". . . tbp8 . . . . . . . . . . fp8 . fp8 g1_p8",
+  ". . . fp8 . . . . . . . . . . fp8 r1_p8 fp8 g1_p8",
+  ". . . tap8 . . . . . . . . . . fp8 . fp8 g1_p8",
+  ". . . fp8 . . . . . . . . . . fp8 . fp8 g1_p8",
+  ". . . dp7 . . . . . . . . . . . . . .",
+  ". . . fp7 . pap7 pap7 pap7 pap7 pap7 pbp7 pbp7 pbp7 pbp7 . . . .",
+  ". . . fp7 zp7 zp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 . fp7 g3_p7",
+  ". . . tbp7 . . . . . . . . . . fp7 . fp7 g3_p7",
+  ". . . fp7 . . . . . . . . . . fp7 r3_p7 fp7 g3_p7",
+  ". . . tap7 . . . . . . . . . . fp7 . fp7 g3_p7",
+  ". . . fp7 . . . . . . . . . . fp7 . fp7 g3_p7",
+  ". . . fp7 . pap7 pap7 pap7 pap7 pap7 pbp7 pbp7 pbp7 pbp7 fp7 . . .",
+  ". . . fp7 zp7 zp7 zp7 zp7 cp7 op7 fp7 fp7 fp7 fp7 fp7 . fp7 g2_p7",
+  ". . . tbp7 . . . . . . . . . . fp7 . fp7 g2_p7",
+  ". g4_p7 r4_p7 fp7 . . . . . . . . . . fp7 r2_p7 fp7 g2_p7",
+  ". . . tap7 . . . . . . . . . . fp7 . fp7 g2_p7",
+  ". . . fp7 . . . . . . . . . . fp7 . fp7 g2_p7",
+  ". . . fp7 . pap7 pap7 pap7 pap7 pap7 pbp7 pbp7 pbp7 pbp7 fp7 . . .",
+  ". . . fp7 zp7 zp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 fp7 . fp7 g1_p7",
+  ". . . tbp7 . . . . . . . . . . fp7 . fp7 g1_p7",
+  ". . . fp7 . . . . . . . . . . fp7 r1_p7 fp7 g1_p7",
+  ". . . tap7 . . . . . . . . . . fp7 . fp7 g1_p7",
+  ". . . fp7 . . . . . . . . . . fp7 . fp7 g1_p7",
+  ". . . dp6 . . . . . . . . . . . . . .",
+  ". . . fp6 . pap6 pap6 pap6 pap6 pap6 pbp6 pbp6 pbp6 pbp6 . . . .",
+  ". . . fp6 zp6 zp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 . fp6 g3_p6",
+  ". . . tbp6 . . . . . . . . . . fp6 . fp6 g3_p6",
+  ". . . fp6 . . . . . . . . . . fp6 r3_p6 fp6 g3_p6",
+  ". . . tap6 . . . . . . . . . . fp6 . fp6 g3_p6",
+  ". . . fp6 . . . . . . . . . . fp6 . fp6 g3_p6",
+  ". . . fp6 . pap6 pap6 pap6 pap6 pap6 pbp6 pbp6 pbp6 pbp6 fp6 . . .",
+  ". . . fp6 zp6 zp6 zp6 zp6 cp6 op6 fp6 fp6 fp6 fp6 fp6 . fp6 g2_p6",
+  ". . . tbp6 . . . . . . . . . . fp6 . fp6 g2_p6",
+  ". g4_p6 r4_p6 fp6 . . . . . . . . . . fp6 r2_p6 fp6 g2_p6",
+  ". . . tap6 . . . . . . . . . . fp6 . fp6 g2_p6",
+  ". . . fp6 . . . . . . . . . . fp6 . fp6 g2_p6",
+  ". . . fp6 . pap6 pap6 pap6 pap6 pap6 pbp6 pbp6 pbp6 pbp6 fp6 . . .",
+  ". . . fp6 zp6 zp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 fp6 . fp6 g1_p6",
+  ". . . tbp6 . . . . . . . . . . fp6 . fp6 g1_p6",
+  ". . . fp6 . . . . . . . . . . fp6 r1_p6 fp6 g1_p6",
+  ". . . tap6 . . . . . . . . . . fp6 . fp6 g1_p6",
+  ". . . fp6 . . . . . . . . . . fp6 . fp6 g1_p6",
+  ". . . dp5 . . . . . . . . . . . . . .",
+  ". . . fp5 . pap5 pap5 pap5 pap5 pap5 pbp5 pbp5 pbp5 pbp5 . . . .",
+  ". . . fp5 zp5 zp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 . fp5 g3_p5",
+  ". . . tbp5 . . . . . . . . . . fp5 . fp5 g3_p5",
+  ". . . fp5 . . . . . . . . . . fp5 r3_p5 fp5 g3_p5",
+  ". . . tap5 . . . . . . . . . . fp5 . fp5 g3_p5",
+  ". . . fp5 . . . . . . . . . . fp5 . fp5 g3_p5",
+  ". . . fp5 . pap5 pap5 pap5 pap5 pap5 pbp5 pbp5 pbp5 pbp5 fp5 . . .",
+  ". . . fp5 zp5 zp5 zp5 zp5 cp5 op5 fp5 fp5 fp5 fp5 fp5 . fp5 g2_p5",
+  ". . . tbp5 . . . . . . . . . . fp5 . fp5 g2_p5",
+  ". g4_p5 r4_p5 fp5 . . . . . . . . . . fp5 r2_p5 fp5 g2_p5",
+  ". . . tap5 . . . . . . . . . . fp5 . fp5 g2_p5",
+  ". . . fp5 . . . . . . . . . . fp5 . fp5 g2_p5",
+  ". . . fp5 . pap5 pap5 pap5 pap5 pap5 pbp5 pbp5 pbp5 pbp5 fp5 . . .",
+  ". . . fp5 zp5 zp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 fp5 . fp5 g1_p5",
+  ". . . tbp5 . . . . . . . . . . fp5 . fp5 g1_p5",
+  ". . . fp5 . . . . . . . . . . fp5 r1_p5 fp5 g1_p5",
+  ". . . tap5 . . . . . . . . . . fp5 . fp5 g1_p5",
+  ". . . fp5 . . . . . . . . . . fp5 . fp5 g1_p5",
+  ". . . dp4 . . . . . . . . . . . . . .",
+  ". . . fp4 . pap4 pap4 pap4 pap4 pap4 pbp4 pbp4 pbp4 pbp4 . . . .",
+  ". . . fp4 zp4 zp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 . fp4 g3_p4",
+  ". . . tbp4 . . . . . . . . . . fp4 . fp4 g3_p4",
+  ". . . fp4 . . . . . . . . . . fp4 r3_p4 fp4 g3_p4",
+  ". . . tap4 . . . . . . . . . . fp4 . fp4 g3_p4",
+  ". . . fp4 . . . . . . . . . . fp4 . fp4 g3_p4",
+  ". . . fp4 . pap4 pap4 pap4 pap4 pap4 pbp4 pbp4 pbp4 pbp4 fp4 . . .",
+  ". . . fp4 zp4 zp4 zp4 zp4 cp4 op4 fp4 fp4 fp4 fp4 fp4 . fp4 g2_p4",
+  ". . . tbp4 . . . . . . . . . . fp4 . fp4 g2_p4",
+  ". g4_p4 r4_p4 fp4 . . . . . . . . . . fp4 r2_p4 fp4 g2_p4",
+  ". . . tap4 . . . . . . . . . . fp4 . fp4 g2_p4",
+  ". . . fp4 . . . . . . . . . . fp4 . fp4 g2_p4",
+  ". . . fp4 . pap4 pap4 pap4 pap4 pap4 pbp4 pbp4 pbp4 pbp4 fp4 . . .",
+  ". . . fp4 zp4 zp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 fp4 . fp4 g1_p4",
+  ". . . tbp4 . . . . . . . . . . fp4 . fp4 g1_p4",
+  ". . . fp4 . . . . . . . . . . fp4 r1_p4 fp4 g1_p4",
+  ". . . tap4 . . . . . . . . . . fp4 . fp4 g1_p4",
+  ". . . fp4 . . . . . . . . . . fp4 . fp4 g1_p4",
+  ". . . dp3 . . . . . . . . . . . . . .",
+  ". . . fp3 . pap3 pap3 pap3 pap3 pap3 pbp3 pbp3 pbp3 pbp3 . . . .",
+  ". . . fp3 zp3 zp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 . fp3 g3_p3",
+  ". . . tbp3 . . . . . . . . . . fp3 . fp3 g3_p3",
+  ". . . fp3 . . . . . . . . . . fp3 r3_p3 fp3 g3_p3",
+  ". . . tap3 . . . . . . . . . . fp3 . fp3 g3_p3",
+  ". . . fp3 . . . . . . . . . . fp3 . fp3 g3_p3",
+  ". . . fp3 . pap3 pap3 pap3 pap3 pap3 pbp3 pbp3 pbp3 pbp3 fp3 . . .",
+  ". . . fp3 zp3 zp3 zp3 zp3 cp3 op3 fp3 fp3 fp3 fp3 fp3 . fp3 g2_p3",
+  ". . . tbp3 . . . . . . . . . . fp3 . fp3 g2_p3",
+  ". g4_p3 r4_p3 fp3 . . . . . . . . . . fp3 r2_p3 fp3 g2_p3",
+  ". . . tap3 . . . . . . . . . . fp3 . fp3 g2_p3",
+  ". . . fp3 . . . . . . . . . . fp3 . fp3 g2_p3",
+  ". . . fp3 . pap3 pap3 pap3 pap3 pap3 pbp3 pbp3 pbp3 pbp3 fp3 . . .",
+  ". . . fp3 zp3 zp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 fp3 . fp3 g1_p3",
+  ". . . tbp3 . . . . . . . . . . fp3 . fp3 g1_p3",
+  ". . . fp3 . . . . . . . . . . fp3 r1_p3 fp3 g1_p3",
+  ". . . tap3 . . . . . . . . . . fp3 . fp3 g1_p3",
+  ". . . fp3 . . . . . . . . . . fp3 . fp3 g1_p3",
+  ". . . dp2 . . . . . . . . . . . . . .",
+  ". . . fp2 . pap2 pap2 pap2 pap2 pap2 pbp2 pbp2 pbp2 pbp2 . . . .",
+  ". . . fp2 zp2 zp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 . fp2 g3_p2",
+  ". . . tbp2 . . . . . . . . . . fp2 . fp2 g3_p2",
+  ". . . fp2 . . . . . . . . . . fp2 r3_p2 fp2 g3_p2",
+  ". . . tap2 . . . . . . . . . . fp2 . fp2 g3_p2",
+  ". . . fp2 . . . . . . . . . . fp2 . fp2 g3_p2",
+  ". . . fp2 . pap2 pap2 pap2 pap2 pap2 pbp2 pbp2 pbp2 pbp2 fp2 . . .",
+  ". . . fp2 zp2 zp2 zp2 zp2 cp2 op2 fp2 fp2 fp2 fp2 fp2 . fp2 g2_p2",
+  ". . . tbp2 . . . . . . . . . . fp2 . fp2 g2_p2",
+  ". g4_p2 r4_p2 fp2 . . . . . . . . . . fp2 r2_p2 fp2 g2_p2",
+  ". . . tap2 . . . . . . . . . . fp2 . fp2 g2_p2",
+  ". . . fp2 . . . . . . . . . . fp2 . fp2 g2_p2",
+  ". . . fp2 . pap2 pap2 pap2 pap2 pap2 pbp2 pbp2 pbp2 pbp2 fp2 . . .",
+  ". . . fp2 zp2 zp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 fp2 . fp2 g1_p2",
+  ". . . tbp2 . . . . . . . . . . fp2 . fp2 g1_p2",
+  ". . . fp2 . . . . . . . . . . fp2 r1_p2 fp2 g1_p2",
+  ". . . tap2 . . . . . . . . . . fp2 . fp2 g1_p2",
+  ". . . fp2 . . . . . . . . . . fp2 . fp2 g1_p2",
+  ". . . dp1 . . . . . . . . . . . . . .",
+  ". . . fp1 . pap1 pap1 pap1 pap1 pap1 pbp1 pbp1 pbp1 pbp1 . . . .",
+  ". . . fp1 zp1 zp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 . fp1 g3_p1",
+  ". . . tbp1 . . . . . . . . . . fp1 . fp1 g3_p1",
+  ". . . fp1 . . . . . . . . . . fp1 r3_p1 fp1 g3_p1",
+  ". . . tap1 . . . . . . . . . . fp1 . fp1 g3_p1",
+  ". . . fp1 . . . . . . . . . . fp1 . fp1 g3_p1",
+  ". . . fp1 . pap1 pap1 pap1 pap1 pap1 pbp1 pbp1 pbp1 pbp1 fp1 . . .",
+  ". . . fp1 zp1 zp1 zp1 zp1 cp1 op1 fp1 fp1 fp1 fp1 fp1 . fp1 g2_p1",
+  ". . . tbp1 . . . . . . . . . . fp1 . fp1 g2_p1",
+  ". g4_p1 r4_p1 fp1 . . . . . . . . . . fp1 r2_p1 fp1 g2_p1",
+  ". . . tap1 . . . . . . . . . . fp1 . fp1 g2_p1",
+  ". . . fp1 . . . . . . . . . . fp1 . fp1 g2_p1",
+  ". . . fp1 . pap1 pap1 pap1 pap1 pap1 pbp1 pbp1 pbp1 pbp1 fp1 . . .",
+  ". . . fp1 zp1 zp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 fp1 . fp1 g1_p1",
+  ". . . tbp1 . . . . . . . . . . fp1 . fp1 g1_p1",
+  ". . . fp1 . . . . . . . . . . fp1 r1_p1 fp1 g1_p1",
+  ". . . tap1 . . . . . . . . . . fp1 . fp1 g1_p1",
+  ". . . fp1 . . . . . . . . . . fp1 . fp1 g1_p1",
+  ". . . d pa pa pa pa pa pa pb pb pb pb pb . . .",
+  ". g6_ r6_ f f f f f f f f f f f f f r5_ g5_",
+  ". . . tb . . pd pd pd pd pd pd pd . . tb . .",
+  ". . . ta pa pa pa pa pa pa pb pb pb pb pb ta . .",
+  ". . . f f f f f f f f f f f f f . .",
+  ". . . tb . . pd pd pd pd pd pd pd . . tb . .",
+  ". . . ta pa pa pa pa pa pa pb pb pb pb pb ta . .",
+  ". g4_ r4_ f f f f f f f f f f f f f r3_ g3_",
+  ". . . tb . . pd pd pd pd pd pd pd . . tb . .",
+  ". . . ta pa pa pa pa pa pa pb pb pb pb pb ta . .",
+  ". . . f f f f f f f f f f f f f . .",
+  ". . . tb z z z z f a f z z z f tb . .",
+  ". g2_ r2_ f z z z z a c a z z z o f r1_ g1_",
+  ". . . ta a a a a a a a a a a a ta . ."
  ],
  "legend": {
+  "f": {
+   "part": "frame",
+   "rot": 0
+  },
+  "a": {
+   "part": "armorplate",
+   "rot": 0
+  },
+  "z": {
+   "part": "densebattery",
+   "rot": 0
+  },
+  "c": {
+   "part": "core",
+   "rot": 0
+  },
+  "o": {
+   "part": "radar",
+   "rot": 0
+  },
+  "d": {
+   "part": "decoupler",
+   "rot": 0,
+   "tags": [
+    "link"
+   ]
+  },
+  "ta": {
+   "part": "thruster",
+   "rot": 270,
+   "tags": [
+    "ta"
+   ],
+   "auto": false
+  },
+  "tb": {
+   "part": "thruster",
+   "rot": 90,
+   "tags": [
+    "tb"
+   ],
+   "auto": false
+  },
+  "pd": {
+   "part": "propeller",
+   "rot": 180,
+   "tags": [
+    "pd"
+   ],
+   "auto": false
+  },
+  "pa": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "pa"
+   ],
+   "auto": false
+  },
+  "pb": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "pb"
+   ],
+   "auto": false
+  },
+  "r1_": {
+   "part": "rotator",
+   "rot": 270,
+   "tags": [
+    "t1.rot"
+   ],
+   "auto": false
+  },
+  "g1_": {
+   "part": "gun",
+   "rot": 270,
+   "tags": [
+    "t1.gun"
+   ]
+  },
+  "r2_": {
+   "part": "rotator",
+   "rot": 90,
+   "tags": [
+    "t2.rot"
+   ],
+   "auto": false
+  },
+  "g2_": {
+   "part": "gun",
+   "rot": 90,
+   "tags": [
+    "t2.gun"
+   ]
+  },
+  "r3_": {
+   "part": "rotator",
+   "rot": 270,
+   "tags": [
+    "t3.rot"
+   ],
+   "auto": false
+  },
+  "g3_": {
+   "part": "gun",
+   "rot": 270,
+   "tags": [
+    "t3.gun"
+   ]
+  },
+  "r4_": {
+   "part": "rotator",
+   "rot": 90,
+   "tags": [
+    "t4.rot"
+   ],
+   "auto": false
+  },
+  "g4_": {
+   "part": "gun",
+   "rot": 90,
+   "tags": [
+    "t4.gun"
+   ]
+  },
+  "r5_": {
+   "part": "rotator",
+   "rot": 270,
+   "tags": [
+    "t5.rot"
+   ],
+   "auto": false
+  },
+  "g5_": {
+   "part": "gun",
+   "rot": 270,
+   "tags": [
+    "t5.gun"
+   ]
+  },
+  "r6_": {
+   "part": "rotator",
+   "rot": 90,
+   "tags": [
+    "t6.rot"
+   ],
+   "auto": false
+  },
+  "g6_": {
+   "part": "gun",
+   "rot": 90,
+   "tags": [
+    "t6.gun"
+   ]
+  },
   "fp1": {
    "part": "frame",
    "rot": 0,
@@ -1267,110 +1393,6 @@
     "p7.t4.gun"
    ]
   },
-  "f": {
-   "part": "frame",
-   "rot": 0
-  },
-  "a": {
-   "part": "armorplate",
-   "rot": 0
-  },
-  "z": {
-   "part": "densebattery",
-   "rot": 0
-  },
-  "c": {
-   "part": "core",
-   "rot": 0
-  },
-  "o": {
-   "part": "radar",
-   "rot": 0
-  },
-  "d": {
-   "part": "decoupler",
-   "rot": 0,
-   "tags": [
-    "link"
-   ]
-  },
-  "ta": {
-   "part": "thruster",
-   "rot": 270,
-   "tags": [
-    "ta"
-   ],
-   "auto": false
-  },
-  "tb": {
-   "part": "thruster",
-   "rot": 90,
-   "tags": [
-    "tb"
-   ],
-   "auto": false
-  },
-  "pa": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "pa"
-   ],
-   "auto": false
-  },
-  "pb": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "pb"
-   ],
-   "auto": false
-  },
-  "r1_": {
-   "part": "rotator",
-   "rot": 270,
-   "tags": [
-    "t1.rot"
-   ],
-   "auto": false
-  },
-  "g1_": {
-   "part": "gun",
-   "rot": 270,
-   "tags": [
-    "t1.gun"
-   ]
-  },
-  "r2_": {
-   "part": "rotator",
-   "rot": 90,
-   "tags": [
-    "t2.rot"
-   ],
-   "auto": false
-  },
-  "g2_": {
-   "part": "gun",
-   "rot": 90,
-   "tags": [
-    "t2.gun"
-   ]
-  },
-  "r3_": {
-   "part": "rotator",
-   "rot": 180,
-   "tags": [
-    "t3.rot"
-   ],
-   "auto": false
-  },
-  "g3_": {
-   "part": "gun",
-   "rot": 180,
-   "tags": [
-    "t3.gun"
-   ]
-  },
   "fp8": {
    "part": "frame",
    "rot": 0,
@@ -1811,303 +1833,9 @@
     "p10",
     "p10.t4.gun"
    ]
-  },
-  "fp11": {
-   "part": "frame",
-   "rot": 0,
-   "tags": [
-    "p11"
-   ]
-  },
-  "ap11": {
-   "part": "armorplate",
-   "rot": 0,
-   "tags": [
-    "p11"
-   ]
-  },
-  "zp11": {
-   "part": "densebattery",
-   "rot": 0,
-   "tags": [
-    "p11"
-   ]
-  },
-  "cp11": {
-   "part": "core",
-   "rot": 0,
-   "tags": [
-    "p11"
-   ]
-  },
-  "op11": {
-   "part": "radar",
-   "rot": 0,
-   "tags": [
-    "p11"
-   ]
-  },
-  "dp11": {
-   "part": "decoupler",
-   "rot": 0,
-   "tags": [
-    "p11",
-    "p11.link"
-   ]
-  },
-  "tap11": {
-   "part": "thruster",
-   "rot": 270,
-   "tags": [
-    "p11",
-    "p11.ta"
-   ],
-   "auto": false
-  },
-  "tbp11": {
-   "part": "thruster",
-   "rot": 90,
-   "tags": [
-    "p11",
-    "p11.tb"
-   ],
-   "auto": false
-  },
-  "pap11": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "p11",
-    "p11.pa"
-   ],
-   "auto": false
-  },
-  "pbp11": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "p11",
-    "p11.pb"
-   ],
-   "auto": false
-  },
-  "r1_p11": {
-   "part": "rotator",
-   "rot": 270,
-   "tags": [
-    "p11",
-    "p11.t1.rot"
-   ],
-   "auto": false
-  },
-  "g1_p11": {
-   "part": "gun",
-   "rot": 270,
-   "tags": [
-    "p11",
-    "p11.t1.gun"
-   ]
-  },
-  "r2_p11": {
-   "part": "rotator",
-   "rot": 270,
-   "tags": [
-    "p11",
-    "p11.t2.rot"
-   ],
-   "auto": false
-  },
-  "g2_p11": {
-   "part": "gun",
-   "rot": 270,
-   "tags": [
-    "p11",
-    "p11.t2.gun"
-   ]
-  },
-  "r3_p11": {
-   "part": "rotator",
-   "rot": 270,
-   "tags": [
-    "p11",
-    "p11.t3.rot"
-   ],
-   "auto": false
-  },
-  "g3_p11": {
-   "part": "gun",
-   "rot": 270,
-   "tags": [
-    "p11",
-    "p11.t3.gun"
-   ]
-  },
-  "r4_p11": {
-   "part": "rotator",
-   "rot": 90,
-   "tags": [
-    "p11",
-    "p11.t4.rot"
-   ],
-   "auto": false
-  },
-  "g4_p11": {
-   "part": "gun",
-   "rot": 90,
-   "tags": [
-    "p11",
-    "p11.t4.gun"
-   ]
-  },
-  "fp12": {
-   "part": "frame",
-   "rot": 0,
-   "tags": [
-    "p12"
-   ]
-  },
-  "ap12": {
-   "part": "armorplate",
-   "rot": 0,
-   "tags": [
-    "p12"
-   ]
-  },
-  "zp12": {
-   "part": "densebattery",
-   "rot": 0,
-   "tags": [
-    "p12"
-   ]
-  },
-  "cp12": {
-   "part": "core",
-   "rot": 0,
-   "tags": [
-    "p12"
-   ]
-  },
-  "op12": {
-   "part": "radar",
-   "rot": 0,
-   "tags": [
-    "p12"
-   ]
-  },
-  "dp12": {
-   "part": "decoupler",
-   "rot": 0,
-   "tags": [
-    "p12",
-    "p12.link"
-   ]
-  },
-  "tap12": {
-   "part": "thruster",
-   "rot": 270,
-   "tags": [
-    "p12",
-    "p12.ta"
-   ],
-   "auto": false
-  },
-  "tbp12": {
-   "part": "thruster",
-   "rot": 90,
-   "tags": [
-    "p12",
-    "p12.tb"
-   ],
-   "auto": false
-  },
-  "pap12": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "p12",
-    "p12.pa"
-   ],
-   "auto": false
-  },
-  "pbp12": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "p12",
-    "p12.pb"
-   ],
-   "auto": false
-  },
-  "r1_p12": {
-   "part": "rotator",
-   "rot": 270,
-   "tags": [
-    "p12",
-    "p12.t1.rot"
-   ],
-   "auto": false
-  },
-  "g1_p12": {
-   "part": "gun",
-   "rot": 270,
-   "tags": [
-    "p12",
-    "p12.t1.gun"
-   ]
-  },
-  "r2_p12": {
-   "part": "rotator",
-   "rot": 270,
-   "tags": [
-    "p12",
-    "p12.t2.rot"
-   ],
-   "auto": false
-  },
-  "g2_p12": {
-   "part": "gun",
-   "rot": 270,
-   "tags": [
-    "p12",
-    "p12.t2.gun"
-   ]
-  },
-  "r3_p12": {
-   "part": "rotator",
-   "rot": 270,
-   "tags": [
-    "p12",
-    "p12.t3.rot"
-   ],
-   "auto": false
-  },
-  "g3_p12": {
-   "part": "gun",
-   "rot": 270,
-   "tags": [
-    "p12",
-    "p12.t3.gun"
-   ]
-  },
-  "r4_p12": {
-   "part": "rotator",
-   "rot": 90,
-   "tags": [
-    "p12",
-    "p12.t4.rot"
-   ],
-   "auto": false
-  },
-  "g4_p12": {
-   "part": "gun",
-   "rot": 90,
-   "tags": [
-    "p12",
-    "p12.t4.gun"
-   ]
   }
  },
- "primaryCore": "core@6,136",
+ "primaryCore": "core@9,1",
  "autoControls": false,
  "bindings": [],
  "scripts": [
@@ -2116,7 +1844,7 @@
    "params": {
     "role": 1,
     "slot": 0,
-    "count": 12
+    "count": 10
    },
    "source": {
     "file": "titan-palisade.keep.js"
@@ -2124,7 +1852,7 @@
   }
  ],
  "cores": {
-  "core@7,10": {
+  "core@8,24": {
    "scope": "p1",
    "scripts": [
     {
@@ -2132,7 +1860,7 @@
      "params": {
       "role": 0,
       "slot": 0,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2141,7 +1869,7 @@
     }
    ]
   },
-  "core@7,29": {
+  "core@8,43": {
    "scope": "p2",
    "scripts": [
     {
@@ -2149,7 +1877,7 @@
      "params": {
       "role": 0,
       "slot": 1,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2158,7 +1886,7 @@
     }
    ]
   },
-  "core@7,48": {
+  "core@8,62": {
    "scope": "p3",
    "scripts": [
     {
@@ -2166,7 +1894,7 @@
      "params": {
       "role": 0,
       "slot": 2,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2175,7 +1903,7 @@
     }
    ]
   },
-  "core@7,67": {
+  "core@8,81": {
    "scope": "p4",
    "scripts": [
     {
@@ -2183,7 +1911,7 @@
      "params": {
       "role": 0,
       "slot": 3,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2192,7 +1920,7 @@
     }
    ]
   },
-  "core@7,86": {
+  "core@8,100": {
    "scope": "p5",
    "scripts": [
     {
@@ -2200,7 +1928,7 @@
      "params": {
       "role": 0,
       "slot": 4,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2209,7 +1937,7 @@
     }
    ]
   },
-  "core@7,105": {
+  "core@8,119": {
    "scope": "p6",
    "scripts": [
     {
@@ -2217,7 +1945,7 @@
      "params": {
       "role": 0,
       "slot": 5,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2226,7 +1954,7 @@
     }
    ]
   },
-  "core@7,124": {
+  "core@8,138": {
    "scope": "p7",
    "scripts": [
     {
@@ -2234,7 +1962,7 @@
      "params": {
       "role": 0,
       "slot": 6,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2243,7 +1971,7 @@
     }
    ]
   },
-  "core@7,150": {
+  "core@8,157": {
    "scope": "p8",
    "scripts": [
     {
@@ -2251,7 +1979,7 @@
      "params": {
       "role": 0,
       "slot": 7,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2260,7 +1988,7 @@
     }
    ]
   },
-  "core@7,169": {
+  "core@8,176": {
    "scope": "p9",
    "scripts": [
     {
@@ -2268,7 +1996,7 @@
      "params": {
       "role": 0,
       "slot": 8,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
@@ -2277,7 +2005,7 @@
     }
    ]
   },
-  "core@7,188": {
+  "core@8,195": {
    "scope": "p10",
    "scripts": [
     {
@@ -2285,45 +2013,11 @@
      "params": {
       "role": 0,
       "slot": 9,
-      "count": 12,
+      "count": 10,
       "debug": 0
      },
      "source": {
       "file": "titan-palisade.p10.panel.js"
-     }
-    }
-   ]
-  },
-  "core@7,207": {
-   "scope": "p11",
-   "scripts": [
-    {
-     "id": "panel",
-     "params": {
-      "role": 0,
-      "slot": 10,
-      "count": 12,
-      "debug": 0
-     },
-     "source": {
-      "file": "titan-palisade.p11.panel.js"
-     }
-    }
-   ]
-  },
-  "core@7,226": {
-   "scope": "p12",
-   "scripts": [
-    {
-     "id": "panel",
-     "params": {
-      "role": 0,
-      "slot": 11,
-      "count": 12,
-      "debug": 0
-     },
-     "source": {
-      "file": "titan-palisade.p12.panel.js"
      }
     }
    ]

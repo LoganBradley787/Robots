@@ -120,8 +120,9 @@ function pick() {
   let best = null;
   let bestD = Infinity;
   for (const c of contacts) {
-    if (c.side !== 'enemy' || !c.core || c.mass < minMass) continue;
-    if (state.id !== undefined && c.id === state.id) return c;
+    if (c.side !== 'enemy' || !c.core) continue;
+    if (state.id !== undefined && c.id === state.id) return c; // titan-bastion: the named robot, whatever it weighs
+    if (c.mass < minMass) continue;
     const d = state.point ? Math.hypot(c.pos.x - state.point.x, c.pos.y - state.point.y) : c.distance;
     if (state.point && d > acquire) continue;
     if (d < bestD) {

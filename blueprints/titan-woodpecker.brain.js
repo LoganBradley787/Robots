@@ -1,18 +1,23 @@
-// Brain of titan-woodpecker: picks what the darts fly at, lets the rack go in one long stream, and then lets each bay's
-// dart go as it is built. It runs on the main core while the pod stands on the base, and again on the base's own core
-// once the pod has left (the same file).
-// - Target: the heaviest robot on the other side the radars track that has a live core; once picked it is kept while
-//   seen. Its point is its core (`contacts[].pos`), so every dart lands on the same spot, one after another, each
-//   blast digging where the last one stopped.
+// Brain of titan-woodpecker: picks what the darts fly at, casts the anchors, lets the rack go in one long stream, and
+// then lets each bay's dart go as it is built. It runs on the main core, deep in the keep, all match.
+// - Target: the other side's main robot when the radar tracks it (the two robots that start a match are 1 and 2),
+//   else the heaviest robot on the other side with a live core; once picked it is kept while seen. Its point is its
+//   core (`contacts[].pos`), so every dart lands on the same spot, one after another, each blast digging where the
+//   last one stopped. The darts keep following it by radio after they leave.
 // - Hidden target: with nothing tracked, darts fly to where it was last seen, or to the point across the arena from
 //   where this titan started (the other side starts at -x of it), each at another height, and arm near that point.
 // - Order: the rack's darts go nearest the enemy first, one every `gap` ticks, so no dart flies over one that is about
 //   to leave, and they arrive spaced out (a dart caught in the blast ahead of it would be wasted).
+// - Anchors: grapples in the floor, cast at the ground once the base rests. Each rope holds the base where it stands
+//   against a push toward the arena's edge. One that lost its rope is cast again.
 const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts leaving the rack
 const bayGap = param('bayGap', 4, { min: 1, max: 120 }); // ticks between two bays letting go
 const minMass = param('minMass', 120, { min: 0, max: 100000 }); // kg: lighter robots are not the titan
 const rescan = param('rescan', 180, { min: 30, max: 6000 }); // ticks between two looks at the target's size
 const memory = param('memory', 15, { min: 0, max: 240 }); // s a last sighting is flown at before the start point is
+const anchors = param('anchors', 0, { min: 0, max: 200 }); // how many anchors the floor holds (the generator sets it)
+const anchorAt = param('anchorAt', 40, { min: 2, max: 600 }); // tick of the first cast
+const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
 
 function setup() {
   state.mirrorX = -self.pos.x;
@@ -42,11 +47,14 @@ function setup() {
 
 function pick() {
   let best = null;
+  let kept = null;
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
-    if (c.id === state.tid) return c;
+    if (c.id <= 2) return c; // the other side's main robot
+    if (c.id === state.tid) kept = c;
     if (!best || c.mass > best.mass) best = c;
   }
+  if (kept) return kept;
   if (best && best.mass < minMass && state.last && time - state.last.at < memory) return null;
   return best;
 }
@@ -96,7 +104,20 @@ function message() {
   return { x: state.mirrorX, y, vx: 0, vy: 0, id: -1, l: 80, r: 80, d: 10, u: 10, blind: 1 };
 }
 
+// Cast every anchor that holds no rope: its `fire` goes to 0 on one tick and to 1 on the next (a cast needs a rise).
+function castAnchors() {
+  if (anchors < 1 || frame < anchorAt) return;
+  const beat = (frame - anchorAt) % recast;
+  if (beat > 1) return;
+  for (let i = 1; i <= anchors; i++) {
+    const tag = 'an' + i;
+    if (get(tag, 'hooked') > 0.5) continue;
+    set(tag, 'fire', beat);
+  }
+}
+
 function tick() {
+  castAnchors();
   if (state.grips.length === 0 && state.bays.length === 0) return;
   // The rack.
   if (state.next < state.grips.length && frame - state.lastFire >= gap && frame >= 2) {

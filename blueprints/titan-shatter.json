@@ -33,18 +33,6 @@
   ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
   ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
   ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
   ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    ."
  ],
  "legend": {
@@ -743,7 +731,7 @@
    ]
   }
  },
- "primaryCore": "core@19,33",
+ "primaryCore": "core@19,21",
  "bindings": [],
  "scripts": [
   {
@@ -758,7 +746,7 @@
   }
  ],
  "cores": {
-  "core@8,30": {
+  "core@8,18": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -773,7 +761,7 @@
     }
    ]
   },
-  "core@19,30": {
+  "core@19,18": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -788,7 +776,7 @@
     }
    ]
   },
-  "core@31,30": {
+  "core@31,18": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -803,7 +791,7 @@
     }
    ]
   },
-  "core@8,28": {
+  "core@8,16": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -818,7 +806,7 @@
     }
    ]
   },
-  "core@19,28": {
+  "core@19,16": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -833,7 +821,7 @@
     }
    ]
   },
-  "core@31,28": {
+  "core@31,16": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -848,7 +836,7 @@
     }
    ]
   },
-  "core@8,26": {
+  "core@8,14": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -863,7 +851,7 @@
     }
    ]
   },
-  "core@19,26": {
+  "core@19,14": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -878,7 +866,7 @@
     }
    ]
   },
-  "core@31,26": {
+  "core@31,14": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -893,7 +881,7 @@
     }
    ]
   },
-  "core@8,24": {
+  "core@8,12": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -908,7 +896,7 @@
     }
    ]
   },
-  "core@19,24": {
+  "core@19,12": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -923,7 +911,7 @@
     }
    ]
   },
-  "core@31,24": {
+  "core@31,12": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -938,7 +926,7 @@
     }
    ]
   },
-  "core@8,22": {
+  "core@8,10": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -953,7 +941,7 @@
     }
    ]
   },
-  "core@19,22": {
+  "core@19,10": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -968,7 +956,7 @@
     }
    ]
   },
-  "core@31,22": {
+  "core@31,10": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -983,7 +971,7 @@
     }
    ]
   },
-  "core@8,20": {
+  "core@8,8": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -998,7 +986,7 @@
     }
    ]
   },
-  "core@19,20": {
+  "core@19,8": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1013,7 +1001,7 @@
     }
    ]
   },
-  "core@31,20": {
+  "core@31,8": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1028,7 +1016,7 @@
     }
    ]
   },
-  "core@8,18": {
+  "core@8,6": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1043,7 +1031,7 @@
     }
    ]
   },
-  "core@19,18": {
+  "core@19,6": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1058,7 +1046,7 @@
     }
    ]
   },
-  "core@31,18": {
+  "core@31,6": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1073,7 +1061,7 @@
     }
    ]
   },
-  "core@8,16": {
+  "core@8,4": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1088,7 +1076,7 @@
     }
    ]
   },
-  "core@19,16": {
+  "core@19,4": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1103,7 +1091,7 @@
     }
    ]
   },
-  "core@31,16": {
+  "core@31,4": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1118,7 +1106,7 @@
     }
    ]
   },
-  "core@8,14": {
+  "core@8,2": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1133,7 +1121,7 @@
     }
    ]
   },
-  "core@19,14": {
+  "core@19,2": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1148,7 +1136,7 @@
     }
    ]
   },
-  "core@31,14": {
+  "core@31,2": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1163,7 +1151,7 @@
     }
    ]
   },
-  "core@8,12": {
+  "core@8,0": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1178,7 +1166,7 @@
     }
    ]
   },
-  "core@19,12": {
+  "core@19,0": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1193,7 +1181,7 @@
     }
    ]
   },
-  "core@31,12": {
+  "core@31,0": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1208,277 +1196,7 @@
     }
    ]
   },
-  "core@8,10": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 30
-     },
-     "source": {
-      "file": "titan-shatter.g30.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@19,10": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 31
-     },
-     "source": {
-      "file": "titan-shatter.g31.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@31,10": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 32
-     },
-     "source": {
-      "file": "titan-shatter.g32.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@8,8": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 33
-     },
-     "source": {
-      "file": "titan-shatter.g33.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@19,8": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 34
-     },
-     "source": {
-      "file": "titan-shatter.g34.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@31,8": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 35
-     },
-     "source": {
-      "file": "titan-shatter.g35.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@8,6": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 36
-     },
-     "source": {
-      "file": "titan-shatter.g36.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@19,6": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 37
-     },
-     "source": {
-      "file": "titan-shatter.g37.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@31,6": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 38
-     },
-     "source": {
-      "file": "titan-shatter.g38.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@8,4": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 39
-     },
-     "source": {
-      "file": "titan-shatter.g39.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@19,4": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 40
-     },
-     "source": {
-      "file": "titan-shatter.g40.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@31,4": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 41
-     },
-     "source": {
-      "file": "titan-shatter.g41.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@8,2": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 42
-     },
-     "source": {
-      "file": "titan-shatter.g42.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@19,2": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 43
-     },
-     "source": {
-      "file": "titan-shatter.g43.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@31,2": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 44
-     },
-     "source": {
-      "file": "titan-shatter.g44.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@8,0": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 45
-     },
-     "source": {
-      "file": "titan-shatter.g45.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@19,0": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 46
-     },
-     "source": {
-      "file": "titan-shatter.g46.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@31,0": {
-   "autoControls": false,
-   "bindings": [],
-   "scripts": [
-    {
-     "id": "pilot",
-     "params": {
-      "slot": 47
-     },
-     "source": {
-      "file": "titan-shatter.g47.pilot.js"
-     }
-    }
-   ]
-  },
-  "core@1,41": {
+  "core@1,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1501,7 +1219,7 @@
     }
    ]
   },
-  "core@3,41": {
+  "core@3,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1524,7 +1242,7 @@
     }
    ]
   },
-  "core@6,41": {
+  "core@6,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1547,7 +1265,7 @@
     }
    ]
   },
-  "core@8,41": {
+  "core@8,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1570,7 +1288,7 @@
     }
    ]
   },
-  "core@11,41": {
+  "core@11,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1593,7 +1311,7 @@
     }
    ]
   },
-  "core@13,41": {
+  "core@13,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1616,7 +1334,7 @@
     }
    ]
   },
-  "core@16,41": {
+  "core@16,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1639,7 +1357,7 @@
     }
    ]
   },
-  "core@18,41": {
+  "core@18,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1662,7 +1380,7 @@
     }
    ]
   },
-  "core@21,41": {
+  "core@21,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1685,7 +1403,7 @@
     }
    ]
   },
-  "core@23,41": {
+  "core@23,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1708,7 +1426,7 @@
     }
    ]
   },
-  "core@26,41": {
+  "core@26,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1731,7 +1449,7 @@
     }
    ]
   },
-  "core@28,41": {
+  "core@28,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1754,7 +1472,7 @@
     }
    ]
   },
-  "core@31,41": {
+  "core@31,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1777,7 +1495,7 @@
     }
    ]
   },
-  "core@33,41": {
+  "core@33,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1800,7 +1518,7 @@
     }
    ]
   },
-  "core@36,41": {
+  "core@36,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1823,7 +1541,7 @@
     }
    ]
   },
-  "core@38,41": {
+  "core@38,29": {
    "autoControls": false,
    "bindings": [],
    "scripts": [

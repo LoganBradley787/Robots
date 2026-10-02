@@ -2,22 +2,24 @@
  "format": 1,
  "name": "titan-hive",
  "grid": [
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . m1 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = = . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . m12 . . .",
-  ". . . q1 . l l l l l l l l l l l l l l l l l l l l l l l l l l l l = ba = = bb = = bc = = bd = = be = = bf = = bg = = bh = = bi = = bj = = bk = = bl = = bm = = bn = = bo = = bp = r r r r r r r r r r r r r r r r r r r r r r r r r r r r . q12 . . .",
-  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
-  "m13 q13 A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z A C A Z N Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A q14 m14",
-  ". . A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A A A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A . .",
-  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
-  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r F . .",
-  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r F . .",
-  ". . . . . . . . . . . . q2 . . . . . . . . . q3 . . . . . . . . . q4 . . . . . . . . . q5 . . . . . . . . . q6 . . . . . . . . . q7 . . . . . . . . . q8 . . . . . . . . . q9 . . . . . . . . . q10 . . . . . . . . . q11 . . . . . . . . . . .",
-  ". . . . . . . . . . . . m2 . . . . . . . . . m3 . . . . . . . . . m4 . . . . . . . . . m5 . . . . . . . . . m6 . . . . . . . . . m7 . . . . . . . . . m8 . . . . . . . . . m9 . . . . . . . . . m10 . . . . . . . . . m11 . . . . . . . . . . ."
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = . . . = . = . . . = . = . . . = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = . . . = ja = . . . = jb = . . . = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . m1 . . . . . . . . . . . . . . . . . . . m3 . . . = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = . . . m8 . . . . . . . . . . . . . . . . . . . m10 . . . . . .",
+  ". . . . . . q1 . . . . . . . . . . . . . . . . . . . q3 . . . = . . = = . . = = . . = = . . = = . . = F F F A A A A A A A A A F F F = . . = = . . = = . . = = . . = = . . = . . . q8 . . . . . . . . . . . . . . . . . . . q10 . . . . . .",
+  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = F F F A A A A A A A A A F F F = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
+  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l F = ba = = = bb = = = bc = = = bd = = = be = = F F F A A A A A A A A A F F F = bf = = = bg = = = bh = = = bi = = = bj = = F r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
+  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F A A A A A A A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
+  "m11 q11 A Z O Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z F F F A A A A C A A A A F F F Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z A q12 m12",
+  ". . A Z O Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z F F F A A A A A A A A A F F F Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z O Z A . .",
+  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F A A A A A A A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
+  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l F F F A A A A A A A A A F F F r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
+  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l F F F A A A A A A A A A F F F r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
+  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l F F F F F F F F F F F F F F F r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
+  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
+  ". . . . . . . . . . . . q2 . . . . . . . . . . . . . . q4 . . . . . . . . . . . . . . q5 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . q6 . . . . . . . . . . . . . . q7 . . . . . . . . . . . . . . q9 . . . . . . . . . . . .",
+  ". . . . . . . . . . . . m2 . . . . . . . . . . . . . . m4 . . . . . . . . . . . . . . m5 . . . . . . . . . . . . . . . . . . . . . . . . . . . . . m6 . . . . . . . . . . . . . . m7 . . . . . . . . . . . . . . m9 . . . . . . . . . . . ."
  ],
  "legend": {
   "l": {
@@ -70,7 +72,7 @@
   },
   "q3": {
    "part": "rotator",
-   "rot": 180,
+   "rot": 0,
    "tags": [
     "tur3",
     "tur3.rot"
@@ -79,7 +81,7 @@
   },
   "m3": {
    "part": "gun",
-   "rot": 180,
+   "rot": 0,
    "tags": [
     "tur3",
     "tur3.gun"
@@ -155,7 +157,7 @@
   },
   "q8": {
    "part": "rotator",
-   "rot": 180,
+   "rot": 0,
    "tags": [
     "tur8",
     "tur8.rot"
@@ -164,7 +166,7 @@
   },
   "m8": {
    "part": "gun",
-   "rot": 180,
+   "rot": 0,
    "tags": [
     "tur8",
     "tur8.gun"
@@ -189,7 +191,7 @@
   },
   "q10": {
    "part": "rotator",
-   "rot": 180,
+   "rot": 0,
    "tags": [
     "tur10",
     "tur10.rot"
@@ -198,44 +200,10 @@
   },
   "m10": {
    "part": "gun",
-   "rot": 180,
+   "rot": 0,
    "tags": [
     "tur10",
     "tur10.gun"
-   ]
-  },
-  "q11": {
-   "part": "rotator",
-   "rot": 180,
-   "tags": [
-    "tur11",
-    "tur11.rot"
-   ],
-   "auto": false
-  },
-  "m11": {
-   "part": "gun",
-   "rot": 180,
-   "tags": [
-    "tur11",
-    "tur11.gun"
-   ]
-  },
-  "q12": {
-   "part": "rotator",
-   "rot": 0,
-   "tags": [
-    "tur12",
-    "tur12.rot"
-   ],
-   "auto": false
-  },
-  "m12": {
-   "part": "gun",
-   "rot": 0,
-   "tags": [
-    "tur12",
-    "tur12.gun"
    ]
   },
   "ba": {
@@ -246,8 +214,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bb": {
@@ -258,8 +226,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bc": {
@@ -270,8 +238,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bd": {
@@ -282,8 +250,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "be": {
@@ -294,8 +262,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bf": {
@@ -306,8 +274,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bg": {
@@ -318,8 +286,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bh": {
@@ -330,8 +298,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bi": {
@@ -342,8 +310,8 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
   "bj": {
@@ -354,114 +322,66 @@
    ],
    "makes": "dart",
    "size": [
-    1,
-    7
+    2,
+    6
    ]
   },
-  "bk": {
+  "ja": {
    "part": "fabbay",
    "rot": 0,
    "tags": [
-    "bayK"
+    "jamA"
    ],
-   "makes": "dart",
+   "makes": "pod",
    "size": [
     1,
-    7
+    1
    ]
   },
-  "bl": {
+  "jb": {
    "part": "fabbay",
    "rot": 0,
    "tags": [
-    "bayL"
+    "jamB"
    ],
-   "makes": "dart",
+   "makes": "pod",
    "size": [
     1,
-    7
+    1
    ]
   },
-  "bm": {
-   "part": "fabbay",
-   "rot": 0,
-   "tags": [
-    "bayM"
-   ],
-   "makes": "dart",
-   "size": [
-    1,
-    7
-   ]
-  },
-  "bn": {
-   "part": "fabbay",
-   "rot": 0,
-   "tags": [
-    "bayN"
-   ],
-   "makes": "dart",
-   "size": [
-    1,
-    7
-   ]
-  },
-  "bo": {
-   "part": "fabbay",
-   "rot": 0,
-   "tags": [
-    "bayO"
-   ],
-   "makes": "dart",
-   "size": [
-    1,
-    7
-   ]
-  },
-  "bp": {
-   "part": "fabbay",
-   "rot": 0,
-   "tags": [
-    "bayP"
-   ],
-   "makes": "dart",
-   "size": [
-    1,
-    7
-   ]
-  },
-  "q13": {
+  "q11": {
    "part": "rotator",
    "rot": 90,
    "tags": [
-    "tur13",
-    "tur13.rot"
+    "tur11",
+    "tur11.rot"
    ],
    "auto": false
   },
-  "m13": {
+  "m11": {
    "part": "gun",
    "rot": 90,
    "tags": [
-    "tur13",
-    "tur13.gun"
+    "tur11",
+    "tur11.gun"
    ]
   },
-  "q14": {
+  "q12": {
    "part": "rotator",
    "rot": 270,
    "tags": [
-    "tur14",
-    "tur14.rot"
+    "tur12",
+    "tur12.rot"
    ],
    "auto": false
   },
-  "m14": {
+  "m12": {
    "part": "gun",
    "rot": 270,
    "tags": [
-    "tur14",
-    "tur14.gun"
+    "tur12",
+    "tur12.gun"
    ]
   }
  },
@@ -479,15 +399,17 @@
    "format": 1,
    "name": "titan-hive-dart",
    "grid": [
-    "S^",
-    "H",
-    "H",
-    "C",
-    "E",
-    "g",
-    "k"
+    "x .",
+    "H S^",
+    "C .",
+    "E .",
+    "g .",
+    "k ."
    ],
    "legend": {
+    "x": {
+     "part": "charge"
+    },
     "g": {
      "part": "heavygyro",
      "rot": 0,
@@ -507,16 +429,24 @@
       "height": 60,
       "arcSpeed": 60,
       "clear": 0.4,
-      "clearDist": 18,
+      "clearDist": 30,
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 13,
-      "acquire": 150
+      "acquire": 150,
+      "armDist": 260
      },
      "source": {
       "file": "titan-hive.dart.guide.js"
      }
     }
+   ]
+  },
+  "pod": {
+   "format": 1,
+   "name": "titan-hive-pod",
+   "grid": [
+    "J"
    ]
   }
  }

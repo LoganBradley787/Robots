@@ -56,7 +56,7 @@ function measure() {
 // Flies the piece toward (tx, ty) on its propellers: a wanted speed from how far off it is, a lean for the push
 // sideways, and the two propeller groups solved together for the lift and the turning it needs. The heavy gyro
 // gives what it can first.
-function fly(tx, ty, vmax, maxLean, vclimb) {
+function fly(tx, ty, vmax, maxLean, vclimb, brake) {
   if (!state.body || state.body.n !== parts.length) measure();
   const th = wrap(self.angle);
   const c = Math.cos(th);
@@ -71,11 +71,12 @@ function fly(tx, ty, vmax, maxLean, vclimb) {
   const ey = ty - self.pos.y;
   // The wanted speed falls off with the square root of the distance left, so it can stop in time at a gentle lean.
   // Far off its height it goes slower sideways: at speed a leaning body rides the air and will not sink.
-  const vside = vmax * clamp(1 - (Math.abs(ey) - 15) / 60, 0.3, 1);
-  const vdx = Math.sign(ex) * Math.min(vside, 0.5 * Math.abs(ex), Math.sqrt(5 * Math.abs(ex)));
+  const hard = brake || 2.5; // m/s2 it counts on to stop; a dash passes more
+  const vside = brake ? vmax : vmax * clamp(1 - (Math.abs(ey) - 15) / 60, 0.3, 1);
+  const vdx = Math.sign(ex) * Math.min(vside, 0.5 * Math.abs(ex), Math.sqrt(2 * hard * Math.abs(ex)));
   const vc = vclimb || 12;
   const vdy = clamp(Math.sign(ey) * Math.min(0.8 * Math.abs(ey), Math.sqrt(6 * Math.abs(ey))), -Math.max(10, vc), vc);
-  const ax = clamp(1.2 * (vdx - self.vel.x), -7, 7);
+  const ax = clamp(1.2 * (vdx - self.vel.x), brake ? -14 : -7, brake ? 14 : 7);
   const ay = clamp(2 * (vdy - self.vel.y), -5, 6);
   const want = clamp(Math.atan2(-ax, G + ay), -maxLean, maxLean);
   const lift = (na + nb) * LIFT;
@@ -102,7 +103,7 @@ function fly(tx, ty, vmax, maxLean, vclimb) {
 
 function newHide() {
   for (let i = 0; i < 6; i++) {
-    const x = state.sgn * (520 + 420 * random());
+    const x = state.sgn * (520 + 300 * random()); // short of the arena's end: what is bumped past it loses
     const y = 236 + 3 * random(); // over the reach of a gun sight on a tall roof, under the arena's ceiling of 250
     state.hide = { x: x, y: y };
     if (Math.hypot(x - self.pos.x, y - self.pos.y) > 150) return;
@@ -115,7 +116,7 @@ function setup() {
   state.guess = { x: -self.pos.x, y: 30 };
   state.root = null;
   state.rootId = 1e9;
-  state.hide = { x: state.sgn * (620 + 280 * random()), y: 236 + 3 * random() };
+  state.hide = { x: state.sgn * (560 + 260 * random()), y: 236 + 3 * random() };
   state.moved = time;
   // Each wave takes pairs spread evenly over the deck, so it stays balanced; within a wave the darts nearest the other
   // side go first, and the ones behind climb higher before they turn (their clearDist), so their paths do not cross.
@@ -184,7 +185,7 @@ function tick() {
   if (big) {
     state.evade = time;
     const away = self.pos.x >= big.pos.x ? 1 : -1;
-    state.hide = { x: clamp(self.pos.x + away * 150, -940, 940), y: big.pos.y > 120 ? 35 : 232 };
+    state.hide = { x: clamp(self.pos.x + away * 150, -820, 820), y: big.pos.y > 120 ? 35 : 232 };
   }
   fly(state.hide.x, clamp(state.hide.y, 20, 240), 30, 0.35, time - state.evade < 8 ? 25 : 12);
 }

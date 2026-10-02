@@ -6,8 +6,8 @@
 const thrust = param('thrust', 800, { min: 1, max: 100000 }); // N, both boosters
 const clear = param('clear', 14, { min: 0, max: 100 }); // m straight out of the bay before it turns
 const over = param('over', 22, { min: 0, max: 200 }); // m it stays above where it left while still over the hull
-const hull = param('hull', 125, { min: 0, max: 1000 }); // m sideways from where it left that count as over the hull
-const armAt = param('armAt', 55, { min: 0, max: 1000 }); // m from where it left before it arms
+const hull = param('hull', 190, { min: 0, max: 1000 }); // m sideways from where it left that count as over the hull
+const armAt = param('armAt', 20, { min: 0, max: 1000 }); // m from where it left before it arms
 const cloakAt = param('cloakAt', 45, { min: 31, max: 1000 }); // m from where it left before its pod may be lit (the hull's radars must stay outside its bubble)
 const cloak = param('cloak', 4.7, { min: 0, max: 5 }); // s of flight left when the pod is lit
 const cross = param('cross', 2.5, { min: 0, max: 20 }); // 1/s: how hard it kills speed across the line to the point
@@ -65,7 +65,7 @@ function tick() {
     let ty = py - self.pos.y;
     // Still over the hull: do not dive through it.
     const floor = state.ly + over;
-    if (Math.abs(self.pos.x - state.lx) < hull && py < floor && Math.abs(px - state.lx) > hull) ty = floor - self.pos.y;
+    if (Math.abs(self.pos.x - state.lx) < hull && py < floor) ty = floor - self.pos.y;
     const d = Math.max(1e-6, Math.hypot(tx, ty));
     tx /= d;
     ty /= d;

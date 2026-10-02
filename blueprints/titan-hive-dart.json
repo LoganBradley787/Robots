@@ -2,15 +2,17 @@
  "format": 1,
  "name": "titan-hive-dart",
  "grid": [
-  "S^",
-  "H",
-  "H",
-  "C",
-  "E",
-  "g",
-  "k"
+  "x .",
+  "H S^",
+  "C .",
+  "E .",
+  "g .",
+  "k ."
  ],
  "legend": {
+  "x": {
+   "part": "charge"
+  },
   "g": {
    "part": "heavygyro",
    "rot": 0,
@@ -30,11 +32,12 @@
     "height": 60,
     "arcSpeed": 60,
     "clear": 0.4,
-    "clearDist": 18,
+    "clearDist": 30,
     "thrust": 400,
     "gyroTorque": 200,
     "fuse": 13,
-    "acquire": 150
+    "acquire": 150,
+    "armDist": 260
    },
    "source": {
     "file": "titan-hive-dart.guide.js"

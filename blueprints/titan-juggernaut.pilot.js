@@ -1,44 +1,60 @@
-// Juggernaut pilot: the one script of the sled. It drives along the ground on two booster banks, picks the closing
-// speed of a ram from the two masses, backs off for another run, parks under what it cannot reach, and fires the
-// roof guns in groups. Enemies are picked by `side` only, and left and right come from where its own guns are, so it
-// works flipped.
+// Juggernaut pilot: the one script of the sled. It drives along the ground on two booster banks and fires the roof,
+// shelf and deck guns in groups. Enemies are picked by `side` only, and left and right come from where its own guns
+// are, so it works flipped.
 //
-// The ram: a hard hit changes each body's speed by closing * (the other's mass) / (both masses), and every part of a
-// body takes crash damage from that change (12 m/s is safe for most parts, 20 ends them; frames and plates 24).
-// A part's share of that depends on where it sits: 1.5 times on the side that was hit, half on the far side. So it
-// works out the change that ends the other's core where that core sits (from a scan), and closes that fast when its
-// own change stays under `frontKill` (nose first: its core, batteries and boosters sit in its tail) or `rearKill`
-// (tail first), once: after one hard hit of its own it only makes runs that cost it nothing much (`frontChip`,
-// `rearChip`).
+// What it does with the other titan's main robot (robot 1 or 2: the two that started the match):
+// - On the ground: it rams it and keeps pushing, nose first, until that robot is past the arena's edge (a main core
+//   past x 1000 has lost). A crash only breaks the first few meters, so the push is what ends it.
+// - Whenever it pushes hard and does not move (a roped base, a wreck in the way), it backs off and runs at it once.
+//   If that does not move it either, it stands back in the far corner for good: something pinned takes no crash
+//   damage, each run would only break its own nose, and what is roped cannot follow it out of radar range.
+// - In the air and light, or low: it drives its mast through it. The mast reaches the ceiling a main core may fly
+//   at, so nothing slower than the sled can stay out of its way, and what it hits is carried toward the edge.
+// - In the air, heavy and high: it parks under it and lets the guns work (the top of the mast is too light a hammer
+//   for that, and the knock would rock the sled).
+// - Not seen (hidden, jammed): it patrols the whole arena, corner to corner. Gun sights are not sensors, so nothing
+//   hides from them: when one reads that robot overhead, it comes back, parks the deck under it and fires there.
+//
+// The ram's speed: a hit changes each body's speed by closing * (the other's mass) / (both masses), and plates near
+// the contact break when their own body's change passes 24 m/s. So it never closes faster than keeps its own change
+// under `ownDv`.
 
-const top = param('top', 45, { min: 5, max: 80 }); // fastest it drives, m/s
-const frontKill = param('frontKill', 19.5, { min: 5, max: 30 }); // the most it takes itself for a run that ends the other's core, nose first
-const rearKill = param('rearKill', 15.5, { min: 5, max: 30 }); // and tail first
-const frontChip = param('frontChip', 14, { min: 5, max: 30 }); // the most it takes on any other run, nose first
-const rearChip = param('rearChip', 12, { min: 5, max: 30 }); // and tail first
-const margin = param('margin', 1.5, { min: 0, max: 10 }); // m/s over what ends a core
+const top = param('top', 55, { min: 5, max: 90 }); // fastest it drives at something, m/s
+const ownDv = param('ownDv', 22, { min: 5, max: 40 }); // the most speed change it takes in a ram, m/s
 const minMass = param('minMass', 40, { min: 0, max: 100000 }); // lighter robots are not followed (guns still fire at them)
 const mainMax = param('mainMax', 2, { min: 0, max: 1000 }); // robots numbered up to this started the match (0: go by mass only)
-const front = param('front', 91.5); // core to the nose's face, m (the generator sets these four)
-const back = param('back', 28.5);
-const roof = param('roof', 23.5); // core up to the gun muzzles
-const reach = param('reach', 46.5); // core up to the mast's top
-const push = param('push', 57600); // one bank's full push, N
-const bins = param('bins', 30); // roof gun groups, tags bin0, bin1, ...
-const bound = param('bound', 920, { min: 100, max: 990 }); // it never drives its core past this (the arena ends at 1000)
-const deck = param('deck', 86, { min: -500, max: 500 }); // core to the gun deck's middle, along the hull, m
+const swatMass = param('swatMass', 1500, { min: 0, max: 100000 }); // heavier than this and above the deck, it is not swept
+const front = param('front', 49.5); // core to the nose's face, m (the generator sets these nine)
+const back = param('back', 50.5);
+const roof = param('roof', 24.5); // core up to the roof guns' muzzles
+const deckTop = param('deckTop', 104.5); // core up to the deck guns' muzzles
+const reach = param('reach', 248.5); // core up to the spar's top
+const deck = param('deck', 39.5, { min: -500, max: 500 }); // core to the gun deck's middle, along the hull
+const mast = param('mast', 36.5, { min: -500, max: 500 }); // core to the mast, along the hull
+const ramTop = param('ramTop', 30, { min: 5, max: 90 }); // how fast it rams what blocks it, m/s
+const bins = param('bins', 30); // gun groups, tags bin0, bin1, ...
+const bound = param('bound', 955, { min: 100, max: 990 }); // it never drives its core past this (the arena ends at 1000)
 const blind = param('blind', 12, { min: 0, max: 100 }); // holding under a hidden robot, guns this near that place fire unseen, m
-const patrolTop = param('patrolTop', 36, { min: 1, max: 80 }); // how fast it patrols, m/s
-const wait = param('wait', 6, { min: 0, max: 60 }); // s parked with no sight of it before it patrols again
 const chase = param('chase', 58, { min: 5, max: 90 }); // fastest it follows something overhead, m/s
-const low = param('low', 0.12, { min: 0, max: 1 }); // under this share of its energy it stops driving
+const patrolTop = param('patrolTop', 38, { min: 1, max: 80 }); // how fast it patrols, m/s
+const wait = param('wait', 6, { min: 0, max: 60 }); // s parked with no sight of it before it patrols again
+const stall = param('stall', 2.5, { min: 0.5, max: 60 }); // s pushing without moving before it backs off for another run
+const park = param('park', 955, { min: 20, max: 990 }); // where it stands back to from what a run could not move: the far corner, m from the middle
+const tiltMax = param('tiltMax', 10, { min: 1, max: 90 }); // degrees: tilted more than this (riding up on something), it stops pushing
+const low = param('low', 0.1, { min: 0, max: 1 }); // under this share of its energy it stops driving
 
 let guns = []; // guns[b]: the live gun parts of group b
 
 function survey() {
   guns = [];
   for (let b = 0; b < bins; b++) guns.push([]);
+  let nf = 0, nr = 0;
   for (const p of parts) {
+    if (p.type === 'booster') {
+      if (p.tags[0] === 'fwd') nf++;
+      else if (p.tags[0] === 'rev') nr++;
+      continue;
+    }
     if (p.type !== 'gun') continue;
     for (const t of p.tags) {
       if (t.length > 3 && t.charCodeAt(0) === 98 && t.charCodeAt(1) === 105 && t.charCodeAt(2) === 110) {
@@ -48,6 +64,8 @@ function survey() {
       }
     }
   }
+  state.nf = nf; // boosters left in each bank
+  state.nr = nr;
   // Which way the nose points: the highest group left sits toward the nose, the lowest toward the tail.
   let lo = -1, hi = -1;
   for (let b = 0; b < bins; b++) {
@@ -59,25 +77,31 @@ function survey() {
 }
 
 function setup() {
-  state.dir = 1;
-  state.lastX = -self.pos.x; // the other side starts mirrored
+  state.dir = self.pos.x > 0 ? -1 : 1; // until the guns say: the nose faces the middle
+  state.side = self.pos.x > 0 ? -1 : 1; // the other side's half
+  state.restY = self.pos.y; // the core's height with the wheels on the ground
   state.tid = -1;
   state.scanAt = -1000;
   state.ext = { lx: -2, hx: 2, ly: -1, hy: 1 };
-  state.phase = 'charge';
   state.pressed = 0;
-  state.side = self.pos.x > 0 ? -1 : 1; // the other side's half
+  state.ram = 0; // 0 driving, 1 backing off from what blocks it, 2 running at it
+  state.ramX = 0;
+  state.ramDir = 1;
+  state.ramSince = 0;
+  state.fails = 0; // runs in a row that ended blocked at the same place
+  state.failX = 1e9;
+  state.parkX = null; // where it stands once it gives a blocker up
+  state.nf = 1;
+  state.nr = 1;
   state.leg = 0;
   state.holdX = null;
   state.holdSeen = -1000;
-  state.worn = 0; // hard hits it has taken
-  state.vx = 0;
-  state.cores = []; // the target's cores, x relative to its position
   state.said = '';
   survey();
 }
 
 function say(what) {
+  if ((state.ram !== 0 || state.parkX !== null) && what !== 'back off' && what !== 'run at it' && what !== 'stand back') return;
   if (state.said === what) return;
   state.said = what;
   log(what);
@@ -89,13 +113,13 @@ function tick() {
   const vx = self.vel.x;
   const M = self.mass;
   const dir = state.dir;
-  const a = (0.8 * push) / Math.max(M, 1); // what a bank gives, with some held back for drag
-  if (Math.abs(vx - state.vx) > 13) state.worn += 1;
-  state.vx = vx;
+  // What each bank gives now, with some held back for drag: boosters are counted, so a chewed bank is known.
+  const aR = Math.max((0.8 * 400 * (dir > 0 ? state.nf : state.nr)) / Math.max(M, 1), 0.05); // toward +x
+  const aL = Math.max((0.8 * 400 * (dir > 0 ? state.nr : state.nf)) / Math.max(M, 1), 0.05); // toward -x
+  const a = Math.min(aR, aL);
 
-  // The target: the enemy's first robot when it is seen (a robot keeps its number while its first core lives, and
-  // what breaks off or is built gets a higher one, so the lowest numbers are the two that started the match);
-  // otherwise the heaviest enemy with a live core, with a lean toward the one it already has.
+  // The target: the other titan's main robot when it is seen; otherwise the heaviest enemy with a live core, with
+  // a lean toward the one it already has.
   let T = null;
   let best = 0;
   for (const c of contacts) {
@@ -116,26 +140,19 @@ function tick() {
       const s = scan(T.id);
       if (s && s.length) {
         let lx = 1e9, hx = -1e9, ly = 1e9, hy = -1e9;
-        const cores = [];
         for (const p of s) {
           const x = p.pos.x, y = p.pos.y;
-          if (p.type === 'core' && cores.length < 40) cores.push(x - T.pos.x);
           if (x < lx) lx = x;
           if (x > hx) hx = x;
           if (y < ly) ly = y;
           if (y > hy) hy = y;
         }
-        state.cores = cores;
         state.ext = { lx: lx - T.pos.x - 0.5, hx: hx - T.pos.x + 0.5, ly: ly - T.pos.y - 0.5, hy: hy - T.pos.y + 0.5 };
-      } else if (T.id !== state.tid) {
-        state.ext = { lx: -2, hx: 2, ly: -1, hy: 1 };
-        state.cores = [];
-      }
-      if (T.id !== state.tid) state.phase = 'charge';
+      } else if (T.id !== state.tid) state.ext = { lx: -2, hx: 2, ly: -1, hy: 1 };
       state.scanAt = frame;
       state.tid = T.id;
     }
-    state.lastX = T.pos.x;
+    state.holdX = null;
   }
 
   const nose = me.x + dir * front;
@@ -146,7 +163,7 @@ function tick() {
   const roofY = me.y + roof;
 
   let vdes = 0;
-  let overhead = null; // [left, right] in world x of what the roof guns should reach, already led
+  let overhead = null; // [left, right] in world x of what the guns should reach, already led
   let held = null; // the x it holds under with nothing seen
   if (T) {
     const e = state.ext;
@@ -155,44 +172,20 @@ function tick() {
     const tlo = T.pos.y + e.ly;
     const tmid = (tl + tr) / 2;
     const tvx = T.vel.x;
-    if (tlo < me.y + reach - 1) {
-      // Something it can touch: ram it.
+    const m = Math.max(T.mass, 1);
+    const vc = Math.min(top, (ownDv * (M + m)) / m);
+    if (tlo < roofY - 2) {
+      // Level with the hull: ram it and push it out of the arena.
       const s = tmid >= mid ? 1 : -1;
-      const gap = s > 0 ? tl - myR : myL - tr;
-      const m = Math.max(T.mass, 1);
-      // The other's core that a hit from this side reaches least (the far side counts half, the near side 1.5).
-      let w = 1;
-      if (state.cores.length) {
-        const c = (e.lx + e.hx) / 2;
-        const half = Math.max((e.hx - e.lx) / 2, 0.5);
-        w = 1.5;
-        for (const x of state.cores) w = Math.min(w, 1 + 0.5 * clamp((-s * (x - c)) / half, -1, 1));
-      }
-      const end = 12 + 8 / Math.sqrt(w) + margin; // the change that ends that core
-      const cost = (end * m) / M; // what giving it costs this robot
-      const noseFirst = s * dir > 0;
-      let own = noseFirst ? frontChip : rearChip;
-      if (state.worn < 1 && cost <= (noseFirst ? frontKill : rearKill)) own = Math.max(own, cost);
-      const vc = Math.min(top, (own * (M + m)) / m);
-      const closing = s * (vx - tvx);
-      const need = (vc * vc) / (2 * a) + 20;
-      if (state.phase === 'charge') {
-        vdes = tvx + s * vc;
-        if (gap < 3 && closing < 0.5 * vc) state.pressed += dt;
-        else state.pressed = 0;
-        if (state.pressed > 0.4) {
-          state.phase = 'backoff';
-          state.pressed = 0;
-        }
-        say('charge ' + Math.round(vc) + ' m/s at robot ' + T.id);
-      } else {
-        vdes = tvx - s * top;
-        const edge = s > 0 ? me.x < -bound + 60 : me.x > bound - 60;
-        if (gap >= need || edge) state.phase = 'charge';
-        say('back off from robot ' + T.id);
-      }
+      vdes = tvx + s * vc;
+      say('push robot ' + T.id);
+    } else if (tlo < me.y + reach - 1 && (m <= swatMass || tlo < me.y + deckTop)) {
+      // In the air and within the mast's height: drive the mast through it, and on, toward the edge.
+      const s = tmid >= me.x + dir * mast ? 1 : -1;
+      vdes = tvx + s * vc;
+      say('sweep robot ' + T.id);
     } else {
-      // Too high to touch: sit under its middle and let the roof guns work.
+      // Too high and heavy to sweep: sit under its middle and let the guns work.
       const err = tmid - mid;
       vdes = clamp(tvx + sign(err) * Math.min(top, Math.sqrt(2 * 0.6 * a * Math.abs(err))), -chase, chase);
       say('under robot ' + T.id);
@@ -202,9 +195,8 @@ function tick() {
       overhead = [tl - 1 + lead, tr + 1 + lead];
     }
   } else {
-    // Nothing seen (hidden, jammed, or gone): patrol the other side's half, from the middle to its far corner and
-    // back, straight through where it started. Gun sights are not sensors, so nothing hides from them: when one
-    // reads the enemy's first robot overhead, it comes back, parks the deck under that place and fires there.
+    // Nothing seen: patrol corner to corner, straight through where the other side started, and hold under what a
+    // gun sight reads.
     state.tid = -1;
     const deckX = me.x + dir * deck;
     let seenAt = null;
@@ -224,37 +216,75 @@ function tick() {
     }
     let err;
     if (state.holdX !== null) {
-      err = state.holdX - deckX;
+      err = clamp(state.holdX - dir * deck, -bound, bound) - me.x;
       held = state.holdX;
       const quiet = time - state.holdSeen;
       if ((Math.abs(err) < 8 && quiet > wait) || quiet > 45) state.holdX = null;
-      say('hold under x ' + Math.round(state.holdX === null ? 0 : state.holdX));
+      say('hold under x ' + Math.round(held));
     } else {
-      const far = state.side * 985;
-      const near = -state.side * 100;
-      const goal = state.leg === 0 ? far : near;
-      err = goal - deckX;
-      const stuck = state.leg === 0 && state.side * me.x > bound - 12;
-      if (Math.abs(err) < 12 || stuck) state.leg = 1 - state.leg;
+      const goal = (state.leg === 0 ? state.side : -state.side) * bound;
+      err = goal - me.x;
+      if (Math.abs(err) < 15) state.leg = 1 - state.leg;
       say('patrol leg ' + state.leg);
     }
     vdes = sign(err) * Math.min(patrolTop, Math.sqrt(2 * 0.6 * a * Math.abs(err)));
   }
 
-  // Stay inside the arena: never faster toward an edge than it can stop from.
-  vdes = Math.min(vdes, Math.sqrt(2 * 0.7 * a * Math.max(0, bound - me.x)));
-  vdes = Math.max(vdes, -Math.sqrt(2 * 0.7 * a * Math.max(0, bound + me.x)));
+  // Blocked (pushing hard and not moving: a roped wreck, something heavy): back off and run at it, again and again.
+  // A crash breaks what is near the contact, so each run chews further in.
+  if (state.parkX !== null) {
+    // A push and a run did not move it (roped to the ground): ramming again only breaks its own nose, and parked
+    // beside it, its guided copies tunnel to the core in under two minutes. What is roped cannot follow, and a radar
+    // sees 1000 m: stand back in the far corner, out of its sight, and let the guns keep the sky.
+    const off = state.parkX - me.x;
+    vdes = sign(off) * Math.min(patrolTop, Math.sqrt(2 * 0.6 * a * Math.abs(off)));
+    state.ram = 0;
+    state.pressed = 0;
+    say('stand back');
+  } else if (state.ram === 1) {
+    vdes = -state.ramDir * top;
+    if (Math.abs(me.x - state.ramX) >= (ramTop * ramTop) / (2 * a) + 20 || time - state.ramSince > 14) state.ram = 2;
+    say('back off');
+  } else if (state.ram === 2) {
+    vdes = state.ramDir * ramTop;
+    if ((me.x - state.ramX) * state.ramDir > -8) state.ram = 0;
+    say('run at it');
+  }
+
+  // Stay inside the arena: never faster toward an edge than the bank that brakes that way can stop it from.
+  vdes = Math.min(vdes, Math.sqrt(2 * 0.6 * aL * Math.max(0, bound - me.x)));
+  vdes = Math.max(vdes, -Math.sqrt(2 * 0.6 * aR * Math.max(0, bound + me.x)));
   if (self.energy.stored < low * self.energy.capacity) vdes = 0;
 
+  if (state.ram === 0) {
+    if (Math.abs(vdes) > 5 && Math.abs(vx) < 1.5) state.pressed += dt;
+    else state.pressed = 0;
+    if (state.pressed > stall && state.parkX === null) {
+      state.pressed = 0;
+      state.ramDir = sign(vdes);
+      if (Math.abs(me.x - state.failX) < 40) state.fails += 1;
+      else state.fails = 1;
+      state.failX = me.x;
+      if (state.fails >= 2) state.parkX = -state.ramDir * park;
+      else {
+        state.ram = 1;
+        state.ramX = me.x;
+        state.ramSince = time;
+      }
+    }
+  }
+
   const err = vdes - vx;
-  const u = Math.abs(err) < 0.25 ? 0 : clamp(err / 1.5, -1, 1);
+  // Tilted or off the ground, a bank's push lifts it: coast until it is level again.
+  const level = Math.abs(self.angle) < (tiltMax * Math.PI) / 180 && me.y < state.restY + 6;
+  const u = !level || Math.abs(err) < 0.25 ? 0 : clamp(err / 1.5, -1, 1);
   const right = dir > 0 ? 'fwd' : 'rev'; // the bank that pushes toward +x
   const left = dir > 0 ? 'rev' : 'fwd';
   set(right, 'throttle', Math.max(u, 0));
   set(left, 'throttle', Math.max(-u, 0));
 
-  // Roof and deck guns, a group at a time: on when one of its sights reads an enemy, when the target is over it,
-  // or when it holds under a hidden robot and the group is near that place.
+  // Guns, a group at a time: on when one of its sights reads an enemy, when the target is over it, or when it
+  // holds under a hidden robot and the group is near that place.
   for (let b = 0; b < bins; b++) {
     const g = guns[b];
     if (!g || !g.length) continue;

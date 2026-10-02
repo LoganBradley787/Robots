@@ -4,7 +4,7 @@
 // or at something small and close that is coming for it. With the main robot hidden it uses the last place it saw it,
 // or the mirror of its own start. The radar is on one tick in 'look', to keep the tick short.
 const slot = param('slot', 0, { min: 0, max: 999 });
-const look = param('look', 6, { min: 2, max: 60 }); // ticks between radar looks
+const look = param('look', 10, { min: 2, max: 60 }); // ticks between radar looks
 const reach = param('reach', 285, { min: 10, max: 300 }); // m, how far the guns blast
 const speed = param('speed', 30, { min: 1, max: 80 }); // m/s, its fastest sideways
 const lean = param('lean', 0.5, { min: 0.05, max: 1.2 }); // rad, its most lean
@@ -56,7 +56,7 @@ function measure() {
 // Flies the piece toward (tx, ty) on its propellers: a wanted speed from how far off it is, a lean for the push
 // sideways, and the two propeller groups solved together for the lift and the turning it needs. The heavy gyro
 // gives what it can first.
-function fly(tx, ty, vmax, maxLean, vclimb) {
+function fly(tx, ty, vmax, maxLean, vclimb, brake) {
   if (!state.body || state.body.n !== parts.length) measure();
   const th = wrap(self.angle);
   const c = Math.cos(th);
@@ -71,11 +71,12 @@ function fly(tx, ty, vmax, maxLean, vclimb) {
   const ey = ty - self.pos.y;
   // The wanted speed falls off with the square root of the distance left, so it can stop in time at a gentle lean.
   // Far off its height it goes slower sideways: at speed a leaning body rides the air and will not sink.
-  const vside = vmax * clamp(1 - (Math.abs(ey) - 15) / 60, 0.3, 1);
-  const vdx = Math.sign(ex) * Math.min(vside, 0.5 * Math.abs(ex), Math.sqrt(5 * Math.abs(ex)));
+  const hard = brake || 2.5; // m/s2 it counts on to stop; a dash passes more
+  const vside = brake ? vmax : vmax * clamp(1 - (Math.abs(ey) - 15) / 60, 0.3, 1);
+  const vdx = Math.sign(ex) * Math.min(vside, 0.5 * Math.abs(ex), Math.sqrt(2 * hard * Math.abs(ex)));
   const vc = vclimb || 12;
   const vdy = clamp(Math.sign(ey) * Math.min(0.8 * Math.abs(ey), Math.sqrt(6 * Math.abs(ey))), -Math.max(10, vc), vc);
-  const ax = clamp(1.2 * (vdx - self.vel.x), -7, 7);
+  const ax = clamp(1.2 * (vdx - self.vel.x), brake ? -14 : -7, brake ? 14 : 7);
   const ay = clamp(2 * (vdy - self.vel.y), -5, 6);
   const want = clamp(Math.atan2(-ax, G + ay), -maxLean, maxLean);
   const lift = (na + nb) * LIFT;
