@@ -86,6 +86,11 @@ export interface ScriptMark {
 export interface ScriptServices {
   /** A seen robot's parts, or null when it is not seen this tick. */
   scan(id: number): ScannedPart[] | null;
+  /**
+   * The same answer as JSON text (`JSON.stringify(scan(id))`), for a host that hands its script text: the world makes
+   * it once per robot per tick, however many scripts scan that robot. Optional; a host falls back to `scan`.
+   */
+  scanJson?(id: number): string;
   /** Queues `json` for an attached core named `to` (its scope or its part id). False when there is no such core. */
   send(to: string, json: string): boolean;
 }

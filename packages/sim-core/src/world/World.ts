@@ -11,7 +11,7 @@ import { drainContainers, fillContainers, grantFactor, poolTotals, type Containe
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
-import { extrasJson, HEADER, layoutJson, numberCount, put, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
+import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
@@ -112,6 +112,41 @@ function footprintPoses(origin: { x: number; y: number; angle: number }, part: P
   });
 }
 
+/** A box around a body's part cells, in the body's own frame (meters from its origin cell). */
+interface HullBox {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+/** See `World.hull`. */
+interface Hull {
+  standIns: boolean;
+  /** By body group index; undefined for a group with no parts. */
+  boxes: (HullBox | undefined)[];
+  body: (group: number) => BodyPose;
+}
+
+/** Added to a charge's radius for the box check only, so rounding can never hide a cell the exact check would find. */
+const CHARGE_SLACK = 0.01;
+
+function growBox(box: HullBox, x: number, y: number): void {
+  if (x < box.minX) box.minX = x;
+  if (x > box.maxX) box.maxX = x;
+  if (y < box.minY) box.minY = y;
+  if (y > box.maxY) box.maxY = y;
+}
+
+/** Whether the point is inside the box grown by `reach` on every side. Outside it, no cell in the box is within `reach` of the point. */
+function nearBox(box: HullBox, body: BodyPose, at: { x: number; y: number }, reach: number): boolean {
+  const dx = at.x - body.s.x;
+  const dy = at.y - body.s.y;
+  const lx = body.c * dx + body.n * dy;
+  const ly = body.c * dy - body.n * dx;
+  return lx >= box.minX - reach && lx <= box.maxX + reach && ly >= box.minY - reach && ly <= box.maxY + reach;
+}
+
 /** A burning decoy as a sensor sees it (M11): where it is, which piece holds it, and how it moves. */
 const NO_DECOYS: readonly SeenDecoy[] = [];
 
@@ -170,6 +205,11 @@ export interface WorldOptions {
    * (`assembly/rebuild.ts`). The outcome must be the same either way; a test runs both and compares.
    */
   fullRebuild?: boolean;
+  /**
+   * Tests only: a changed robot's scripts are handed its whole parts layout again, never a patch on the one they hold
+   * (`script/frame.ts`, `layoutPatch`). What a script sees must be the same either way; a test runs both and compares.
+   */
+  fullLayouts?: boolean;
 }
 
 /** A body's state with the cosine and sine of its angle, read once per tick for all its parts. */
@@ -179,16 +219,82 @@ interface BodyPose {
   n: number;
 }
 
+/** No names: shared by every part with no values present. Never written to. */
+const NO_NAMES: string[] = [];
+
+/** How far ahead a part is looked for in the last layout when a new one is built. */
+const FEED_LOOK = 64;
+
 /** A robot's script layout (M9, `script/frame.ts`), kept until the robot changes. */
 interface ScriptFeed {
   /** `Robot.version` and the core the scripts run on. */
   key: string;
   /** The chunk the scripts see (the core's), and the robot's mass: both fixed until the robot is rebuilt. */
   chunk: number;
+  /** The scope the core's controls see tags through (`scopedView`), if any. */
+  scope: string | undefined;
   mass: number;
   layout: ScriptLayout;
+  /** The layout's entries, kept so the next layout can be handed over as a patch on this one. */
+  rows: LayoutPart[];
+  /** The chunk's energy container parts, in part order: its pool is added up from these, not by walking every part. */
+  pool: PartInstance[];
   parts: { id: string; part: PartInstance; in: readonly string[]; out: readonly string[] }[];
   numbers: Float64Array;
+}
+
+/** Where a robot is for sensors, whoever looks (`World.reference`). */
+interface Reference {
+  core: boolean;
+  pos: { x: number; y: number };
+  vel: { x: number; y: number };
+  center: { x: number; y: number };
+  mass: number;
+}
+
+/** A working radio part in world space (Batch). */
+interface RadioPose {
+  x: number;
+  y: number;
+  range: number;
+}
+
+/** What a robot's own sensors see: whether any works, its contacts nearest first, and those seen at a decoy. */
+interface OwnSight {
+  sensors: boolean;
+  contacts: ScriptContact[];
+  fooled?: Map<number, SeenDecoy>;
+}
+
+/**
+ * What the sensor pass works out about a robot whoever is looking, kept while one tick's scripts run so every viewer,
+ * every radio listener, and every script scanning it pays once. Nothing in it changes while scripts run: they only
+ * write channel values and messages. Derived, never hashed; outside `shareSight` there is none and every question is
+ * answered afresh.
+ */
+interface SightPass {
+  refs: Map<Robot, Reference>;
+  sensors: Map<Robot, SensorPose[]>;
+  radios: Map<Robot, RadioPose[]>;
+  own: Map<Robot, OwnSight>;
+  /** Each robot's parts as `scan()` lists them, and the same as JSON text once a script asked for it. */
+  scans: Map<Robot, ScannedPart[]>;
+  scanTexts: Map<ScannedPart[], string>;
+  /** The JSON text of each contact up to its distance (`contactHead`), and per seen robot the part every viewer shares. */
+  heads: Map<ScriptContact, string>;
+  middles: Map<Robot, string>;
+  /** Per team, what its radio robots have to tell (`World.teamReports`). */
+  reports: Map<number, Map<number, Report[]>>;
+}
+
+/** One teammate's report of a robot it sees itself, for the radio. */
+interface Report {
+  friend: Robot;
+  /** The friend's place among the robots, and the contact's place in its list: the order a plain walk meets them. */
+  order: number;
+  index: number;
+  contact: ScriptContact;
+  decoy: SeenDecoy | undefined;
 }
 
 export class World {
@@ -215,6 +321,7 @@ export class World {
   private readonly scriptHost: ScriptHost | undefined;
   private readonly scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
   private readonly fullRebuild: boolean;
+  private readonly fullLayouts: boolean;
   private readonly feeds = new WeakMap<Robot, ScriptFeed>();
   /** Every robot in `robots`, by id (M9: lookups on every tick without scanning the list). */
   private readonly byId = new Map<number, Robot>();
@@ -311,8 +418,10 @@ export class World {
   private decoyCache: { tick: number; view: { of: Map<number, SeenDecoy[]>; pieces: Set<number> } | undefined } | undefined;
   /** Contacts each robot's sensors saw at a decoy when its scripts last ran, for `scan()` (M11). Derived, not hashed. */
   private readonly seenDecoys = new Map<number, Map<number, SeenDecoy>>();
-  /** Robots each robot's sensors saw when its scripts last ran, for `scan()` (M8). Derived, not hashed. */
-  private readonly seen = new Map<number, Set<number>>();
+  /** Robots each robot's sensors saw when its scripts last ran (its own contacts), for `scan()` (M8). Derived, not hashed. */
+  private readonly seen = new Map<number, readonly ScriptContact[]>();
+  /** The sensor pass's shared answers while this tick's scripts run (`shareSight`); undefined at any other time. */
+  private pass: SightPass | undefined;
   /** The marks each robot's scripts made when they last ran, by script (M8). For the overlay and reports; not hashed. */
   private readonly scriptMarks = new Map<number, { script: string; marks: ScriptMark[] }[]>();
 
@@ -323,6 +432,7 @@ export class World {
     this.scriptHost = opts.scripts;
     if (opts.scriptProbe) this.scriptProbe = opts.scriptProbe;
     this.fullRebuild = opts.fullRebuild === true;
+    this.fullLayouts = opts.fullLayouts === true;
     this.rng = new Prng(opts.seed);
     this.gravityY = opts.gravityY ?? -9.81;
     this.physics = new PhysicsWorld(this.gravityY, this.dt);
@@ -745,6 +855,9 @@ export class World {
       }
     }
     if (!charges) return;
+    // What each robot is to a charge, worked out once on first use however many charges ask.
+    const hulls = new Map<Robot, Hull>();
+    const nearBody: boolean[] = [];
     for (const { robot, part } of charges) {
       const radius = part.def.charge?.radius ?? 0;
       const at = partWorldPose(this, robot, part.id);
@@ -752,12 +865,29 @@ export class World {
       const near = (): boolean => {
         for (const other of this.robots) {
           if (other === robot) continue;
+          let hull = hulls.get(other);
+          if (!hull) {
+            hull = this.hull(other);
+            hulls.set(other, hull);
+          }
+          // Nothing of it can count: its own parts are a friend's or nobody's, and it carries no flare standing in for another robot.
+          if (!hull.standIns && (other.team === robot.team || !this.controllers.has(other.id))) continue;
+          // Only the bodies whose box (around their parts' cells) comes within the radius can have a cell in range.
+          let any = false;
+          for (let g = 0; g < hull.boxes.length; g++) {
+            const box = hull.boxes[g];
+            const close = box !== undefined && nearBox(box, hull.body(g), at, radius + CHARGE_SLACK);
+            nearBody[g] = close;
+            any ||= close;
+          }
+          if (!any) continue;
           for (const p of other.parts.values()) {
-            if (!other.groups[p.group]) continue;
+            if (!other.groups[p.group] || nearBody[p.group] !== true) continue;
             const decoy = (p.burn ?? 0) > 0 && p.decoyOf !== undefined && p.decoyOf !== other.id ? this.byId.get(p.decoyOf) : undefined;
             const seen = decoy ?? other;
             if (seen === robot || seen.team === robot.team || !this.controllers.has(seen.id)) continue;
-            const pose = partWorldPose(this, other, p.id);
+            const b = hull.body(p.group);
+            const pose = { x: b.s.x + b.c * p.localX - b.n * p.localY, y: b.s.y + b.n * p.localX + b.c * p.localY, angle: b.s.angle };
             const cells = (p.footprint ?? p.def.footprint).length === 1 ? [pose] : footprintPoses(pose, p);
             if (cells.some((c) => (c.x - at.x) ** 2 + (c.y - at.y) ** 2 <= sq)) return true;
           }
@@ -768,6 +898,45 @@ export class World {
       part.fired = true;
       part.health = 0;
     }
+  }
+
+  /**
+   * A robot as the charge check sees it: per body, the box around its parts' cells in the body's own frame (so a
+   * charge far from every box skips the robot without looking at a part), each body's state read once, and whether
+   * any of its parts is a burning flare standing in for another robot.
+   */
+  private hull(robot: Robot): Hull {
+    const boxes: (HullBox | undefined)[] = [];
+    let standIns = false;
+    for (const p of robot.parts.values()) {
+      if ((p.burn ?? 0) > 0 && p.decoyOf !== undefined && p.decoyOf !== robot.id) standIns = true;
+      if (!robot.groups[p.group]) continue;
+      let box = boxes[p.group];
+      if (!box) {
+        box = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+        boxes[p.group] = box;
+      }
+      const cells = p.footprint ?? p.def.footprint;
+      if (cells.length === 1) {
+        growBox(box, p.localX, p.localY);
+      } else {
+        for (const fc of cells) {
+          const o = rotateCell(fc, p.rot);
+          growBox(box, p.localX + o.x, p.localY + o.y);
+        }
+      }
+    }
+    const bodies: (BodyPose | undefined)[] = [];
+    const body = (group: number): BodyPose => {
+      let b = bodies[group];
+      if (!b) {
+        const s = this.physics.state(robot.groups[group]?.bodyId ?? 0);
+        b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+        bodies[group] = b;
+      }
+      return b;
+    };
+    return { standIns, boxes, body };
   }
 
   /** Removes every part at 0 health (robots in order, parts in blueprint order) and queues its blast if it has one. */
@@ -1335,12 +1504,30 @@ export class World {
    * channel values, and write the script layer. A crash disables only that script; the world keeps stepping.
    */
   private runScripts(): void {
+    this.shareSight(() => this.runEveryScript());
+  }
+
+  /**
+   * Runs `read` with the sensor pass's answers shared between everything it asks (as they are while scripts run), for
+   * a caller that asks `sensorView` of many robots between two steps (the CLI's trace). `read` must not change the world.
+   */
+  shareSight<T>(read: () => T): T {
+    if (this.pass) return read();
+    this.pass = { refs: new Map(), sensors: new Map(), radios: new Map(), own: new Map(), scans: new Map(), scanTexts: new Map(), heads: new Map(), middles: new Map(), reports: new Map() };
+    try {
+      return read();
+    } finally {
+      this.pass = undefined;
+    }
+  }
+
+  private runEveryScript(): void {
     for (const [robotId, runner] of this.runners) {
       const controller = this.controllers.get(robotId);
       const robot = this.byId.get(robotId);
       if (!controller || !robot) continue;
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
-      const services: ScriptServices = { scan: (id) => this.scan(robot, id), send: (to, json) => this.send(robot, to, json) };
+      const services: ScriptServices = { scan: (id) => this.scan(robot, id), scanJson: (id) => this.scanJson(robot, id), send: (to, json) => this.send(robot, to, json) };
       if (this.scriptProbe) this.scriptProbe(robotId, () => this.scriptInput(robot, controller.keyState()));
       const out = runner.tick(() => this.scriptFrame(robot, controller.keyState()), services);
       if (out.ran) {
@@ -1388,15 +1575,28 @@ export class World {
     const key = `${robot.version}:${coreId}`;
     let feed = this.feeds.get(robot);
     if (!feed || feed.key !== key || !this.fillFeed(robot, feed)) {
-      feed = this.buildFeed(robot, key);
+      feed = this.buildFeed(robot, key, feed);
       if (!this.fillFeed(robot, feed)) throw new Error(`script layout of ${robot.name} did not match right after it was built`);
     }
     const inbox = (robot.parts.get(coreId)?.inbox ?? []).filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown }));
-    return { layout: feed.layout, numbers: feed.numbers, extras: extrasJson({ keys, contacts: this.contactsFor(robot, true), inbox }) };
+    const contacts = this.contactsFor(robot, true);
+    return { layout: feed.layout, numbers: feed.numbers, extras: extrasJson({ keys, contacts, inbox }, this.contactsJson(contacts)) };
+  }
+
+  /** `JSON.stringify(contacts)` from the pieces the sensor pass kept; undefined when it kept none. */
+  private contactsJson(contacts: readonly ScriptContact[]): string | undefined {
+    const heads = this.pass?.heads;
+    if (!heads || contacts.length === 0) return undefined;
+    let text = '[';
+    for (const c of contacts) {
+      const head = heads.get(c);
+      text += `${text.length > 1 ? ',' : ''}${head === undefined ? JSON.stringify(c) : contactJson(head, c.distance, c.by)}`;
+    }
+    return `${text}]`;
   }
 
   /** A new layout for the robot's controlled chunk, with the values present on each part right now. */
-  private buildFeed(robot: Robot, key: string): ScriptFeed {
+  private buildFeed(robot: Robot, key: string, last?: ScriptFeed): ScriptFeed {
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const chunk = chunkIndex(robot, coreId);
     const chans = this.channels.get(robot.id);
@@ -1404,19 +1604,53 @@ export class World {
     const pool = this.lazyPool(robot, chunk);
     const parts: ScriptFeed['parts'] = [];
     const layout: LayoutPart[] = [];
+    const containers: PartInstance[] = [];
+    // A part that was in the last layout keeps its entry when its values present are the same, and its tags and mass
+    // (fixed for a part under one scope) either way. Parts keep their order from one layout to the next, so the same
+    // part is at, or a little after, where the walk has got to in the last one.
+    const lastParts = last && last.scope === scope ? last.parts : undefined;
+    let at = 0;
     for (const id of robot.chunks[chunk]?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
-      const ins = [...(chans?.get(id)?.keys() ?? [])];
-      const outs: string[] = [];
-      for (const o of p.def.outputs) if (this.outputOf(p, o.name, pool) !== undefined) outs.push(o.name);
-      parts.push({ id, part: p, in: ins, out: outs });
-      layout.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: partMass(p.def, p.footprint), in: ins, out: outs });
+      if (p.def.resource?.kind === 'energy') containers.push(p);
+      let was = -1;
+      if (lastParts) {
+        const end = Math.min(lastParts.length, at + FEED_LOOK);
+        for (let k = at; k < end; k++) {
+          if (lastParts[k]?.part !== p) continue;
+          was = k;
+          at = k + 1;
+          break;
+        }
+      }
+      // Only a part with inputs has values (a controller keeps none for the others).
+      const ins = p.def.inputs.length === 0 ? NO_NAMES : [...(chans?.get(id)?.keys() ?? [])];
+      let outs: string[] = NO_NAMES;
+      for (const o of p.def.outputs) {
+        if (this.outputOf(p, o.name, pool) === undefined) continue;
+        if (outs === NO_NAMES) outs = [];
+        outs.push(o.name);
+      }
+      const old = was >= 0 ? last?.rows[was] : undefined;
+      const kept = old !== undefined && sameNames(old.in, ins) && sameNames(old.out, outs);
+      parts.push(kept ? (lastParts?.[was] as ScriptFeed['parts'][number]) : { id, part: p, in: ins, out: outs });
+      layout.push(kept ? old : { id, type: p.def.id, tags: old ? old.tags : [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: old ? old.mass : partMass(p.def, p.footprint), in: ins, out: outs });
     }
     // The robot's mass only changes when it is rebuilt, which makes a new layout.
     let mass = 0;
     for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
-    const feed: ScriptFeed = { key, chunk, mass, layout: { id: ++this.layouts, json: layoutJson(layout) }, parts, numbers: new Float64Array(numberCount(layout)) };
+    // The whole layout as text is only made when a script needs it: one that holds the last layout takes the patch.
+    let json: string | undefined;
+    const patch = last && !this.fullLayouts ? layoutPatch(last.rows, layout) : undefined;
+    const handed: ScriptLayout = {
+      id: ++this.layouts,
+      get json() {
+        return (json ??= layoutJson(layout));
+      },
+      ...(last && patch !== undefined ? { patch: { from: last.layout.id, json: patch } } : {}),
+    };
+    const feed: ScriptFeed = { key, chunk, scope, mass, layout: handed, rows: layout, pool: containers, parts, numbers: new Float64Array(numberCount(layout)) };
     this.feeds.set(robot, feed);
     return feed;
   }
@@ -1429,7 +1663,17 @@ export class World {
   private fillFeed(robot: Robot, feed: ScriptFeed): boolean {
     const chans = this.channels.get(robot.id);
     const n = feed.numbers;
-    const pool = this.lazyPool(robot, feed.chunk);
+    // The chunk's pool, added up on first use from the containers the feed kept (the same parts in the same order as a
+    // walk over the chunk finds, as long as the feed matches the robot, which this checks part by part).
+    let totals: { stored: number; capacity: number } | undefined;
+    const pool = (): { stored: number; capacity: number } => {
+      if (!totals) {
+        const held: Container[] = [];
+        for (const p of feed.pool) if (p.stored !== undefined && p.def.resource) held.push({ id: p.id, stored: p.stored, capacity: p.def.resource.capacity });
+        totals = poolTotals(held);
+      }
+      return totals;
+    };
     const bodies: (BodyPose | undefined)[] = [];
     const bodyOf = (group: number): BodyPose => {
       let b = bodies[group];
@@ -1449,7 +1693,8 @@ export class World {
       ok = put(n, k++, s.x + c * part.localX - sn * part.localY) && ok;
       ok = put(n, k++, s.y + sn * part.localX + c * part.localY) && ok;
       ok = put(n, k++, s.angle) && ok;
-      const values = chans?.get(fp.id);
+      // Only a part with inputs has values (a controller keeps none for the others).
+      const values = part.def.inputs.length === 0 ? undefined : chans?.get(fp.id);
       if ((values?.size ?? 0) !== fp.in.length) return false;
       if (values) {
         let j = 0;
@@ -1607,12 +1852,20 @@ export class World {
 
   /** The sensor parts of the robot's controlled chunk that work this tick (switched on and powered last tick), in part order. */
   private workingSensors(robot: Robot): SensorPose[] {
+    const known = this.pass?.sensors.get(robot);
+    if (known) return known;
+    const out = this.readSensors(robot);
+    this.pass?.sensors.set(robot, out);
+    return out;
+  }
+
+  private readSensors(robot: Robot): SensorPose[] {
     const coreId = robot.primaryCoreId;
     if (coreId === undefined || !this.controllers.has(robot.id)) return [];
-    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const out: SensorPose[] = [];
     const bubbles = this.jamBubbles();
-    for (const id of chunk?.partIds ?? []) {
+    for (const kept of eyesOf(robot, coreId).sensors) {
+      const id = kept.id;
       const p = robot.parts.get(id);
       const spec = p?.def.sensor;
       // A sensor works only once it has been powered (the behavior sets `sensing` each tick); before its first tick it sees nothing.
@@ -1627,7 +1880,15 @@ export class World {
   }
 
   /** Where a robot is for sensors: its live core, else its center of mass; with its mass and center either way. */
-  private reference(r: Robot): { core: boolean; pos: { x: number; y: number }; vel: { x: number; y: number }; center: { x: number; y: number }; mass: number } {
+  private reference(r: Robot): Reference {
+    const known = this.pass?.refs.get(r);
+    if (known) return known;
+    const out = this.readReference(r);
+    this.pass?.refs.set(r, out);
+    return out;
+  }
+
+  private readReference(r: Robot): Reference {
     let mass = 0;
     let cx = 0;
     let cy = 0;
@@ -1671,13 +1932,21 @@ export class World {
   }
 
   /** The radio parts of the robot's controlled chunk that work this tick (switched on and powered last tick, not inside a jammer's bubble), in part order. */
-  private workingRadios(robot: Robot): { x: number; y: number; range: number }[] {
+  private workingRadios(robot: Robot): RadioPose[] {
+    const known = this.pass?.radios.get(robot);
+    if (known) return known;
+    const out = this.readRadios(robot);
+    this.pass?.radios.set(robot, out);
+    return out;
+  }
+
+  private readRadios(robot: Robot): RadioPose[] {
     const coreId = robot.primaryCoreId;
     if (coreId === undefined || !this.controllers.has(robot.id)) return [];
-    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
-    const out: { x: number; y: number; range: number }[] = [];
+    const out: RadioPose[] = [];
     const bubbles = this.jamBubbles();
-    for (const id of chunk?.partIds ?? []) {
+    for (const kept of eyesOf(robot, coreId).radios) {
+      const id = kept.id;
       const p = robot.parts.get(id);
       const spec = p?.def.radio;
       if (!p || !spec || p.sensing !== true) continue;
@@ -1696,45 +1965,108 @@ export class World {
    * robot's core, and `by: ['radio']`. Of several teammates seeing the same robot, the one whose report is nearest wins
    * (ties: robot order). Shared contacts are never remembered for `scan(id)`.
    */
-  private withRadio(robot: Robot, own: ScriptContact[], radios: { x: number; y: number; range: number }[], decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
+  private withRadio(robot: Robot, own: ScriptContact[], radios: RadioPose[], decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
     const from = partWorldPose(this, robot, robot.primaryCoreId ?? robot.rootId);
     const have = new Set(own.map((c) => c.id));
-    const shared = new Map<number, { contact: ScriptContact; decoy?: SeenDecoy }>();
-    for (const friend of this.robots) {
-      if (friend === robot || friend.team !== robot.team || friend.groups.length === 0) continue;
-      const theirs = this.workingRadios(friend);
-      // In reach when some pair of working radios is within both ranges.
-      if (!radios.some((a) => theirs.some((b) => Math.hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)))) continue;
-      const fooled = new Map<number, SeenDecoy>();
-      for (const c of this.ownContacts(friend, false, fooled)) {
-        if (c.id === robot.id || have.has(c.id)) continue;
-        const distance = Math.hypot(c.pos.x - from.x, c.pos.y - from.y);
-        const known = shared.get(c.id);
-        if (known && known.contact.distance <= distance) continue;
-        shared.set(c.id, { contact: { ...c, distance, by: ['radio'] }, decoy: fooled.get(c.id) });
+    const reach = new Map<Robot, boolean>();
+    const inReach = (friend: Robot): boolean => {
+      let near = reach.get(friend);
+      if (near === undefined) {
+        const theirs = this.workingRadios(friend);
+        // In reach when some pair of working radios is within both ranges.
+        near = radios.some((a) => theirs.some((b) => Math.hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)));
+        reach.set(friend, near);
       }
+      return near;
+    };
+    const shared: { first: Report; contact: ScriptContact; decoy: SeenDecoy | undefined }[] = [];
+    for (const [id, reports] of this.teamReports(robot.team)) {
+      if (id === robot.id || have.has(id)) continue;
+      // The reports of one robot, teammates in robot order: the nearest wins, the earlier one on a tie.
+      let first: Report | undefined;
+      let best: Report | undefined;
+      let least = 0;
+      for (const r of reports) {
+        if (r.friend === robot || !inReach(r.friend)) continue;
+        first ??= r;
+        const distance = Math.hypot(r.contact.pos.x - from.x, r.contact.pos.y - from.y);
+        if (best && least <= distance) continue;
+        best = r;
+        least = distance;
+      }
+      if (!first || !best) continue;
+      const contact = { ...best.contact, distance: least, by: ['radio'] };
+      const head = this.pass?.heads.get(best.contact);
+      if (head !== undefined) this.pass?.heads.set(contact, head);
+      shared.push({ first, contact, decoy: best.decoy });
     }
-    if (shared.size === 0) return own;
-    for (const [id, s] of shared) if (s.decoy) decoysOut?.set(id, s.decoy);
-    const out = [...own, ...[...shared.values()].map((s) => s.contact)];
+    if (shared.length === 0) return own;
+    // In the order a walk over the teammates, then over each one's contacts, first comes to them.
+    shared.sort((a, b) => a.first.order - b.first.order || a.first.index - b.first.index);
+    for (const s of shared) if (s.decoy) decoysOut?.set(s.contact.id, s.decoy);
+    const out = [...own, ...shared.map((s) => s.contact)];
     out.sort((a, b) => a.distance - b.distance || a.id - b.id);
+    return out;
+  }
+
+  /**
+   * What a team's robots with a working radio see with their own sensors, by the robot seen, each list in robot
+   * order: every listener of the team picks from the same lists (see `withRadio`).
+   */
+  private teamReports(team: number): Map<number, Report[]> {
+    const known = this.pass?.reports.get(team);
+    if (known) return known;
+    const out = new Map<number, Report[]>();
+    this.robots.forEach((friend, order) => {
+      if (friend.team !== team || friend.groups.length === 0 || this.workingRadios(friend).length === 0) return;
+      const sight = this.sightOf(friend);
+      sight.contacts.forEach((contact, index) => {
+        let list = out.get(contact.id);
+        if (!list) {
+          list = [];
+          out.set(contact.id, list);
+        }
+        list.push({ friend, order, index, contact, decoy: sight.fooled?.get(contact.id) });
+      });
+    });
+    this.pass?.reports.set(team, out);
     return out;
   }
 
   /** What the robot's own sensors see (see contactsFor). */
   private ownContacts(robot: Robot, remember: boolean, decoysOut?: Map<number, SeenDecoy>): ScriptContact[] {
-    const sensors = this.workingSensors(robot);
+    const sight = this.sightOf(robot);
     if (remember) {
       this.seen.delete(robot.id);
       this.seenDecoys.delete(robot.id);
+      if (sight.sensors) {
+        this.seen.set(robot.id, sight.contacts);
+        if (sight.fooled && sight.fooled.size > 0) this.seenDecoys.set(robot.id, sight.fooled);
+      }
     }
-    if (sensors.length === 0) return [];
+    if (decoysOut && sight.fooled) for (const [id, d] of sight.fooled) decoysOut.set(id, d);
+    return sight.contacts;
+  }
+
+  private sightOf(robot: Robot): OwnSight {
+    const known = this.pass?.own.get(robot);
+    if (known) return known;
+    const out = this.lookAround(robot);
+    this.pass?.own.set(robot, out);
+    return out;
+  }
+
+  /** One look with the robot's own sensors: the same for its scripts, a radio friend, and the overlay. */
+  private lookAround(robot: Robot): OwnSight {
+    const sensors = this.workingSensors(robot);
+    if (sensors.length === 0) return { sensors: false, contacts: [] };
     const terrain = this.terrainBoxes();
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const from = partWorldPose(this, robot, coreId);
     const lit = this.burningDecoys();
     const bubbles = this.jamBubbles();
-    const fooled = lit && (remember || decoysOut) ? new Map<number, SeenDecoy>() : undefined;
+    const fooled = lit ? new Map<number, SeenDecoy>() : undefined;
+    const pass = this.pass;
     const out: ScriptContact[] = [];
     for (const other of this.robots) {
       if (other === robot || other.groups.length === 0 || lit?.pieces.has(other.id)) continue;
@@ -1765,15 +2097,19 @@ export class World {
       if (at) fooled?.set(other.id, at);
       // Seen at a decoy, its center keeps the same offset from its position as the robot's own.
       const center = at ? { x: at.pos.x + ref.center.x - ref.pos.x, y: at.pos.y + ref.center.y - ref.pos.y } : ref.center;
-      out.push({ id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(pos.x - from.x, pos.y - from.y), by });
+      const contact: ScriptContact = { id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(pos.x - from.x, pos.y - from.y), by };
+      out.push(contact);
+      if (!pass) continue;
+      // Its JSON text up to the distance: all but the side is the same for every viewer, unless it is seen at a decoy.
+      let middle = at ? undefined : pass.middles.get(other);
+      if (middle === undefined) {
+        middle = contactMiddle(contact);
+        if (!at) pass.middles.set(other, middle);
+      }
+      pass.heads.set(contact, contactHead(other.id, side, middle));
     }
     out.sort((a, b) => a.distance - b.distance || a.id - b.id);
-    if (remember) {
-      this.seen.set(robot.id, new Set(out.map((c) => c.id)));
-      if (fooled && fooled.size > 0) this.seenDecoys.set(robot.id, fooled);
-    }
-    if (decoysOut && fooled) for (const [id, d] of fooled) decoysOut.set(id, d);
-    return out;
+    return { sensors: true, contacts: out, ...(fooled ? { fooled } : {}) };
   }
 
   /**
@@ -1813,18 +2149,54 @@ export class World {
    * M11: a robot seen at a decoy scans as what the sensor sees there: the decoy.
    */
   private scan(viewer: Robot, id: number): ScannedPart[] | null {
-    if (!this.seen.get(viewer.id)?.has(id)) return null;
+    if (!this.seen.get(viewer.id)?.some((c) => c.id === id)) return null;
     const decoy = this.seenDecoys.get(viewer.id)?.get(id);
     const r = decoy ? decoy.robot : this.byId.get(id);
     if (!r) return null;
+    // A whole robot's list is the same for every script that scans it this tick; one seen at a decoy is that one part.
+    const known = decoy ? undefined : this.pass?.scans.get(r);
+    if (known) return known;
+    const poseOf = this.poser(r);
     const out: ScannedPart[] = [];
     for (const bp of r.blueprint.parts) {
       const p = r.parts.get(bp.id);
       if (!p || (decoy && p.id !== decoy.partId)) continue;
-      const pose = partWorldPose(this, r, p.id);
+      const pose = poseOf(p);
       out.push({ id: p.id, type: p.def.id, pos: { x: pose.x, y: pose.y }, angle: pose.angle, health: p.health, maxHealth: p.def.health });
     }
+    if (!decoy) this.pass?.scans.set(r, out);
     return out;
+  }
+
+  /** `scan(id)` as the JSON text a script host hands its script, kept with the list so the text is made once a tick. */
+  private scanJson(viewer: Robot, id: number): string {
+    const parts = this.scan(viewer, id);
+    if (parts === null) return 'null';
+    const known = this.pass?.scanTexts.get(parts);
+    if (known !== undefined) return known;
+    const text = JSON.stringify(parts);
+    this.pass?.scanTexts.set(parts, text);
+    return text;
+  }
+
+  /**
+   * `partWorldPose` for many parts of one robot: each body's state, and the cosine and sine of its angle, is read once
+   * however many of its parts ask. The same arithmetic, so the same numbers.
+   */
+  private poser(robot: Robot): (part: PartInstance) => { x: number; y: number; angle: number } {
+    const bodies: (BodyPose | undefined)[] = [];
+    return (part) => {
+      let b = bodies[part.group];
+      if (!b) {
+        const group = robot.groups[part.group];
+        // No body: the plain reader says what is wrong.
+        if (!group) return partWorldPose(this, robot, part.id);
+        const s = this.physics.state(group.bodyId);
+        b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+        bodies[part.group] = b;
+      }
+      return { x: b.s.x + b.c * part.localX - b.n * part.localY, y: b.s.y + b.n * part.localX + b.c * part.localY, angle: b.s.angle };
+    };
   }
 
   /**
@@ -2259,6 +2631,27 @@ function chunkIndex(robot: Robot, partId: string): number {
     chunkMaps.set(robot, m);
   }
   return m.of.get(partId) ?? 0;
+}
+
+/** A robot's sensor and radio parts in the chunk its core controls, in part order, kept until the robot is rebuilt. */
+const eyes = new WeakMap<Robot, { version: number; coreId: string; chunks: Robot['chunks']; sensors: PartInstance[]; radios: PartInstance[] }>();
+
+/** The parts of the core's chunk that are sensors and that are radios: found once per rebuild, not by walking every part each tick. */
+function eyesOf(robot: Robot, coreId: string): { sensors: readonly PartInstance[]; radios: readonly PartInstance[] } {
+  let e = eyes.get(robot);
+  if (!e || e.version !== robot.version || e.coreId !== coreId || e.chunks !== robot.chunks) {
+    const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
+    const sensors: PartInstance[] = [];
+    const radios: PartInstance[] = [];
+    for (const id of chunk?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      if (p?.def.sensor) sensors.push(p);
+      if (p?.def.radio) radios.push(p);
+    }
+    e = { version: robot.version, coreId, chunks: robot.chunks, sensors, radios };
+    eyes.set(robot, e);
+  }
+  return e;
 }
 
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */

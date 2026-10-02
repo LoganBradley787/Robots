@@ -14,6 +14,9 @@ interface Writer {
   sig: string;
 }
 
+/** Targets whose parts a controller keeps for script writes (`Controller.scriptWrite`); past this it starts over. */
+const REACHED_KEPT = 1000;
+
 interface Channel {
   name: string;
   min: number;
@@ -45,6 +48,8 @@ export class Controller {
   private toggledScripts: string[] = [];
   /** Script layer (`04`): values scripts set this tick, by part and channel. Last write wins. */
   private readonly scriptLayer = new Map<string, Map<string, number>>();
+  /** The parts each target a script wrote to reaches, in part order: found once, then kept as parts leave. */
+  private readonly reached = new Map<string, readonly ControlledPart[]>();
 
   constructor(bindings: readonly Binding[], parts: readonly ControlledPart[]) {
     const keys: string[] = [];
@@ -98,8 +103,15 @@ export class Controller {
 
   /** A script's `set(target, channel, value)` for this tick: every controlled part the target reaches with that channel. */
   scriptWrite(target: string, channel: string, value: number): void {
-    for (const p of this.parts) {
-      if (!matchesTarget(p, target) || !p.inputs.some((c) => c.name === channel)) continue;
+    let reach = this.reached.get(target);
+    if (!reach) {
+      // A script that makes up a new target every tick must not fill this for good.
+      if (this.reached.size >= REACHED_KEPT) this.reached.clear();
+      reach = this.parts.filter((p) => matchesTarget(p, target));
+      this.reached.set(target, reach);
+    }
+    for (const p of reach) {
+      if (!p.inputs.some((c) => c.name === channel)) continue;
       let chans = this.scriptLayer.get(p.id);
       if (!chans) this.scriptLayer.set(p.id, (chans = new Map()));
       chans.set(channel, value);
@@ -143,6 +155,7 @@ export class Controller {
    */
   restrict(partIds: ReadonlySet<string>): void {
     this.parts = this.parts.filter((p) => partIds.has(p.id));
+    for (const [target, reach] of this.reached) if (reach.some((p) => !partIds.has(p.id))) this.reached.set(target, reach.filter((p) => partIds.has(p.id)));
     for (const id of [...this.channels.keys()]) if (!partIds.has(id)) this.channels.delete(id);
     for (const w of this.writers) w.partIds = w.partIds.filter((id) => partIds.has(id));
     // A key whose parts all broke off leaves the keys bar.
