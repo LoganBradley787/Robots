@@ -74,6 +74,27 @@ Branch: `titans` (off `big-batch-fixes`, which has every part: grapple, jammer, 
 - Speed check: `titan-shatter` 26.7 ms and `titan-woodpecker` 17.1 ms a tick against themselves, over the 16 ms rule. The rest passed (5.3 to 13.9 ms).
 - No script was stopped in any match.
 
+### Round 2 (2026-10-01, seeds 1 to 3, both sides, 168 matches; full report in `tournaments/round2/results.md`)
+
+Local crash damage, the engine speed work, and each builder's rebuild.
+
+| # | Titan | Wins | Draws | Losses | Points (of 42) |
+|---|---|---|---|---|---|
+| 1 | `titan-juggernaut` (pushes out of bounds, 20.4 t) | 27 | 14 | 1 | 34 |
+| 2 | `titan-palisade` (gun wall) | 22 | 10 | 10 | 27 |
+| 3 | `titan-bastion` (roped fortress, buried core) | 10 | 31 | 1 | 25.5 |
+| 4 | `titan-anvil` (flying brick) | 16 | 16 | 10 | 24 |
+| 5 | `titan-mirage` (trickster) | 10 | 15 | 17 | 17.5 |
+| 6 | `titan-hive` (carrier) | 6 | 23 | 13 | 17.5 |
+| 7 | `titan-shatter` (splitter) | 0 | 25 | 17 | 12.5 |
+| 8 | `titan-woodpecker` (volley) | 2 | 16 | 24 | 10 |
+
+- 75 of 168 matches were draws (45 percent; round 1 had 11 of 56, 20 percent). Local crash damage and ground ropes stopped the rams from ending things, and nothing replaced them for buried cores.
+- The juggernaut is still first, now by pushing: it beat the four fliers that are not the anvil in 22 of 24, the anvil 5 to 1, and drew all 12 with the two roped ground bases.
+- The bastion lost once in 42 and won only 10: nothing gets in, and its darts miss anything that was moving at launch (see the watch notes).
+- The woodpecker's still keep fell to darts and guns: 24 losses. The splitter won nothing after slimming to pass the speed rule.
+- Every titan passed the speed rule (6.4 to 12.0 ms a tick against itself, alone). No script was stopped.
+
 ## Round 2 (decided by Logan after round 1)
 
 - **Crash damage becomes local.** A crash used to hurt every part of the body that was hit, however deep, so a heavy ram erased a buried core in one tick. Now the damage falls off with distance from the contact (full at the contact, none past about 6 m), so depth protects. The jolt still sets off impact fuzes and crash fuzes anywhere on the body. This is an engine change for the whole game, not a tournament rule.
