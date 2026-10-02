@@ -95,7 +95,10 @@ describe('spotter and artillery (Batch), done when', () => {
     const spot = w.spawnBlueprint(blueprint('enemy-spotter'), { x: 250, y: 25 }, { team: 1 });
     const gun = w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: -200, y: 20 });
     for (let t = 0; t < 45 * 60; t++) w.step();
-    expect(partsLost(w, gun)).toBeGreaterThanOrEqual(25);
+    // Titans: 25 or more before. Crash damage is local now, so the wreck's landing breaks only what is near the ground
+    // (22 counted here, 45 of its 52 parts in all, its core at 36 s as before).
+    expect(partsLost(w, gun)).toBeGreaterThanOrEqual(20);
+    expect(gun.primaryCoreId).toBeUndefined();
     expect(partsLost(w, art)).toBeLessThanOrEqual(3);
     expect(partsLost(w, spot)).toBeLessThanOrEqual(3);
     w.dispose();

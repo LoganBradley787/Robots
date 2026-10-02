@@ -17,7 +17,7 @@ import { jammed, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
-import { crashFraction, crashWeight } from './crash';
+import { crashDistance, crashFraction, crashWeight, type CrashTouch } from './crash';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -654,8 +654,9 @@ export class World {
    * contacts on multibody links (a bomb bouncing off a car's roof went unnoticed). Thrust changes a body's speed by a
    * fraction of a meter per second per step, so only hits count.
    *
-   * Batch: every other part takes crash damage from the same measure (`crash` on its def, default safe 8 m/s): see
-   * `world/crash.ts`. Bodies in `unsettled` (kicks, blast pushes) never count.
+   * Batch: every other part takes crash damage from the same measure (`crash` on its def, default safe 12 m/s), scaled
+   * by how near it is to where the hit landed (Titans): see `world/crash.ts`. The fuzes above feel the jolt anywhere
+   * on the body. Bodies in `unsettled` (kicks, blast pushes) never count.
    */
   private checkImpacts(): void {
     for (const [body, until] of this.unsettled) if (until < this.tickCount) this.unsettled.delete(body);
@@ -678,33 +679,34 @@ export class World {
         hits.set(index, hit);
         return hit;
       };
-      // Batch: crash damage, spread over the robot by how near each part is to the impact (`world/crash.ts`).
-      let poses: Map<string, { x: number; y: number }> | undefined;
-      const poseOf = (id: string): { x: number; y: number } => {
-        if (!poses) {
-          poses = new Map();
-          for (const other of robot.parts.values()) poses.set(other.id, partWorldPose(this, robot, other.id));
+      // Titans: crash damage is local (`world/crash.ts`): it falls off with a part's distance from where the hit landed
+      // on its robot (so a car's wheels, each their own body, are where its hull's hit landed). All of it is worked out
+      // only for a robot that takes crash damage this tick.
+      const frames = new Map<number, { x: number; y: number; c: number; n: number }>();
+      const poseOf = (part: PartInstance): { x: number; y: number } => {
+        let f = frames.get(part.group);
+        if (!f) {
+          const s = this.physics.state(robot.groups[part.group]?.bodyId ?? 0);
+          f = { x: s.x, y: s.y, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+          frames.set(part.group, f);
         }
-        return poses.get(id) ?? { x: 0, y: 0 };
+        return { x: f.x + f.c * part.localX - f.n * part.localY, y: f.y + f.n * part.localX + f.c * part.localY };
       };
-      const spreads = new Map<number, { cx: number; cy: number; reach: number }>();
-      const spreadOf = (index: number, hit: { ux: number; uy: number }): { cx: number; cy: number; reach: number } => {
-        const known = spreads.get(index);
+      let touches: CrashTouch[] | undefined;
+      const distances = new Map<number, (x: number, y: number) => number>();
+      const distanceOf = (index: number, hit: { ux: number; uy: number }): ((x: number, y: number) => number) => {
+        const known = distances.get(index);
         if (known) return known;
-        poseOf('');
-        let cx = 0;
-        let cy = 0;
-        for (const q of poses?.values() ?? []) {
-          cx += q.x;
-          cy += q.y;
-        }
-        const n = Math.max(1, poses?.size ?? 1);
-        cx /= n;
-        cy /= n;
-        let reach = 0;
-        for (const q of poses?.values() ?? []) reach = Math.max(reach, Math.abs((q.x - cx) * hit.ux + (q.y - cy) * hit.uy));
-        const made = { cx, cy, reach };
-        spreads.set(index, made);
+        touches ??= robot.groups.flatMap((g) => this.physics.contactPoints(g.bodyId));
+        const made = crashDistance(touches, hit.ux, hit.uy, () => {
+          let lead = -Infinity;
+          for (const other of robot.parts.values()) {
+            const q = poseOf(other);
+            lead = Math.max(lead, q.x * hit.ux + q.y * hit.uy);
+          }
+          return lead;
+        });
+        distances.set(index, made);
         return made;
       };
       for (const part of robot.parts.values()) {
@@ -720,10 +722,8 @@ export class World {
         }
         const fraction = crashFraction(hit.dv, part.def.crash);
         if (fraction > 0 && part.health > 0) {
-          const spread = spreadOf(part.group, hit);
-          const q = poseOf(part.id);
-          const weight = crashWeight((q.x - spread.cx) * hit.ux + (q.y - spread.cy) * hit.uy, spread.reach);
-          part.health -= part.def.health * fraction * weight;
+          const q = poseOf(part);
+          part.health -= part.def.health * fraction * crashWeight(distanceOf(part.group, hit)(q.x, q.y));
         }
       }
     }
