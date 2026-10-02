@@ -9,3 +9,4 @@ coverage/
 .claude/worktrees/
 replays/*
 !replays/.gitkeep
+.playwright-mcp/
