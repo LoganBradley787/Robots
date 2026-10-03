@@ -53,6 +53,8 @@ export interface RunReport {
   destruction: { destroyed: string[]; explosions: number; pieces: number };
   /** M13: for every robot that fired or was hit (by id, in id order): shells fired, hits and their damage, hits taken. Absent with no shells. */
   guns?: { robot: number; shots: number; hits: number; damage: number; taken: number }[];
+  /** M14: every robot whose lasers burned: seconds of beam, damage done, parts it started burning. */
+  lasers?: { robot: number; seconds: number; damage: number; burns: number }[];
   /** M7: what happened, in order: keys, drops, decouplers, splits, wakes, parts lost, blasts, script logs and crashes. */
   events: TraceEvent[];
   /** M7: every robot seen, by letter (A is the spawned robot), with its path and final state. */
@@ -140,6 +142,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       scriptCrashes: world.events.flatMap((e) => (e.kind === 'scriptCrashed' ? [{ script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message }] : [])),
       destruction: destructionOf(world, robot.id),
       ...gunsOf(world),
+      ...lasersOf(world),
       ...(aims.some((a) => Object.keys(a).length > 0) ? { aims } : {}),
       finalHash: world.hash(),
       timing: { avgMs: ticks > 0 ? totalMs / ticks : 0, worstMs },
@@ -210,6 +213,10 @@ export function formatReport(r: RunReport): string {
       return `${letter.get(g.robot) ?? `robot ${g.robot}`} ${[fired, took].filter((x) => x !== '').join(', ')}`;
     });
     lines.push(`guns: ${parts.join('; ')}`);
+  }
+  if (r.lasers) {
+    const letter = new Map(r.pieces.map((p) => [p.id, p.mark]));
+    lines.push(`lasers: ${r.lasers.map((l) => `${letter.get(l.robot) ?? `robot ${l.robot}`} burned ${f(l.seconds, 2)} s, ${f(l.damage, 1)} damage, ${l.burns} part${l.burns === 1 ? '' : 's'} hit`).join('; ')}`);
   }
   if (r.events.length > 0) {
     lines.push('events (A is the robot; other letters are pieces and drops, listed below):');
@@ -287,6 +294,16 @@ function gunsOf(world: SimWorld): { guns?: RunReport['guns'] } {
     row(e.robot).taken++;
   }
   return by.size > 0 ? { guns: [...by.values()].sort((a, b) => a.robot - b.robot) } : {};
+}
+
+/** M14: every robot that burned with a laser: seconds of beam and damage (from the world's tally), parts it hit. */
+function lasersOf(world: SimWorld): { lasers?: RunReport['lasers'] } {
+  const ids = new Set<number>();
+  for (const e of world.events) if (e.kind === 'laserBurn') ids.add(e.by);
+  for (const r of world.robots) if (world.laserStats(r.id).ticks > 0) ids.add(r.id);
+  if (ids.size === 0) return {};
+  const burns = (id: number) => world.events.filter((e) => e.kind === 'laserBurn' && e.by === id).length;
+  return { lasers: [...ids].sort((a, b) => a - b).map((id) => ({ robot: id, seconds: world.laserStats(id).ticks * world.dt, damage: world.laserStats(id).damage, burns: burns(id) })) };
 }
 
 export function energyOf(world: SimWorld, robotId: number): RunReport['energy'] {

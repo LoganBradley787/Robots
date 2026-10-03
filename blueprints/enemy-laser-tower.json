@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "enemy-laser-tower",
+  "grid": [
+    "= d c A A A O A A A a b =",
+    ". . . A Z Z C Z Z A . . .",
+    ". . . A Z Z F Z Z A . . .",
+    ". . . A Z Z F Z Z A . . .",
+    ". . F F F F F F F F F . ."
+  ],
+  "legend": {
+    "a": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "laser-turret1",
+        "laser-turret1.rot"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "laser",
+      "rot": 270,
+      "tags": [
+        "laser-turret1",
+        "laser-turret1.laser"
+      ]
+    },
+    "c": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "laser-turret2",
+        "laser-turret2.rot"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "laser",
+      "rot": 90,
+      "tags": [
+        "laser-turret2",
+        "laser-turret2.laser"
+      ]
+    }
+  },
+  "primaryCore": "core@6,3",
+  "scripts": [
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-laser-tower.turrets.js"
+      }
+    }
+  ]
+}

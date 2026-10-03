@@ -69,6 +69,8 @@ export class Tracer {
   private readonly blasts: { x: number; y: number }[] = [];
   /** Shell hits being folded (M13), by hit robot and shooter. */
   private readonly hits = new Map<string, { ev: TraceEvent; by: string; count: number; damage: number; parts: Map<string, number>; first: number; last: number }>();
+  /** M14: laser burns on one piece by one robot within a second, folded into one line. */
+  private readonly burns = new Map<string, { ev: TraceEvent; by: string; parts: string[]; first: number; last: number }>();
   private readonly lastLog = new Map<string, TraceEvent>();
   /** Each robot's scripts that were on after the last step, to report a key turning one on or off. */
   private readonly scriptsOn = new Map<number, Set<string>>();
@@ -226,6 +228,23 @@ export class Tracer {
             const until = r.last > r.first ? ` until t=${r.last.toFixed(2)}` : '';
             r.ev.text = `hit by ${r.count} shell${r.count === 1 ? '' : 's'} from ${r.by}${until}: ${r.damage} damage (${parts})`;
           }
+          break;
+        }
+        case 'laserBurn': {
+          // M14: a beam logs each new part it starts on; burns of one piece by one robot within a second fold.
+          const key = `${e.robot}:${e.by}`;
+          let run = this.burns.get(key);
+          if (run && tickTime - run.last <= 1) {
+            if (!run.parts.includes(e.part)) run.parts.push(e.part);
+            run.last = tickTime;
+          } else {
+            const ev: TraceEvent = { t: tickTime, robot: this.letter(e.robot), kind: 'laserBurn', text: '' };
+            this.events.push(ev);
+            run = { ev, by: this.letter(e.by), parts: [e.part], first: tickTime, last: tickTime };
+            this.burns.set(key, run);
+          }
+          const until = run.last > run.first ? ` until t=${run.last.toFixed(2)}` : '';
+          run.ev.text = `burned by ${run.by}'s laser${until}: ${run.parts.join(', ')}`;
           break;
         }
         case 'sent': {

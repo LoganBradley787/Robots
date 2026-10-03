@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "laser-turret",
+  "grid": ["r z ="],
+  "legend": {
+    "r": { "part": "rotator", "rot": 270, "tags": ["rot"], "auto": false },
+    "z": { "part": "laser", "rot": 270, "tags": ["laser"] }
+  }
+}

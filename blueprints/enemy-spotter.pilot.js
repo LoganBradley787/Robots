@@ -91,9 +91,10 @@ function gunSide() {
   let left = 0;
   let right = 0;
   for (const p of parts) {
-    if (p.type !== 'gun') continue;
-    const tag = p.tags.find((t) => t.endsWith('.gun'));
-    const turned = tag ? (get(tag.slice(0, -4) + '.rot', 'angle') ?? 0) * (Math.PI / 2) : 0;
+    if (p.type !== 'gun' && p.type !== 'laser') continue;
+    // M14: a laser on a turret (`<turret>.laser`) counts as a gun does.
+    const tag = p.tags.find((t) => t.endsWith('.gun') || t.endsWith('.laser'));
+    const turned = tag ? (get(tag.slice(0, tag.lastIndexOf('.')) + '.rot', 'angle') ?? 0) * (Math.PI / 2) : 0;
     const x = Math.cos(p.out.aim - turned);
     if (x > 0.5) right++;
     else if (x < -0.5) left++;
