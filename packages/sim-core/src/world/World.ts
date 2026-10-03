@@ -14,7 +14,7 @@ import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, 
 import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, jamNear, type JamBubble } from '../sensors/jam';
-import { SMOKE_DRIFT, type SmokeCloud } from '../sensors/smoke';
+import { SMOKE_DRIFT, smokeBlocks, type SmokeCloud } from '../sensors/smoke';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
 import { crashDistance, crashFraction, crashWeight, type CrashTouch } from './crash';
@@ -34,6 +34,7 @@ import type { PartInstance, Robot } from './Robot';
 import { BAY_CLEAR_SPEED, bayClearAfterTicks, copyLeaveTicks } from './bayclear';
 import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
+import type { Beam } from '../weapons/beams';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
 import { Grapples, type GrappleHost } from './grapple';
@@ -104,6 +105,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'unhooked'; part: string; why: 'released' | 'lost' }
   /** M13: a shell from robot `by` hit `part` of `robot` at `x`, `y`, taking `damage` off it. */
   | { tick: number; robot: number; kind: 'shellHit'; part: string; partType: string; by: number; x: number; y: number; damage: number }
+  /** M14: a laser (`laser`) of robot `by` started burning `part` of `robot` at `x`, `y`. Once per new target, not per tick. */
+  | { tick: number; robot: number; kind: 'laserBurn'; part: string; partType: string; by: number; laser: string; x: number; y: number }
   /** Batch: a smoke pod went off, leaving a cloud of `radius` meters at `x`, `y`; the pod is gone. */
   | { tick: number; robot: number; kind: 'smoked'; part: string; x: number; y: number; radius: number };
 
@@ -374,6 +377,10 @@ export class World {
   /** Batch: grapple ropes and held triggers. Simulation state, hashed when present. */
   private readonly grapples = new Grapples();
   private grappleHost?: GrappleHost;
+  /** M14: every laser beam of the last tick, for drawing and reports. Not simulation state. */
+  private beams: Beam[] = [];
+  /** M14: ticks each robot's lasers burned and the damage they did. Reporting only. */
+  private readonly burns = new Map<number, { ticks: number; damage: number }>();
   /** M13: shells each robot's guns have fired. Reporting only. */
   private readonly shots = new Map<number, number>();
   /**
@@ -555,6 +562,7 @@ export class World {
     this.grapples.sync(this.gh());
     this.physics.step();
     this.runGuns();
+    this.runLasers();
     this.grapples.run(this.gh());
     this.damagePhase();
     this.fadeDebris();
@@ -1210,6 +1218,16 @@ export class World {
     return this.spent;
   }
 
+  /** M14: every laser beam of the last tick, from barrel to where it stopped, for drawing. Read only. */
+  liveBeams(): readonly Beam[] {
+    return this.beams;
+  }
+
+  /** M14: how many ticks a robot's lasers have burned, and the damage they did. Reporting only. */
+  laserStats(robot: number): { ticks: number; damage: number } {
+    return { ...(this.burns.get(robot) ?? { ticks: 0, damage: 0 }) };
+  }
+
   /** M13: how many shells a robot's guns have fired so far. Reporting only. */
   shotsBy(robot: number): number {
     return this.shots.get(robot) ?? 0;
@@ -1255,14 +1273,77 @@ export class World {
   }
 
   /**
+   * M14, right after the physics step: every laser whose behavior was granted energy this tick (`part.beam`) burns the
+   * first part straight out of its barrel within `range`: `dps * dt` times its grant, halved by each smoke cloud on the
+   * way, no `shellDamage` (a beam burns armor in full). Anyone's part, its own robot's too; terrain stops it. A wreck
+   * (no core in charge) burns nothing. Then each laser's sight looks, as a gun's does.
+   */
+  private runLasers(): void {
+    this.beams = [];
+    let lasers: { robot: Robot; part: PartInstance }[] | undefined;
+    for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.laser !== undefined) (lasers ??= []).push({ robot, part });
+    if (!lasers) return;
+    const bodies = new Map<BodyId, Robot>();
+    for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
+    for (const { robot, part } of lasers) {
+      const spec = part.def.laser;
+      const power = part.beam ?? 0;
+      const m = spec && power > 0 && part.health > 0 && this.controllers.has(robot.id) ? this.muzzle(robot, part) : undefined;
+      if (spec && m) this.burn(robot, part, spec, power, m, bodies);
+      else part.burning = '';
+      this.look(robot, part, bodies);
+    }
+  }
+
+  private burn(robot: Robot, part: PartInstance, spec: { dps: number; range: number }, power: number, m: { x: number; y: number; dx: number; dy: number }, bodies: Map<BodyId, Robot>): void {
+    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, spec.range, (b, owner) => owner === part.id && bodies.get(b) === robot);
+    const distance = hit?.distance ?? spec.range;
+    const x2 = m.x + m.dx * distance;
+    const y2 = m.y + m.dy * distance;
+    let smoke = 0;
+    for (const c of this.clouds) if (smokeBlocks(c, m.x, m.y, x2, y2)) smoke++;
+    const beam: Beam = { robot: robot.id, laser: part.id, x1: m.x, y1: m.y, x2, y2, power, smoke, side: SIGHT.nothing };
+    const stats = this.burns.get(robot.id) ?? { ticks: 0, damage: 0 };
+    this.burns.set(robot.id, stats);
+    stats.ticks++;
+    let target = '';
+    if (hit) {
+      const hitRobot = bodies.get(hit.body);
+      const hitPart = hit.owner === undefined ? undefined : hitRobot?.parts.get(hit.owner);
+      if (!hitRobot || !hitPart) beam.side = SIGHT.terrain;
+      else {
+        beam.side = this.sideOf(robot, hitRobot);
+        beam.hitRobot = hitRobot.id;
+        beam.hitPart = hitPart.id;
+        // A part already destroyed this tick (its collider goes in the damage phase) takes nothing more.
+        if (hitPart.health > 0) {
+          const damage = spec.dps * this.dt * power * 0.5 ** smoke;
+          hitPart.health -= damage;
+          stats.damage += damage;
+          target = `${hitRobot.id}:${hitPart.id}`;
+          if (target !== part.burning) this.events.push({ tick: this.tickCount, robot: hitRobot.id, kind: 'laserBurn', part: hitPart.id, partType: hitPart.def.id, by: robot.id, laser: part.id, x: x2, y: y2 });
+        }
+      }
+    }
+    part.burning = target;
+    this.beams.push(beam);
+  }
+
+  /** How `robot` reads `seen` (M8 contacts rule): itself, a robot nobody controls, a friend, or an enemy. */
+  private sideOf(robot: Robot, seen: Robot): number {
+    return seen === robot ? SIGHT.own : !this.controllers.has(seen.id) ? SIGHT.none : seen.team === robot.team ? SIGHT.friend : SIGHT.enemy;
+  }
+
+  /**
    * M13: a gun that has not looked yet (just spawned or built) knows which way it points: its `aim` from its pose, and
    * nothing seen yet. Without this a script would read aim 0 for a gun pointing left on its first tick.
    */
   private primeSights(robot: Robot): void {
     for (const part of robot.parts.values()) {
-      if (!part.def.gun || part.sight) continue;
+      const range = sightRange(part);
+      if (range === undefined || part.sight) continue;
       const m = this.muzzle(robot, part);
-      if (m) part.sight = { distance: part.def.gun.range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
+      if (m) part.sight = { distance: range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
     }
   }
 
@@ -1278,8 +1359,26 @@ export class World {
     const n = Math.sin(s.angle);
     const dx = c * f.x - n * f.y;
     const dy = n * f.x + c * f.y;
-    const x = pose.x + 0.5 * dx;
-    const y = pose.y + 0.5 * dy;
+    let x = pose.x + 0.5 * dx;
+    let y = pose.y + 0.5 * dy;
+    // M14: a part of several cells (a laser's base and barrel) fires from the cell farthest along its `acts`.
+    const cells = part.footprint ?? part.def.footprint;
+    if (cells.length > 1) {
+      let best = -Infinity;
+      let ox = 0;
+      let oy = 0;
+      for (const fc of cells) {
+        const o = rotateCell(fc, part.rot);
+        const along = o.x * f.x + o.y * f.y;
+        if (along > best) {
+          best = along;
+          ox = o.x;
+          oy = o.y;
+        }
+      }
+      x += c * ox - n * oy;
+      y += n * ox + c * oy;
+    }
     return { x, y, dx, dy, vx: s.vx - s.w * (y - com.comY), vy: s.vy + s.w * (x - com.comX) };
   }
 
@@ -1338,11 +1437,11 @@ export class World {
    * contacts use (M8). A burning decoy (a flare) let go by a robot reads as that robot: the sight is a sensor too (M11).
    */
   private look(robot: Robot, part: PartInstance, bodies: Map<BodyId, Robot>): void {
-    const spec = part.def.gun;
-    const m = spec && part.health > 0 ? this.muzzle(robot, part) : undefined;
-    if (!spec || !m) return;
-    const sight: GunSight = { distance: spec.range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
-    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, spec.range, (b, owner) => owner === part.id && bodies.get(b) === robot);
+    const range = sightRange(part);
+    const m = range !== undefined && part.health > 0 ? this.muzzle(robot, part) : undefined;
+    if (range === undefined || !m) return;
+    const sight: GunSight = { distance: range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
+    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, range, (b, owner) => owner === part.id && bodies.get(b) === robot);
     if (hit) {
       sight.distance = hit.distance;
       const hitRobot = bodies.get(hit.body);
@@ -1352,7 +1451,7 @@ export class World {
         const decoy = (hitPart.burn ?? 0) > 0 && hitPart.decoyOf !== undefined && hitPart.decoyOf !== hitRobot.id ? this.byId.get(hitPart.decoyOf) : undefined;
         const seen = decoy ?? hitRobot;
         sight.id = seen.id;
-        sight.side = seen === robot ? SIGHT.own : !this.controllers.has(seen.id) ? SIGHT.none : seen.team === robot.team ? SIGHT.friend : SIGHT.enemy;
+        sight.side = this.sideOf(robot, seen);
       }
     }
     part.sight = sight;
@@ -1812,7 +1911,7 @@ export class World {
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
     if (name === 'jamming' && part.def.jammer !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
-    if (part.def.gun !== undefined) return gunOutput(part, name);
+    if (part.def.gun !== undefined || part.def.laser !== undefined) return gunOutput(part, name);
     if (part.def.grapple !== undefined) return this.grapples.output(part, name);
     return undefined;
   }
@@ -2310,6 +2409,7 @@ export class World {
           dt: this.dt,
           value: (channel) => own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
           config: (key) => part.def.behaviorConfig?.[key] ?? 0,
+          controlled: this.controllers.has(robot.id),
           detach: (face, impulse) => this.detach(robot, part, face, impulse),
           job: () => this.jobOf(robot, part),
           finish: () => this.finishBuild(robot, part),
@@ -2443,6 +2543,11 @@ export class World {
         }
         // A gun's cooldown (M13). Other parts add nothing.
         if (part.def.gun !== undefined) h.addInt(part.cooldown ?? 0);
+        // A laser's grant this tick and what it burned last (M14). Other parts add nothing.
+        if (part.def.laser !== undefined) {
+          h.addF64(part.beam ?? 0);
+          h.addString(part.burning ?? '');
+        }
         // A decoy's burn left and the robot it stands in for (M11). Other parts add nothing.
         if (part.def.decoy !== undefined) {
           h.addInt(part.burn ?? -1);
@@ -2648,8 +2753,9 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
   if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
   if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
   if (name === 'jamming' && part.def.jammer !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
-  if (part.def.gun !== undefined) {
-    if (name === 'sight') return part.sight?.distance ?? part.def.gun.range;
+  const range = sightRange(part);
+  if (range !== undefined) {
+    if (name === 'sight') return part.sight?.distance ?? range;
     if (name === 'sightSide') return part.sight?.side ?? 0;
     if (name === 'sightId') return part.sight?.id ?? 0;
     if (name === 'aim') return part.sight?.aim ?? 0;
@@ -2682,9 +2788,14 @@ function noise(seed: number, tick: number, robot: number, key: string, n: number
   return (h >>> 0) / 4294967296;
 }
 
+/** How far a part's sight looks: a gun's (M13) or a laser's (M14) range; undefined for parts with no sight. */
+function sightRange(part: PartInstance): number | undefined {
+  return part.def.gun?.range ?? part.def.laser?.range;
+}
+
 /** A gun's outputs (M13): its sight after the last step; before it first looks, nothing seen within its range. */
 function gunOutput(part: PartInstance, name: string): number | undefined {
-  const range = part.def.gun?.range ?? 0;
+  const range = sightRange(part) ?? 0;
   if (name === 'sight') return part.sight?.distance ?? range;
   if (name === 'sightSide') return part.sight?.side ?? SIGHT.nothing;
   if (name === 'sightId') return part.sight?.id ?? 0;

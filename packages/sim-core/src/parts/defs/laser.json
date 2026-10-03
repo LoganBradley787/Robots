@@ -1,0 +1,25 @@
+{
+  "id": "laser",
+  "name": "Laser",
+  "footprint": [
+    { "x": 0, "y": 0, "faces": ["S"] },
+    { "x": 0, "y": 1, "faces": [] }
+  ],
+  "mass": 4,
+  "health": 40,
+  "build": 2.0,
+  "symmetry": 4,
+  "inputs": [{ "name": "fire", "min": 0, "max": 1, "default": 0 }],
+  "outputs": [
+    { "name": "sight", "min": 0, "max": 300, "default": 300 },
+    { "name": "sightSide", "min": 0, "max": 5, "default": 0 },
+    { "name": "sightId", "min": 0, "max": 1000000000, "default": 0 },
+    { "name": "aim", "min": -3.141592653589793, "max": 3.141592653589793, "default": 0 }
+  ],
+  "powerDraw": 600,
+  "acts": "N",
+  "behavior": "laser",
+  "laser": { "dps": 150, "range": 300 },
+  "onDestroyed": { "explode": { "radius": 2.5, "damage": 80, "pushRadius": 4, "push": 25, "lift": 1 } },
+  "sprite": { "frame": "part.laser" }
+}

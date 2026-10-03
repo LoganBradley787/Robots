@@ -591,6 +591,40 @@ function drawGun(): Canvas {
   return cv;
 }
 
+/**
+ * Laser (M14): one cell wide, two tall. An armored base with a glowing red charge window, a long dark barrel ringed with
+ * cooling coils that glow red between them, and a red-hot emitter at the top (the barrel fires up at rotation 0).
+ */
+function drawLaser(): Canvas {
+  const cv = new Canvas(CELL, 2 * CELL);
+  const RED = hex('#ff2a3a');
+  const HOT = hex('#ffd0d0');
+  const gun = hex('#2b2f35');
+  const edge = hex('#111316');
+  // Base: a mount foot and an armored housing.
+  plate(cv, 6, 116, 58, 128, hex('#6f747d'), OUTLINE, 2);
+  plate(cv, 3, 72, 61, 118, hex('#3a3f47'), edge, 3);
+  for (const [x, y] of [[10, 79], [54, 79], [10, 111], [54, 111]] as const) rivet(cv, x, y, 2.4);
+  // Charge window: dark glass with three red bars and a glow.
+  cv.fill(rect(15, 86, 49, 106), hex('#140608'));
+  for (const y of [89, 95, 101]) cv.fill(rect(18, y, 46, y + 3), RED, 0.9);
+  glow(cv, 32, 96, 22, RED, 0.35);
+  // Barrel, with coils and red light between them.
+  plate(cv, 22, 10, 42, 74, gun, edge, 2);
+  cv.fill(rect(25, 12, 27, 72), WHITE, 0.12);
+  for (const y of [20, 32, 44, 56]) {
+    plate(cv, 15, y, 49, y + 7, hex('#4f5660'), edge, 2, 1);
+    cv.fill(rect(23, y + 8, 41, y + 10), RED, 0.85);
+    glow(cv, 32, y + 9, 12, RED, 0.25);
+  }
+  // Emitter: a collar and a red-hot lens at the very top.
+  plate(cv, 17, 2, 47, 13, hex('#555b64'), edge, 2);
+  cv.fill(rect(23, 0, 41, 4), RED);
+  cv.fill(rect(27, 0, 37, 2), HOT);
+  glow(cv, 32, 2, 16, RED, 0.6);
+  return cv;
+}
+
 /** Solar panel (Batch): a blue cell grid facing up, on a small gray mount at the base. */
 function drawSolar(): Canvas {
   const cv = new Canvas(CELL, CELL);
@@ -1161,6 +1195,7 @@ function main(): void {
     { name: 'part.jammer', canvas: drawJammer() },
     { name: 'part.jammer.lit', canvas: drawJammer(true) },
     { name: 'part.gun', canvas: drawGun() },
+    { name: 'part.laser', canvas: drawLaser() },
     { name: 'part.armorplate', canvas: drawArmorPlate() },
     { name: 'part.solar', canvas: drawSolar() },
     { name: 'part.swivelthruster', canvas: drawSwivelThruster() },

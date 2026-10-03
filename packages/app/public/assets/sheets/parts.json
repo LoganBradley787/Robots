@@ -520,6 +520,26 @@
         "h": 64
       }
     },
+    "part.laser": {
+      "frame": {
+        "x": 3,
+        "y": 411,
+        "w": 64,
+        "h": 128
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 128
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 128
+      }
+    },
     "part.armorplate": {
       "frame": {
         "x": 343,
@@ -742,7 +762,7 @@
     },
     "part.fabbay": {
       "frame": {
-        "x": 3,
+        "x": 71,
         "y": 411,
         "w": 192,
         "h": 384

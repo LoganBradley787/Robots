@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -246,6 +246,17 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const sight = def.outputs.find((c) => c.name === 'sight');
     if (sight && sight.max !== range) r.fail('gun', `its "sight" output's max must be its range (${range})`);
     def.gun = { speed: r.positive(g, 'speed', 'gun'), damage: r.positive(g, 'damage', 'gun'), rate: r.positive(g, 'rate', 'gun'), life: r.positive(g, 'life', 'gun'), recoil, range, spread };
+  }
+  if (o.laser !== undefined) {
+    const l = r.obj(o.laser, 'laser', ['dps', 'range']);
+    if (def.acts === undefined) r.fail('laser', 'a laser needs "acts" (the way it fires)');
+    if (def.behavior !== 'laser') r.fail('laser', 'a laser needs "behavior": "laser" (it draws its energy through it)');
+    if (!def.inputs.some((c) => c.name === 'fire')) r.fail('laser', 'a laser must have a "fire" input');
+    for (const out of GUN_OUTPUTS) if (!def.outputs.some((c) => c.name === out)) r.fail('laser', `a laser must have a "${out}" output`);
+    const range = r.positive(l, 'range', 'laser');
+    const sight = def.outputs.find((c) => c.name === 'sight');
+    if (sight && sight.max !== range) r.fail('laser', `its "sight" output's max must be its range (${range})`);
+    def.laser = { dps: r.positive(l, 'dps', 'laser'), range };
   }
   if (o.solar !== undefined) {
     const so = r.obj(o.solar, 'solar', ['power']);

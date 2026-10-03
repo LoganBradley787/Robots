@@ -178,6 +178,18 @@ export interface GunSpec {
 }
 
 /**
+ * A laser (M14): while its `fire` input is above 0.5 and its robot has a core in charge, it asks its chunk's pool for
+ * its `powerDraw` and burns a beam straight out of its `acts` face, `range` meters long: the first part on the line
+ * (anyone's) loses `dps` health a second, times the share of energy granted (a brownout weakens it) and halved by every
+ * smoke cloud the beam crosses. No `shellDamage`: a beam burns armor in full. Terrain stops it; no push. Its sight
+ * outputs are a gun's (`GUN_OUTPUTS`), looking `range` meters.
+ */
+export interface LaserSpec {
+  dps: number;
+  range: number;
+}
+
+/**
  * A solar panel (Batch): while its `acts` face points up it adds `power` J/s to its chunk's energy pool, scaled by the
  * cosine of the angle between that face and straight up (0 when it points level or down). It fills the chunk's energy
  * containers up to capacity; a panel with nothing to fill makes nothing.
@@ -291,6 +303,8 @@ export interface PartDef {
   jammer?: JammerSpec;
   /** M13: the part is a gun. It needs `acts`, a `fire` input, and `sight`, `sightSide`, `sightId`, and `aim` outputs. */
   gun?: GunSpec;
+  /** M14: the part is a laser. It needs `acts`, the `laser` behavior, a `fire` input, and the gun's sight outputs. */
+  laser?: LaserSpec;
   /** Batch: the part is a solar panel. It needs `acts`. */
   solar?: SolarSpec;
   /** Batch: the part is a distance charge. */
