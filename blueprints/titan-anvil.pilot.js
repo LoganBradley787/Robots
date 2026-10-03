@@ -323,7 +323,7 @@ function tick() {
     // Too heavy to ram head on: its own speed would hardly change. Three answers, from a scan of it.
     if (local > 0.5 && shape && Math.min(shape.L, shape.R) <= thin) {
       // Its core sits just behind a side face (it lies on its side): ram that face as fast as it can fly. The
-      // brick's own face pays for it; the core behind six plates does not.
+      // brick's own face pays for it; the core deep inside does not.
       // Pressed against it and going nowhere (no room for a run-up near the arena's edge), it backs off and comes
       // again: each bump shoves the enemy on, and its core loses once it is past the edge.
       plan('heavy: ramming the face its core is behind');

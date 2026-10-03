@@ -23,7 +23,7 @@ const POD_ROWS = 5;
 const KEEP = 11; // the keep: a square block at the stern, plate outside, batteries inside, the main core in its middle
 const POD_X0 = KEEP + 2;
 const BASE = 1; // the bottom row holds only the keep's own boosters
-const BELLY = 1; // a row of plate under the propeller rows (it carries them, and takes what comes from below)
+const BELLY = 1; // a row of frame under the propeller rows (it carries them; plate here was 162 plates, 3.2 t at 20 kg each)
 const UNDER = 3; // rows of propellers between the belly and the keel
 const W = BAY_X0 + BAYS * BAY_STEP + 8; // hull length in cells
 const KEEL = BASE + BELLY + UNDER; // first battery row
@@ -32,8 +32,9 @@ const TOP = DECK + 1; // what stands on the deck
 const H = TOP + Math.max(POD_ROWS, HOLLOW[1] + 1);
 const CORE = { x: 1 + (KEEP - 1) / 2, y: BASE + (KEEP - 1) / 2 };
 const HULL_X0 = KEEP + 1; // the spar starts here
+const BOW_PLATE = true;
 
-const MASS = { F: 1, Z: 3, A: 5, C: 2, O: 1, P: 1, K: 1.5, J: 0.5 };
+const MASS = { F: 1, Z: 3, A: 20, C: 2, O: 1, P: 1, K: 1.5, J: 0.5 };
 const GHOST_MASS = 12.5;
 
 // ---- the grid, [y][x], y 0 at the bottom ----
@@ -69,12 +70,13 @@ for (let x = 1; x <= KEEP; x++) {
   put(x, 0, x <= CORE.x ? 'kc' : 'kd');
   props.push({ x, y: KEEP + BASE });
 }
-for (let x = HULL_X0; x <= W - 3; x++) put(x, BASE, 'A');
-// the bow tower: plate the height of the keep, so what comes along the rows meets plate first; it carries the bow boosters
-for (let y = 0; y < KEEP; y++) put(W - 2, y + BASE, 'A');
+for (let x = HULL_X0; x <= W - 3; x++) put(x, BASE, 'F');
+// the bow tower: the height of the keep, it carries the bow boosters; plate only where it shields the rows of
+// propellers and batteries from what comes along them (BOW_PLATE), frame above and below
+for (let y = 0; y < KEEP; y++) put(W - 2, y + BASE, BOW_PLATE && y + BASE >= BASE + BELLY && y + BASE <= KEEL + 1 ? 'A' : 'F');
 for (let y = BASE + BELLY; y < BASE + BELLY + UNDER; y++) {
   for (let x = HULL_X0; x <= W - 3; x++) {
-    if (x === HULL_X0 || x % 8 === 1) put(x, y, 'A'); // posts of plate: a line of fire along a row must not cut the rows below loose
+    if (x === HULL_X0 || x % 8 === 1) put(x, y, 'F'); // posts of frame (plate before plates weighed 20 kg): a line of fire along a row must not cut the rows below loose
     else props.push({ x, y });
   }
 }
@@ -495,4 +497,6 @@ fs.writeFileSync(path.join(out, `${NAME}.helm.js`), HELM);
 fs.writeFileSync(path.join(out, `${NAME}.ghost.guide.js`), GUIDE);
 fs.writeFileSync(path.join(out, `${NAME}-ghost.json`), JSON.stringify(ghost(`${NAME}-ghost.guide.js`), null, 1) + '\n');
 fs.writeFileSync(path.join(out, `${NAME}-ghost.guide.js`), GUIDE);
-console.log(`${NAME}: ${W} by ${H} cells, ${BAYS} bays, ${pod} pods, ${props.length} propellers, about ${Math.round(m)} kg, center of mass at column ${com.toFixed(1)}`);
+const plates = cells.flat().filter((t) => t === 'A').length;
+const lift = props.length * 120 + KEEP * 400;
+console.log(`${NAME}: ${W} by ${H} cells, ${BAYS} bays, ${pod} pods, ${props.length} propellers, ${plates} plates, about ${Math.round(m)} kg, lift ${lift} N (push to weight ${(lift / (m * 9.81)).toFixed(2)}), center of mass at column ${com.toFixed(1)}`);

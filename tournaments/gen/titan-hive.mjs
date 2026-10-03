@@ -4,18 +4,19 @@
 // (blueprints/titan-hive-dart.guide.js) to blueprints/titan-hive.dart.guide.js, the name a bay's copy looks for.
 // The pilot (blueprints/titan-hive.pilot.js) is written by hand and left alone.
 //
-// Shape, round 2 (bottom row is y 0): one thick slab with its propellers inside it and a deep armored middle.
+// Shape (bottom row is y 0): one thick slab with its propellers inside it and a deep armored middle. Since the heavy
+// armor plate went to 20 kg (2026-10-02) it has a fourth row of propellers and plate three deep, not four (below).
 //   y 0..1    belly turrets (a rotator hanging from the belly skin, its gun under it)
 //   y 2       belly skin (frames): everything that lifts sits above it
-//   y 3..5    three rows of propellers between posts, inside the hull
-//   y 6       skin
-//   y 7..8    dense batteries; radars at the far ends (outside the jammer bubble)
-//   y 9       skin
-//   y 10..11  shoulders: propellers between posts under a roof; turrets on the roof
-//   y 10..16  dart bays (each 4 wide: wall, hollow 2 by 6, wall), five each side of the middle
-//   middle    a block 15 wide from y 2 to y 14 around the core at y 8: armor plate four deep, frames outside that, so
-//             the core is 6 cells from any face (a crash hurts only about 6 m in). Two 1 by 1 bays on its top build
-//             jammer pods the pilot lights in turn, so the core is hidden from sensors all match.
+//   y 3..6    four rows of propellers between posts, inside the hull
+//   y 7       skin
+//   y 8..9    dense batteries; radars at the far ends (outside the jammer bubble)
+//   y 10      skin
+//   y 11..12  shoulders: propellers between posts under a roof; turrets on the roof
+//   y 11..17  dart bays (each 4 wide: wall, hollow 2 by 6, wall), five each side of the middle
+//   middle    a block 15 wide from y 2 to y 15 around the core at y 9: armor plate three deep, frames outside that,
+//             so the core is 6 cells from any face (a crash hurts only about 6 m in). Two 1 by 1 bays on its top
+//             build jammer pods the pilot lights in turn, so the core is hidden from sensors all match.
 import { copyFileSync, writeFileSync } from 'node:fs';
 
 const SIDE_BAYS = 5; // dart bays each side of the middle
@@ -23,13 +24,24 @@ const BAY_W = 4; // a dart bay: wall, hollow 2 wide, wall
 const SHOULDER = 28; // columns each side of the bays
 const MID = 7; // the middle block reaches this many columns either side of the core
 const TIP = 2; // room for a side turret at each end
+// Heavy armor plates are 20 kg each since 2026-10-02 (5 before): a flier pays two propellers of lift per plate. The
+// old block of plate four deep (80 plates, 1.6 t) left the ship at 3.2 t and push to weight 1.02: it sank. Now the
+// plate is ARMOR deep around the core (48 plates, and 4 on the hull ends: 1.04 t), frames fill the rest of the middle block (depth still stops
+// a crash and every part in the way still halves a blast; only shells and beams get through frames sooner), and one
+// more row of propellers (76) carries what is left: 2.7 t, push to weight 1.54 (it was 1.67 on 5 kg plates).
+// Measured before choosing (seed 1, against the gun wall): plate two deep on three propeller rows (2.2 t) lost its
+// core at 57 s, this at 76 s. More propellers on the same armor changed no result.
+const ARMOR = Number(process.env.HIVE_ARMOR ?? 3); // plate this many cells deep around the core
+const PROP_ROWS = Number(process.env.HIVE_PROP_ROWS ?? 4); // rows of propellers inside the hull
+const END_PLATES = (process.env.HIVE_END_PLATES ?? '1') !== '0'; // two plates on each end of the battery rows, in front of the radars
+const UP = PROP_ROWS - 3; // rows everything over the propellers sits higher than in round 2
 const HULL = 2 * (SHOULDER + SIDE_BAYS * BAY_W) + 2 * MID + 1;
 const W = TIP + HULL + TIP;
-const H = 18;
+const H = 18 + UP;
 const X0 = TIP; // the hull's first column
 const X1 = X0 + HULL - 1; // the hull's last column
 const coreX = X0 + (HULL >> 1);
-const coreY = 8;
+const coreY = 8 + UP;
 const LB = coreX - MID - SIDE_BAYS * BAY_W; // the left bays' first column
 const RB = coreX + MID + 1; // the right bays' first column
 
@@ -59,9 +71,9 @@ for (let x = X0; x <= X1; x++) {
   const dx = Math.abs(x - coreX);
   if (dx <= MID) {
     // The middle block.
-    for (let y = coreY - 6; y <= coreY + 6; y++) {
+    for (let y = 2; y <= coreY + 6; y++) {
       const dy = Math.abs(y - coreY);
-      put(x, y, dx === 0 && dy === 0 ? 'C' : dx <= 4 && dy <= 4 ? 'A' : 'F');
+      put(x, y, dx === 0 && dy === 0 ? 'C' : dx <= ARMOR && dy <= ARMOR ? 'A' : 'F');
     }
     continue;
   }
@@ -69,21 +81,21 @@ for (let x = X0; x <= X1; x++) {
   const end = x === X0 || x === X1;
   const post = (x - X0) % 5 === 0 || end;
   put(x, 2, 'F');
-  for (let y = 3; y <= 5; y++) put(x, y, post ? 'F' : prop);
+  for (let y = 3; y <= 5 + UP; y++) put(x, y, post ? 'F' : prop);
   if (post && !end && posts++ % 3 === 1) turret(x, 1, 180);
-  put(x, 6, 'F');
-  for (let y = 7; y <= 8; y++) {
-    if (end) put(x, y, 'A');
+  put(x, 6 + UP, 'F');
+  for (let y = 7 + UP; y <= 8 + UP; y++) {
+    if (end) put(x, y, END_PLATES ? 'A' : 'F');
     else if (x === X0 + 2 || x === X1 - 2) put(x, y, 'O');
     else put(x, y, 'Z');
   }
-  put(x, 9, 'F');
+  put(x, 9 + UP, 'F');
   // Shoulders: propellers between posts under a roof.
   if (x < LB || x >= RB + SIDE_BAYS * BAY_W) {
-    put(x, 10, post || x === LB - 1 || x === RB + SIDE_BAYS * BAY_W ? 'F' : prop);
-    put(x, 11, 'F');
+    put(x, 10 + UP, post || x === LB - 1 || x === RB + SIDE_BAYS * BAY_W ? 'F' : prop);
+    put(x, 11 + UP, 'F');
     const fromEnd = Math.min(x - X0, X1 - x);
-    if (fromEnd === 4 || fromEnd === 24) turret(x, 12, 0);
+    if (fromEnd === 4 || fromEnd === 24) turret(x, 12 + UP, 0);
   }
 }
 // Dart bays.
@@ -94,11 +106,11 @@ for (const first of [LB, RB]) {
     const tok = `b${String.fromCharCode(97 + bays)}`;
     legend[tok] = { part: 'fabbay', rot: 0, tags: [`bay${String.fromCharCode(65 + bays)}`], makes: 'dart', size: [2, 6] };
     bays++;
-    put(x, 10, '=');
-    put(x + 1, 10, tok);
-    put(x + 2, 10, '=');
-    put(x + 3, 10, '=');
-    for (let y = 11; y <= 16; y++) {
+    put(x, 10 + UP, '=');
+    put(x + 1, 10 + UP, tok);
+    put(x + 2, 10 + UP, '=');
+    put(x + 3, 10 + UP, '=');
+    for (let y = 11 + UP; y <= 16 + UP; y++) {
       put(x, y, '=');
       put(x + 3, y, '=');
     }
@@ -115,8 +127,8 @@ for (const [i, x] of [coreX - 3, coreX + 3].entries()) {
   put(x + 1, coreY + 8, '=');
 }
 // A turret out of each end.
-turret(X0 - 1, 8, 90);
-turret(X1 + 1, 8, 270);
+turret(X0 - 1, 8 + UP, 90);
+turret(X1 + 1, 8 + UP, 270);
 
 const dart = {
   format: 1,

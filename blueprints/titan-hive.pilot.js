@@ -12,6 +12,9 @@
 // - Bays: every fabricator bay with a tag starting `bay`. A finished dart is sent the main enemy's place, speed and
 //   id and let go at once, at most one per `gap` s; every `spreadEvery`th goes to the nearest other enemy instead.
 //   With nothing seen it sends darts to the last place the main enemy was, else to the mirror of its own start.
+//   A bay with a dart in it builds nothing, so the pilot holds its darts while the energy left is under what the
+//   propellers need to hold the ship up to the end of the match (`match` s, `keep` times the hover's draw): since
+//   armor plates weigh 20 kg the ship hovers on more power, and a full match of darts would leave it little.
 // - Turrets: parts tagged `turN.rot` (rotator) and `turN.gun`. Each takes the nearest enemy it can swing to within
 //   `track` m, leads it, and blasts within `reach` m while its sight shows nothing of ours in the way. It never
 //   scans: a scan of a titan costs too much.
@@ -34,6 +37,9 @@ const gap = param('gap', 0.15, { min: 0, max: 10 }); // s between two bays letti
 const level = (param('level', 33, { min: 1, max: 90 }) * Math.PI) / 180; // lets darts go only within this many degrees of level
 const still = param('still', 12, { min: 0.1, max: 50 }); // m/s up or down: faster than this it holds its darts
 const spreadEvery = param('spreadEvery', 4, { min: 1, max: 100 }); // every this many darts, one goes to the nearest other enemy
+const match = param('match', 240, { min: 0, max: 100000 }); // s, how long it must stay up
+const keep = param('keep', 1.2, { min: 0, max: 10 }); // darts are held under this many times the energy the hover needs to the end
+const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
 const retreat = param('retreat', 100, { min: 0, max: 600 }); // m back from its start it waits with no enemy seen
 const overlap = param('overlap', 2.4, { min: 0.5, max: 5 }); // s between one jammer bay's pod lighting and the other's
@@ -351,7 +357,13 @@ function tick() {
 
   // Bays: let a finished dart go at the main enemy (or the place it should be).
   // Not while climbing or sinking: a dart levels off right over the bays, and a rising ship would fly up into it.
-  if (time - state.lastRel >= gap && Math.abs(self.angle) < level && Math.abs(self.vel.y) < still) {
+  // Not while low on energy either: what is left must hold the ship up to the end (its weight over a propeller's push
+  // is how many run at full, each drawing `propDraw`).
+  const hoverDraw = ((self.mass * g) / lift) * propDraw;
+  const spare = self.energy.stored >= keep * hoverDraw * Math.max(0, match - time);
+  if (!spare && !state.saving) log('low on energy: holding the darts to stay up');
+  state.saving = !spare;
+  if (spare && time - state.lastRel >= gap && Math.abs(self.angle) < level && Math.abs(self.vel.y) < still) {
     // The bay nearest the target goes first, so a dart never turns across one let go just before it.
     const toRight = (main ? main.pos.x : state.last ? state.last.x : -state.home.x) >= self.pos.x;
     const order = C.bays.slice().sort((p, q) => (toRight ? q.p.pos.x - p.p.pos.x : p.p.pos.x - q.p.pos.x));
