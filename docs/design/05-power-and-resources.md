@@ -39,7 +39,7 @@ Brownout is proportional rather than first-come so the result does not depend on
 ## As built (M4, 2026-09-23)
 - Behaviors plan, then run: `plan(ctx)` returns `{ load, run(grant) }`, the world sums each chunk's requests (`powerDraw * load * dt`), grants and drains the pool (`resources/pools.ts`), then runs every action with its grant. A part that asks for nothing acts in full.
 - Loads: wheel `|speed|` (coasting and an empty pool both leave the wheel slack), thrust = throttle, gyro `|spin|` or its damping torque over `maxTorque`.
-- M14: the laser draws the most of any part: 600 J/s at load 1 while it fires (a fabricator bay is 400, a propeller 10). A dense battery is 10 s of beam, a battery 2.5 s. Its grant is the beam's strength, so a brownout burns weaker.
+- M14: the laser draws the most of any part: 2400 J/s at load 1 while it fires (a fabricator bay is 400, a propeller 10). A dense battery is 2.5 s of beam, a battery 0.6 s. Its grant is the beam's strength, so a brownout burns weaker.
 - `World.energy(robot)` is the pool of the chunk the robot is controlled through; `World.partOutput` serves `charge` (a container's own fraction) and `energy` / `energyCapacity` (its chunk's pool).
 - `World.setUnlimitedEnergy` applies on the next tick and is logged in the input log (`world: { unlimitedEnergy }`), so replays match; the hash includes the switch and every container's stored energy.
 - Events: `energyEmpty` once per pool, in `World.events` (not hashed). The app shows it as a notice.

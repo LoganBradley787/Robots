@@ -49,8 +49,8 @@ describe('parts', () => {
     expect(text('booster')).toMatch(/build time: 1.1 s in a fabricator/);
     expect(text('gun')).toMatch(/10 shells a second out of its N face at 300 m\/s; a shell falls under gravity, takes 5 off the first part it hits/);
     expect(text('gun')).toMatch(/looks 150 m straight out of the barrel/);
-    expect(rows.find((r) => r.id === 'laser')).toMatchObject({ key: '', legend: ['Lz^', 'Lz<', 'Lzv', 'Lz>'], mass: 4, faces: ['S'], health: 40, power: 600 });
-    expect(text('laser')).toMatch(/the first part within 300 m \(anyone's, friends and its own robot too\) loses 150 health a second, in full whatever the part/);
+    expect(rows.find((r) => r.id === 'laser')).toMatchObject({ key: '', legend: ['Lz^', 'Lz<', 'Lzv', 'Lz>'], mass: 4, faces: ['S'], health: 40, power: 2400 });
+    expect(text('laser')).toMatch(/the first part within 300 m \(anyone's, friends and its own robot too\) loses 600 health a second, in full whatever the part/);
     expect(text('laser')).toMatch(/explodes when destroyed: 80 damage/);
     expect(text('gun')).toMatch(/up to 0.5 degrees off the barrel's line/);
     expect(text('solar')).toMatch(/solar: adds 6 J\/s \(times the cosine of the angle between its N face and straight up.*\) to its chunk's energy pool while its N face points up/);

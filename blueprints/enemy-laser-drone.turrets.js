@@ -14,7 +14,7 @@
 // - Burn: only while the laser's sight says the first thing on its line is an enemy within `reach`: it never burns a
 //   friend, its own robot, or the ground, and never spends energy on empty air. It also holds while a friend the radar
 //   tracks is within `clear` meters of the line, nearer than what it burns (the sight is a tick old). A wreck (nobody's) it burns only when
-//   it hangs in front of the target. A laser draws 600 W while it
+//   it hangs in front of the target. A laser draws 2400 W while it
 //   burns, so below `reserve` of the robot's energy it stops (a flier keeps enough to stay up) and says so once.
 const reach = param('reach', 300, { min: 1, max: 1000 }); // m: the laser's range (the laser part)
 const track = param('track', 450, { min: 1, max: 1000 }); // m: further than this it does not point at things

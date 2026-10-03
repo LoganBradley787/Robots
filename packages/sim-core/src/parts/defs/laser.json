@@ -16,10 +16,10 @@
     { "name": "sightId", "min": 0, "max": 1000000000, "default": 0 },
     { "name": "aim", "min": -3.141592653589793, "max": 3.141592653589793, "default": 0 }
   ],
-  "powerDraw": 600,
+  "powerDraw": 2400,
   "acts": "N",
   "behavior": "laser",
-  "laser": { "dps": 150, "range": 300 },
+  "laser": { "dps": 600, "range": 300 },
   "onDestroyed": { "explode": { "radius": 2.5, "damage": 80, "pushRadius": 4, "push": 25, "lift": 1 } },
   "sprite": { "frame": "part.laser" }
 }

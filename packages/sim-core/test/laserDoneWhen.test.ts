@@ -75,22 +75,22 @@ describe('M14 lasers, done when', () => {
     // Burnt off its propellers first, it falls, and its core can end up on the ground behind the flat world's box.
     const propellers = [...hunter.parts.values()].filter((p) => p.def.id === 'propeller').length;
     expect(coreLostAt(w, hunter) !== undefined || propellers === 0).toBe(true);
-    // Its four missiles were burnt first.
-    expect(w.events.filter((e) => e.kind === 'partDestroyed' && family(w, hunter).has(e.robot) && e.partType === 'heavywarhead').length).toBe(4);
+    // Its missiles were burnt first (at 600 a second the hunter can be gone before the last one).
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && family(w, hunter).has(e.robot) && e.partType === 'heavywarhead').length).toBeGreaterThanOrEqual(3);
     expect(partsLost(w, tower)).toBe(0);
     w.dispose();
   });
 
-  it('a beam burns through armor: a core behind three heavy plates is gone in about 5 to 8 s', { timeout: 60_000 }, async () => {
+  it('a beam burns through armor: a core behind three heavy plates is gone in under 3 s', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-laser-tower'), { x: -60, y: 0.6 }, { team: 1 });
     // A core with three plates on its right, facing the tower (on frames so the plates are in the turret's line).
     const brick = w.spawnBlueprint({ format: 1, name: 'brick', grid: ['C A A A', 'F F F F'] }, { x: -150, y: 4.5 });
     for (let t = 0; t < 900; t++) w.step();
     const lost = coreLostAt(w, brick);
-    // 3 x 250 + 50 health at 150 a second is 5.3 s of beam, plus the turret swinging over.
-    expect(lost).toBeGreaterThan(5);
-    expect(lost).toBeLessThan(8);
+    // 3 x 250 + 50 health at 600 a second is 1.3 s of beam, plus the turret swinging over.
+    expect(lost).toBeGreaterThan(1.3);
+    expect(lost).toBeLessThan(3);
     expect(tower.parts.size).toBe(41);
     w.dispose();
   });
@@ -128,19 +128,28 @@ describe('M14 lasers, done when', () => {
     w.dispose();
   });
 
-  it('no friendly fire: in a 2v2 of laser and gun drones no beam burns its own side', { timeout: 120_000 }, async () => {
+  it('no friendly fire: in a 2v2 of laser and gun drones no beam burns a live robot of its own side', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const a = [w.spawnBlueprint(blueprint('enemy-laser-drone'), { x: 150, y: 20 }, { team: 1 }), w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: 120, y: 40 }, { team: 1 })];
     const b = [w.spawnBlueprint(blueprint('enemy-laser-drone'), { x: -150, y: 20 }), w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: -120, y: 40 })];
-    for (let t = 0; t < 1800; t++) w.step();
-    const side = (id: number): number => {
-      for (const r of a) if (family(w, r).has(id)) return 1;
-      for (const r of b) if (family(w, r).has(id)) return 0;
-      return -1;
-    };
-    const burns = w.events.filter((e) => e.kind === 'laserBurn');
-    expect(burns.length).toBeGreaterThan(5);
-    expect(burns.filter((e) => e.kind === 'laserBurn' && side(e.robot) === side(e.by))).toEqual([]);
+    const team = (id: number): number | undefined => w.robotById(id)?.team;
+    let burns = 0;
+    const friendly: unknown[] = [];
+    for (let t = 0; t < 1800; t++) {
+      const n = w.events.length;
+      w.step();
+      for (const e of w.events.slice(n)) {
+        if (e.kind !== 'laserBurn') continue;
+        burns++;
+        // A live friend: a robot of the burner's side with a core in charge. A friend's wreck falling through the beam
+        // (nobody's by then, and the sight is a tick old) is debris, not friendly fire.
+        if (team(e.robot) === team(e.by) && w.canControl(e.robot)) friendly.push(e);
+      }
+    }
+    expect(a.length + b.length).toBe(4);
+    expect(burns).toBeGreaterThan(5);
+    expect(friendly).toEqual([]);
     w.dispose();
   });
+
 });
