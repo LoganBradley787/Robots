@@ -6,6 +6,7 @@ import { parsePartDef } from '../src/parts/parsePartDef';
 import { defaultRegistry } from '../src/parts/registry';
 import { DEFAULT_LEGEND } from '../src/blueprint/legend';
 import { SIGHT } from '../src/weapons/shells';
+import { buildReplay, parseReplay, runReplay } from '../src/replay/replayFile';
 
 /** No gravity, a small ground far below, so nothing moves on its own. */
 const space = parseWorldFile({ name: 'space', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 } });
@@ -205,17 +206,53 @@ describe('laser (M14)', () => {
     w.dispose();
   });
 
-  it('runs the same twice', async () => {
-    const run = async (): Promise<string> => {
-      const w = await World.create({ seed: 3 }, flat);
-      const rig = w.spawnBlueprint(RIG, { x: -50, y: 0.5 });
-      w.spawnBlueprint({ format: 1, name: 'pair', grid: ['= =', 'Lz^ Lz^', 'F F'] }, { x: 0, y: 0.5 });
-      w.step(hold(rig.id));
-      for (let i = 0; i < 120; i++) w.step();
-      const h = w.hash();
-      w.dispose();
-      return h;
-    };
-    expect(await run()).toBe(await run());
+  it('two lasers burning each other die on the same tick: every beam is cast before any burns', async () => {
+    const w = await space0();
+    // Two rigs facing each other: each beam meets the other's barrel first.
+    const left = w.spawnBlueprint(RIG, { x: 0, y: 100 });
+    const right = w.spawnBlueprint({ ...RIG, grid: ['= Lz< C Z'] }, { x: 30, y: 100 }, { team: 1 });
+    w.step([...hold(left.id), ...hold(right.id)]);
+    for (let i = 0; i < 30; i++) w.step();
+    const gone = w.events.filter((e) => e.kind === 'partDestroyed' && e.partType === 'laser');
+    expect(gone.length).toBe(2);
+    expect(gone[0]?.tick).toBe(gone[1]?.tick);
+    w.dispose();
+  });
+
+  it('the parser refuses a gun that is also a laser, a free laser, and the laser behavior without a laser block', () => {
+    const raw = JSON.parse(JSON.stringify(defaultRegistry().get('laser')));
+    const gun = { ...JSON.parse(JSON.stringify(defaultRegistry().get('gun'))).gun, range: 300 };
+    expect(() => parsePartDef({ ...raw, gun }, 'x.json')).toThrow('a gun or a laser, not both');
+    expect(() => parsePartDef({ ...raw, powerDraw: 0 }, 'x.json')).toThrow('"powerDraw" above 0');
+    expect(() => parsePartDef({ ...raw, laser: undefined }, 'x.json')).toThrow('needs a "laser" block');
+  });
+
+  /** A rig burning a pair of lasers on frames 20 m off, on the ground: burns, a laser blowing up, the next one going. */
+  async function burnSession(): Promise<World> {
+    const w = await World.create({ seed: 3 }, flat);
+    const rig = w.spawnBlueprint(RIG, { x: -50, y: 0.5 });
+    w.spawnBlueprint({ format: 1, name: 'pair', grid: ['= =', 'Lz^ Lz^', 'F F'] }, { x: -30, y: 1.5 });
+    w.step(hold(rig.id));
+    for (let i = 0; i < 240; i++) w.step();
+    return w;
+  }
+
+  it('runs the same twice, burning', async () => {
+    const a = await burnSession();
+    const b = await burnSession();
+    expect(a.events.filter((e) => e.kind === 'laserBurn').length).toBeGreaterThan(0);
+    expect(a.events.filter((e) => e.kind === 'partDestroyed').length).toBeGreaterThan(0);
+    expect(a.hash()).toBe(b.hash());
+    a.dispose();
+    b.dispose();
+  });
+
+  it('a laser session replays to the same hash, through JSON', async () => {
+    const w = await burnSession();
+    const r = await runReplay(parseReplay(JSON.parse(JSON.stringify(buildReplay(w)))));
+    expect(r.matches).toBe(true);
+    expect(r.hash).toBe(w.hash());
+    r.world.dispose();
+    w.dispose();
   });
 });

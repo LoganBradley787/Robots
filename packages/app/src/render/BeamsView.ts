@@ -82,6 +82,8 @@ export class BeamsView {
     }
     this.starts = starts;
 
+    // Oldest go first past the cap (trimmed once a frame, not per particle).
+    if (this.particles.length > MAX_PARTICLES) this.particles.splice(0, this.particles.length - MAX_PARTICLES);
     this.cool(world, alpha, dt, px);
     this.move(dt, px);
     this.drawScorches(dt, px);
@@ -179,14 +181,13 @@ export class BeamsView {
 
   private add(p: Particle): void {
     this.particles.push(p);
-    if (this.particles.length > MAX_PARTICLES) this.particles.splice(0, this.particles.length - MAX_PARTICLES);
   }
 
-  /** A scorch where the beam touches the ground, unless one is already right there. */
+  /** A scorch where the beam touches the ground, unless one is already right there (any recent one: two beams). */
   private scorch(at: Vec2): void {
-    const last = this.scorches[this.scorches.length - 1];
-    if (last && Math.hypot(last.x - at.x, last.y - at.y) < 0.7) {
-      last.t = Math.min(last.t, 0.3);
+    const near = this.scorches.find((s) => Math.hypot(s.x - at.x, s.y - at.y) < 0.7);
+    if (near) {
+      near.t = Math.min(near.t, 0.3);
       return;
     }
     this.scorches.push({ x: at.x, y: at.y, r: 0.6 + Math.random() * 0.4, t: 0, life: 8 });

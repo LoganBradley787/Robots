@@ -115,19 +115,19 @@ export class Effects {
         g.circle(0, 0, r * (0.5 + reach * k)).stroke({ color, width: 12 * (1 - k) + 2, alpha: 0.85 * (1 - k) });
       }, true);
     }
-    for (let i = 0; i < 40; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const speed = (4 + Math.random() * 6) * r;
-      const life = 0.35 + Math.random() * 0.45;
-      this.add(p, life, (g, t) => {
+    // 40 sparks in one drawing, each with its own direction, speed, and life.
+    const sparks = Array.from({ length: 40 }, () => ({ a: Math.random() * Math.PI * 2, speed: (4 + Math.random() * 6) * r, life: 0.35 + Math.random() * 0.45 }));
+    this.add(p, 0.8, (g, t) => {
+      for (const { a, speed, life } of sparks) {
+        if (t >= life) continue;
         const k = t / life;
         const d = speed * t * (1 - 0.4 * k);
         const tail = Math.max(0, d - 0.35 * r);
         g.moveTo(Math.cos(a) * tail, Math.sin(a) * tail + 4 * r * t * t)
           .lineTo(Math.cos(a) * d, Math.sin(a) * d + 4 * r * t * t)
           .stroke({ color: 0xffd890, width: 4, alpha: 1 - k });
-      }, true);
-    }
+      }
+    }, true);
   }
 
   /** Advances every effect by `dt` seconds and drops finished ones. */

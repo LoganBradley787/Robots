@@ -1285,17 +1285,38 @@ export class World {
     if (!lasers) return;
     const bodies = new Map<BodyId, Robot>();
     for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
+    // Every beam is cast before any burns (review: two lasers burning each other's lasers, the one earlier in the
+    // list took the other to 0 first, which then never fired that tick though it had paid for it).
+    const burns: { robot: Robot; part: PartInstance; hitRobot: Robot; hitPart: PartInstance; damage: number; x: number; y: number }[] = [];
     for (const { robot, part } of lasers) {
       const spec = part.def.laser;
       const power = part.beam ?? 0;
       const m = spec && power > 0 && part.health > 0 && this.controllers.has(robot.id) ? this.muzzle(robot, part) : undefined;
-      if (spec && m) this.burn(robot, part, spec, power, m, bodies);
-      else part.burning = '';
+      if (spec && m) {
+        const b = this.beam(robot, part, spec, power, m, bodies);
+        if (b) burns.push({ robot, part, ...b });
+      }
       this.look(robot, part, bodies);
+    }
+    const was = new Map<PartInstance, string>();
+    for (const { part } of lasers) {
+      was.set(part, part.burning ?? '');
+      part.burning = '';
+    }
+    for (const { robot, part, hitRobot, hitPart, damage, x, y } of burns) {
+      // A part already at 0 this tick (its collider goes in the damage phase) takes nothing more.
+      if (hitPart.health <= 0) continue;
+      const target = `${hitRobot.id}:${hitPart.id}`;
+      part.burning = target;
+      const stats = this.burns.get(robot.id);
+      if (stats) stats.damage += Math.min(hitPart.health, damage);
+      hitPart.health -= damage;
+      if (target !== was.get(part)) this.events.push({ tick: this.tickCount, robot: hitRobot.id, kind: 'laserBurn', part: hitPart.id, partType: hitPart.def.id, by: robot.id, laser: part.id, x, y });
     }
   }
 
-  private burn(robot: Robot, part: PartInstance, spec: { dps: number; range: number }, power: number, m: { x: number; y: number; dx: number; dy: number }, bodies: Map<BodyId, Robot>): void {
+  /** One laser's beam this tick: drawn always, and what it would burn (applied once every beam is cast). */
+  private beam(robot: Robot, part: PartInstance, spec: { dps: number; range: number }, power: number, m: { x: number; y: number; dx: number; dy: number }, bodies: Map<BodyId, Robot>): { hitRobot: Robot; hitPart: PartInstance; damage: number; x: number; y: number } | undefined {
     const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, spec.range, (b, owner) => owner === part.id && bodies.get(b) === robot);
     const distance = hit?.distance ?? spec.range;
     const x2 = m.x + m.dx * distance;
@@ -1303,30 +1324,22 @@ export class World {
     let smoke = 0;
     for (const c of this.clouds) if (smokeBlocks(c, m.x, m.y, x2, y2)) smoke++;
     const beam: Beam = { robot: robot.id, laser: part.id, x1: m.x, y1: m.y, x2, y2, power, smoke, side: SIGHT.nothing };
+    this.beams.push(beam);
     const stats = this.burns.get(robot.id) ?? { ticks: 0, damage: 0 };
     this.burns.set(robot.id, stats);
     stats.ticks++;
-    let target = '';
-    if (hit) {
-      const hitRobot = bodies.get(hit.body);
-      const hitPart = hit.owner === undefined ? undefined : hitRobot?.parts.get(hit.owner);
-      if (!hitRobot || !hitPart) beam.side = SIGHT.terrain;
-      else {
-        beam.side = this.sideOf(robot, hitRobot);
-        beam.hitRobot = hitRobot.id;
-        beam.hitPart = hitPart.id;
-        // A part already destroyed this tick (its collider goes in the damage phase) takes nothing more.
-        if (hitPart.health > 0) {
-          const damage = spec.dps * this.dt * power * 0.5 ** smoke;
-          hitPart.health -= damage;
-          stats.damage += damage;
-          target = `${hitRobot.id}:${hitPart.id}`;
-          if (target !== part.burning) this.events.push({ tick: this.tickCount, robot: hitRobot.id, kind: 'laserBurn', part: hitPart.id, partType: hitPart.def.id, by: robot.id, laser: part.id, x: x2, y: y2 });
-        }
-      }
+    if (!hit) return undefined;
+    const hitRobot = bodies.get(hit.body);
+    const hitPart = hit.owner === undefined ? undefined : hitRobot?.parts.get(hit.owner);
+    if (!hitRobot || !hitPart) {
+      beam.side = SIGHT.terrain;
+      return undefined;
     }
-    part.burning = target;
-    this.beams.push(beam);
+    beam.side = this.sideOf(robot, hitRobot);
+    beam.hitRobot = hitRobot.id;
+    beam.hitPart = hitPart.id;
+    if (hitPart.health <= 0) return undefined;
+    return { hitRobot, hitPart, damage: spec.dps * this.dt * power * 0.5 ** smoke, x: x2, y: y2 };
   }
 
   /** How `robot` reads `seen` (M8 contacts rule): itself, a robot nobody controls, a friend, or an enemy. */

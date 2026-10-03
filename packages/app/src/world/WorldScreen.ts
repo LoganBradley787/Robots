@@ -450,9 +450,10 @@ export class WorldScreen {
         if ((part.def.gun === undefined && part.def.laser === undefined) || !part.sight) continue;
         const pose = partWorldPose(this.world, r, part.id);
         const aim = part.sight.aim;
-        // From the barrel's end: half a cell past the base for a gun, a cell and a half for a laser (M14, 1 by 2).
-        const out = (part.footprint ?? part.def.footprint).length - 0.5;
-        sights.push({ x: pose.x + out * Math.cos(aim), y: pose.y + out * Math.sin(aim), aim, distance: part.sight.distance, side: part.sight.side });
+        // From the barrel's end: half a cell past the base for a gun, a cell and a half for a laser (M14, 1 by 2). Both
+        // are straight parts along their aim; a bent multi-cell sight part would need the world's own muzzle.
+        const reach = (part.footprint ?? part.def.footprint).length - 0.5;
+        sights.push({ x: pose.x + reach * Math.cos(aim), y: pose.y + reach * Math.sin(aim), aim, distance: part.sight.distance, side: part.sight.side });
       }
       if (view.sensors.length === 0 && marks.length === 0 && sights.length === 0) continue;
       const s = sampleRobot(this.world, r);

@@ -160,7 +160,7 @@ function aimTurret(name, charged) {
   const laser = tagged(name + '.laser');
   const rot = tagged(name + '.rot');
   if (!laser || !rot) return;
-  const st = state.turrets[name] || (state.turrets[name] = { id: 0, blocked: 0, skip: {}, want: undefined, part: undefined, picked: -Infinity });
+  const st = state.turrets[name] || (state.turrets[name] = { id: 0, blocked: 0, skip: {}, want: undefined, part: undefined, aimed: undefined, picked: -Infinity });
   const aim = laser.out.aim;
   // How it was built: its aim now, less how far it has turned (-1 to 1 of its range).
   const rest = aim - get(name + '.rot', 'angle') * swing;
@@ -202,6 +202,9 @@ function aimTurret(name, charged) {
     const p = list && list.find((x) => x.id === st.part);
     if (p) l = point(p.pos, best.c.vel, from);
     else st.part = undefined;
+    // A new part is a jump in the aim point, not its motion: do not turn at that jump's rate.
+    if (st.part !== st.aimed) st.want = undefined;
+    st.aimed = st.part;
   }
   const want = l.angle;
   // The aim point moves: turn at its rate, plus a push toward it, less its own robot's spin (the rotator turns
@@ -219,8 +222,9 @@ function aimTurret(name, charged) {
     st.id = 0;
   }
   // Burn whatever enemy is first on the line (sweeping across one on the way to the target burns it too), or a wreck
-  // in front of the target (a part burnt off it and hanging on the line kept the beam off for 10 s).
-  const wreck = side === SIGHT.none && laser.out.sight < l.distance + 2;
+  // just in front of the target (a part burnt off it and hanging on the line kept the beam off for 10 s). Only near
+  // the target: a wreck of ours still carrying a warhead or a laser could be anywhere else on the line.
+  const wreck = side === SIGHT.none && laser.out.sight < l.distance + 2 && laser.out.sight > l.distance - 15;
   const burn = charged && (side === SIGHT.enemy || wreck) && laser.out.sight <= reach && !blocked;
   set(name + '.laser', 'fire', burn ? 1 : 0);
   mark(from.x + Math.cos(want) * l.distance, from.y + Math.sin(want) * l.distance, name);
@@ -230,7 +234,8 @@ function tick() {
   const cap = self.energy.capacity;
   const share = cap > 0 ? self.energy.stored / cap : 0;
   // A little above the reserve before it starts again, so it does not flicker on the line.
-  const charged = state.low ? share > reserve + 0.02 : share > reserve;
+  // A robot with no batteries at all (cap 0) has nothing to keep: it burns while the pool lets it.
+  const charged = cap <= 0 || (state.low ? share > reserve + 0.02 : share > reserve);
   if (!charged && !state.low) log('lasers low on energy: holding fire');
   if (charged && state.low) log('lasers back on');
   state.low = !charged;

@@ -256,8 +256,10 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const range = r.positive(l, 'range', 'laser');
     const sight = def.outputs.find((c) => c.name === 'sight');
     if (sight && sight.max !== range) r.fail('laser', `its "sight" output's max must be its range (${range})`);
+    if (o.gun !== undefined) r.fail('laser', 'a part is a gun or a laser, not both');
+    if (def.powerDraw <= 0) r.fail('laser', 'a laser needs a "powerDraw" above 0 (what it costs while it burns)');
     def.laser = { dps: r.positive(l, 'dps', 'laser'), range };
-  }
+  } else if (def.behavior === 'laser') r.fail('behavior', 'the laser behavior needs a "laser" block (dps and range)');
   if (o.solar !== undefined) {
     const so = r.obj(o.solar, 'solar', ['power']);
     if (def.acts === undefined) r.fail('solar', 'a solar panel needs "acts" (the face that catches the sun)');

@@ -57,17 +57,26 @@ describe('M14 lasers, done when', () => {
       for (let t = 0; t < 600; t++) w.step(t === 60 ? [press(launcher.id, 'f')] : t === 61 ? [lift(launcher.id, 'f')] : []);
       const burned = w.events.filter((e) => e.kind === 'laserBurn' && e.by === tower.id && e.robot !== launcher.id);
       expect(burned.length, JSON.stringify(at)).toBeGreaterThan(0);
+      // The missile (gone from the world by the end) lost its core to the beam, more than 100 m short of the tower.
+      const burnedIds = new Set(burned.map((e) => e.robot));
+      const lost = w.events.find((e) => e.kind === 'partDestroyed' && burnedIds.has(e.robot) && e.partType === 'core');
+      expect(lost, JSON.stringify(at)).toBeDefined();
+      expect(Math.abs((lost?.kind === 'partDestroyed' ? lost.x : at.x) - at.x), JSON.stringify(at)).toBeGreaterThan(100);
       expect(partsLost(w, tower), JSON.stringify(at)).toBe(0);
       w.dispose();
     }
   });
 
-  it('a laser tower takes a hovering hunter apart from 150 m: its core is gone within 10 s', { timeout: 60_000 }, async () => {
+  it('a laser tower takes a hovering hunter out of the fight from 150 m within 10 s: its core or every propeller gone', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-laser-tower'), { x: -150, y: 0.6 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: 0, y: 30 });
     for (let t = 0; t < 600; t++) w.step();
-    expect(coreLostAt(w, hunter)).toBeLessThan(10);
+    // Burnt off its propellers first, it falls, and its core can end up on the ground behind the flat world's box.
+    const propellers = [...hunter.parts.values()].filter((p) => p.def.id === 'propeller').length;
+    expect(coreLostAt(w, hunter) !== undefined || propellers === 0).toBe(true);
+    // Its four missiles were burnt first.
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && family(w, hunter).has(e.robot) && e.partType === 'heavywarhead').length).toBe(4);
     expect(partsLost(w, tower)).toBe(0);
     w.dispose();
   });

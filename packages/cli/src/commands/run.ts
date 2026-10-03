@@ -302,7 +302,8 @@ function lasersOf(world: SimWorld): { lasers?: RunReport['lasers'] } {
   for (const e of world.events) if (e.kind === 'laserBurn') ids.add(e.by);
   for (const r of world.robots) if (world.laserStats(r.id).ticks > 0) ids.add(r.id);
   if (ids.size === 0) return {};
-  const burns = (id: number) => world.events.filter((e) => e.kind === 'laserBurn' && e.by === id).length;
+  // Parts, not burns: a beam that leaves a part and comes back to it counts it once.
+  const burns = (id: number) => new Set(world.events.flatMap((e) => (e.kind === 'laserBurn' && e.by === id ? [`${e.robot}:${e.part}`] : []))).size;
   return { lasers: [...ids].sort((a, b) => a - b).map((id) => ({ robot: id, seconds: world.laserStats(id).ticks * world.dt, damage: world.laserStats(id).damage, burns: burns(id) })) };
 }
 
