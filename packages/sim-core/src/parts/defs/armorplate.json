@@ -2,7 +2,7 @@
   "id": "armorplate",
   "name": "Heavy armor plate",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
-  "mass": 5,
+  "mass": 20,
   "health": 250,
   "shellDamage": 0.1,
   "build": 2.0,

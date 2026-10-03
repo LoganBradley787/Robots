@@ -67,8 +67,9 @@ describe('popout gun drone, done when', () => {
   });
 
   it('a target that had a gun and lost it: the doors open as soon as it is gone, well before 10 s', { timeout: 60_000 }, async () => {
-    const { w, a, t } = await fightAt(['M< C F F F F F F F F F F F'], 9.5, (cw, r, _t, second) => {
-      if (second === 6) expect(door(cw, r, 'piston@16,7'), 'shut while its gun is still there').toBe(0);
+    const { w, a, t } = await fightAt(['M< C F F F F F F F F F F F'], 9.5, (cw, r, target, second) => {
+      // Every second while the target still has its gun (how long that is shifts with the drone's weight).
+      if ([...target.parts.values()].some((p) => p.def.id === 'gun')) expect(door(cw, r, 'piston@16,7'), `shut while its gun is still there (${second} s)`).toBe(0);
     });
     const gunGone = w.events.find((e) => e.kind === 'partDestroyed' && e.robot === t.id && e.partType === 'gun');
     expect(gunGone).toBeDefined();

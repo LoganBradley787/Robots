@@ -17,10 +17,10 @@ const POST = { format: 1, name: 'plate-post', grid: ['A', 'A', 'A'] };
 describe('heavy armor plate (Batch)', () => {
   const def = defaultRegistry().get('armorplate');
 
-  it('is five frames heavy, 250 health, attaches on every face, takes a tenth of a shell', () => {
-    expect(def).toMatchObject({ mass: 5, health: 250, shellDamage: 0.1, powerDraw: 0 });
+  it('is twenty frames heavy (Logan, 2026-10-02: a flier pays for it), 250 health, attaches on every face, takes a tenth of a shell', () => {
+    expect(def).toMatchObject({ mass: 20, health: 250, shellDamage: 0.1, powerDraw: 0 });
     expect(def.footprint[0]?.faces).toEqual(['N', 'E', 'S', 'W']);
-    expect(def.mass).toBe(5 * defaultRegistry().get('frame').mass);
+    expect(def.mass).toBe(20 * defaultRegistry().get('frame').mass);
     expect(DEFAULT_LEGEND.A).toEqual({ part: 'armorplate' });
   });
 

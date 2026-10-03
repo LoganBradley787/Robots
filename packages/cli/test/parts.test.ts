@@ -19,7 +19,7 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'densebattery')).toMatchObject({ key: '', legend: ['Z'] });
     expect(rows.find((r) => r.id === 'fabbay')).toMatchObject({ key: '', legend: [], mass: 13, health: 150 });
     expect(rows.find((r) => r.id === 'gun')).toMatchObject({ key: '', legend: ['M^', 'M<', 'Mv', 'M>'], mass: 1, faces: ['S'], health: 25, power: 0 });
-    expect(rows.find((r) => r.id === 'armorplate')).toMatchObject({ key: '', legend: ['A'], mass: 5, faces: ['N', 'E', 'S', 'W'], health: 250, power: 0 });
+    expect(rows.find((r) => r.id === 'armorplate')).toMatchObject({ key: '', legend: ['A'], mass: 20, faces: ['N', 'E', 'S', 'W'], health: 250, power: 0 });
     expect(rows.find((r) => r.id === 'armorplate')?.details.join('\n')).toMatch(/takes 0.1 of a shell's damage \(500 hits/);
     expect(rows.find((r) => r.id === 'solar')).toMatchObject({ key: '', legend: ['So'], mass: 0.5, faces: ['S'], health: 8, power: 0 });
     expect(rows.find((r) => r.id === 'swivelthruster')).toMatchObject({ key: '', legend: ['V^', 'V<', 'Vv', 'V>'], mass: 1.5, faces: ['N', 'E', 'W'], health: 25, power: 60 });

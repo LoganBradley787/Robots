@@ -34,9 +34,14 @@ describe('tech fab drone, done when', () => {
     const d = w.spawnBlueprint(orientRaw(blueprint('enemy-tech-fab-drone'), { flip: true, rot: 0 }, defaultRegistry()), { x: 300, y: 40 }, { team: 1 });
     // Its missiles are gone by the end (blown up): note what broke off it while they fly (its flares too, harmless here).
     const missiles = new Set<number>();
+    // Blasts within 30 m of the hunter where it was when each went off (blasts push it: it can drift far by the end).
+    let near = 0;
     for (let t = 0; t < 25 * 60; t++) {
+      const n = w.events.length;
       w.step();
       for (const r of w.robots) if (r.brokeFrom === d.id) missiles.add(r.id);
+      const at = w.physics.state(hunter.groups[0]?.bodyId as number);
+      for (const e of w.events.slice(n)) if (e.kind === 'explosion' && Math.hypot(e.x - at.x, e.y - at.y) < 30) near++;
     }
     expect(w.events.filter((e) => e.kind === 'released' && e.robot === d.id).length).toBeGreaterThanOrEqual(3);
     // Nose guns hit the hunter.
@@ -44,8 +49,6 @@ describe('tech fab drone, done when', () => {
     expect(gunHits).toBeGreaterThanOrEqual(5);
     // Charges armed and went off near it.
     expect(w.events.filter((e) => e.kind === 'armed' && missiles.has(e.robot)).length).toBeGreaterThanOrEqual(3);
-    const hs = w.physics.state(hunter.groups[0]?.bodyId as number);
-    const near = w.events.filter((e) => e.kind === 'explosion' && Math.hypot(e.x - hs.x, e.y - hs.y) < 30).length;
     expect(near).toBeGreaterThanOrEqual(2);
     expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === hunter.id).length).toBeGreaterThanOrEqual(8);
     // Nothing of its own lost to its own missiles.
