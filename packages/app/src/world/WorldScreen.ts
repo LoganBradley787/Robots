@@ -7,6 +7,7 @@ import { interpolateState } from '../render/interpolate';
 import { RobotView } from '../render/RobotView';
 import { Effects } from '../render/Effects';
 import { ShellsView } from '../render/ShellsView';
+import { BeamsView } from '../render/BeamsView';
 import { SmokeView } from '../render/SmokeView';
 import { RopesView } from '../render/RopesView';
 import { buildTerrainView } from '../render/TerrainView';
@@ -17,6 +18,7 @@ import { createCamera, followTarget, panByPixels, screenToWorld, setFollow, zoom
 import { SpawnGhost } from './SpawnGhost';
 import { snapDrop } from '../builder/deployFlow';
 import { applyCamera } from '../render/cameraView';
+import { PIXELS_PER_METER } from '../render/units';
 import { FixedStepper } from '../app/FixedStepper';
 import { runWithin, SIM_BUDGET_MS } from '../app/tickBudget';
 import { TimeControls } from '../app/TimeControls';
@@ -85,6 +87,9 @@ export class WorldScreen {
   private views = new Map<number, RobotView>();
   private readonly effects = new Effects();
   private readonly shells = new ShellsView();
+  private readonly beams = new BeamsView();
+  /** M14: screen pixels the camera shakes by, dying away (a laser blowing up on screen). */
+  private shake = 0;
   private readonly smoke = new SmokeView();
   private readonly ropes = new RopesView();
   private readonly stepper: FixedStepper;
@@ -148,6 +153,8 @@ export class WorldScreen {
     renderer.world.addChildAt(this.shells.root, renderer.world.getChildIndex(this.effects.root) + 1);
     renderer.world.addChildAt(this.smoke.root, renderer.world.getChildIndex(this.shells.root) + 1);
     renderer.world.addChildAt(this.ropes.root, renderer.world.getChildIndex(this.shells.root) + 1);
+    // Beams glow over smoke and ropes.
+    renderer.world.addChildAt(this.beams.root, renderer.world.getChildIndex(this.smoke.root) + 1);
     renderer.backdrop.addChild(
       this.grid,
       buildTerrainView(file, {
@@ -193,6 +200,7 @@ export class WorldScreen {
     for (const v of this.views.values()) v.root.destroy({ children: true });
     this.views.clear();
     this.effects.clear();
+    this.beams.clear();
     this.keys.clear();
     this.focusId = undefined;
     this.eventCursor = 0;
@@ -425,6 +433,12 @@ export class WorldScreen {
     }
   }
 
+  /** Whether a world point is on screen (with a little margin). */
+  private onScreen(x: number, y: number): boolean {
+    const half = (px: number): number => (px / 2 / (this.cam.zoom * PIXELS_PER_METER)) * 1.2;
+    return Math.abs(x - this.cam.x) < half(this.renderer.screenWidth) && Math.abs(y - this.cam.y) < half(this.renderer.screenHeight);
+  }
+
   /** What every robot's sensors see and its scripts marked, for the debug overlay (M8). */
   private sensorOverlays(): SensorOverlay[] {
     const out: SensorOverlay[] = [];
@@ -433,10 +447,12 @@ export class WorldScreen {
       const marks = this.world.marks(r.id);
       const sights = [];
       for (const part of r.parts.values()) {
-        if (!part.def.gun || !part.sight) continue;
+        if ((part.def.gun === undefined && part.def.laser === undefined) || !part.sight) continue;
         const pose = partWorldPose(this.world, r, part.id);
         const aim = part.sight.aim;
-        sights.push({ x: pose.x + 0.5 * Math.cos(aim), y: pose.y + 0.5 * Math.sin(aim), aim, distance: part.sight.distance, side: part.sight.side });
+        // From the barrel's end: half a cell past the base for a gun, a cell and a half for a laser (M14, 1 by 2).
+        const out = (part.footprint ?? part.def.footprint).length - 0.5;
+        sights.push({ x: pose.x + out * Math.cos(aim), y: pose.y + out * Math.sin(aim), aim, distance: part.sight.distance, side: part.sight.side });
       }
       if (view.sensors.length === 0 && marks.length === 0 && sights.length === 0) continue;
       const s = sampleRobot(this.world, r);
@@ -478,13 +494,20 @@ export class WorldScreen {
         !powered && (robot?.parts.get(partId)?.def.powerDraw ?? 0) > 0 ? 0 : this.world.channelValue(id, partId, channel),
       );
     }
-    this.effects.update(time.paused ? 0 : (ticker.deltaMS / 1000) * time.timeScale);
+    const simDt = time.paused ? 0 : (ticker.deltaMS / 1000) * time.timeScale;
+    this.effects.update(simDt);
     this.shells.draw([...this.world.liveShells(), ...this.world.spentShells()], alpha);
+    this.beams.draw(this.world, alpha, simDt, this.cam.zoom);
     this.smoke.draw(this.world.smokeClouds());
     this.ropes.draw(this.world.liveRopes());
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
+    if (this.shake > 0.3) {
+      this.renderer.world.position.x += (Math.random() - 0.5) * 2 * this.shake;
+      this.renderer.world.position.y += (Math.random() - 0.5) * 2 * this.shake;
+      this.shake *= Math.exp(-(ticker.deltaMS / 1000) * 7);
+    } else this.shake = 0;
     if (this.debugVisible) {
       drawDebug(this.renderer.debug, this.world.physics.debugRender(), true);
       drawSensors(this.renderer.debug, this.sensorOverlays());
@@ -525,6 +548,14 @@ export class WorldScreen {
       // A part that explodes gets the blast instead of a puff (an unarmed warhead just breaks: M10).
       // A burnt-out flare (M11) just goes out.
       if (ev?.kind === 'partDestroyed' && !ev.exploded && ev.burntOut !== true) this.effects.breakPuff(ev.x, ev.y);
+      // M14: a laser blowing up gets its own look on top of the blast, and shakes the camera when it is on screen.
+      if (ev?.kind === 'partDestroyed' && ev.exploded && this.world.registry.has(ev.partType)) {
+        const def = this.world.registry.get(ev.partType);
+        if (def.laser !== undefined) {
+          this.effects.laserBlast(ev.x, ev.y, def.onDestroyed?.explode?.radius ?? 2);
+          if (this.onScreen(ev.x, ev.y)) this.shake = Math.max(this.shake, 16);
+        }
+      }
       if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
       // Only your own: an enemy's missiles wake too, and you cannot take them over.
       if (ev?.kind === 'coreWoke' && who && who.team === 0) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);

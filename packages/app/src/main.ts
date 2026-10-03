@@ -40,7 +40,8 @@ async function boot(): Promise<void> {
   // Wrapped in a timer (M9) for the debug overlay's perf readout; the sim never sees the clock.
   const { host: scriptHost, clock: scriptClock } = timedHost(await createQuickJsHost(quickjsBrowser));
   // `?duel=a,b` (the titans tournament): the two blueprints fight on the arena (the flat world without its boxes), as
-  // `pnpm sim duel` sets them up. `&ya=` and `&yb=` are their cores' heights (resting on the ground when left out).
+  // `pnpm sim duel` sets them up. `&ya=` and `&yb=` are their cores' heights (resting on the ground when left out),
+  // `&xa=` and `&xb=` their x (-400 and 400 when left out).
   const query = new URLSearchParams(window.location.search);
   const duel = (query.get('duel') ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '');
   const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock);
@@ -371,8 +372,12 @@ async function boot(): Promise<void> {
       setMode(enterWorld({ ...modes, paused: true, pausedBeforeBuilder: true }));
       // Teams and order as `pnpm sim duel` gives them, so the fight is the same one: the left one first (robot 1,
       // team 0: yours, so the camera follows it and its script log shows), then the right one (robot 2, team 1).
-      const ra = worldScreen.spawn(left, { x: -400, y: height(left, -400, query.get('ya')) }, 0);
-      const rb = worldScreen.spawn(right, { x: 400, y: height(right, 400, query.get('yb')) }, 1);
+      // M14: `&xa=` and `&xb=` move them (the default 800 m apart is past a laser's reach).
+      const at = (given: string | null, fallback: number): number => (given !== null && Number.isFinite(Number(given)) ? Number(given) : fallback);
+      const xa = at(query.get('xa'), -400);
+      const xb = at(query.get('xb'), 400);
+      const ra = worldScreen.spawn(left, { x: xa, y: height(left, xa, query.get('ya')) }, 0);
+      const rb = worldScreen.spawn(right, { x: xb, y: height(right, xb, query.get('yb')) }, 1);
       // The match as `pnpm sim duel` judges it: a titan loses when its main core is destroyed or goes past x 1000 or
       // above y 250; both lost within 2 s, or 240 s gone with both alive, is a draw. The world runs on after the result.
       const world = worldScreen.world;
@@ -404,7 +409,7 @@ async function boot(): Promise<void> {
           notify(store, 'Draw: 240 s gone with both main cores alive. The world runs on.');
         }
       };
-      notify(store, `${a} (left, yours: its script log shows) against ${b} (right), 800 m apart. Paused: press play to start.`);
+      notify(store, `${a} (left, yours: its script log shows) against ${b} (right), ${Math.abs(xb - xa)} m apart. Paused: press play to start.`);
     };
     go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
   }

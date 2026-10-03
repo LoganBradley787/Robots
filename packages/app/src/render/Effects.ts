@@ -13,6 +13,8 @@ const FLASH = 0xfff1b8;
 const FIRE = 0xff9a3c;
 const SMOKE = 0x57514c;
 const DUST = 0x8a8178;
+const LASER_RED = 0xff1630;
+const LASER_HOT = 0xff8a6a;
 
 /**
  * Cosmetic effects on top of the robots, driven by world events (M6): a blast's flash, fireball, shock ring, and
@@ -91,6 +93,43 @@ export class Effects {
     });
   }
 
+  /**
+   * A laser blew up (M14, Logan: "it explodes, cuz laser"): on top of the usual blast, a white flash, a red bloom, two
+   * shock rings racing out, and a burst of sparks, all glowing (added light).
+   */
+  laserBlast(x: number, y: number, radius: number): void {
+    const p = toScreen({ x, y });
+    const r = radius * PIXELS_PER_METER;
+    this.add(p, 0.16, (g, t) => {
+      const k = t / 0.16;
+      g.circle(0, 0, r * (1.2 + 2.2 * k)).fill({ color: 0xffffff, alpha: 0.95 * (1 - k) });
+    }, true);
+    this.add(p, 0.8, (g, t) => {
+      const k = t / 0.8;
+      g.circle(0, 0, r * (1.5 + 3 * Math.sqrt(k))).fill({ color: LASER_RED, alpha: 0.55 * (1 - k) ** 1.4 });
+      g.circle(0, 0, r * (0.8 + 1.5 * Math.sqrt(k))).fill({ color: LASER_HOT, alpha: 0.65 * (1 - k) ** 2 });
+    }, true);
+    for (const [life, reach, color] of [[0.5, 8, 0xffffff], [0.8, 5.5, LASER_RED]] as const) {
+      this.add(p, life, (g, t) => {
+        const k = t / life;
+        g.circle(0, 0, r * (0.5 + reach * k)).stroke({ color, width: 12 * (1 - k) + 2, alpha: 0.85 * (1 - k) });
+      }, true);
+    }
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = (4 + Math.random() * 6) * r;
+      const life = 0.35 + Math.random() * 0.45;
+      this.add(p, life, (g, t) => {
+        const k = t / life;
+        const d = speed * t * (1 - 0.4 * k);
+        const tail = Math.max(0, d - 0.35 * r);
+        g.moveTo(Math.cos(a) * tail, Math.sin(a) * tail + 4 * r * t * t)
+          .lineTo(Math.cos(a) * d, Math.sin(a) * d + 4 * r * t * t)
+          .stroke({ color: 0xffd890, width: 4, alpha: 1 - k });
+      }, true);
+    }
+  }
+
   /** Advances every effect by `dt` seconds and drops finished ones. */
   update(dt: number): void {
     for (let i = this.live.length - 1; i >= 0; i--) {
@@ -111,8 +150,9 @@ export class Effects {
     this.live.length = 0;
   }
 
-  private add(at: { x: number; y: number }, life: number, draw: (g: Graphics, t: number) => void): void {
+  private add(at: { x: number; y: number }, life: number, draw: (g: Graphics, t: number) => void, glow = false): void {
     const g = new Graphics();
+    if (glow) g.blendMode = 'add';
     g.position.set(at.x, at.y);
     this.root.addChild(g);
     const e: Effect = { g, t: 0, life, draw };
