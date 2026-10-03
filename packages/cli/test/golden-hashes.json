@@ -24,5 +24,7 @@
   "enemy-fab-drone-vs-cars": "e24538fa",
   "bomb-fab-drones": "c2e5347b",
   "gun-drone-vs-missile": "fc2144dc",
-  "enemy-gun-drone-vs-hunter": "538f1503"
+  "enemy-gun-drone-vs-hunter": "538f1503",
+  "laser-tower-vs-missile": "d34a336b",
+  "enemy-laser-drone-vs-gun-drone": "aec55568"
 }
