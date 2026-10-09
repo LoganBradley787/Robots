@@ -165,7 +165,7 @@ export const LOOP_VOICES: Readonly<Record<string, { make: Maker; gain: number }>
   thruster: { make: thruster, gain: 0.9 },
   wheel: { make: wheel, gain: 0.4 },
   laser: { make: laser, gain: 0.7 },
-  burn: { make: burn, gain: 0.5 },
+  'laser.burn': { make: burn, gain: 0.5 },
 };
 
 /** A voice with its place in the mix: the ear's gain, pan and dulling. */
@@ -209,11 +209,19 @@ interface SoundingPart {
   voice: string;
   drive: LoopDrive;
   def: { behaviorConfig?: Record<string, number> };
+  /** Driven by an input and needing energy: silent once its robot has none (as it stops looking busy). A wheel is heard by its spin, so it still rolls. */
+  needsPower: boolean;
 }
 
 /** Seconds between two looks at the parts (20 a second; the voices glide between). */
 const LOOK_EVERY = 0.05;
 const FADE = 0.1;
+/** A voice that fell silent or out of the loudest is kept this long at no gain, so one that flickers is not rebuilt. */
+const LINGER = 0.5;
+/** A group must stay silent this long before its stop is told; back sooner, it never stopped (and does not start again). */
+const SETTLE = 0.3;
+/** How much a group that already has a voice is favored, so near ties do not swap voices every look. */
+const KEEP = 1.25;
 
 /**
  * The looping sounds (M15): one voice per robot per voice name, never per part, so 732 boosters are one burn. Every
@@ -223,41 +231,77 @@ export class LoopBank {
   private readonly placed = new Map<string, Placed>();
   /** Each robot's parts that make a looping sound, rebuilt when the robot is (its `version`). */
   private readonly parts = new Map<number, { version: number; list: SoundingPart[] }>();
-  /** Each group's summed level at the last look, to hear things start and stop. */
-  private last = new Map<string, LoopGroup>();
+  /** Whether each group sounds, since when (`at`), whether its stop is still to be told, and what it last was. */
+  private readonly edges = new Map<string, { on: boolean; at: number; stopping: boolean; last: LoopGroup }>();
+  /** When each voice that is no longer picked went quiet. */
+  private readonly idle = new Map<string, number>();
   private lastLook = -1;
   /** False until the first look: what is already running then did not just start. */
   private primed = false;
   private readonly warned = new Set<string>();
 
-  /** `started` and `stopped` are called with groups that went from silent to sounding, and back. */
+  /**
+   * `started` and `stopped` are called with groups that went from silent to sounding, and back, once they have
+   * settled: a thruster pulsed ten times a second lights once.
+   */
   update(engine: AudioEngine, world: World, ear: Ear, started: (g: LoopGroup) => void, stopped: (g: LoopGroup) => void): void {
     const now = engine.now;
     if (now - this.lastLook < LOOK_EVERY) return;
     this.lastLook = now;
-    const groups = this.groups(world);
-    const seen = new Map<string, LoopGroup>();
+    const groups = this.groupsOf(world);
+    const sounding = new Set<string>();
     for (const g of groups) {
-      seen.set(g.key, g);
-      if (this.primed && g.sum > 0 && (this.last.get(g.key)?.sum ?? 0) === 0) started(g);
+      if (g.sum <= 0) continue;
+      sounding.add(g.key);
+      const e = this.edges.get(g.key);
+      if (e?.on === true) {
+        e.last = g;
+        continue;
+      }
+      // New to us, or back after a real silence: it starts. Back at once: it never stopped.
+      if (this.primed && (e === undefined || !e.stopping)) started(g);
+      this.edges.set(g.key, { on: true, at: now, stopping: false, last: g });
     }
-    if (this.primed) for (const [key, g] of this.last) if (g.sum > 0 && (seen.get(key)?.sum ?? 0) === 0) stopped(g);
-    this.last = seen;
+    for (const [key, e] of this.edges) {
+      if (sounding.has(key)) continue;
+      if (e.on) this.edges.set(key, { ...e, on: false, at: now, stopping: true });
+      else if (e.stopping && now - e.at >= SETTLE) {
+        stopped(e.last);
+        e.stopping = false;
+      } else if (now - e.at > 5) this.edges.delete(key);
+    }
     this.primed = true;
 
     const picked = new Set<string>();
-    for (const g of pickLoops(groups, (c) => hear(ear, c.x, c.y).gain * (LOOP_VOICES[c.voice]?.gain ?? 0))) {
+    for (const g of pickLoops(groups, (c) => hear(ear, c.x, c.y).gain * (LOOP_VOICES[c.voice]?.gain ?? 0) * (this.placed.has(c.key) ? KEEP : 1))) {
       picked.add(g.key);
       const p = this.placed.get(g.key) ?? this.start(engine, g);
       if (!p) continue;
-      this.place(p, hear(ear, g.x, g.y), loopGain(g.sum), now);
+      this.idle.delete(g.key);
+      placeLoop(p, hear(ear, g.x, g.y), loopGain(g.sum), now);
       p.voice.set(meanLevel(g), g.on > 0 ? Math.min(1, (g.grip ?? 0) / g.on) : 0, now);
     }
     for (const [key, p] of this.placed) {
       if (picked.has(key)) continue;
-      stopLoop(p, now);
-      this.placed.delete(key);
+      const since = this.idle.get(key);
+      if (since === undefined) {
+        this.idle.set(key, now);
+        p.amp.gain.setTargetAtTime(0, now, FADE / 3);
+      } else if (now - since > LINGER) {
+        stopLoop(p, now);
+        this.placed.delete(key);
+        this.idle.delete(key);
+      }
     }
+  }
+
+  /** Every loop fades out (sound switched off). */
+  fade(engine: AudioEngine): void {
+    for (const p of this.placed.values()) stopLoop(p, engine.now);
+    this.placed.clear();
+    this.idle.clear();
+    this.edges.clear();
+    this.primed = false;
   }
 
   /** Everything stops now (a new world, the builder). */
@@ -268,8 +312,9 @@ export class LoopBank {
       p.pan.disconnect();
     }
     this.placed.clear();
+    this.idle.clear();
     this.parts.clear();
-    this.last = new Map();
+    this.edges.clear();
     this.primed = false;
     this.lastLook = -1;
   }
@@ -284,12 +329,8 @@ export class LoopBank {
     return p;
   }
 
-  private place(p: Placed, heard: Heard, loud: number, now: number): void {
-    placeLoop(p, heard, loud, now);
-  }
-
   /** Every robot's sounding parts summed by voice, and every robot's beams. */
-  private groups(world: World): LoopGroup[] {
+  groupsOf(world: World): LoopGroup[] {
     const out: LoopGroup[] = [];
     const live = new Set<number>();
     for (const robot of world.robots) {
@@ -305,22 +346,24 @@ export class LoopBank {
             if (!this.warned.has(voice)) console.warn(`sound: no looping voice named "${voice}" (part ${part.def.id})`);
             this.warned.add(voice);
           }
-          if (drive && LOOP_VOICES[voice]) list.push({ id: part.id, group: part.group, voice, drive, def: part.def });
+          if (drive && LOOP_VOICES[voice]) list.push({ id: part.id, group: part.group, voice, drive, def: part.def, needsPower: part.def.powerDraw > 0 && drive.input !== undefined });
         }
         cached = { version: robot.version, list };
         this.parts.set(robot.id, cached);
       }
       if (cached.list.length === 0) continue;
-      // A part that needs energy is silent once its robot has none to give (as it stops looking busy).
-      if (!world.unlimitedEnergy && (world.energy(robot.id)?.stored ?? 0) <= 0) continue;
+      const powered = world.unlimitedEnergy || (world.energy(robot.id)?.stored ?? 0) > 0;
       const channels = world.robotChannels(robot.id);
       const root = robot.groups[0];
       if (!root) continue;
       const at = world.physics.state(root.bodyId);
       const byVoice = new Map<string, LoopGroup>();
       for (const part of cached.list) {
-        if (!robot.parts.has(part.id)) continue;
-        const level = partLevel(part.drive, part, (c) => channels?.get(part.id)?.get(c), (o) => world.partOutput(robot.id, part.id, o));
+        if (!robot.parts.has(part.id) || (part.needsPower && !powered)) continue;
+        const level = partLevel(part.drive, part, (c) => channels?.get(part.id)?.get(c), (o) => world.partOutput(robot.id, part.id, o), () => {
+          const body = robot.groups[part.group]?.bodyId;
+          return body === undefined ? 0 : world.physics.state(body).w - at.w;
+        });
         if (level <= 0.01) continue;
         let g = byVoice.get(part.voice);
         if (!g) {
@@ -337,16 +380,17 @@ export class LoopBank {
       out.push(...byVoice.values());
     }
     for (const id of this.parts.keys()) if (!live.has(id)) this.parts.delete(id);
-    // Lasers are heard from their beams: the hum where the beam leaves, the crackle where it burns.
+    // A beam is heard as its part's voice where it leaves, and as that voice's `.burn` where it burns.
     const beams = new Map<string, LoopGroup>();
     for (const b of world.liveBeams()) {
-      if (b.power <= 0) continue;
-      const hum = beams.get(`${b.robot}:laser`) ?? { key: `${b.robot}:laser`, robot: b.robot, voice: 'laser', sum: 0, on: 0, x: b.x1, y: b.y1 };
+      const voice = world.robotById(b.robot)?.parts.get(b.laser)?.def.sound?.run;
+      if (b.power <= 0 || voice === undefined || !LOOP_VOICES[voice]) continue;
+      const hum = beams.get(`${b.robot}:${voice}`) ?? { key: `${b.robot}:${voice}`, robot: b.robot, voice, sum: 0, on: 0, x: b.x1, y: b.y1 };
       hum.sum += b.power;
       hum.on++;
       beams.set(hum.key, hum);
-      if (b.hitPart === undefined) continue;
-      const crackle = beams.get(`${b.robot}:burn`) ?? { key: `${b.robot}:burn`, robot: b.robot, voice: 'burn', sum: 0, on: 0, x: b.x2, y: b.y2 };
+      if (b.hitPart === undefined || !LOOP_VOICES[`${voice}.burn`]) continue;
+      const crackle = beams.get(`${b.robot}:${voice}.burn`) ?? { key: `${b.robot}:${voice}.burn`, robot: b.robot, voice: `${voice}.burn`, sum: 0, on: 0, x: b.x2, y: b.y2 };
       crackle.sum += b.power * 0.5 ** b.smoke;
       crackle.on++;
       beams.set(crackle.key, crackle);

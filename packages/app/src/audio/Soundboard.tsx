@@ -79,7 +79,7 @@ function Soundboard() {
   // The crackle flickers by being set again and again, as the game does 20 times a second.
   useEffect(() => {
     if (!engine) return;
-    const id = setInterval(() => live.current.get('burn')?.voice.set(1, 0, engine.now), 50);
+    const id = setInterval(() => live.current.get('laser.burn')?.voice.set(1, 0, engine.now), 50);
     return () => clearInterval(id);
   }, [engine]);
 

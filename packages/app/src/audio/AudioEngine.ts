@@ -16,6 +16,8 @@ export class AudioEngine {
   private readonly gate: GainNode;
   private readonly volume: GainNode;
   private shots = new Map<string, AudioBuffer[]>();
+  /** One-shots started or waiting to start, so a new world can cut them off. */
+  private readonly playing = new Set<AudioBufferSourceNode>();
   private paused = false;
   readonly ctx: AudioContext;
 
@@ -42,9 +44,12 @@ export class AudioEngine {
     this.bus.connect(this.gate).connect(this.volume).connect(squeeze).connect(limit).connect(this.meter).connect(ctx.destination);
     this.white = noiseBuffer(ctx.sampleRate, false, 1);
     this.brown = noiseBuffer(ctx.sampleRate, true, 2);
-    void renderOneShots(ctx.sampleRate, this.white, this.brown).then((shots) => {
-      this.shots = shots;
-    });
+    renderOneShots(ctx.sampleRate, this.white, this.brown).then(
+      (shots) => {
+        this.shots = shots;
+      },
+      (err: unknown) => console.warn('sound: the one-shots could not be rendered, so there are none', err),
+    );
   }
 
   get now(): number {
@@ -99,6 +104,21 @@ export class AudioEngine {
     }
     tail.connect(g).connect(pan).connect(this.bus);
     src.start(this.now + Math.max(0, after));
+    this.playing.add(src);
+    src.onended = () => {
+      this.playing.delete(src);
+      pan.disconnect();
+    };
+  }
+
+  /** Cuts off every one-shot, the ones still on their way included (a new world: its old blasts are gone). */
+  stopOneShots(): void {
+    for (const src of this.playing) {
+      src.onended = null;
+      src.stop();
+      src.disconnect();
+    }
+    this.playing.clear();
   }
 
   /** The loudest sample at the output right now, 0 to 1 and beyond when it clips. */

@@ -67,6 +67,20 @@ describe('impact events (M15)', () => {
     expect(hits[0]?.dv).toBeGreaterThan(8);
   });
 
+  it('hard thrust in free flight is not a hit', async () => {
+    const w = await world();
+    // 5 kg on 800 N: 160 m/s^2, more than 2 m/s a step with nothing touched.
+    const rocket = w.spawnBlueprint({ format: 1, name: 'rocket', grid: ['K^ C  K^'] } as never, { x: -100, y: 0.5 });
+    w.setUnlimitedEnergy(true);
+    for (let i = 0; i < 30; i++) w.step();
+    const settled = w.events.length;
+    for (let i = 0; i < 60; i++) w.step(i === 0 ? [{ robot: rocket.id, pressed: ['w'], released: [] }] : []);
+    expect(w.physics.state(rocket.groups[0]?.bodyId ?? 0).y).toBeGreaterThan(30);
+    // Leaving the ground it still touches for a step or two; in the air, nothing.
+    const flying = w.events.slice(settled).filter((e): e is Impact => e.kind === 'impact' && e.y > 3);
+    expect(flying).toEqual([]);
+  });
+
   it('a kick is not a hit', async () => {
     const w = await world();
     const robot = w.spawnBlueprint(BOX as never, { x: -100, y: 40 });

@@ -1,8 +1,12 @@
-/** What drives a looping voice (M15): one of the part's input channels, or an output over a number in its config. */
+/**
+ * What drives a looping voice (M15): one of the part's input channels, one of its outputs, or how fast its own body
+ * spins against the robot's (a wheel: the sim does not fill in its `angularVelocity` output).
+ */
 export interface LoopDrive {
   input?: string;
   output?: string;
-  /** The behaviorConfig value the output is divided by (a wheel's `maxSpeed`). */
+  spin?: true;
+  /** The behaviorConfig value an output or a spin is divided by (a wheel's `maxSpeed`). */
   over?: string;
   /** The voice also wants to know how many of the parts touch something (a wheel on the ground). */
   contact?: true;
@@ -12,7 +16,7 @@ export interface LoopDrive {
 export const LOOP_DRIVES: Readonly<Record<string, LoopDrive>> = {
   propeller: { input: 'throttle' },
   thruster: { input: 'throttle' },
-  wheel: { output: 'angularVelocity', over: 'maxSpeed', contact: true },
+  wheel: { spin: true, over: 'maxSpeed', contact: true },
 };
 
 /** The part of a part this needs, so tests pass plain objects. */
@@ -21,13 +25,16 @@ export interface DrivenPart {
   def: { behaviorConfig?: Record<string, number> };
 }
 
-/** A part's level, 0 (off) to 1 (flat out), read through `input` and `output` (the world's channel and output reads). */
-export function partLevel(drive: LoopDrive, part: DrivenPart, input: (channel: string) => number | undefined, output: (name: string) => number | undefined): number {
+/**
+ * A part's level, 0 (off) to 1 (flat out), read through `input` and `output` (the world's channel and output reads)
+ * and `spin` (its body's turning against the robot's, radians a second).
+ */
+export function partLevel(drive: LoopDrive, part: DrivenPart, input: (channel: string) => number | undefined, output: (name: string) => number | undefined, spin: () => number = () => 0): number {
   let v = 0;
   if (drive.input !== undefined) v = input(drive.input) ?? 0;
-  else if (drive.output !== undefined) {
+  else if (drive.output !== undefined || drive.spin === true) {
     const over = drive.over === undefined ? 1 : (part.def.behaviorConfig?.[drive.over] ?? 1);
-    v = (output(drive.output) ?? 0) / (over > 0 ? over : 1);
+    v = (drive.output !== undefined ? (output(drive.output) ?? 0) : spin()) / (over > 0 ? over : 1);
   }
   v = Math.abs(v);
   return Number.isFinite(v) ? Math.min(1, v) : 0;

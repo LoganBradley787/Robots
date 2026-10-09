@@ -41,7 +41,7 @@ describe('the ear (M15)', () => {
 });
 
 describe('the one-shot limiter (M15)', () => {
-  const opts = { maxLive: 5, perWindow: 2, windowSeconds: 0.05, floor: 0.01 };
+  const opts = { maxLive: 5, maxMust: 2, perWindow: 2, windowSeconds: 0.05, floor: 0.01 };
 
   it('takes the loudest of one name in a window, and more once the window has passed', () => {
     const l = new OneShotLimiter(opts);
@@ -73,14 +73,26 @@ describe('the one-shot limiter (M15)', () => {
   });
 });
 
-describe('the one-shot limiter: a blast is never crowded out (M15)', () => {
+describe('the one-shot limiter: blasts have their own voices (M15)', () => {
+  const opts = { maxLive: 2, maxMust: 3, perWindow: 2, windowSeconds: 0.05, floor: 0.01 };
+
   it('plays a must ask with every voice taken, but still at most its window of them', () => {
-    const l = new OneShotLimiter({ maxLive: 2, perWindow: 2, windowSeconds: 0.05, floor: 0.01 });
+    const l = new OneShotLimiter(opts);
     expect(l.pick([{ name: 'gun', gain: 0.9, seconds: 1 }, { name: 'hit', gain: 0.8, seconds: 1 }], 0).length).toBe(2);
     const blasts = [0.3, 0.2, 0.1].map((gain) => ({ name: 'explosion', gain, seconds: 1, must: true }));
     expect(l.pick([{ name: 'thud', gain: 0.9, seconds: 1 }, ...blasts], 0.01).map((a) => a.gain)).toEqual([0.3, 0.2]);
     // Too quiet to hear is still dropped.
     expect(l.pick([{ name: 'boom', gain: 0.001, seconds: 1, must: true }], 0.02)).toEqual([]);
+  });
+
+  it('a chain of blasts never takes the other sounds\' voices, and is capped itself', () => {
+    const l = new OneShotLimiter(opts);
+    const blast = { name: 'explosion', gain: 0.9, seconds: 2, must: true };
+    let played = 0;
+    for (let i = 0; i < 20; i++) played += l.pick([blast, blast, blast], i * 0.06).length;
+    expect(played).toBe(3);
+    expect(l.pick([{ name: 'gun', gain: 0.5, seconds: 0.1 }], 1.3).length).toBe(1);
+    expect(l.live).toBe(4);
   });
 });
 
@@ -135,8 +147,9 @@ describe('loop levels (M15)', () => {
     const prop = { id: 'p', def: {} };
     expect(partLevel(LOOP_DRIVES.propeller ?? {}, prop, (c) => (c === 'throttle' ? 0.6 : undefined), none)).toBeCloseTo(0.6);
     const wheel = { id: 'w', def: { behaviorConfig: { maxSpeed: 50 } } };
-    expect(partLevel(LOOP_DRIVES.wheel ?? {}, wheel, none, (o) => (o === 'angularVelocity' ? -25 : undefined))).toBeCloseTo(0.5);
-    expect(partLevel(LOOP_DRIVES.wheel ?? {}, wheel, none, () => 900)).toBe(1);
+    expect(partLevel(LOOP_DRIVES.wheel ?? {}, wheel, none, none, () => -25)).toBeCloseTo(0.5);
+    expect(partLevel(LOOP_DRIVES.wheel ?? {}, wheel, none, none, () => 900)).toBe(1);
+    expect(partLevel({ output: 'rpm', over: 'maxSpeed' }, wheel, none, (o) => (o === 'rpm' ? 10 : undefined))).toBeCloseTo(0.2);
   });
 
   it('is 0 for a part with nothing to read', () => {

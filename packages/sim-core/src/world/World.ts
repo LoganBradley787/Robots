@@ -117,8 +117,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'laserBurn'; part: string; partType: string; by: number; laser: string; x: number; y: number }
   /**
    * M15: a body of `robot` hit something: its velocity changed by `dv` m/s in one step (above `IMPACT_HEARD`), gravity
-   * aside. `x`, `y` is the body's origin and `mass` its own mass. At most one per robot per tick (its hardest hit). For
-   * the app's sound; kicks and blast pushes never count.
+   * aside, while touching something. `x`, `y` is the body's origin and `mass` its own mass. At most one per robot per
+   * tick (its hardest hit). For the app's sound; kicks, blast pushes and thrust never count.
    */
   | { tick: number; robot: number; kind: 'impact'; x: number; y: number; dv: number; mass: number }
   /** Batch: a smoke pod went off, leaving a cloud of `radius` meters at `x`, `y`; the pod is gone. */
@@ -889,10 +889,12 @@ export class World {
         }
       }
       // M15: the robot's hardest hit this step, for the app's sound. Not state: nothing in the sim reads it.
+      // Only a body that touches something: thrust alone can change a light body's speed this fast.
       let hardest = -1;
       let dv = IMPACT_HEARD;
       for (const [index, hit] of hits) {
-        if (hit && hit.dv > dv) {
+        const body = robot.groups[index]?.bodyId;
+        if (hit && hit.dv > dv && body !== undefined && this.physics.contactPoints(body).length > 0) {
           hardest = index;
           dv = hit.dv;
         }

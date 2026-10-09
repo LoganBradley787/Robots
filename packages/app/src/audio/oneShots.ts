@@ -220,8 +220,8 @@ export const ONE_SHOTS: Readonly<Record<string, OneShot>> = {
   rattle: { seconds: 0.3, variants: 3, make: rattle },
   decouple: { seconds: 0.18, variants: 2, make: decouple },
   ignite: { seconds: 0.28, variants: 2, make: ignite },
-  'laser.on': { seconds: 0.36, variants: 1, make: laserOn },
-  'laser.off': { seconds: 0.14, variants: 1, make: laserOff },
+  'laser.on': { seconds: 0.36, variants: 2, make: laserOn },
+  'laser.off': { seconds: 0.14, variants: 2, make: laserOff },
 };
 
 /** What a part sounds like struck or broken: its def's `sound.hit` when the table has it, else metal. */
