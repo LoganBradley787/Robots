@@ -57,6 +57,8 @@ export interface RunReport {
   cannons?: { robot: number; shots: number; backfires: number; hits: number; damage: number }[];
   /** M14: every robot whose lasers burned: seconds of beam, damage done, parts it started burning. */
   lasers?: { robot: number; seconds: number; damage: number; burns: number }[];
+  /** M15: hard hits (a body's speed changed by more than 2 m/s in one step), folded: how many and the hardest. */
+  impacts?: { count: number; hardest: number };
   /** M7: what happened, in order: keys, drops, decouplers, splits, wakes, parts lost, blasts, script logs and crashes. */
   events: TraceEvent[];
   /** M7: every robot seen, by letter (A is the spawned robot), with its path and final state. */
@@ -146,6 +148,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       ...gunsOf(world),
       ...lasersOf(world),
       ...cannonsOf(world),
+      ...impactsOf(world),
       ...(aims.some((a) => Object.keys(a).length > 0) ? { aims } : {}),
       finalHash: world.hash(),
       timing: { avgMs: ticks > 0 ? totalMs / ticks : 0, worstMs },
@@ -225,6 +228,7 @@ export function formatReport(r: RunReport): string {
     const letter = new Map(r.pieces.map((p) => [p.id, p.mark]));
     lines.push(`cannons: ${r.cannons.map((c) => `${letter.get(c.robot) ?? `robot ${c.robot}`} fired ${c.shots} bolt${c.shots === 1 ? '' : 's'}, ${c.hits} part${c.hits === 1 ? '' : 's'} hit (${f(c.damage, 0)} damage)${c.backfires > 0 ? `, ${c.backfires} backfire${c.backfires === 1 ? '' : 's'}` : ''}`).join('; ')}`);
   }
+  if (r.impacts) lines.push(`impacts: ${r.impacts.count}, hardest ${f(r.impacts.hardest, 1)} m/s`);
   if (r.events.length > 0) {
     lines.push('events (A is the robot; other letters are pieces and drops, listed below):');
     for (const e of r.events.slice(0, EVENTS_SHOWN)) lines.push(formatEvent(e));
@@ -301,6 +305,18 @@ function gunsOf(world: SimWorld): { guns?: RunReport['guns'] } {
     row(e.robot).taken++;
   }
   return by.size > 0 ? { guns: [...by.values()].sort((a, b) => a.robot - b.robot) } : {};
+}
+
+/** M15: the run's hard hits as one count (there can be thousands), or nothing. */
+function impactsOf(world: SimWorld): { impacts?: RunReport['impacts'] } {
+  let count = 0;
+  let hardest = 0;
+  for (const e of world.events) {
+    if (e.kind !== 'impact') continue;
+    count++;
+    hardest = Math.max(hardest, e.dv);
+  }
+  return count > 0 ? { impacts: { count, hardest } } : {};
 }
 
 /** M14: every robot that burned with a laser: seconds of beam and damage (from the world's tally), parts it hit. */

@@ -109,7 +109,8 @@ describe('energy', () => {
     const r = w.spawnBlueprint({ format: 1, name: 'loose gyro', grid: ['F  G  F'] }, { x: 0, y: 4 });
     for (let i = 0; i < 240; i++) w.step(); // it tumbles on landing, so the gyro asks to damp
     expect(w.energy(r.id)).toEqual({ stored: 0, capacity: 0, used: 0 });
-    expect(w.events).toEqual([]);
+    // Its landing is logged (M15); nothing about energy is.
+    expect(w.events.filter((e) => e.kind !== 'impact')).toEqual([]);
     w.dispose();
   });
 });

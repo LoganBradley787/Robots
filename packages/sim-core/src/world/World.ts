@@ -115,8 +115,17 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'boltHit'; part: string; partType: string; by: number; x: number; y: number; damage: number }
   /** M14: a laser (`laser`) of robot `by` started burning `part` of `robot` at `x`, `y`. Once per new target, not per tick. */
   | { tick: number; robot: number; kind: 'laserBurn'; part: string; partType: string; by: number; laser: string; x: number; y: number }
+  /**
+   * M15: a body of `robot` hit something: its velocity changed by `dv` m/s in one step (above `IMPACT_HEARD`), gravity
+   * aside. `x`, `y` is the body's origin and `mass` its own mass. At most one per robot per tick (its hardest hit). For
+   * the app's sound; kicks and blast pushes never count.
+   */
+  | { tick: number; robot: number; kind: 'impact'; x: number; y: number; dv: number; mass: number }
   /** Batch: a smoke pod went off, leaving a cloud of `radius` meters at `x`, `y`; the pod is gone. */
   | { tick: number; robot: number; kind: 'smoked'; part: string; x: number; y: number; radius: number };
+
+/** M15: the velocity change in one step (m/s) from which a hit is logged as an `impact` event. */
+export const IMPACT_HEARD = 2;
 
 /** The world center of each footprint cell of a part, from its origin cell's pose (M12, multi-cell parts). */
 function footprintPoses(origin: { x: number; y: number; angle: number }, part: PartInstance): BlastCell[] {
@@ -878,6 +887,20 @@ export class World {
           const q = poseOf(part);
           part.health -= part.def.health * fraction * crashWeight(distanceOf(part.group, hit)(q.x, q.y));
         }
+      }
+      // M15: the robot's hardest hit this step, for the app's sound. Not state: nothing in the sim reads it.
+      let hardest = -1;
+      let dv = IMPACT_HEARD;
+      for (const [index, hit] of hits) {
+        if (hit && hit.dv > dv) {
+          hardest = index;
+          dv = hit.dv;
+        }
+      }
+      const group = robot.groups[hardest];
+      if (group) {
+        const s = this.physics.state(group.bodyId);
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'impact', x: s.x, y: s.y, dv, mass: this.physics.massProperties(group.bodyId).mass });
       }
     }
   }
