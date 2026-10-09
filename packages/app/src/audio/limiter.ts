@@ -4,6 +4,8 @@ export interface Ask {
   gain: number;
   /** Seconds it sounds for. */
   seconds: number;
+  /** Plays even when every voice is taken (a blast in the middle of a gun fight). Still held to its name's window. */
+  must?: boolean;
 }
 
 export interface LimiterOptions {
@@ -40,7 +42,7 @@ export class OneShotLimiter {
     const out: T[] = [];
     for (const ask of [...asks].sort((a, b) => b.gain - a.gain)) {
       if (ask.gain < this.opts.floor) break;
-      if (this.ends.length >= this.opts.maxLive) break;
+      if (this.ends.length >= this.opts.maxLive && ask.must !== true) continue;
       const recent = (this.starts.get(ask.name) ?? []).filter((t) => t > now - this.opts.windowSeconds);
       if (recent.length >= this.opts.perWindow) {
         this.starts.set(ask.name, recent);

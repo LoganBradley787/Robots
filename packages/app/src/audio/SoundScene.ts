@@ -16,6 +16,7 @@ interface Pending {
   y: number;
   gain: number;
   rate: number;
+  must?: boolean;
 }
 
 /** Events older than this many ticks are not played (a frame hitch, a tab coming back). */
@@ -95,7 +96,7 @@ export class SoundScene {
     if (!this.engine?.ready || this.current.muted || world.tick - ev.tick > STALE_TICKS) return;
     switch (ev.kind) {
       case 'explosion':
-        this.ask(explosionFor(ev.radius), ev.x, ev.y, Math.min(1.5, 0.6 + ev.radius / 6));
+        this.ask(explosionFor(ev.radius), ev.x, ev.y, Math.min(1.5, 0.6 + ev.radius / 6), 1, true);
         break;
       case 'partDestroyed':
         // A part that explodes gets the blast, a burnt-out flare just goes out (as the effects do).
@@ -189,8 +190,8 @@ export class SoundScene {
     this.onChange?.();
   }
 
-  private ask(name: string, x: number, y: number, gain: number, rate = 1): void {
-    this.pending.push({ name, x, y, gain, rate });
+  private ask(name: string, x: number, y: number, gain: number, rate = 1, must = false): void {
+    this.pending.push({ name, x, y, gain, rate, ...(must ? { must } : {}) });
   }
 
   private materialOf(world: World, partType: string): string {

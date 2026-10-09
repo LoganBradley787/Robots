@@ -73,6 +73,17 @@ describe('the one-shot limiter (M15)', () => {
   });
 });
 
+describe('the one-shot limiter: a blast is never crowded out (M15)', () => {
+  it('plays a must ask with every voice taken, but still at most its window of them', () => {
+    const l = new OneShotLimiter({ maxLive: 2, perWindow: 2, windowSeconds: 0.05, floor: 0.01 });
+    expect(l.pick([{ name: 'gun', gain: 0.9, seconds: 1 }, { name: 'hit', gain: 0.8, seconds: 1 }], 0).length).toBe(2);
+    const blasts = [0.3, 0.2, 0.1].map((gain) => ({ name: 'explosion', gain, seconds: 1, must: true }));
+    expect(l.pick([{ name: 'thud', gain: 0.9, seconds: 1 }, ...blasts], 0.01).map((a) => a.gain)).toEqual([0.3, 0.2]);
+    // Too quiet to hear is still dropped.
+    expect(l.pick([{ name: 'boom', gain: 0.001, seconds: 1, must: true }], 0.02)).toEqual([]);
+  });
+});
+
 describe('sound settings (M15)', () => {
   const store = (init?: string) => {
     const m = new Map<string, string>(init === undefined ? [] : [['robots.sound', init]]);
