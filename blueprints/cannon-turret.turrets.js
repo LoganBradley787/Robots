@@ -8,8 +8,9 @@
 //   the robot holds one shot's `cost` on top of `reserve` of its energy (or, when its batteries are too small for
 //   both, when they are full). Once started it holds on to the end. With nothing to shoot at for `linger` seconds it
 //   lets go and the charge drains (a contact lost for one tick must not throw six seconds away).
-// - Target: the nearest such robot (the one it has is kept unless another is much closer). Which part: it scans the
-//   robot and picks what is worth the most that one bolt can still reach: a bolt takes the health of each part in
+// - Target: the nearest such robot of `light` kg or more (the one it has is kept unless another is much closer). Which part: it scans the
+//   robot and picks what is worth the most that one bolt can still reach (its main core first: the one the contact
+//   is reported at; a missile's core on a rack is worth little): a bolt takes the health of each part in
 //   front off its `damage` (armor in full), so a part behind more health than that is out of reach this shot.
 // - Aim: at where that part will be when the bolt gets there (`speed` m/s), raised by the bolt's drop.
 // - Fire: once full it lets go when the barrel is within `size` meters of the aim point and the target is within
@@ -44,6 +45,9 @@ const repick = param('repick', 0.5, { min: 0, max: 5 }); // s between choosing w
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is weighed only near its closest part
 const band = param('band', 6, { min: 0.5, max: 50 }); // m behind a huge robot's closest part that are weighed
 const most = param('most', 150, { min: 10, max: 2000 }); // parts of a huge robot weighed at most
+const wide = param('wide', 0.6, { min: 0.1, max: 10 }); // m either side of the line whose parts a bolt also goes through (0.6 lance, 1.2 cannon)
+const light = param('light', 10, { min: 0, max: 1000 }); // kg: lighter robots (missiles, drone bombs) are not shot at
+const spareCore = param('spareCore', 5, { min: 0, max: 100 }); // what a core that is not the robot's main one is worth (a missile's on its rack)
 const g = 9.81;
 // What taking each kind of part is worth to one shot: the core ends the robot, then what can hurt us.
 const WORTH = { core: 20, cannon: 14, lance: 12, laser: 12, gun: 8, heavywarhead: 10, warhead: 8, fabbay: 8, radar: 6, heavyrotator: 4, rotator: 4, booster: 4, propeller: 4, thruster: 3, seeker: 3, densebattery: 3, battery: 2, heavygyro: 2, gyro: 2, wheel: 2, cell: 1, decoupler: 1, flare: 0.5, frame: 0.5, armorplate: 0.5 };
@@ -125,8 +129,11 @@ function bestPart(target, from) {
     }
     list = cut;
   }
+  // The core that runs the robot is the one at the contact's own position. Any other core is a missile's or a spare
+  // (Logan: it cut through four missiles on the rack and left the robot flying).
+  const worth = (p) => (p.type === 'core' && Math.hypot(p.pos.x - target.pos.x, p.pos.y - target.pos.y) > 0.75 ? spareCore : (WORTH[p.type] ?? 1));
   // Best first by worth; stop once none left can beat the best.
-  const order = list.map((p) => ({ p, bound: WORTH[p.type] ?? 1 }));
+  const order = list.map((p) => ({ p, bound: worth(p) }));
   order.sort((a, b) => b.bound - a.bound);
   let best;
   for (const { p, bound } of order) {
@@ -144,7 +151,7 @@ function bestPart(target, from) {
       const qy = q.pos.y - from.y;
       const along = qx * ux + qy * uy;
       if (along <= 0 || along >= d - 0.3) continue;
-      if (Math.abs(qx * uy - qy * ux) < 0.6) cost += q.health;
+      if (Math.abs(qx * uy - qy * ux) < wide) cost += q.health;
     }
     const score = cost <= damage ? bound : (bound * damage) / cost / 2;
     if (!best || score > best.score) best = { id: p.id, score };
@@ -185,7 +192,8 @@ function aimTurret(name, powered) {
   const ours = side === SIGHT.own || side === SIGHT.friend || friendOnPath(from, aim, speed * 2);
   let best;
   for (const c of contacts) {
-    if (c.side !== 'enemy' || !c.core || c.distance > track) continue;
+    // Not missiles and drone bombs: a shot that takes seconds to charge is for the robot that sent them.
+    if (c.side !== 'enemy' || !c.core || c.distance > track || c.mass < light) continue;
     const l = lead(c.pos, c.vel, from);
     if (Math.abs(wrap(l.angle - rest)) > swing) continue;
     const d = l.distance - (c.id === st.id ? 20 : 0);

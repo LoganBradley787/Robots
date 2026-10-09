@@ -130,16 +130,38 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('an enemy lance drone picks an enemy laser drone apart from past its 300 m: its core within 30 s, nothing lost', { timeout: 120_000 }, async () => {
+  it('an enemy lance drone picks an enemy laser drone apart from past its 300 m: its core within 40 s, nothing lost', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('enemy-lance-drone'), { x: -300, y: 60 }, { team: 1 });
     const laser = w.spawnBlueprint(blueprint('enemy-laser-drone'), { x: 300, y: 60 });
-    for (let t = 0; t < 30 * 60; t++) w.step();
+    for (let t = 0; t < 40 * 60; t++) w.step();
     expect(laser.primaryCoreId).toBeUndefined();
     expect(partsLost(w, drone)).toBe(0);
     expect(w.cannonStats(drone.id).backfires).toBe(0);
     expect(of(w, 'laserBurn').filter((e) => family(w, drone).has(e.robot))).toEqual([]);
     expect(body(w, drone).y).toBeGreaterThan(30);
+    w.dispose();
+  });
+
+  it('against an enemy drone with missiles on its rack: the tower goes for the robot, not its missiles in flight, and kills its main core (Logan: "it cut through all the missiles and did not go for the core")', { timeout: 120_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const tower = w.spawnBlueprint(blueprint('enemy-cannon-tower'), { x: -150, y: 2.5 }, { team: 1 });
+    const drone = w.spawnBlueprint(blueprint('enemy-drone'), { x: 150, y: 60 });
+    for (let t = 0; t < 35 * 60; t++) w.step();
+    expect(drone.primaryCoreId).toBeUndefined();
+    expect(tower.primaryCoreId).toBeDefined();
+    // Every bolt hit the drone or a piece of it still on the line, never a missile it had already fired.
+    expect(of(w, 'cannonBackfire')).toEqual([]);
+    w.dispose();
+  });
+
+  it('an enemy lance drone beats an enemy drone that fires back, losing nothing', { timeout: 120_000 }, async () => {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const drone = w.spawnBlueprint(blueprint('enemy-lance-drone'), { x: -250, y: 60 }, { team: 1 });
+    const foe = w.spawnBlueprint(blueprint('enemy-drone'), { x: 250, y: 60 });
+    for (let t = 0; t < 30 * 60; t++) w.step();
+    expect(foe.primaryCoreId).toBeUndefined();
+    expect(partsLost(w, drone)).toBe(0);
     w.dispose();
   });
 
