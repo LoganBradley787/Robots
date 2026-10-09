@@ -50,7 +50,7 @@ const light = param('light', 10, { min: 0, max: 1000 }); // kg: lighter robots (
 const spareCore = param('spareCore', 5, { min: 0, max: 100 }); // what a core that is not the robot's main one is worth (a missile's on its rack)
 const g = 9.81;
 // What taking each kind of part is worth to one shot: the core ends the robot, then what can hurt us.
-const WORTH = { core: 20, cannon: 14, lance: 12, laser: 12, gun: 8, heavywarhead: 10, warhead: 8, fabbay: 8, radar: 6, heavyrotator: 4, rotator: 4, booster: 4, propeller: 4, thruster: 3, seeker: 3, densebattery: 3, battery: 2, heavygyro: 2, gyro: 2, wheel: 2, cell: 1, decoupler: 1, flare: 0.5, frame: 0.5, armorplate: 0.5 };
+const WORTH = { core: 20, cannon: 14, lance: 12, laser: 12, gun: 8, heavywarhead: 5, warhead: 4, fabbay: 8, radar: 6, heavyrotator: 4, rotator: 4, booster: 4, propeller: 4, thruster: 3, seeker: 3, densebattery: 3, battery: 2, heavygyro: 2, gyro: 2, wheel: 2, cell: 1, decoupler: 1, flare: 0.5, frame: 0.5, armorplate: 0.5 };
 const SIGHT = { nothing: 0, own: 1, friend: 2, enemy: 3, none: 4, terrain: 5 };
 
 function setup() {
@@ -153,7 +153,8 @@ function bestPart(target, from) {
       if (along <= 0 || along >= d - 0.3) continue;
       if (Math.abs(qx * uy - qy * ux) < wide) cost += q.health;
     }
-    const score = cost <= damage ? bound : (bound * damage) / cost / 2;
+    // Out of one bolt's reach: still worth its share, since the next bolt down the same line finishes the job.
+    const score = cost <= damage ? bound : (bound * damage) / cost;
     if (!best || score > best.score) best = { id: p.id, score };
   }
   return best && best.id;
