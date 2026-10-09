@@ -41,7 +41,16 @@ export class AudioEngine {
     limit.release.value = 0.08;
     this.meter = ctx.createAnalyser();
     this.meter.fftSize = 2048;
-    this.bus.connect(this.gate).connect(this.volume).connect(squeeze).connect(limit).connect(this.meter).connect(ctx.destination);
+    // Gate 14 (Logan: giant robots): everything gets more bottom and a little less top.
+    const weight = ctx.createBiquadFilter();
+    weight.type = 'lowshelf';
+    weight.frequency.value = 160;
+    weight.gain.value = 5;
+    const soften = ctx.createBiquadFilter();
+    soften.type = 'highshelf';
+    soften.frequency.value = 3500;
+    soften.gain.value = -4;
+    this.bus.connect(this.gate).connect(this.volume).connect(weight).connect(soften).connect(squeeze).connect(limit).connect(this.meter).connect(ctx.destination);
     this.white = noiseBuffer(ctx.sampleRate, false, 1);
     this.brown = noiseBuffer(ctx.sampleRate, true, 2);
     renderOneShots(ctx.sampleRate, this.white, this.brown).then(

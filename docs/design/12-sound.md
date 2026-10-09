@@ -5,7 +5,8 @@ Status: built in M15 (2026-10-08), decided with Logan. Tuning is by ear at the g
 ## What Logan asked for
 - The game felt empty without sound: propellers, thrusters, blasts, lasers, guns, wheels, and a thud when something lands.
 - Everything synthesized in the browser. No sound files.
-- Mechanical and a bit crunchy, no bleeps. The laser is a machine too: a hum, a relay, a crackle.
+- Mechanical, no bleeps. **Heavy** (Logan, Gate 14, after the first take was "too crunchy, leafy and light"): these are giant robots, "not little tinky guys". Every sound is built on a low thump or tone and a wide low body of noise, driven into soft clipping; the top is only an edge. A hit is a thunk, not a tink.
+- The laser is the loudest thing a robot does: a giant beam that obliterates what it meets. It slams on, roars like a power station past its limit, and where it burns, metal melts. No whoop, no whine.
 - Far sounds arrive late (the speed of sound), on a toggle.
 
 ## Where it lives

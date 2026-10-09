@@ -45,127 +45,176 @@ function filter(engine: AudioEngine, type: BiquadFilterType, freq: number, q = 0
   return f;
 }
 
-/** Blades: two saws a few cents apart at the blade rate, and air chopped at the same rate. */
+/** Soft clipping for a loop: it thickens a low tone into something that reads as heavy. */
+function drive(engine: AudioEngine, amount: number): WaveShaperNode {
+  const shaper = engine.ctx.createWaveShaper();
+  const curve = new Float32Array(1024);
+  for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(((i / (curve.length - 1)) * 2 - 1) * amount);
+  shaper.curve = curve;
+  return shaper;
+}
+
+/**
+ * Gate 14 (Logan: giant robots, not little tinky guys; the first take was leafy and light). Every loop is built on a
+ * low tone and a wide low body of noise; the top is only an edge.
+ */
+
+/** Big rotors: a slow heavy blade beat with a sub under it, and the air they throw down, thumped at the same rate. */
 const propeller: Maker = (engine, detune) => {
   const out = gain(engine, 1);
-  const a = osc(engine, 'sawtooth', 40);
-  const b = osc(engine, 'sawtooth', 40);
-  b.detune.value = 7;
-  const tone = filter(engine, 'lowpass', 600);
+  const a = osc(engine, 'sawtooth', 24);
+  const b = osc(engine, 'sawtooth', 24);
+  b.detune.value = 9;
+  const sub = osc(engine, 'sine', 24);
+  const tone = filter(engine, 'lowpass', 320);
   a.connect(tone);
   b.connect(tone);
-  tone.connect(gain(engine, 0.35)).connect(out);
-  const air = noiseLoop(engine, engine.white);
-  const chop = gain(engine, 0.5);
-  const lfo = osc(engine, 'sine', 40);
-  lfo.connect(gain(engine, 0.5)).connect(chop.gain);
-  air.connect(filter(engine, 'bandpass', 1400, 0.6)).connect(chop).connect(gain(engine, 0.3)).connect(out);
+  tone.connect(drive(engine, 1.6)).connect(gain(engine, 0.45)).connect(out);
+  sub.connect(gain(engine, 0.5)).connect(out);
+  const air = noiseLoop(engine, engine.brown);
+  const chop = gain(engine, 0.45);
+  const lfo = osc(engine, 'sine', 24);
+  lfo.connect(gain(engine, 0.45)).connect(chop.gain);
+  const wash = filter(engine, 'lowpass', 500, 0.6);
+  air.connect(wash).connect(chop).connect(gain(engine, 0.9)).connect(out);
   return {
     out,
     set(level, _grip, now) {
-      const f = (40 + 70 * level) * detune;
+      const f = (24 + 34 * level) * detune;
       for (const o of [a, b, lfo]) o.frequency.setTargetAtTime(f, now, FOLLOW);
-      tone.frequency.setTargetAtTime(600 + 1200 * level, now, FOLLOW);
+      // The sub sits an octave up so small speakers still carry the beat.
+      sub.frequency.setTargetAtTime(f * 2, now, FOLLOW);
+      tone.frequency.setTargetAtTime(320 + 520 * level, now, FOLLOW);
+      wash.frequency.setTargetAtTime(500 + 700 * level, now, FOLLOW);
     },
     stop(at) {
-      for (const n of [a, b, lfo, air]) n.stop(at);
+      for (const n of [a, b, sub, lfo, air]) n.stop(at);
     },
   };
 };
 
-/** A burn: low noise that opens up with throttle, a roar in the middle, a rumble under it. */
+/** A big engine burning: a deep roar that opens with throttle, a rumble that shakes, only a little hiss on top. */
 const thruster: Maker = (engine, detune) => {
   const out = gain(engine, 1);
   const low = noiseLoop(engine, engine.brown);
-  const open = filter(engine, 'lowpass', 300);
-  low.connect(open).connect(gain(engine, 0.9)).connect(out);
+  const open = filter(engine, 'lowpass', 220);
+  low.connect(open).connect(drive(engine, 2)).connect(gain(engine, 0.9)).connect(out);
   const hiss = noiseLoop(engine, engine.white);
-  const roar = filter(engine, 'bandpass', 500, 0.8);
-  hiss.connect(roar).connect(gain(engine, 0.3)).connect(out);
-  const rumble = osc(engine, 'sine', 45 * detune);
-  rumble.connect(gain(engine, 0.25)).connect(out);
+  const roar = filter(engine, 'bandpass', 320, 0.7);
+  hiss.connect(roar).connect(gain(engine, 0.22)).connect(out);
+  const rumble = osc(engine, 'sine', 42 * detune);
+  const shake = gain(engine, 0.4);
+  const wobble = osc(engine, 'sine', 11 * detune);
+  wobble.connect(gain(engine, 0.15)).connect(shake.gain);
+  rumble.connect(shake).connect(out);
   return {
     out,
     set(level, _grip, now) {
-      open.frequency.setTargetAtTime(300 + 900 * level, now, FOLLOW);
-      roar.frequency.setTargetAtTime((500 + 400 * level) * detune, now, FOLLOW);
+      open.frequency.setTargetAtTime(220 + 700 * level, now, FOLLOW);
+      roar.frequency.setTargetAtTime((320 + 380 * level) * detune, now, FOLLOW);
+      rumble.frequency.setTargetAtTime((42 + 26 * level) * detune, now, FOLLOW);
     },
     stop(at) {
-      for (const n of [low, hiss, rumble]) n.stop(at);
+      for (const n of [low, hiss, rumble, wobble]) n.stop(at);
     },
   };
 };
 
-/** A motor's whine by its spin, and the tire's rumble while it touches something. */
+/** A heavy drive motor's growl by its spin, and the weight of the wheel on the ground. */
 const wheel: Maker = (engine, detune) => {
   const out = gain(engine, 1);
-  const whine = osc(engine, 'triangle', 60);
-  whine.connect(gain(engine, 0.3)).connect(out);
+  const growl = osc(engine, 'sawtooth', 35);
+  const body = filter(engine, 'lowpass', 300);
+  growl.connect(body).connect(gain(engine, 0.35)).connect(out);
   const road = noiseLoop(engine, engine.brown);
-  const band = filter(engine, 'bandpass', 200, 1);
+  const band = filter(engine, 'lowpass', 180, 0.8);
   const roll = gain(engine, 0);
   road.connect(band).connect(roll).connect(out);
   return {
     out,
     set(level, grip, now) {
-      whine.frequency.setTargetAtTime((60 + 340 * level) * detune, now, FOLLOW);
-      band.frequency.setTargetAtTime(200 + 300 * level, now, FOLLOW);
-      roll.gain.setTargetAtTime(1.2 * (0.25 + 0.75 * grip), now, FOLLOW);
+      growl.frequency.setTargetAtTime((35 + 130 * level) * detune, now, FOLLOW);
+      body.frequency.setTargetAtTime(300 + 500 * level, now, FOLLOW);
+      band.frequency.setTargetAtTime(180 + 320 * level, now, FOLLOW);
+      roll.gain.setTargetAtTime(1.6 * (0.2 + 0.8 * grip), now, FOLLOW);
     },
     stop(at) {
-      for (const n of [whine, road]) n.stop(at);
+      for (const n of [growl, road]) n.stop(at);
     },
   };
 };
 
-/** A laser running: a transformer's hum (two tones that beat) and a harsh buzz riding on it. No pew. */
+/**
+ * A laser burning (Logan: a giant beam that obliterates what it meets). A power station pushed past its limit: two
+ * deep saws beating against each other, a sub under them, all of it driven hard, and a roar of air torn at the
+ * mains rate riding on top. No pew, no whine.
+ */
 const laser: Maker = (engine, detune) => {
   const out = gain(engine, 1);
-  const top = filter(engine, 'lowpass', 4000);
-  top.connect(out);
-  const a = osc(engine, 'sawtooth', 100 * detune);
-  const b = osc(engine, 'square', 120.7 * detune);
-  a.connect(gain(engine, 0.3)).connect(top);
-  b.connect(gain(engine, 0.15)).connect(top);
-  const air = noiseLoop(engine, engine.white);
-  const buzz = gain(engine, 0.5);
-  a.connect(gain(engine, 0.5)).connect(buzz.gain);
-  air.connect(filter(engine, 'bandpass', 2500, 6)).connect(buzz).connect(gain(engine, 0.6)).connect(top);
+  const hot = drive(engine, 4);
+  const top = filter(engine, 'lowpass', 1800, 0.6);
+  hot.connect(top).connect(gain(engine, 0.6)).connect(out);
+  const a = osc(engine, 'sawtooth', 55 * detune);
+  const b = osc(engine, 'sawtooth', 55.9 * detune);
+  const c = osc(engine, 'square', 110.6 * detune);
+  a.connect(gain(engine, 0.5)).connect(hot);
+  b.connect(gain(engine, 0.5)).connect(hot);
+  c.connect(gain(engine, 0.2)).connect(hot);
+  const sub = osc(engine, 'sine', 82.5 * detune);
+  sub.connect(gain(engine, 0.45)).connect(out);
+  // The air along the beam, torn at the mains rate.
+  const air = noiseLoop(engine, engine.brown);
+  const tear = gain(engine, 0.6);
+  a.connect(gain(engine, 0.4)).connect(tear.gain);
+  air.connect(filter(engine, 'lowpass', 900, 0.7)).connect(tear).connect(gain(engine, 1.2)).connect(out);
+  const edge = noiseLoop(engine, engine.white);
+  edge.connect(filter(engine, 'bandpass', 1100, 0.9)).connect(gain(engine, 0.12)).connect(out);
+  // A slow swell, so it heaves instead of sitting still.
+  const swell = osc(engine, 'sine', 0.7);
+  swell.connect(gain(engine, 0.12)).connect(out.gain);
   return {
     out,
     set() {},
     stop(at) {
-      for (const n of [a, b, air]) n.stop(at);
+      for (const n of [a, b, c, sub, air, edge, swell]) n.stop(at);
     },
   };
 };
 
-/** Where a beam burns: a crackle that flickers. */
+/** Where a beam burns: metal melting. A furnace roar that surges, a low boil, and a spit of sparks on top. */
 const burn: Maker = (engine) => {
   const out = gain(engine, 1);
-  const air = noiseLoop(engine, engine.white);
-  const flicker = gain(engine, 0.5);
-  air.connect(filter(engine, 'highpass', 3500)).connect(flicker).connect(out);
-  const low = noiseLoop(engine, engine.brown);
-  low.connect(filter(engine, 'bandpass', 700, 1.5)).connect(gain(engine, 0.5)).connect(flicker);
+  const surge = gain(engine, 0.7);
+  surge.connect(out);
+  const roar = noiseLoop(engine, engine.brown);
+  roar.connect(filter(engine, 'lowpass', 700, 0.7)).connect(drive(engine, 2.5)).connect(surge);
+  const boil = osc(engine, 'sawtooth', 47);
+  boil.connect(filter(engine, 'lowpass', 220)).connect(gain(engine, 0.4)).connect(surge);
+  const spit = noiseLoop(engine, engine.white);
+  const flicker = gain(engine, 0.3);
+  spit.connect(filter(engine, 'bandpass', 1500, 0.8)).connect(flicker).connect(gain(engine, 0.35)).connect(out);
   return {
     out,
     set(_level, _grip, now) {
-      flicker.gain.setTargetAtTime(0.15 + Math.random() * 0.85, now, 0.008);
+      surge.gain.setTargetAtTime(0.55 + Math.random() * 0.45, now, 0.03);
+      flicker.gain.setTargetAtTime(Math.random() ** 2, now, 0.008);
     },
     stop(at) {
-      for (const n of [air, low]) n.stop(at);
+      for (const n of [roar, boil, spit]) n.stop(at);
     },
   };
 };
 
-/** The looping voices by name (a part def's `sound.run`), and how loud each is against the others. */
+/**
+ * The looping voices by name (a part def's `sound.run`), and how loud each is against the others. One beam is a level
+ * of 1 where a drone's propellers sum to 4 or more, and a laser should be the loudest thing a robot does: hence its gain.
+ */
 export const LOOP_VOICES: Readonly<Record<string, { make: Maker; gain: number }>> = {
-  propeller: { make: propeller, gain: 0.7 },
-  thruster: { make: thruster, gain: 0.9 },
-  wheel: { make: wheel, gain: 0.4 },
-  laser: { make: laser, gain: 0.7 },
-  'laser.burn': { make: burn, gain: 0.5 },
+  propeller: { make: propeller, gain: 0.8 },
+  thruster: { make: thruster, gain: 1 },
+  wheel: { make: wheel, gain: 0.5 },
+  laser: { make: laser, gain: 2.6 },
+  'laser.burn': { make: burn, gain: 2 },
 };
 
 /** A voice with its place in the mix: the ear's gain, pan and dulling. */

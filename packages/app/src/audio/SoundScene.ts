@@ -34,9 +34,9 @@ export function soundsFor(ev: WorldEvent, materialOf: (partType: string) => stri
       return [{ name: explosionFor(ev.radius), gain: Math.min(1.5, 0.6 + ev.radius / 6), rate: 1, must: true }];
     case 'partDestroyed':
       // A part that explodes gets the blast, a burnt-out flare just goes out (as the effects do).
-      return ev.exploded || ev.burntOut === true ? [] : [{ name: `break.${materialOf(ev.partType)}`, gain: 0.55, rate: 1 }];
+      return ev.exploded || ev.burntOut === true ? [] : [{ name: `break.${materialOf(ev.partType)}`, gain: 0.7, rate: 1 }];
     case 'shellHit':
-      return [{ name: `hit.${materialOf(ev.partType)}`, gain: 0.4, rate: 1 }];
+      return [{ name: `hit.${materialOf(ev.partType)}`, gain: 0.6, rate: 1 }];
     case 'decoupled':
       return [{ name: 'decouple', gain: 0.6, rate: 1 }];
     case 'impact': {
@@ -163,8 +163,8 @@ export class SoundScene {
       return;
     }
     if (!time.paused) {
-      for (const s of shells) this.ask('gun', s.px, s.py, 0.5);
-      for (const s of unseen) this.ask('gun', s.x, s.y, 0.5);
+      for (const s of shells) this.ask('gun', s.px, s.py, 0.75);
+      for (const s of unseen) this.ask('gun', s.x, s.y, 0.75);
     }
     this.loops.update(
       engine,
@@ -172,12 +172,12 @@ export class SoundScene {
       ear,
       (g) => {
         // What a voice does as it starts and stops is in the one-shots under its name: a laser's relay.
-        if (`${g.voice}.on` in ONE_SHOTS) this.ask(`${g.voice}.on`, g.x, g.y, 0.5);
+        if (`${g.voice}.on` in ONE_SHOTS) this.ask(`${g.voice}.on`, g.x, g.y, 1.2, 1, true);
         // A thruster lighting from cold pops (a missile leaving, a booster kicking in).
         if (g.voice === 'thruster') this.ask('ignite', g.x, g.y, Math.min(1, 0.35 + 0.15 * Math.sqrt(g.sum)));
       },
       (g) => {
-        if (`${g.voice}.off` in ONE_SHOTS) this.ask(`${g.voice}.off`, g.x, g.y, 0.45);
+        if (`${g.voice}.off` in ONE_SHOTS) this.ask(`${g.voice}.off`, g.x, g.y, 0.9);
       },
     );
     this.flush(engine, ear);
@@ -254,7 +254,7 @@ export class SoundScene {
     });
     this.pending = [];
     for (const a of this.limiter.pick(asks, engine.now)) {
-      engine.play(a.name, a.heard, a.own, a.after, a.rate * (0.92 + Math.random() * 0.16));
+      engine.play(a.name, a.heard, a.own, a.after, a.rate * (0.94 + Math.random() * 0.12));
       this.played.set(a.name, (this.played.get(a.name) ?? 0) + 1);
     }
   }

@@ -87,141 +87,170 @@ function driven(k: Kit, amount: number): Kit {
   return { ...k, out: shaper };
 }
 
-function gun(k: Kit): void {
+/**
+ * Gate 14 (Logan): these are giant robots, not little tinky guys. Every recipe below is built from the bottom up: a
+ * low thump that carries it, a wide body of noise, and only a little top for the edge. Most are driven into soft
+ * clipping, which is what makes a low sound read as heavy on small speakers.
+ */
+
+/** A heavy gun: a cannon's thump and a wide crack, then the breech slamming. */
+function gun(dry: Kit): void {
+  const k = driven(dry, 2.2);
   const pitch = 0.9 + k.rnd() * 0.2;
-  burst(k, k.white, 0, 0.004, { type: 'highpass', f: 3000, gain: 1 });
-  burst(k, k.white, 0, 0.07, { type: 'bandpass', f: 1800 * pitch, q: 0.8, gain: 0.9 });
-  burst(k, k.brown, 0, 0.12, { type: 'lowpass', f: 500, gain: 0.8 });
-  tone(k, 'sine', 0, 0.06, 140 * pitch, 55, 0.9);
-  // The bolt going home.
-  const bolt = 0.028 + k.rnd() * 0.006;
-  burst(k, k.white, bolt, 0.012, { type: 'bandpass', f: 3200, q: 4, gain: 0.35 });
-  ring(k, bolt, 0.03, [2400], 0.15);
+  burst(k, k.white, 0, 0.006, { type: 'bandpass', f: 1400, q: 0.7, gain: 0.7 });
+  burst(k, k.white, 0, 0.1, { type: 'bandpass', f: 800 * pitch, q: 0.6, gain: 0.9 });
+  burst(k, k.brown, 0, 0.3, { type: 'lowpass', f: 450, f1: 140, gain: 1.2 });
+  tone(k, 'sine', 0, 0.2, 115 * pitch, 42, 1.3);
+  tone(k, 'triangle', 0, 0.12, 230 * pitch, 80, 0.4);
+  // The breech going home: a low clack, not a click.
+  const breech = 0.05 + k.rnd() * 0.01;
+  burst(dry, dry.white, breech, 0.03, { type: 'bandpass', f: 900, q: 2, gain: 0.25 });
+  ring(dry, breech, 0.06, [430, 690], 0.18);
 }
 
-const HIT_RING: Readonly<Record<string, readonly number[]>> = { metal: [2100, 3400, 5200], armor: [700, 1100, 1900] };
+const HIT_RING: Readonly<Record<string, readonly number[]>> = { metal: [310, 520, 840], armor: [170, 290, 460] };
 
+/** A shell landing: a thunk that goes into the part, with the plate's low ring under it. */
 function hit(material: string): (k: Kit) => void {
-  return (k) => {
+  return (dry) => {
+    const k = driven(dry, 1.8);
     if (material === 'soft') {
-      burst(k, k.brown, 0, 0.07, { type: 'lowpass', f: 350, gain: 1 });
-      burst(k, k.white, 0, 0.01, { type: 'bandpass', f: 900, q: 1, gain: 0.3 });
+      tone(k, 'sine', 0, 0.11, 120, 50, 1);
+      burst(k, k.brown, 0, 0.12, { type: 'lowpass', f: 320, gain: 1 });
+      burst(k, k.white, 0, 0.02, { type: 'bandpass', f: 600, q: 1, gain: 0.25 });
     } else if (material === 'armor') {
-      burst(k, k.white, 0, 0.006, { type: 'bandpass', f: 1500, gain: 0.7 });
-      ring(k, 0, 0.18, HIT_RING.armor ?? [], 0.6);
-      tone(k, 'sine', 0, 0.05, 180, 90, 0.4);
+      tone(k, 'sine', 0, 0.16, 130, 48, 1.2);
+      burst(k, k.brown, 0, 0.14, { type: 'lowpass', f: 380, gain: 0.9 });
+      burst(k, k.white, 0, 0.012, { type: 'bandpass', f: 900, q: 0.8, gain: 0.5 });
+      ring(dry, 0, 0.32, HIT_RING.armor ?? [], 0.45);
     } else {
-      burst(k, k.white, 0, 0.003, { type: 'highpass', f: 4000, gain: 0.6 });
-      ring(k, 0, 0.09, HIT_RING.metal ?? [], 0.5);
+      tone(k, 'sine', 0, 0.11, 170, 65, 1.1);
+      burst(k, k.brown, 0, 0.1, { type: 'lowpass', f: 520, gain: 0.8 });
+      burst(k, k.white, 0, 0.01, { type: 'bandpass', f: 1300, q: 0.8, gain: 0.45 });
+      ring(dry, 0, 0.16, HIT_RING.metal ?? [], 0.35);
     }
   };
 }
 
 /** `size` 0 (a small charge) to 2 (a big one): bigger is longer and lower. */
 function explosion(size: number): (k: Kit) => void {
-  const sc = [0.7, 1, 1.5][size] ?? 1;
+  const sc = [0.8, 1.15, 1.7][size] ?? 1;
   return (dry) => {
-    const k = driven(dry, 2.5);
-    burst(k, k.white, 0, 0.012, { type: 'highpass', f: 1500, gain: 1 });
-    burst(k, k.white, 0, 0.45 * sc, { type: 'lowpass', f: 4000, f1: 200, gain: 1 });
-    burst(k, k.brown, 0, 0.9 * sc, { type: 'lowpass', f: 300, f1: 80, gain: 1.2 });
-    tone(k, 'sine', 0, 0.5 * sc, 90 / Math.sqrt(sc), 32, 1.2);
-    // Debris coming down.
-    const bits = 10 + size * 6;
+    const k = driven(dry, 3);
+    burst(k, k.white, 0, 0.02, { type: 'bandpass', f: 900, q: 0.5, gain: 1 });
+    burst(k, k.white, 0, 0.5 * sc, { type: 'lowpass', f: 2600, f1: 140, gain: 1 });
+    burst(k, k.brown, 0, 1.1 * sc, { type: 'lowpass', f: 320, f1: 60, gain: 1.5 });
+    tone(k, 'sine', 0, 0.7 * sc, 95 / Math.sqrt(sc), 28, 1.5);
+    tone(k, 'triangle', 0, 0.35 * sc, 150 / Math.sqrt(sc), 45, 0.5);
+    // Heavy pieces coming down: thumps, not a patter.
+    const bits = 5 + size * 3;
     for (let i = 0; i < bits; i++) {
-      const t = 0.15 + k.rnd() * sc;
-      burst(dry, dry.white, t, 0.01 + k.rnd() * 0.03, { type: 'bandpass', f: 800 + k.rnd() * 3000, q: 2, gain: 0.12 * (1 - (t - 0.15) / (sc * 1.05)) });
+      const t = 0.2 + k.rnd() * sc * 0.9;
+      const fade = 1 - (t - 0.2) / (sc * 0.95);
+      burst(dry, dry.brown, t, 0.05 + k.rnd() * 0.06, { type: 'lowpass', f: 300 + k.rnd() * 500, gain: 0.35 * fade });
+      burst(dry, dry.white, t, 0.02, { type: 'bandpass', f: 500 + k.rnd() * 900, q: 1.5, gain: 0.1 * fade });
     }
   };
 }
 
-const BREAK_SNAP: Readonly<Record<string, readonly number[]>> = { metal: [1600, 2900], armor: [500, 900] };
+const BREAK_SNAP: Readonly<Record<string, readonly number[]>> = { metal: [360, 610], armor: [190, 330] };
 
+/** A part torn off a giant: a low crunch of buckling metal, and the thump of it letting go. */
 function breakUp(material: string): (k: Kit) => void {
-  return (k) => {
+  return (dry) => {
+    const k = driven(dry, 2);
+    tone(k, 'sine', 0, 0.16, 125, 45, 1);
+    burst(k, k.brown, 0, 0.22, { type: 'lowpass', f: 420, f1: 150, gain: 1 });
     const grains = 3 + Math.floor(k.rnd() * 3);
     for (let i = 0; i < grains; i++) {
-      burst(k, k.white, k.rnd() * 0.1, 0.015 + k.rnd() * 0.02, { type: 'bandpass', f: 800 + k.rnd() * 1700, q: 1.5, gain: 0.6 });
+      burst(k, k.white, k.rnd() * 0.16, 0.03 + k.rnd() * 0.04, { type: 'bandpass', f: 300 + k.rnd() * 800, q: 1.2, gain: 0.5 });
     }
     const snap = BREAK_SNAP[material];
-    if (snap) ring(k, 0, material === 'armor' ? 0.16 : 0.08, snap, 0.5);
-    else burst(k, k.brown, 0, 0.09, { type: 'lowpass', f: 400, gain: 0.8 });
+    if (snap) ring(dry, 0.01, material === 'armor' ? 0.3 : 0.2, snap, 0.3);
   };
 }
 
-function thud(k: Kit): void {
-  tone(k, 'sine', 0, 0.14, 72, 38, 1);
-  burst(k, k.brown, 0, 0.16, { type: 'lowpass', f: 220, gain: 0.9 });
-  burst(k, k.white, 0, 0.02, { type: 'lowpass', f: 900, gain: 0.25 });
+function thud(dry: Kit): void {
+  const k = driven(dry, 2);
+  tone(k, 'sine', 0, 0.26, 85, 30, 1.3);
+  tone(k, 'triangle', 0, 0.1, 150, 60, 0.35);
+  burst(k, k.brown, 0, 0.3, { type: 'lowpass', f: 240, f1: 90, gain: 1.1 });
+  burst(k, k.white, 0, 0.025, { type: 'lowpass', f: 600, gain: 0.25 });
 }
 
-/** Loose metal shaken by a hard hit, on top of the thud. */
+/** Heavy plates shaken by a hard hit, on top of the thud. */
 function rattle(k: Kit): void {
-  const clanks = 5 + Math.floor(k.rnd() * 3);
+  const clanks = 4 + Math.floor(k.rnd() * 3);
   for (let i = 0; i < clanks; i++) {
-    const t = k.rnd() * 0.2;
-    ring(k, t, 0.05, [900 + k.rnd() * 1800, 2000 + k.rnd() * 2500], 0.25);
-    burst(k, k.white, t, 0.008, { type: 'bandpass', f: 2500, gain: 0.3 });
+    const t = k.rnd() * 0.25;
+    ring(k, t, 0.12, [220 + k.rnd() * 400, 500 + k.rnd() * 700], 0.3);
+    burst(k, k.brown, t, 0.05, { type: 'lowpass', f: 500, gain: 0.35 });
+    burst(k, k.white, t, 0.012, { type: 'bandpass', f: 900, gain: 0.2 });
   }
 }
 
-function decouple(k: Kit): void {
-  for (const t of [0, 0.03]) {
-    burst(k, k.white, t, 0.01, { type: 'bandpass', f: 2200, q: 3, gain: 0.8 });
-    ring(k, t, 0.035, [1300, 2700], 0.3);
+/** Clamps the size of a truck letting go. */
+function decouple(dry: Kit): void {
+  const k = driven(dry, 1.8);
+  for (const t of [0, 0.045]) {
+    tone(k, 'sine', t, 0.09, 140, 55, 0.9);
+    burst(k, k.white, t, 0.02, { type: 'bandpass', f: 850, q: 1.5, gain: 0.6 });
+    ring(dry, t, 0.1, [330, 560], 0.3);
   }
-  tone(k, 'sine', 0, 0.04, 160, 80, 0.5);
-  burst(k, k.white, 0.03, 0.12, { type: 'highpass', f: 5000, gain: 0.2 });
+  burst(k, k.brown, 0, 0.16, { type: 'lowpass', f: 350, gain: 0.7 });
+  burst(dry, dry.white, 0.05, 0.14, { type: 'bandpass', f: 2200, q: 0.5, gain: 0.08 });
 }
 
-/** A thruster lighting from cold. */
-function ignite(k: Kit): void {
-  burst(k, k.brown, 0, 0.22, { type: 'lowpass', f: 1500, f1: 300, gain: 1 });
-  burst(k, k.white, 0, 0.05, { type: 'bandpass', f: 1200, gain: 0.5 });
-  tone(k, 'sine', 0, 0.12, 110, 50, 0.6);
+/** A thruster lighting from cold: a boom, then the burn takes over. */
+function ignite(dry: Kit): void {
+  const k = driven(dry, 2.2);
+  tone(k, 'sine', 0, 0.22, 100, 36, 1.1);
+  burst(k, k.brown, 0, 0.36, { type: 'lowpass', f: 900, f1: 180, gain: 1.2 });
+  burst(k, k.white, 0, 0.08, { type: 'bandpass', f: 700, q: 0.6, gain: 0.5 });
 }
 
-/** A laser switching on: a relay, then its capacitors charging. A machine, not a pew. */
-function laserOn(k: Kit): void {
-  burst(k, k.white, 0, 0.008, { type: 'bandpass', f: 2600, q: 3, gain: 0.9 });
-  ring(k, 0, 0.04, [1500], 0.3);
-  const osc = k.ctx.createOscillator();
-  osc.type = 'sawtooth';
-  ramp(osc.frequency, [[0.01, 250], [0.3, 2200]]);
-  const band = k.ctx.createBiquadFilter();
-  band.type = 'bandpass';
-  band.Q.value = 2;
-  ramp(band.frequency, [[0.01, 500], [0.3, 2400]]);
-  const g = k.ctx.createGain();
-  ramp(g.gain, [[0.01, 0.02], [0.28, 0.18], [0.33, 1e-4]]);
-  osc.connect(band).connect(g).connect(k.out);
-  osc.start(0.01);
-  osc.stop(0.34);
+/**
+ * A laser firing (Logan: a giant beam that obliterates what it meets, not a little whoop): the bank dumping all at
+ * once. A slam, a tearing roar that opens up, and a deep tone dropping under it into the hum.
+ */
+function laserOn(dry: Kit): void {
+  const k = driven(dry, 3.5);
+  burst(k, k.white, 0, 0.03, { type: 'bandpass', f: 1000, q: 0.5, gain: 1 });
+  tone(k, 'sine', 0, 0.55, 130, 34, 1.5);
+  tone(k, 'sawtooth', 0, 0.45, 110, 50, 0.5);
+  burst(k, k.brown, 0, 0.7, { type: 'lowpass', f: 1400, f1: 220, gain: 1.4 });
+  burst(k, k.white, 0, 0.4, { type: 'bandpass', f: 500, f1: 1600, q: 0.8, gain: 0.6 });
+  // The contactor closing, the size of a door.
+  ring(dry, 0, 0.18, [240, 410], 0.3);
 }
 
-function laserOff(k: Kit): void {
-  burst(k, k.white, 0, 0.008, { type: 'bandpass', f: 2000, q: 3, gain: 0.9 });
-  ring(k, 0, 0.04, [1100], 0.3);
-  tone(k, 'sine', 0, 0.1, 400, 120, 0.2);
+/** The beam cutting out: the contactor dropping and the bank winding down. */
+function laserOff(dry: Kit): void {
+  const k = driven(dry, 2.5);
+  tone(k, 'sine', 0, 0.5, 105, 30, 1.2);
+  tone(k, 'sawtooth', 0, 0.3, 100, 40, 0.3);
+  burst(k, k.brown, 0, 0.45, { type: 'lowpass', f: 700, f1: 120, gain: 1 });
+  burst(k, k.white, 0, 0.025, { type: 'bandpass', f: 800, q: 1, gain: 0.6 });
+  ring(dry, 0, 0.16, [210, 360], 0.3);
 }
 
 export const ONE_SHOTS: Readonly<Record<string, OneShot>> = {
-  gun: { seconds: 0.2, variants: 4, make: gun },
-  'hit.metal': { seconds: 0.12, variants: 3, make: hit('metal') },
-  'hit.armor': { seconds: 0.22, variants: 3, make: hit('armor') },
-  'hit.soft': { seconds: 0.1, variants: 2, make: hit('soft') },
-  'explosion.small': { seconds: 1.1, variants: 2, make: explosion(0) },
-  'explosion.medium': { seconds: 1.5, variants: 2, make: explosion(1) },
-  'explosion.large': { seconds: 2.2, variants: 2, make: explosion(2) },
-  'break.metal': { seconds: 0.2, variants: 3, make: breakUp('metal') },
-  'break.armor': { seconds: 0.24, variants: 2, make: breakUp('armor') },
-  'break.soft': { seconds: 0.2, variants: 2, make: breakUp('soft') },
-  thud: { seconds: 0.25, variants: 2, make: thud },
-  rattle: { seconds: 0.3, variants: 3, make: rattle },
-  decouple: { seconds: 0.18, variants: 2, make: decouple },
-  ignite: { seconds: 0.28, variants: 2, make: ignite },
-  'laser.on': { seconds: 0.36, variants: 2, make: laserOn },
-  'laser.off': { seconds: 0.14, variants: 2, make: laserOff },
+  gun: { seconds: 0.42, variants: 4, make: gun },
+  'hit.metal': { seconds: 0.24, variants: 3, make: hit('metal') },
+  'hit.armor': { seconds: 0.4, variants: 3, make: hit('armor') },
+  'hit.soft': { seconds: 0.18, variants: 2, make: hit('soft') },
+  'explosion.small': { seconds: 1.3, variants: 2, make: explosion(0) },
+  'explosion.medium': { seconds: 1.7, variants: 2, make: explosion(1) },
+  'explosion.large': { seconds: 1.97, variants: 2, make: explosion(2) },
+  'break.metal': { seconds: 0.34, variants: 3, make: breakUp('metal') },
+  'break.armor': { seconds: 0.4, variants: 2, make: breakUp('armor') },
+  'break.soft': { seconds: 0.3, variants: 2, make: breakUp('soft') },
+  thud: { seconds: 0.36, variants: 2, make: thud },
+  rattle: { seconds: 0.42, variants: 3, make: rattle },
+  decouple: { seconds: 0.24, variants: 2, make: decouple },
+  ignite: { seconds: 0.42, variants: 2, make: ignite },
+  'laser.on': { seconds: 0.75, variants: 2, make: laserOn },
+  'laser.off': { seconds: 0.55, variants: 2, make: laserOff },
 };
 
 /** What a part sounds like struck or broken: its def's `sound.hit` when the table has it, else metal. */
