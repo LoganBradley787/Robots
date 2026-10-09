@@ -104,7 +104,7 @@ describe('distance charge (Batch)', () => {
       { x: -100, y: 0.5 },
     );
     // On the front of a car, so the shells' pushes do not skid it out of the line of fire.
-    const charge = w.spawnBlueprint({ format: 1, name: 'charge-car', grid: ['Xd  C'], legend: ARMED }, { x: -80, y: 0.5 }, { team: 1 });
+    const charge = w.spawnBlueprint({ format: 1, name: 'charge-car', grid: ['Xd  C'], legend: ARMED }, { x: -90, y: 0.5 }, { team: 1 });
     for (let i = 0; i < 10; i++) w.step();
     w.step([{ robot: gun.id, pressed: ['f'], released: [] }]);
     for (let i = 0; i < 480; i++) w.step();

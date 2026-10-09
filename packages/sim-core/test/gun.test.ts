@@ -21,9 +21,9 @@ describe('guns (M13)', () => {
     expect(w.shotsBy(car.id)).toBe(0);
     w.step(hold(car.id, 'f'));
     const first = w.liveShells()[0];
-    // 300 m/s, a little off the barrel's line (spread 0.5 degrees).
+    // 300 m/s, a little off the barrel's line (spread 1.5 degrees).
     expect(Math.hypot(first?.vx ?? 0, first?.vy ?? 0)).toBeCloseTo(300, 1);
-    expect(Math.abs(Math.atan2(first?.vy ?? 0, first?.vx ?? 1))).toBeLessThanOrEqual((0.5 * Math.PI) / 180);
+    expect(Math.abs(Math.atan2(first?.vy ?? 0, first?.vx ?? 1))).toBeLessThanOrEqual((1.5 * Math.PI) / 180);
     // It left the barrel's end (x -98.5) and flew one tick.
     expect(first?.px).toBeCloseTo(-98.5, 2);
     expect(first?.x).toBeCloseTo(-98.5 + 5, 1);
@@ -61,7 +61,8 @@ describe('guns (M13)', () => {
     const w = await World.create({ seed: 1 }, flat);
     const car = w.spawnBlueprint(GUN_CAR, { x: -100, y: 0.5 });
     // A coreless blueprint is placed by its first part, the top of the post.
-    const post = w.spawnBlueprint(POST, { x: -80, y: 2.5 });
+    // 10 m off: at 1.5 degrees of spread nearly every shell still lands on the one frame.
+    const post = w.spawnBlueprint(POST, { x: -90, y: 2.5 });
     const target = w.spawnBlueprint(ENEMY_CAR, { x: -100, y: 60.5 }, { team: 1 });
     const upper = w.spawnBlueprint(GUN_CAR, { x: -120, y: 60.5 });
     for (let i = 0; i < 20; i++) w.step();
@@ -191,9 +192,9 @@ describe('guns (M13)', () => {
       aim: w.partOutput(id, part, 'aim'),
     });
     // Before it first looks: nothing within its range.
-    expect(out(car.id, 'gun@1,0')).toEqual({ sight: 150, side: SIGHT.nothing, id: 0, aim: 0 });
+    expect(out(car.id, 'gun@1,0')).toEqual({ sight: 100, side: SIGHT.nothing, id: 0, aim: 0 });
     w.step();
-    expect(out(car.id, 'gun@1,0')).toMatchObject({ sight: 150, side: SIGHT.nothing, id: 0 });
+    expect(out(car.id, 'gun@1,0')).toMatchObject({ sight: 100, side: SIGHT.nothing, id: 0 });
     expect(out(car.id, 'gun@1,0').aim).toBeCloseTo(0, 6);
     const enemy = w.spawnBlueprint(ENEMY_CAR, { x: -70, y: 40 }, { team: 1 });
     w.step();

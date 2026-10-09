@@ -48,11 +48,11 @@ describe('parts', () => {
     expect(text('fabbay')).toMatch(/a copy still in the hollow 10 s after it was let go is given up on and pushed out, as a piece with no core is after 1 s in the way/);
     expect(text('booster')).toMatch(/build time: 1.1 s in a fabricator/);
     expect(text('gun')).toMatch(/10 shells a second out of its N face at 300 m\/s; a shell falls under gravity, takes 5 off the first part it hits/);
-    expect(text('gun')).toMatch(/looks 150 m straight out of the barrel/);
+    expect(text('gun')).toMatch(/looks 100 m straight out of the barrel/);
     expect(rows.find((r) => r.id === 'laser')).toMatchObject({ key: '', legend: ['Lz^', 'Lz<', 'Lzv', 'Lz>'], mass: 4, faces: ['S'], health: 40, power: 2400 });
     expect(text('laser')).toMatch(/the first part within 300 m \(anyone's, friends and its own robot too\) loses 600 health a second, in full whatever the part/);
     expect(text('laser')).toMatch(/explodes when destroyed: 80 damage/);
-    expect(text('gun')).toMatch(/up to 0.5 degrees off the barrel's line/);
+    expect(text('gun')).toMatch(/up to 1.5 degrees off the barrel's line/);
     expect(text('solar')).toMatch(/solar: adds 6 J\/s \(times the cosine of the angle between its N face and straight up.*\) to its chunk's energy pool while its N face points up/);
     expect(text('swivelthruster')).toMatch(/tilts its push up to 15 degrees counterclockwise \(positive\) or clockwise \(negative\) from its N face/);
     expect(text('swivelthruster')).toContain('swivel 15 deg');

@@ -99,7 +99,10 @@ describe('spotter and artillery (Batch), done when', () => {
     // (22 counted here, 45 of its 52 parts in all, its core at 36 s as before).
     expect(partsLost(w, gun)).toBeGreaterThanOrEqual(20);
     expect(gun.primaryCoreId).toBeUndefined();
-    expect(partsLost(w, art)).toBeLessThanOrEqual(3);
+    // M15: the count takes in the artillery's missiles shot down in flight (pieces that broke off it): 6 with the
+    // short gun's wider spray, 3 before. The artillery itself loses nothing.
+    expect(partsLost(w, art)).toBeLessThanOrEqual(8);
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.robot === art.id && e.burntOut !== true)).toHaveLength(0);
     expect(partsLost(w, spot)).toBeLessThanOrEqual(3);
     w.dispose();
   });

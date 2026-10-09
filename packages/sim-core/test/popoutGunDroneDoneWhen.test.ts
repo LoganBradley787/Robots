@@ -32,10 +32,10 @@ function partsLost(w: World, r: Robot): number {
 }
 
 /** A popout drone at x -400 (clear of the flat world's boxes) and a low target 200 m to its right on the ground. */
-async function fightAt(target: string[], seconds: number, stopAt?: (cw: World, a: Robot, t: Robot, second: number) => void) {
+async function fightAt(target: string[], seconds: number, stopAt?: (cw: World, a: Robot, t: Robot, second: number) => void, tx = -200) {
   const w = await World.create({ seed: 1, scripts: host }, flat);
   const a = w.spawnBlueprint(blueprint('enemy-popout-gun-drone'), { x: -400, y: 40 });
-  const t = w.spawnBlueprint({ format: 1, name: 'target', grid: target }, { x: -200, y: 0.5 }, { team: 1 });
+  const t = w.spawnBlueprint({ format: 1, name: 'target', grid: target }, { x: tx, y: 0.5 }, { team: 1 });
   for (let tick = 0; tick <= seconds * 60; tick++) {
     if (tick % 60 === 0) stopAt?.(w, a, t, tick / 60);
     w.step();
@@ -67,13 +67,15 @@ describe('popout gun drone, done when', () => {
   });
 
   it('a target that had a gun and lost it: the doors open as soon as it is gone, well before 10 s', { timeout: 60_000 }, async () => {
-    const { w, a, t } = await fightAt(['M< C F F F F F F F F F F F'], 9.5, (cw, r, target, second) => {
+    // M15: the short gun opens fire at 150 m (5.9 s in, it was 250 m), so the gun goes at 9.0 s and the doors start at
+    // 9.07 s: still before the 10 s rule would open them (10.03 s).
+    const { w, a, t } = await fightAt(['M< C F F F F F F F F F F F'], 9.9, (cw, r, target, second) => {
       // Every second while the target still has its gun (how long that is shifts with the drone's weight).
       if ([...target.parts.values()].some((p) => p.def.id === 'gun')) expect(door(cw, r, 'piston@16,7'), `shut while its gun is still there (${second} s)`).toBe(0);
     });
     const gunGone = w.events.find((e) => e.kind === 'partDestroyed' && e.robot === t.id && e.partType === 'gun');
     expect(gunGone).toBeDefined();
-    expect((gunGone?.tick ?? 0) / 60).toBeLessThan(9);
+    expect((gunGone?.tick ?? 0) / 60).toBeLessThan(9.5);
     for (const d of RIGHT_DOORS) expect(door(w, a, d), d).toBeGreaterThan(0.5);
     for (const d of LEFT_DOORS) expect(door(w, a, d), d).toBe(0);
     w.dispose();

@@ -94,8 +94,8 @@ describe('M13 guns, done when', () => {
 
   it('twelve turrets on a big target stay within the script time budget (Logan: "turrets stopped, ran too long")', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
-    const guns = w.spawnBlueprint(blueprint('enemy-many-gun-drone'), { x: -100, y: 40 }, { team: 1 });
-    w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: 100, y: 1.5 });
+    const guns = w.spawnBlueprint(blueprint('enemy-many-gun-drone'), { x: -60, y: 40 }, { team: 1 });
+    w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: 60, y: 1.5 });
     for (let t = 0; t < 300; t++) w.step();
     expect(w.events.filter((e) => e.kind === 'scriptCrashed')).toEqual([]);
     expect(w.shotsBy(guns.id)).toBeGreaterThan(20);

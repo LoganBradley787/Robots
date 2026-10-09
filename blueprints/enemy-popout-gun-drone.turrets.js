@@ -21,7 +21,7 @@
 //   gun's `speed` plus our own motion), and up by what a shell falls on the way.
 // - Fire: within `reach` meters, while the barrel is on the aim point and the gun's sight says nothing of ours is in
 //   the way: the sight is a straight line out of the barrel, and shells hit friends and this robot too. A shell lives
-//   1 s (300 m); the sight looks 150 m, and past that nothing of ours shows. The sight is straight and the barrel
+//   1 s (300 m); the sight looks 100 m, and past that nothing of ours shows. The sight is straight and the barrel
 //   points above the target by the drop, so it also holds fire while a friend the radar tracks is within `clear`
 //   meters of the path to the target, nearer than it (a friend just in front of the target sits under the sight line).
 //   On target means within `size` meters of the aim point (at least `tight` radians); once firing it keeps on out to
@@ -29,7 +29,7 @@
 // With `auto` at 0, G switches the turrets on and off (they start on); robots that fly themselves leave it at 1.
 const auto = param('auto', 1, { min: 0, max: 1 });
 const speed = param('speed', 300, { min: 1, max: 5000 }); // m/s, the gun's shell speed (the gun part)
-const reach = param('reach', 250, { min: 1, max: 1000 }); // m: further than this it does not shoot
+const reach = param('reach', 150, { min: 1, max: 1000 }); // m: further than this it does not shoot
 const track = param('track', 400, { min: 1, max: 1000 }); // m: further than this it does not point at things
 const swing = (param('swing', 90, { min: 1, max: 180 }) * Math.PI) / 180; // degrees either way a turret turns (the rotator's range)
 const gain = param('gain', 6, { min: 0.1, max: 50 }); // turn rate per radian off the aim
