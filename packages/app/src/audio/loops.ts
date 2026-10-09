@@ -93,29 +93,51 @@ const propeller: Maker = (engine, detune) => {
   };
 };
 
-/** A big engine burning: a deep roar that opens with throttle, a rumble that shakes, only a little hiss on top. */
+/** Noise played so slowly it is a random wander, a few tens of changes a second: what makes fire flutter instead of hiss. */
+function flutter(engine: AudioEngine, rate: number): AudioBufferSourceNode {
+  const src = noiseLoop(engine, engine.white);
+  src.playbackRate.value = rate;
+  return src;
+}
+
+/**
+ * A rocket engine (Logan, round 2: the first sounded like a fan, with no racing fire behind it). A fan is steady and
+ * has a tone; fire has neither. So no tone at all here: a roar driven into clipping, a tearing band of flame up in
+ * the mids, both fluttering at random, and a rumble under them that never repeats.
+ */
 const thruster: Maker = (engine, detune) => {
   const out = gain(engine, 1);
+  const hot = drive(engine, 5);
+  hot.connect(gain(engine, 0.55)).connect(out);
+  // The body of the burn.
   const low = noiseLoop(engine, engine.brown);
-  const open = filter(engine, 'lowpass', 220);
-  low.connect(open).connect(drive(engine, 2)).connect(gain(engine, 0.9)).connect(out);
-  const hiss = noiseLoop(engine, engine.white);
-  const roar = filter(engine, 'bandpass', 320, 0.7);
-  hiss.connect(roar).connect(gain(engine, 0.22)).connect(out);
-  const rumble = osc(engine, 'sine', 42 * detune);
-  const shake = gain(engine, 0.4);
-  const wobble = osc(engine, 'sine', 11 * detune);
-  wobble.connect(gain(engine, 0.15)).connect(shake.gain);
-  rumble.connect(shake).connect(out);
+  const open = filter(engine, 'lowpass', 350);
+  const surge = gain(engine, 0.9);
+  low.connect(open).connect(surge).connect(hot);
+  // The flame tearing: a wide band in the mids, breaking up at random.
+  const fire = noiseLoop(engine, engine.white);
+  const tear = filter(engine, 'bandpass', 1400, 0.5);
+  const crackle = gain(engine, 0.3);
+  fire.connect(tear).connect(crackle).connect(hot);
+  const breakUp = flutter(engine, 0.004 * detune);
+  breakUp.connect(gain(engine, 0.9)).connect(crackle.gain);
+  const heave = flutter(engine, 0.0011);
+  heave.connect(gain(engine, 0.5)).connect(surge.gain);
+  // The ground shaking: the bottom of the noise, loud, with no pitch.
+  const shake = noiseLoop(engine, engine.brown);
+  const deep = filter(engine, 'lowpass', 110, 1.2);
+  shake.connect(deep).connect(gain(engine, 1.6)).connect(out);
+  const sources = [low, fire, shake, breakUp, heave];
   return {
     out,
     set(level, _grip, now) {
-      open.frequency.setTargetAtTime(220 + 700 * level, now, FOLLOW);
-      roar.frequency.setTargetAtTime((320 + 380 * level) * detune, now, FOLLOW);
-      rumble.frequency.setTargetAtTime((42 + 26 * level) * detune, now, FOLLOW);
+      open.frequency.setTargetAtTime(350 + 1500 * level, now, FOLLOW);
+      tear.frequency.setTargetAtTime((1400 + 1400 * level) * detune, now, FOLLOW);
+      crackle.gain.setTargetAtTime(0.2 + 0.5 * level, now, FOLLOW);
+      deep.frequency.setTargetAtTime(110 + 70 * level, now, FOLLOW);
     },
     stop(at) {
-      for (const n of [low, hiss, rumble, wobble]) n.stop(at);
+      for (const n of sources) n.stop(at);
     },
   };
 };
@@ -181,26 +203,69 @@ const laser: Maker = (engine, detune) => {
   };
 };
 
-/** Where a beam burns: metal melting. A furnace roar that surges, a low boil, and a spit of sparks on top. */
+/** A curve that passes only what is over `over` (0 to 1) of what goes in: slow noise through it comes out as sparse pops. */
+function pops(engine: AudioEngine, over: number): WaveShaperNode {
+  const shaper = engine.ctx.createWaveShaper();
+  const curve = new Float32Array(2048);
+  for (let i = 0; i < curve.length; i++) {
+    const x = (i / (curve.length - 1)) * 2 - 1;
+    curve[i] = Math.sign(x) * Math.max(0, (Math.abs(x) - over) / (1 - over));
+  }
+  shaper.curve = curve;
+  return shaper;
+}
+
+/**
+ * Where a beam burns (Logan, round 2: the first was wind noise; "I have to feel something melting under the immense
+ * power of this giant laser"). Steady noise is wind, so almost none of this is steady:
+ * - a hard sizzle, like a ton of steel dropped in a fryer, flickering;
+ * - spits and pops as bits boil off;
+ * - the melt itself: a thick low tone that keeps lurching in pitch, bubbling;
+ * - the metal that is left groaning as it gives.
+ */
 const burn: Maker = (engine) => {
   const out = gain(engine, 1);
-  const surge = gain(engine, 0.7);
-  surge.connect(out);
-  const roar = noiseLoop(engine, engine.brown);
-  roar.connect(filter(engine, 'lowpass', 700, 0.7)).connect(drive(engine, 2.5)).connect(surge);
-  const boil = osc(engine, 'sawtooth', 47);
-  boil.connect(filter(engine, 'lowpass', 220)).connect(gain(engine, 0.4)).connect(surge);
-  const spit = noiseLoop(engine, engine.white);
-  const flicker = gain(engine, 0.3);
-  spit.connect(filter(engine, 'bandpass', 1500, 0.8)).connect(flicker).connect(gain(engine, 0.35)).connect(out);
+  // Sizzle.
+  const fry = noiseLoop(engine, engine.white);
+  const sizzle = gain(engine, 0.3);
+  fry.connect(filter(engine, 'highpass', 2600, 0.7)).connect(sizzle).connect(gain(engine, 0.5)).connect(out);
+  const fryFlicker = flutter(engine, 0.006);
+  fryFlicker.connect(gain(engine, 0.6)).connect(sizzle.gain);
+  // Spits: a few tens of sharp pops a second, and a slower, heavier set under them (about ten a second).
+  const spit = flutter(engine, 0.02);
+  spit.connect(pops(engine, 0.95)).connect(filter(engine, 'bandpass', 2200, 0.6)).connect(gain(engine, 2)).connect(out);
+  const glob = flutter(engine, 0.004);
+  glob.connect(pops(engine, 0.9)).connect(filter(engine, 'lowpass', 500, 1)).connect(gain(engine, 2)).connect(out);
+  // The melt: a low tone, driven thick, whose pitch lurches about.
+  const hot = drive(engine, 5);
+  hot.connect(filter(engine, 'lowpass', 900, 0.7)).connect(gain(engine, 0.5)).connect(out);
+  const boil = osc(engine, 'sawtooth', 70);
+  const boilGain = gain(engine, 0.6);
+  boil.connect(boilGain).connect(hot);
+  const boil2 = osc(engine, 'triangle', 110);
+  boil2.connect(gain(engine, 0.4)).connect(hot);
+  const body = noiseLoop(engine, engine.brown);
+  body.connect(filter(engine, 'lowpass', 300, 0.8)).connect(gain(engine, 0.5)).connect(hot);
+  // The groan: a narrow band dragged up and down.
+  const strain = osc(engine, 'sawtooth', 93);
+  const groan = filter(engine, 'bandpass', 500, 9);
+  const groanGain = gain(engine, 0.25);
+  strain.connect(groan).connect(groanGain).connect(out);
+  let next = 0;
   return {
     out,
     set(_level, _grip, now) {
-      surge.gain.setTargetAtTime(0.55 + Math.random() * 0.45, now, 0.03);
-      flicker.gain.setTargetAtTime(Math.random() ** 2, now, 0.008);
+      // Bubbles: the pitch jumps and sags a few times a second, never the same twice.
+      boil.frequency.setTargetAtTime(55 + Math.random() ** 2 * 120, now, 0.02);
+      boil2.frequency.setTargetAtTime(80 + Math.random() * 110, now, 0.03);
+      boilGain.gain.setTargetAtTime(0.35 + Math.random() * 0.5, now, 0.02);
+      if (now < next) return;
+      next = now + 0.25 + Math.random() * 0.5;
+      groan.frequency.setTargetAtTime(280 + Math.random() * 700, now, 0.15);
+      groanGain.gain.setTargetAtTime(0.1 + Math.random() * 0.35, now, 0.1);
     },
     stop(at) {
-      for (const n of [roar, boil, spit]) n.stop(at);
+      for (const n of [fry, fryFlicker, spit, glob, boil, boil2, body, strain]) n.stop(at);
     },
   };
 };
@@ -214,7 +279,7 @@ export const LOOP_VOICES: Readonly<Record<string, { make: Maker; gain: number }>
   thruster: { make: thruster, gain: 1 },
   wheel: { make: wheel, gain: 0.5 },
   laser: { make: laser, gain: 2.6 },
-  'laser.burn': { make: burn, gain: 2 },
+  'laser.burn': { make: burn, gain: 1.7 },
 };
 
 /** A voice with its place in the mix: the ear's gain, pan and dulling. */

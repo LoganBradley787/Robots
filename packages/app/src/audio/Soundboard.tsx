@@ -91,6 +91,16 @@ function Soundboard() {
     else setTimeout(go, 300);
   };
 
+  /** A second and a half of it at ten a second, as a gun fires: one shot alone does not say how a burst sounds. */
+  const burstOf = (name: string): void => {
+    const e = wake();
+    const go = (): void => {
+      for (let i = 0; i < 15; i++) e.play(name, heard, 0.8, i * 0.1, 0.94 + Math.random() * 0.12);
+    };
+    if (e.ready) go();
+    else setTimeout(go, 300);
+  };
+
   const setLoop = (name: string, next: Partial<LoopState>): void => {
     wake();
     setLoops({ ...loops, [name]: { ...(loops[name] ?? START), ...next } });
@@ -131,6 +141,11 @@ function Soundboard() {
               {v + 1}
             </button>
           ))}
+          {(name === 'gun' || name.startsWith('hit.')) && (
+            <button onClick={() => burstOf(name)} title="Fifteen of them at ten a second, as a gun fires">
+              Burst
+            </button>
+          )}
         </div>
       ))}
       <h3 style={{ margin: '14px 0 4px' }}>Loops</h3>
