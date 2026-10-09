@@ -1403,7 +1403,7 @@ export class World {
    * M15: moves every bolt one tick. A bolt sweeps parallel lines across its width (no more than `BOLT_LANE` apart, one
    * line when it has no width) and meets the colliders on any of them nearest first: a part loses what health it has,
    * up to what the bolt has left (no `shellDamage`: nothing softens a bolt), and the bolt carries on with the rest;
-   * terrain stops it where the bolt's middle meets it. An armed part with an impact fuze goes off at once, as under a shell. Like a shell, a bolt that
+   * terrain stops it where the bolt's middle meets it, and ends any other line that meets it without stopping the bolt. An armed part with an impact fuze goes off at once, as under a shell. Like a shell, a bolt that
    * was already flying also looks `SHELL_SWEEP * dt` behind itself for bodies that came through it this tick.
    */
   private flyBolts(bodies: Map<BodyId, Robot>, old: Set<Bolt>): void {
@@ -1427,7 +1427,8 @@ export class World {
         const off = lanes === 1 ? 0 : -b.width / 2 + (b.width * i) / (lanes - 1);
         for (const h of this.physics.rayHits(b.x - dx * back - dy * off, b.y - dy * back + dx * off, dx, dy, len + back, skip)) {
           // Terrain stops a bolt only where its middle meets it: a wide bolt's edge skims the ground it flies along.
-          if (off !== 0 && (h.owner === undefined || !bodies.has(h.body))) continue;
+          // That edge's line ends there all the same (review: it went on through a wall into what stood behind it).
+          if (off !== 0 && (h.owner === undefined || !bodies.has(h.body))) break;
           if (h.distance < back) {
             const v = this.physics.state(h.body);
             if (-(v.vx * dx + v.vy * dy) * this.dt < back - h.distance) continue;
@@ -2597,6 +2598,7 @@ export class World {
           value: (channel) => own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
           config: (key) => part.def.behaviorConfig?.[key] ?? 0,
           controlled: this.controllers.has(robot.id),
+          free: this.unlimited,
           detach: (face, impulse) => this.detach(robot, part, face, impulse),
           giveBack: (joules) => {
             if (!(joules > 0)) return;
@@ -2626,7 +2628,7 @@ export class World {
             if (held) held.stored = c.stored;
           }
           // Energy handed back was never used.
-          this.used.set(robot.id, (this.used.get(robot.id) ?? 0) - added);
+          this.used.set(robot.id, Math.max(0, (this.used.get(robot.id) ?? 0) - added));
         }
       }
     }
@@ -2757,6 +2759,7 @@ export class World {
         if (part.def.cannon !== undefined) {
           h.addInt(part.wind?.phase ?? 0);
           h.addF64(part.wind?.level ?? 0);
+          h.addF64(part.wind?.paid ?? 0);
           h.addInt(part.wind?.timer ?? 0);
           h.addInt(part.wind?.act ?? 0);
         }

@@ -415,6 +415,39 @@ describe('charged guns (M15): the cannon and the lance', () => {
     w.dispose();
   });
 
+  it('seconds charged under Unlimited energy give nothing back once it is switched off', async () => {
+    const w = await space0();
+    const rig = w.spawnBlueprint(LANCE, { x: 0, y: 100 });
+    w.setUnlimitedEnergy(true);
+    steps(w, 2);
+    w.step(hold(rig.id));
+    steps(w, 119);
+    for (const part of rig.parts.values()) if (part.stored !== undefined) part.stored = 0;
+    w.setUnlimitedEnergy(false);
+    w.step(letGo(rig.id));
+    steps(w, 130);
+    expect(gunOf(rig).wind?.phase).toBe(WIND.idle);
+    expect(stored(w, rig)).toBe(0);
+    expect(w.energy(rig.id)?.used).toBe(0);
+    w.dispose();
+  });
+
+  it('the edge of a wide orb does not reach through a wall: a part in its shadow is untouched', async () => {
+    // A box whose top is just under the orb's middle line (the cannon's barrel is at 99.5), and a frame behind it,
+    // below that top: only the orb's lower edge points at it, and the wall is in the way.
+    const walled = parseWorldFile({ name: 'walled', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 }, boxes: [{ x: 40, y: 98.45, w: 2, h: 2 }] });
+    const w = await World.create({ seed: 1, gravityY: 0 }, walled);
+    const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
+    const hidden = w.spawnBlueprint({ format: 1, name: 'hidden', grid: ['F'] }, { x: 50, y: 98.9 });
+    steps(w, 5);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 30);
+    expect(w.events.filter((e) => e.kind === 'boltHit')).toEqual([]);
+    expect(hidden.parts.get('frame@0,0')?.health).toBe(60);
+    w.dispose();
+  });
+
   it('is hashed only when present, and runs the same twice and on a replay', async () => {
     const run = async (): Promise<{ hash: string; w: World }> => {
       // On the ground with gravity on, well left of the flat world's boxes.

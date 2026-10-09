@@ -251,7 +251,7 @@ export class Tracer {
             run = { ev, by: this.letter(e.by), damage: e.damage, parts: [e.part], tick: e.tick };
             this.bolts.set(key, run);
           }
-          run.ev.text = `hit by a bolt from ${run.by}: ${run.damage} damage (${run.parts.join(', ')})`;
+          run.ev.text = `hit by a bolt from ${run.by}: ${Math.round(run.damage * 10) / 10} damage (${run.parts.join(', ')})`;
           break;
         }
         case 'laserBurn': {

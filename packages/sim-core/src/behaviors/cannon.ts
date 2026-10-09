@@ -20,7 +20,7 @@ export const cannon: Behavior = {
     const part = ctx.part;
     const spec = part.def.cannon;
     if (!spec) return undefined;
-    const w = (part.wind ??= { phase: WIND.idle, level: 0, timer: 0, act: WIND_ACT.none });
+    const w = (part.wind ??= { phase: WIND.idle, level: 0, timer: 0, act: WIND_ACT.none, paid: 0 });
     const held = ctx.controlled && ctx.value('fire') > 0.5;
     const ticks = (seconds: number): number => Math.max(1, Math.round(seconds / ctx.dt));
     if (w.phase === WIND.dead) {
@@ -28,10 +28,15 @@ export const cannon: Behavior = {
       return undefined;
     }
     if (w.phase === WIND.draining) {
-      ctx.giveBack(part.def.powerDraw * Math.min(ctx.dt, w.level));
+      // What it paid comes back evenly over the drain (review: seconds charged for free under Unlimited energy
+      // came back as real joules once it was switched off).
+      const give = w.level <= ctx.dt ? w.paid : (w.paid * ctx.dt) / w.level;
+      ctx.giveBack(give);
+      w.paid -= give;
       w.level -= ctx.dt;
       if (w.level <= 1e-9) {
         w.level = 0;
+        w.paid = 0;
         w.phase = WIND.idle;
       }
       return undefined;
@@ -42,6 +47,7 @@ export const cannon: Behavior = {
         w.phase = WIND.dead;
         w.timer = ticks(spec.dead);
         w.level = 0;
+        w.paid = 0;
       };
       if (ctx.controlled && !held) spent(WIND_ACT.shoot);
       else if (++w.timer > ticks(spec.hold)) spent(WIND_ACT.backfire);
@@ -60,6 +66,7 @@ export const cannon: Behavior = {
           return;
         }
         w.level += ctx.dt * grant;
+        if (!ctx.free) w.paid += part.def.powerDraw * ctx.dt * grant;
         if (w.level >= spec.charge - 1e-9) {
           w.level = spec.charge;
           w.phase = WIND.full;

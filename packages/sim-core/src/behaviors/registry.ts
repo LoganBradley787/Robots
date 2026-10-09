@@ -32,6 +32,8 @@ export interface BehaviorContext {
   detach(face: Face, impulse: number): void;
   /** M14: whether the robot has a core in charge. A wreck latches its values but nobody fires its weapons. */
   controlled: boolean;
+  /** M15: Unlimited energy is on: every request is granted and nothing is taken from the pool. */
+  free: boolean;
   /** M15: pours `joules` back into the part's chunk (a charged gun draining). What does not fit is lost. */
   giveBack(joules: number): void;
   /** M12, fabricators: what the part's recipe costs (seconds of build, joules), or undefined when it makes nothing. */

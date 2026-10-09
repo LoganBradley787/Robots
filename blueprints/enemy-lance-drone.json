@@ -196,7 +196,8 @@
         "speed": 600,
         "damage": 250,
         "full": 2,
-        "rate": 2
+        "rate": 2,
+        "cost": 3000
       }
     },
     {

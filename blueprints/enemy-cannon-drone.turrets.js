@@ -4,8 +4,10 @@
 // - How the part works: holding `fire` charges it (`charged` 0 to 1, energy all the way); letting go before it is full
 //   drains it and gives the energy back; once full, letting go fires, and held full for longer than its hold it
 //   backfires (a puff, a small push, nothing fired) and is dead for a while.
-// - Charge: it holds `fire` while an enemy the radar tracks is within `track` meters and it can swing to it, and the
-//   robot's energy is above `reserve`. With nothing to shoot at (or low on energy) it lets go and the charge drains.
+// - Charge: it starts when an enemy the radar tracks is within `reach` plus `early` meters, it can swing to it, and
+//   the robot holds one shot's `cost` on top of `reserve` of its energy (or, when its batteries are too small for
+//   both, when they are full). Once started it holds on to the end. With nothing to shoot at for `linger` seconds it
+//   lets go and the charge drains (a contact lost for one tick must not throw six seconds away).
 // - Target: the nearest such robot (the one it has is kept unless another is much closer). Which part: it scans the
 //   robot and picks what is worth the most that one bolt can still reach: a bolt takes the health of each part in
 //   front off its `damage` (armor in full), so a part behind more health than that is out of reach this shot.
@@ -34,7 +36,10 @@ const size = param('size', 0.6, { min: 0.05, max: 20 }); // m off the aim point 
 const patience = param('patience', 0.5, { min: 0, max: 1 }); // share of the hold after which any enemy on the sight will do
 const spare = param('spare', 0.25, { min: 0.05, max: 5 }); // s of hold left when it fires anyway (if the line is clear of ours)
 const clear = param('clear', 8, { min: 0, max: 50 }); // m: a friend's center this close to the line holds fire
-const reserve = param('reserve', 0.2, { min: 0, max: 1 }); // share of the robot's energy below which it does not charge
+const reserve = param('reserve', 0.2, { min: 0, max: 1 }); // share of the robot's energy a charge must leave untouched
+const cost = param('cost', 6000, { min: 0, max: 1000000 }); // J one charge takes (6000 cannon, 3000 lance)
+const early = param('early', 30, { min: 0, max: 1000 }); // m past `reach` at which it already starts charging
+const linger = param('linger', 0.5, { min: 0, max: 10 }); // s without a target before it lets a charge drain
 const repick = param('repick', 0.5, { min: 0, max: 5 }); // s between choosing which part to aim at
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is weighed only near its closest part
 const band = param('band', 6, { min: 0.5, max: 50 }); // m behind a huge robot's closest part that are weighed
@@ -164,7 +169,7 @@ function aimTurret(name, powered) {
   const gun = tagged(name + '.cannon');
   const rot = tagged(name + '.rot');
   if (!gun || !rot) return;
-  const st = state.turrets[name] || (state.turrets[name] = { id: 0, want: undefined, part: undefined, aimed: undefined, picked: -Infinity, since: undefined });
+  const st = state.turrets[name] || (state.turrets[name] = { id: 0, want: undefined, part: undefined, aimed: undefined, picked: -Infinity, since: undefined, seen: -Infinity });
   const aim = gun.out.aim;
   const charged = gun.out.charged;
   // How long it has been full: the hold runs from the tick it filled.
@@ -175,8 +180,9 @@ function aimTurret(name, powered) {
   const rest = aim - get(name + '.rot', 'angle') * swing;
   const from = { x: gun.pos.x + barrel * Math.cos(aim) - off * Math.sin(aim), y: gun.pos.y + barrel * Math.sin(aim) + off * Math.cos(aim) };
   const side = gun.out.sightSide;
-  // Ours first on the line, or a friend the radar tracks near it: never let go like this.
-  const ours = side === SIGHT.own || side === SIGHT.friend || friendOnPath(from, aim, gun.out.sight + 2);
+  // Ours first on the line, or a friend the radar tracks near it: never let go like this. A bolt goes through what it
+  // breaks and flies 2 s, so a friend is looked for all the way out, not only as far as the sight's first thing.
+  const ours = side === SIGHT.own || side === SIGHT.friend || friendOnPath(from, aim, speed * 2);
   let best;
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core || c.distance > track) continue;
@@ -189,11 +195,13 @@ function aimTurret(name, powered) {
     st.id = 0;
     st.want = undefined;
     set(name + '.rot', 'turn', clamp(-3 * get(name + '.rot', 'angle'), -1, 1));
-    // Nothing to shoot at. Charging: let go, it drains and the energy comes back. Full: hold on for a target; with
-    // the hold nearly up, fire at nothing if the line is clear of ours, else let it backfire.
-    set(name + '.cannon', 'fire', charged >= 1 && (ours || held < full - spare) ? 1 : 0);
+    // Nothing to shoot at. Charging: after `linger` let go, it drains and the energy comes back. Full: hold on for a
+    // target; with the hold nearly up, fire at nothing if the line is clear of ours, else let it backfire.
+    const keep = charged >= 1 ? ours || held < full - spare : charged > 0 && time - st.seen < linger;
+    set(name + '.cannon', 'fire', keep ? 1 : 0);
     return;
   }
+  st.seen = time;
   if (best.c.id !== st.id) {
     st.id = best.c.id;
     st.want = undefined;
@@ -220,8 +228,9 @@ function aimTurret(name, powered) {
   set(name + '.rot', 'turn', clamp((moving - self.angVel + gain * err) / rate, -1, 1));
   mark(from.x + Math.cos(want) * l.distance, from.y + Math.sin(want) * l.distance, name);
   if (charged < 1) {
-    // Charging (or dead, or draining: holding does nothing then). Low on energy: let go, it drains back.
-    set(name + '.cannon', 'fire', powered ? 1 : 0);
+    // Under way: hold on to the end. Not started (or dead, or draining: holding does nothing then): start when the
+    // robot can pay for a shot and the target is near enough to be in reach by the time it is full.
+    set(name + '.cannon', 'fire', charged > 0 || (powered && l.distance <= reach + early) ? 1 : 0);
     return;
   }
   const enemy = side === SIGHT.enemy && gun.out.sight <= reach;
@@ -235,9 +244,11 @@ function aimTurret(name, powered) {
 
 function tick() {
   const cap = self.energy.capacity;
-  const share = cap > 0 ? self.energy.stored / cap : 0;
+  // One shot on top of the reserve; batteries too small for both must be full (review: a tower with one dense
+  // battery charged down to its reserve, let go, drained, and started again for ever).
+  const need = Math.min(cost + reserve * cap, 0.98 * cap);
   // A robot with no batteries at all (cap 0) has nothing to keep: it charges while the pool lets it.
-  const powered = cap <= 0 || (state.low ? share > reserve + 0.05 : share > reserve);
+  const powered = cap <= 0 || self.energy.stored >= need;
   if (!powered && !state.low) log('charged guns low on energy: not charging');
   if (powered && state.low) log('charged guns charging again');
   state.low = !powered;

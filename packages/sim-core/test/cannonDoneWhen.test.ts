@@ -89,6 +89,20 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
+  it('a tower with one dense battery still fires: it waits for a full battery instead of charging down to its reserve for ever', { timeout: 60_000 }, async () => {
+    const raw = JSON.parse(bpFile('enemy-cannon-tower.json'));
+    // Seven of its eight dense batteries swapped for frames.
+    let kept = false;
+    raw.grid = raw.grid.map((row: string) => row.split(' ').map((t) => (t !== 'Z' ? t : kept ? 'F' : ((kept = true), 'Z'))).join(' '));
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const tower = w.spawnBlueprint(resolveScripts(raw, bpFile).raw, { x: -300, y: 2.5 }, { team: 1 });
+    w.spawnBlueprint({ format: 1, name: 'brick', grid: ['A C A'] }, { x: -100, y: 0.5 });
+    for (let t = 0; t < 12 * 60; t++) w.step();
+    expect(w.cannonStats(tower.id).shots).toBe(1);
+    expect(of(w, 'boltHit').length).toBeGreaterThan(0);
+    w.dispose();
+  });
+
   it('an enemy cannon drone flies through its own kick: it pitches hard on each shot, recovers, and wrecks a hunter drone in three', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('enemy-cannon-drone'), { x: -300, y: 60 }, { team: 1 });
