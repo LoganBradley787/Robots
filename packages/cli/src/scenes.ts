@@ -57,6 +57,10 @@ export const GOLDEN_SCENES: readonly Scene[] = [
   // enemy gun drone apart from outside its guns' reach.
   { name: 'laser-tower-vs-missile', bp: 'launcher-seeker', x: -470, y: 1.5, seconds: 7, keys: 'f:1', drops: ['enemy-laser-tower@0:-60,0.6:enemy'] },
   { name: 'enemy-laser-drone-vs-gun-drone', bp: 'enemy-laser-drone', x: 150, y: 20, team: 1, seconds: 12, drops: ['enemy-gun-drone@0:-150,20'] },
+  // M15: charged guns. An enemy cannon drone flies through its own kick and breaks a hunter drone; an enemy lance drone
+  // picks an enemy laser drone apart from past its reach.
+  { name: 'cannon-drone-vs-hunter', bp: 'enemy-cannon-drone', x: -300, y: 60, team: 1, seconds: 22, drops: ['hunter-drone@0:50,60'] },
+  { name: 'lance-drone-vs-laser-drone', bp: 'enemy-lance-drone', x: -300, y: 60, team: 1, seconds: 24, drops: ['enemy-laser-drone@0:300,60'] },
   // M11: flares. The hunter pops a pair three times while the enemy flying silo fires at it (hunter-duel and the enemy
   // scenes above have the enemies popping their own).
   { name: 'hunter-flares', bp: 'hunter-drone', x: -250, y: 15, seconds: 12, keys: 'v:3.8, v:6, v:8.5', drops: ['enemy-flying-silo@0:-100,1.5:enemy'] },

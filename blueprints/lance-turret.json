@@ -1,0 +1,9 @@
+{
+  "format": 1,
+  "name": "lance-turret",
+  "grid": ["r l = = ="],
+  "legend": {
+    "r": { "part": "rotator", "rot": 270, "tags": ["rot"], "auto": false },
+    "l": { "part": "lance", "rot": 270, "tags": ["cannon"] }
+  }
+}

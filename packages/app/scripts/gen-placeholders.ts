@@ -948,7 +948,7 @@ function drawGyro(violet = hex('#5b3fa8'), edge = hex('#34226a')): Canvas {
   return cv;
 }
 
-const TURRET = hex('#b8732e');
+const TURRET_ORANGE = hex('#b8732e');
 
 /** Drawn on the parent body at the joint (it does not turn): a base block from the cell center down to the bottom edge. */
 function drawRotatorMount(): Canvas {
@@ -961,7 +961,7 @@ function drawRotatorMount(): Canvas {
 }
 
 /** The turning part: a turntable with a turret plate on top; the notch points where it aims (N at rotation 0). */
-function drawRotator(): Canvas {
+function drawRotator(TURRET = TURRET_ORANGE, heavy = false): Canvas {
   const cv = new Canvas(CELL, CELL);
   // Turret plate across the top and sides (what it carries attaches there).
   cv.fill(rect(0, 0, 64, 30), OUTLINE);
@@ -978,6 +978,11 @@ function drawRotator(): Canvas {
   cv.fill(poly([[32, 6], [39, 20], [25, 20]]), BLACK, 0.15);
   cv.fill(circle(32, 32, 4.5), DARK_METAL);
   shadedDisc(cv, 32, 32, 3, STEEL, 0.8, 0.4, 0.3);
+  // M15, the heavy rotator: a second, thicker ring and four bolts round the turntable.
+  if (heavy) {
+    cv.fill(ring(32, 32, 14.5, 17), DARK_METAL, 0.85);
+    for (const [x, y] of [[20, 38], [44, 38], [22, 50], [42, 50]] as const) rivet(cv, x, y, 2.4);
+  }
   return cv;
 }
 
@@ -1244,6 +1249,7 @@ function main(): void {
     { name: 'part.warhead.armed', canvas: drawWarhead(undefined, undefined, undefined, true) },
     { name: 'part.gyro', canvas: drawGyro() },
     { name: 'part.rotator', canvas: drawRotator() },
+    { name: 'part.heavyrotator', canvas: drawRotator(hex('#7d5a3a'), true) },
     { name: 'part.rotator.mount', canvas: drawRotatorMount() },
     { name: 'part.seeker', canvas: drawSeeker() },
     // Booster (Gate 7): the thruster in orange, with a hot band; heavy warhead: the warhead in near black with an orange band.

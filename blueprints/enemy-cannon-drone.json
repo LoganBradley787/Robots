@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "name": "enemy-cannon-drone",
+  "grid": [
+    "F a a a a a a O b F c c c c c c F",
+    "F F F F Z Z Z Z C Z Z Z Z F F F F",
+    "F a a a a a a a F c c c c c c c F",
+    ". . . . . . . . F . . . . . . . .",
+    ". . . . . . . . F . . . . . . . .",
+    ". . . . . . . . r . . . . . . . .",
+    ". . . . . . . = n . . . . . . . .",
+    ". . . . . . . = = . . . . . . . .",
+    ". . . . . . . = = . . . . . . . .",
+    ". . . . . . . = = . . . . . . . ."
+  ],
+  "legend": {
+    "a": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "O": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "r": {
+      "part": "heavyrotator",
+      "rot": 180,
+      "tags": [
+        "cannon-turret1",
+        "cannon-turret1.rot"
+      ],
+      "auto": false
+    },
+    "n": {
+      "part": "cannon",
+      "rot": 180,
+      "tags": [
+        "cannon-turret1",
+        "cannon-turret1.cannon"
+      ]
+    }
+  },
+  "primaryCore": "core@8,8",
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-cannon-drone.pilot.js"
+      },
+      "params": {
+        "standoff": 200,
+        "above": 15,
+        "settle": 0,
+        "jitter": 0
+      }
+    },
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-cannon-drone.turrets.js"
+      },
+      "params": {
+        "off": -0.5,
+        "swing": 90
+      }
+    }
+  ]
+}

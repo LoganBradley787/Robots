@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "enemy-cannon-tower",
+  "grid": [
+    ". . . . . = = . . . .",
+    ". . . . . = = . . . .",
+    ". . . . . = = . . . .",
+    ". . . . . c = . . . .",
+    ". . . . . r . . . . .",
+    ". . . . . F . . . . .",
+    ". . . . . F . . . . .",
+    ". . . . . F . . . . .",
+    ". . . . . F . . . . .",
+    ". . O A A A A A A . .",
+    ". . A Z Z C Z Z A . .",
+    ". . A Z Z F Z Z A . .",
+    ". F F F F F F F F F ."
+  ],
+  "legend": {
+    "r": {
+      "part": "heavyrotator",
+      "rot": 0,
+      "tags": [
+        "cannon-turret1",
+        "cannon-turret1.rot"
+      ],
+      "auto": false
+    },
+    "c": {
+      "part": "cannon",
+      "rot": 0,
+      "tags": [
+        "cannon-turret1",
+        "cannon-turret1.cannon"
+      ]
+    }
+  },
+  "scripts": [
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-cannon-tower.turrets.js"
+      },
+      "params": {
+        "swing": 115,
+        "off": -0.5
+      }
+    }
+  ]
+}

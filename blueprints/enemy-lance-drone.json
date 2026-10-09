@@ -1,0 +1,212 @@
+{
+  "format": 1,
+  "name": "enemy-lance-drone",
+  "grid": [
+    ". . . . . F a a a a a F b F c c c c c F . . . . .",
+    "= = = t s F F F F F Z Z C Z Z F F F F F d e = = =",
+    ". . . . . F a a a a a a f c c c c c c F . . . . .",
+    ". . . . . . . . . . g h F i j . . . . . . . . . .",
+    ". . . . . . . . . . k l F m n . . . . . . . . . .",
+    ". . . . . . . . . . o p F q r . . . . . . . . . ."
+  ],
+  "legend": {
+    "a": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "b": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "lance-turret1",
+        "lance-turret1.rot"
+      ],
+      "auto": false
+    },
+    "e": {
+      "part": "lance",
+      "rot": 270,
+      "tags": [
+        "lance-turret1",
+        "lance-turret1.cannon"
+      ]
+    },
+    "f": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "h": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "j": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "l": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "n": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "o": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "p": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "q": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "r": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "s": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "lance-turret2",
+        "lance-turret2.rot"
+      ],
+      "auto": false
+    },
+    "t": {
+      "part": "lance",
+      "rot": 90,
+      "tags": [
+        "lance-turret2",
+        "lance-turret2.cannon"
+      ]
+    }
+  },
+  "primaryCore": "core@12,4",
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-lance-drone.pilot.js"
+      },
+      "params": {
+        "standoff": 350,
+        "above": 15,
+        "settle": 0,
+        "jitter": 0
+      }
+    },
+    {
+      "id": "turrets",
+      "source": {
+        "file": "enemy-lance-drone.turrets.js"
+      },
+      "params": {
+        "reach": 400,
+        "track": 500,
+        "speed": 600,
+        "damage": 250,
+        "full": 2,
+        "rate": 2
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-lance-drone.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ]
+}

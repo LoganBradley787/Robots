@@ -33,6 +33,7 @@ import grapple from './defs/grapple.json';
 import laser from './defs/laser.json';
 import cannon from './defs/cannon.json';
 import lance from './defs/lance.json';
+import heavyrotator from './defs/heavyrotator.json';
 
 export class PartRegistry {
   private readonly defs = new Map<string, PartDef>();
@@ -98,6 +99,7 @@ const SHIPPED: Array<[string, unknown]> = [
   ['laser.json', laser],
   ['cannon.json', cannon],
   ['lance.json', lance],
+  ['heavyrotator.json', heavyrotator],
 ];
 
 let shipped: PartRegistry | null = null;

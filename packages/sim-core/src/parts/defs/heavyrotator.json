@@ -1,0 +1,17 @@
+{
+  "id": "heavyrotator",
+  "name": "Heavy rotator",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 6,
+  "health": 80,
+  "build": 2.0,
+  "symmetry": 4,
+  "inputs": [{ "name": "turn", "min": -1, "max": 1, "default": 0 }],
+  "outputs": [{ "name": "angle", "min": -1, "max": 1, "default": 0 }],
+  "powerDraw": 12,
+  "behavior": "rotator",
+  "behaviorConfig": { "range": 2.0944, "turnSpeed": 1, "frequency": 12 },
+  "autoControl": { "channel": "turn", "kind": "axis", "keys": ["z", "x"], "labels": ["turn left", "turn right"] },
+  "joint": { "kind": "revolute", "mountFace": "S", "motor": "position", "maxTorque": 4000 },
+  "sprite": { "frame": "part.heavyrotator", "mountFrame": "part.rotator.mount" }
+}

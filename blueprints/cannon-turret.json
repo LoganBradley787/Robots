@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "cannon-turret",
+  "grid": [
+    "= =",
+    "= =",
+    "= =",
+    "c =",
+    "r ."
+  ],
+  "legend": {
+    "r": { "part": "heavyrotator", "rot": 0, "tags": ["rot"], "auto": false },
+    "c": { "part": "cannon", "rot": 0, "tags": ["cannon"] }
+  }
+}

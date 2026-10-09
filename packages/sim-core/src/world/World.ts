@@ -1392,7 +1392,7 @@ export class World {
    * M15: moves every bolt one tick. A bolt sweeps parallel lines across its width (no more than `BOLT_LANE` apart, one
    * line when it has no width) and meets the colliders on any of them nearest first: a part loses what health it has,
    * up to what the bolt has left (no `shellDamage`: nothing softens a bolt), and the bolt carries on with the rest;
-   * terrain stops it. An armed part with an impact fuze goes off at once, as under a shell. Like a shell, a bolt that
+   * terrain stops it where the bolt's middle meets it. An armed part with an impact fuze goes off at once, as under a shell. Like a shell, a bolt that
    * was already flying also looks `SHELL_SWEEP * dt` behind itself for bodies that came through it this tick.
    */
   private flyBolts(bodies: Map<BodyId, Robot>, old: Set<Bolt>): void {
@@ -1409,11 +1409,14 @@ export class World {
       const dy = my / len;
       const back = old.has(b) ? SHELL_SWEEP * this.dt : 0;
       const skip = (body: BodyId, owner: string | undefined): boolean => owner === b.gun && bodies.get(body)?.id === b.robot;
-      const lanes = b.width > 0 ? Math.ceil(b.width / BOLT_LANE) + 1 : 1;
+      // An odd number of lines, so one runs down the bolt's middle.
+      const lanes = b.width > 0 ? 2 * Math.ceil(b.width / 2 / BOLT_LANE) + 1 : 1;
       const met = new Map<string, { body: BodyId; owner: string | undefined; distance: number }>();
       for (let i = 0; i < lanes; i++) {
         const off = lanes === 1 ? 0 : -b.width / 2 + (b.width * i) / (lanes - 1);
         for (const h of this.physics.rayHits(b.x - dx * back - dy * off, b.y - dy * back + dx * off, dx, dy, len + back, skip)) {
+          // Terrain stops a bolt only where its middle meets it: a wide bolt's edge skims the ground it flies along.
+          if (off !== 0 && (h.owner === undefined || !bodies.has(h.body))) continue;
           if (h.distance < back) {
             const v = this.physics.state(h.body);
             if (-(v.vx * dx + v.vy * dy) * this.dt < back - h.distance) continue;

@@ -26,5 +26,7 @@
   "gun-drone-vs-missile": "55e0ff92",
   "enemy-gun-drone-vs-hunter": "e5711f12",
   "laser-tower-vs-missile": "bc6a3758",
-  "enemy-laser-drone-vs-gun-drone": "9787384d"
+  "enemy-laser-drone-vs-gun-drone": "9787384d",
+  "cannon-drone-vs-hunter": "5d121e9f",
+  "lance-drone-vs-laser-drone": "f9cb68d1"
 }
