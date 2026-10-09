@@ -21,5 +21,6 @@
   "behavior": "laser",
   "laser": { "dps": 600, "range": 300 },
   "onDestroyed": { "explode": { "radius": 2.5, "damage": 80, "pushRadius": 4, "push": 25, "lift": 1 } },
+  "sound": { "run": "laser" },
   "sprite": { "frame": "part.laser" }
 }

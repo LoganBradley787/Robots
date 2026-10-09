@@ -180,3 +180,27 @@ describe('PartRegistry', () => {
     expect(() => new PartRegistry([d, d])).toThrow('duplicate part id "thing"');
   });
 });
+
+describe('sound (M15)', () => {
+  it('carries the voice names for the app', () => {
+    const d = parsePartDef({ ...minimal, sound: { run: 'propeller', hit: 'armor' } }, 'thing.json');
+    expect(d.sound).toEqual({ run: 'propeller', hit: 'armor' });
+    expect(parsePartDef(minimal, 'thing.json').sound).toBeUndefined();
+  });
+
+  it('refuses a sound that is not voice names', () => {
+    expect(() => parsePartDef({ ...minimal, sound: { run: 3 } }, 'thing.json')).toThrow(/sound\.run must be a non-empty string/);
+    expect(() => parsePartDef({ ...minimal, sound: { loud: 'yes' } }, 'thing.json')).toThrow(/sound\.loud is not a known field/);
+    expect(() => parsePartDef({ ...minimal, sound: 'propeller' }, 'thing.json')).toThrow(PartDefError);
+  });
+
+  it('the shipped parts that run or ring say so', () => {
+    const reg = defaultRegistry();
+    expect(reg.get('propeller')?.sound?.run).toBe('propeller');
+    expect(reg.get('booster')?.sound?.run).toBe('thruster');
+    expect(reg.get('wheel')?.sound?.run).toBe('wheel');
+    expect(reg.get('laser')?.sound?.run).toBe('laser');
+    expect(reg.get('armorplate')?.sound?.hit).toBe('armor');
+    expect(reg.get('frame')?.sound).toBeUndefined();
+  });
+});

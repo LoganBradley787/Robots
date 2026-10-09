@@ -49,6 +49,17 @@ export interface ColliderSpec {
   friction?: number;
 }
 
+/**
+ * M15: what a part sounds like. Read only by the app (like `sprite`); the sim carries it untouched and never hashes it.
+ * The names are voices in the app's sound table.
+ */
+export interface SoundSpec {
+  /** The looping voice the part makes while it works (`propeller`, `thruster`, `wheel`, `laser`). */
+  run?: string;
+  /** What it sounds like struck or broken (`metal` when absent, `armor`, `soft`). */
+  hit?: string;
+}
+
 export interface SpriteSpec {
   /** Frame in the parts sheet, drawn at rotation 0 and rotated with the part. */
   frame: string;
@@ -348,5 +359,7 @@ export interface PartDef {
    */
   build?: number;
   sprite: SpriteSpec;
+  /** M15: the part's sounds, for the app. */
+  sound?: SoundSpec;
   defaultTags?: string[];
 }

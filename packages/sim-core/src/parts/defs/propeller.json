@@ -13,5 +13,6 @@
   "behaviorConfig": { "maxForce": 120 },
   "acts": "N",
   "autoControl": { "channel": "throttle", "kind": "push" },
+  "sound": { "run": "propeller" },
   "sprite": { "frame": "part.propeller", "animation": "fx.propeller" }
 }

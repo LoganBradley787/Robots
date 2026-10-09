@@ -13,5 +13,6 @@
   "behaviorConfig": { "maxForce": 400 },
   "acts": "N",
   "autoControl": { "channel": "throttle", "kind": "push" },
+  "sound": { "run": "thruster" },
   "sprite": { "frame": "part.booster", "overlay": "fx.flame" }
 }

@@ -11,5 +11,6 @@
   "powerDraw": 0,
   "acts": "N",
   "solar": { "power": 6 },
+  "sound": { "hit": "soft" },
   "sprite": { "frame": "part.solar" }
 }

@@ -11,5 +11,6 @@
   "inputs": [],
   "outputs": [],
   "powerDraw": 0,
+  "sound": { "hit": "armor" },
   "sprite": { "frame": "part.armorplate" }
 }

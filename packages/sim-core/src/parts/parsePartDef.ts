@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -341,6 +341,13 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   }
   // Batch: seconds a fabricator needs to build one of this part (without it: the bay's secondsPerKg times its mass).
   if (o.build !== undefined) def.build = r.positive(o, 'build', '');
+  // M15: voice names for the app; the sim only carries them.
+  if (o.sound !== undefined) {
+    const so = r.obj(o.sound, 'sound', ['run', 'hit']);
+    def.sound = {};
+    if (so.run !== undefined) def.sound.run = r.str(so, 'run', 'sound');
+    if (so.hit !== undefined) def.sound.hit = r.str(so, 'hit', 'sound');
+  }
   if (o.defaultTags !== undefined) {
     def.defaultTags = r.arr(o, 'defaultTags', '').map((t, i) => {
       if (typeof t !== 'string' || t === '') r.fail(`defaultTags[${i}]`, 'must be a non-empty string');
