@@ -54,6 +54,8 @@ export interface WorldView {
   robots: number;
   /** Which side the next deploy joins (M8). */
   deployTeam: number;
+  /** M15: the sound controls. `awake` is false until a first click or key press lets the browser start audio. */
+  sound: { muted: boolean; volume: number; delay: boolean; awake: boolean };
   /** The robot under your control, its keys, and its energy (whole units), or undefined. */
   controlled?: {
     name: string;
@@ -554,6 +556,7 @@ export class WorldScreen {
       follow: this.cam.follow,
       robots: this.world.robots.length,
       deployTeam: this.deploy.team,
+      sound: { ...this.sound.settings, awake: this.sound.awake },
       unlimitedEnergy: this.world.unlimitedEnergy,
     };
     for (; this.eventCursor < this.world.events.length; this.eventCursor++) {
@@ -643,7 +646,7 @@ export class WorldScreen {
       `${time.paused ? 'PAUSED' : 'running'}   x${time.timeScale}   zoom ${this.cam.zoom.toFixed(2)}   follow ${this.cam.follow ? 'on' : 'off'}`,
       robotLine,
       ...placingLines,
-      ...(this.debugVisible ? this.perf.lines(this.world.robots.length) : []),
+      ...(this.debugVisible ? [...this.perf.lines(this.world.robots.length), this.sound.debugLine()] : []),
       `hash ${this.lastHash}`,
       HELP,
     ]);

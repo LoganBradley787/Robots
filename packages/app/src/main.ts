@@ -15,6 +15,7 @@ import { keyName } from './builder/bindings';
 import { enterWorld, toggleMode, type ModeState } from './app/modes';
 import { deployDecision } from './builder/deployFlow';
 import { WorldScreen } from './world/WorldScreen';
+import { mountSoundboard } from './audio/Soundboard';
 import { BATTLE_GRID, HOVER_GRID } from './world/stress';
 import { timedHost } from './app/timedHost';
 import { createStore } from './ui/store';
@@ -32,6 +33,11 @@ async function boot(): Promise<void> {
   const hudEl = document.getElementById('hud');
   const uiEl = document.getElementById('ui');
   if (!root || !hudEl || !uiEl) throw new Error('missing #app, #hud, or #ui');
+  // `?soundboard` (M15): every sound on a button, instead of the game.
+  if (new URLSearchParams(window.location.search).has('soundboard')) {
+    mountSoundboard(uiEl);
+    return;
+  }
   const renderer = new Renderer();
   await renderer.init(root);
   const textures = await loadTextures();
@@ -159,6 +165,9 @@ async function boot(): Promise<void> {
     },
     toggleUnlimitedEnergy: () => worldScreen.toggleUnlimitedEnergy(),
     toggleDeployTeam: () => worldScreen.toggleDeployTeam(),
+    toggleMute: () => worldScreen.sound.set({ muted: !worldScreen.sound.settings.muted }),
+    setVolume: (volume) => worldScreen.sound.set({ volume }),
+    toggleSoundDelay: () => worldScreen.sound.set({ delay: !worldScreen.sound.settings.delay }),
     stress: (kind, n) => {
       // Shipped blueprints, loaded like the Blueprints palette does. Hover: every script on, so they hold their height.
       // In the file form the world takes (as the deploy ghost passes it), facing as given.

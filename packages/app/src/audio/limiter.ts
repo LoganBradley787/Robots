@@ -54,8 +54,14 @@ export class OneShotLimiter {
     return out;
   }
 
+  /** One-shots sounding as of the last `pick`. */
   get live(): number {
     return this.ends.length;
+  }
+
+  /** One-shots still sounding at `now`. */
+  liveAt(now: number): number {
+    return this.ends.filter((t) => t > now).length;
   }
 
   clear(): void {

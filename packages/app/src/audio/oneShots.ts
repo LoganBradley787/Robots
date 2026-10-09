@@ -21,6 +21,9 @@ export interface OneShot {
 
 type Point = [time: number, value: number];
 
+/** Where a dying sound's envelope ends (about -54 dB): lower and all of it sits in its first few milliseconds. */
+const QUIET = 0.002;
+
 /** Ramps a param through points; exponential (never to 0, so values are floored) unless `linear`. */
 function ramp(p: AudioParam, pts: readonly Point[], linear = false): void {
   pts.forEach(([t, v], i) => {
@@ -49,7 +52,7 @@ function burst(k: Kit, buf: AudioBuffer, t: number, dur: number, o: BurstOpts): 
   filter.Q.value = o.q ?? 0.7;
   ramp(filter.frequency, o.f1 === undefined ? [[t, o.f]] : [[t, o.f], [t + dur, o.f1]]);
   const g = k.ctx.createGain();
-  ramp(g.gain, [[t, o.gain], [t + dur, 1e-4]]);
+  ramp(g.gain, [[t, o.gain], [t + dur, o.gain * QUIET]]);
   src.connect(filter).connect(g).connect(k.out);
   src.start(t, k.rnd() * (buf.duration - dur - 0.01), dur + 0.01);
 }
@@ -60,7 +63,7 @@ function tone(k: Kit, type: OscillatorType, t: number, dur: number, f0: number, 
   osc.type = type;
   ramp(osc.frequency, [[t, f0], [t + dur, f1]]);
   const g = k.ctx.createGain();
-  ramp(g.gain, [[t, gain], [t + dur, 1e-4]]);
+  ramp(g.gain, [[t, gain], [t + dur, gain * QUIET]]);
   osc.connect(g).connect(k.out);
   osc.start(t);
   osc.stop(t + dur + 0.01);

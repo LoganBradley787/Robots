@@ -21,6 +21,8 @@ export class AudioEngine {
 
   constructor(ctx: AudioContext) {
     this.ctx = ctx;
+    // A context made outside a click starts suspended in some browsers.
+    void ctx.resume();
     this.bus = ctx.createGain();
     this.gate = ctx.createGain();
     this.volume = ctx.createGain();

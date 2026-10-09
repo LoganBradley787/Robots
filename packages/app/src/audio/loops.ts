@@ -161,20 +161,46 @@ const burn: Maker = (engine) => {
 
 /** The looping voices by name (a part def's `sound.run`), and how loud each is against the others. */
 export const LOOP_VOICES: Readonly<Record<string, { make: Maker; gain: number }>> = {
-  propeller: { make: propeller, gain: 0.5 },
-  thruster: { make: thruster, gain: 0.7 },
-  wheel: { make: wheel, gain: 0.3 },
-  laser: { make: laser, gain: 0.5 },
-  burn: { make: burn, gain: 0.35 },
+  propeller: { make: propeller, gain: 0.7 },
+  thruster: { make: thruster, gain: 0.9 },
+  wheel: { make: wheel, gain: 0.4 },
+  laser: { make: laser, gain: 0.7 },
+  burn: { make: burn, gain: 0.5 },
 };
 
 /** A voice with its place in the mix: the ear's gain, pan and dulling. */
-interface Placed {
+export interface Placed {
   voice: Voice;
   amp: GainNode;
   pan: StereoPannerNode;
   dull: BiquadFilterNode;
   base: number;
+}
+
+/** Starts a looping voice, silent until placed. `seed` (a robot id) sets it a little off pitch, so a swarm is not one tone. */
+export function startLoop(engine: AudioEngine, name: string, seed: number): Placed | undefined {
+  const spec = LOOP_VOICES[name];
+  if (!spec) return undefined;
+  const voice = spec.make(engine, 0.94 + ((seed * 0.6180339887) % 1) * 0.12);
+  const amp = gain(engine, 0);
+  const dull = filter(engine, 'lowpass', 20000, 0.5);
+  const pan = engine.ctx.createStereoPanner();
+  voice.out.connect(dull).connect(amp).connect(pan).connect(engine.bus);
+  return { voice, amp, pan, dull, base: spec.gain };
+}
+
+/** Puts a loop where the ear hears it, `loud` being its parts' loudness (`loopGain`). */
+export function placeLoop(p: Placed, heard: Heard, loud: number, now: number): void {
+  p.amp.gain.setTargetAtTime(p.base * loud * heard.gain, now, FOLLOW);
+  p.pan.pan.setTargetAtTime(heard.pan, now, FOLLOW);
+  p.dull.frequency.setTargetAtTime(heard.cutoff, now, FOLLOW);
+}
+
+/** Fades a loop out and lets go of it. */
+export function stopLoop(p: Placed, now: number): void {
+  p.amp.gain.setTargetAtTime(0, now, FADE / 3);
+  p.voice.stop(now + FADE * 2);
+  setTimeout(() => p.pan.disconnect(), FADE * 3000);
 }
 
 interface SoundingPart {
@@ -229,9 +255,7 @@ export class LoopBank {
     }
     for (const [key, p] of this.placed) {
       if (picked.has(key)) continue;
-      p.amp.gain.setTargetAtTime(0, now, FADE / 3);
-      p.voice.stop(now + FADE * 2);
-      setTimeout(() => p.pan.disconnect(), FADE * 3000);
+      stopLoop(p, now);
       this.placed.delete(key);
     }
   }
@@ -255,23 +279,13 @@ export class LoopBank {
   }
 
   private start(engine: AudioEngine, g: LoopGroup): Placed | undefined {
-    const spec = LOOP_VOICES[g.voice];
-    if (!spec) return undefined;
-    // A little off pitch per robot, so a swarm is not one tone.
-    const voice = spec.make(engine, 0.94 + ((g.robot * 0.6180339887) % 1) * 0.12);
-    const amp = gain(engine, 0);
-    const dull = filter(engine, 'lowpass', 20000, 0.5);
-    const pan = engine.ctx.createStereoPanner();
-    voice.out.connect(dull).connect(amp).connect(pan).connect(engine.bus);
-    const p = { voice, amp, pan, dull, base: spec.gain };
-    this.placed.set(g.key, p);
+    const p = startLoop(engine, g.voice, g.robot);
+    if (p) this.placed.set(g.key, p);
     return p;
   }
 
   private place(p: Placed, heard: Heard, loud: number, now: number): void {
-    p.amp.gain.setTargetAtTime(p.base * loud * heard.gain, now, FOLLOW);
-    p.pan.pan.setTargetAtTime(heard.pan, now, FOLLOW);
-    p.dull.frequency.setTargetAtTime(heard.cutoff, now, FOLLOW);
+    placeLoop(p, heard, loud, now);
   }
 
   /** Every robot's sounding parts summed by voice, and every robot's beams. */

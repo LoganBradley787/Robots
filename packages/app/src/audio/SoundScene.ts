@@ -40,6 +40,8 @@ export class SoundScene {
   /** What each part type sounds like struck. */
   private readonly materials = new Map<string, string>();
   private readonly ignited = new Map<string, number>();
+  /** How many of each one-shot have played, for the debug overlay. */
+  private readonly played = new Map<string, number>();
   private readonly unlock = (): void => this.wake();
   private readonly onVisibility = (): void => {
     if (document.hidden) void this.engine?.ctx.suspend();
@@ -70,9 +72,11 @@ export class SoundScene {
     return this.engine;
   }
 
-  /** Voices sounding right now, for the debug readout. */
-  get load(): { loops: number; oneShots: number } {
-    return { loops: this.loops.sounding, oneShots: this.limiter.live };
+  /** One line for the debug overlay: what is sounding, the output's peak, and what has played since the world began. */
+  debugLine(): string {
+    if (!this.engine) return 'sound: waiting for a first click or key press';
+    const played = [...this.played].sort((a, b) => b[1] - a[1]).map(([name, n]) => `${name} ${n}`).join(', ');
+    return `sound: ${this.loops.sounding} loops, ${this.limiter.liveAt(this.engine.now)} one-shots, peak ${this.engine.peak().toFixed(2)}${this.current.muted ? ', muted' : ''}   played: ${played || 'nothing yet'}`;
   }
 
   set(next: Partial<SoundSettings>): void {
@@ -159,6 +163,7 @@ export class SoundScene {
     this.limiter.clear();
     this.shots = new ShotWatcher<Shell>();
     this.ignited.clear();
+    this.played.clear();
   }
 
   dispose(): void {
@@ -209,6 +214,7 @@ export class SoundScene {
     this.pending = [];
     for (const a of this.limiter.pick(asks, engine.now)) {
       engine.play(a.name, a.heard, a.own, a.after, a.rate * (0.92 + Math.random() * 0.16));
+      this.played.set(a.name, (this.played.get(a.name) ?? 0) + 1);
     }
   }
 }
