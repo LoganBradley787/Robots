@@ -358,6 +358,23 @@ describe('charged guns (M15): the cannon and the lance', () => {
     s.dispose();
   });
 
+  it('a wide orb skims the ground: only its middle meeting terrain stops it', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    // On the ground, barrel 1 m up. Over 100 m the orb drops half a meter: its lower edge is under the ground for the
+    // last stretch, its middle is not.
+    const rig = w.spawnBlueprint(CANNON, { x: -300, y: 1.5 });
+    const plate = w.spawnBlueprint({ format: 1, name: 'plate', grid: ['A'] }, { x: -200, y: 0.5 }, { team: 1 });
+    w.setUnlimitedEnergy(true);
+    steps(w, 30);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 40);
+    expect(w.events.filter((e) => e.kind === 'boltHit')).toMatchObject([{ robot: plate.id, partType: 'armorplate', damage: 250 }]);
+    // The rest of it flew on and dug into the ground past the plate.
+    expect(w.liveBolts()).toEqual([]);
+    w.dispose();
+  });
+
   it('its sight reads like a gun\'s, from the middle of the barrel, out to its range', async () => {
     const w = await space0();
     const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
