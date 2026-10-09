@@ -190,6 +190,29 @@ export interface LaserSpec {
 }
 
 /**
+ * A charged gun (M15: the cannon and the lance). While `fire` is held it charges for `charge` seconds, drawing the
+ * part's `powerDraw`; let go early and it drains back at the same rate, giving the energy back. Full, letting go fires
+ * a bolt out of its `acts` face at `speed` m/s (plus its own motion) that falls under gravity and flies `life` seconds;
+ * held full past `hold` seconds it backfires instead (pushed back `backfire` N s, nothing fired). After either it is
+ * dead for `dead` seconds. The bolt carries `damage`: each part it meets loses what health it has, up to what the bolt
+ * has left, with no `shellDamage` (nothing softens it), and the bolt carries on with the rest. `width` meters across
+ * (0: a line), it takes every part its width touches. Firing pushes the part back `recoil` N s; the parts hit share the
+ * same push. Its sight outputs are a gun's (`GUN_OUTPUTS`), looking `range` meters, plus `charged` (0 to 1).
+ */
+export interface CannonSpec {
+  charge: number;
+  hold: number;
+  dead: number;
+  damage: number;
+  speed: number;
+  width: number;
+  life: number;
+  range: number;
+  recoil: number;
+  backfire: number;
+}
+
+/**
  * A solar panel (Batch): while its `acts` face points up it adds `power` J/s to its chunk's energy pool, scaled by the
  * cosine of the angle between that face and straight up (0 when it points level or down). It fills the chunk's energy
  * containers up to capacity; a panel with nothing to fill makes nothing.
@@ -305,6 +328,8 @@ export interface PartDef {
   gun?: GunSpec;
   /** M14: the part is a laser. It needs `acts`, the `laser` behavior, a `fire` input, and the gun's sight outputs. */
   laser?: LaserSpec;
+  /** M15: the part is a charged gun. It needs `acts`, the `cannon` behavior, a `fire` input, the gun's sight outputs, and `charged`. */
+  cannon?: CannonSpec;
   /** Batch: the part is a solar panel. It needs `acts`. */
   solar?: SolarSpec;
   /** Batch: the part is a distance charge. */

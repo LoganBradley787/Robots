@@ -96,6 +96,12 @@ function details(d: PartDef): string[] {
     out.push(`laser: while fire is above 0.5 and a core is in charge, it draws ${d.powerDraw} J/s and burns a beam straight out of its ${d.acts ?? 'N'} face: the first part within ${l.range} m (anyone's, friends and its own robot too) loses ${l.dps} health a second, in full whatever the part (armor too), times the share of energy granted (a brownout weakens it) and halved by each smoke cloud it crosses; terrain stops it; no push, no drop`);
     out.push(`laser sight: as a gun's, looking ${l.range} m from the barrel's end: sight, sightSide (0 nothing, 1 own robot, 2 friend, 3 enemy, 4 nobody's, 5 terrain), sightId, aim`);
   }
+  if (d.cannon) {
+    const c = d.cannon;
+    out.push(`charged gun: hold fire and it charges for ${c.charge} s, drawing ${d.powerDraw} J/s (${d.powerDraw * c.charge} J a shot; a brownout charges it slower); let go before it is full and it drains back at the same rate, the energy flowing back into its robot, and it cannot charge again until it is empty; an empty pool drains it too; once full (charged reads 1) letting go fires, and holding costs nothing; held full for more than ${c.hold} s it backfires (pushed back ${c.backfire} N s, nothing fired); after a shot or a backfire it is dead for ${c.dead} s`);
+    out.push(`its bolt: out of its ${d.acts ?? 'N'} face at ${c.speed} m/s, no spread, falls under gravity, flies ${c.life} s; it carries ${c.damage} damage: each part it meets loses what health it has, up to what the bolt has left, in full whatever the part (armor too), and the bolt carries on with the rest until it is spent (anyone's parts, friends and its own robot too); terrain stops it; ${c.width > 0 ? `${c.width} m across: it takes every part its width touches` : 'a line: one part at a time'}; ${c.recoil} N s of kick on firing, and the parts it hits share the same push`);
+    out.push(`charged gun sight: as a gun's, looking ${c.range} m from the barrel's end: sight, sightSide (0 nothing, 1 own robot, 2 friend, 3 enemy, 4 nobody's, 5 terrain), sightId, aim; and charged (0 to 1)`);
+  }
   if (d.gun) {
     const g = d.gun;
     out.push(`gun: while fire is above 0.5, ${g.rate} shells a second out of its ${d.acts ?? 'N'} face at ${g.speed} m/s; a shell falls under gravity, takes ${g.damage} off the first part it hits (anyone's, friends and its own robot too) and is gone after ${g.life} s; each leaves up to ${g.spread} degrees off the barrel's line (center weighted, the same every replay); ${g.recoil} N s of kick per shot; no energy`);

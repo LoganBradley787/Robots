@@ -54,6 +54,11 @@ export interface PartInstance {
   beam?: number;
   /** M14: the part a laser burned last tick, as `robot:part` (empty when none), so a new target logs `laserBurn` once. Hashed for lasers. */
   burning?: string;
+  /**
+   * M15: a charged gun's charge: where it stands (`WIND`), seconds charged, ticks held full or left dead, and what it
+   * does on this tick's weapon pass (`WIND_ACT`, back to none once done). Hashed for parts with a `cannon` block.
+   */
+  wind?: { phase: number; level: number; timer: number; act: number };
   /** M13: what a gun's sight (M14: or a laser's) saw after the last physics step. Undefined until it first looks. Derived, not hashed. */
   sight?: GunSight;
   /** Batch: a charge that was set off this tick (by an enemy near or `detonate`) and blasts as it is destroyed. Transient, never hashed. */

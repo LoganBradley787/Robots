@@ -625,6 +625,71 @@ function drawLaser(): Canvas {
   return cv;
 }
 
+/**
+ * Cannon (M15): two cells wide, four tall. A wide armored breech with a light blue charge core, a fat barrel banded
+ * with coils that glow light blue between them, and a broad open mouth at the top (it fires up at rotation 0).
+ */
+function drawCannon(): Canvas {
+  const W = 2 * CELL;
+  const H = 4 * CELL;
+  const cv = new Canvas(W, H);
+  const BLUE = hex('#6fd8ff');
+  const PALE = hex('#e4f8ff');
+  const gun = hex('#2b2f35');
+  const edge = hex('#111316');
+  // Breech: a mount foot across both cells and a heavy housing.
+  plate(cv, 8, H - 14, W - 8, H - 1, hex('#6f747d'), OUTLINE, 2);
+  plate(cv, 4, H - 96, W - 4, H - 10, hex('#3a3f47'), edge, 4);
+  for (const [x, y] of [[14, H - 86], [W - 14, H - 86], [14, H - 20], [W - 14, H - 20]] as const) rivet(cv, x, y, 3);
+  // Charge core: dark glass, a ring of light blue.
+  cv.fill(rect(34, H - 78, W - 34, H - 30), hex('#06121a'));
+  for (const y of [H - 72, H - 62, H - 52, H - 42]) cv.fill(rect(40, y, W - 40, y + 5), BLUE, 0.85);
+  glow(cv, W / 2, H - 54, 40, BLUE, 0.35);
+  // Barrel: fat, with four coil bands and light between them.
+  plate(cv, 30, 22, W - 30, H - 92, gun, edge, 3);
+  cv.fill(rect(36, 26, 40, H - 96), WHITE, 0.12);
+  for (const y of [40, 72, 104, 136]) {
+    plate(cv, 20, y, W - 20, y + 12, hex('#4f5660'), edge, 2, 1);
+    cv.fill(rect(34, y + 14, W - 34, y + 17), BLUE, 0.8);
+    glow(cv, W / 2, y + 15, 22, BLUE, 0.22);
+  }
+  // Mouth: a wide collar and a pale ring.
+  plate(cv, 16, 2, W - 16, 24, hex('#555b64'), edge, 3);
+  cv.fill(rect(28, 0, W - 28, 6), BLUE);
+  cv.fill(rect(40, 0, W - 40, 3), PALE);
+  glow(cv, W / 2, 3, 30, BLUE, 0.55);
+  return cv;
+}
+
+/**
+ * Lance (M15): one cell wide, four tall. A slim base with a pale blue window and a long thin barrel of twin rails with
+ * pale light running between them, ending in a needle tip (it fires up at rotation 0).
+ */
+function drawLance(): Canvas {
+  const H = 4 * CELL;
+  const cv = new Canvas(CELL, H);
+  const BLUE = hex('#a8e6ff');
+  const PALE = hex('#f2fbff');
+  const edge = hex('#111316');
+  plate(cv, 8, H - 12, 56, H - 1, hex('#6f747d'), OUTLINE, 2);
+  plate(cv, 6, H - 58, 58, H - 8, hex('#3a3f47'), edge, 3);
+  for (const [x, y] of [[13, H - 51], [51, H - 51], [13, H - 15], [51, H - 15]] as const) rivet(cv, x, y, 2.4);
+  cv.fill(rect(20, H - 44, 44, H - 22), hex('#06121a'));
+  cv.fill(rect(24, H - 40, 40, H - 26), BLUE, 0.85);
+  glow(cv, 32, H - 33, 18, BLUE, 0.35);
+  // Twin rails with light between them, held by four clamps.
+  plate(cv, 20, 14, 28, H - 56, hex('#2b2f35'), edge, 2);
+  plate(cv, 36, 14, 44, H - 56, hex('#2b2f35'), edge, 2);
+  cv.fill(rect(29, 16, 35, H - 58), BLUE, 0.7);
+  cv.fill(rect(31, 16, 33, H - 58), PALE, 0.9);
+  for (const y of [34, 78, 122, 166]) plate(cv, 15, y, 49, y + 8, hex('#4f5660'), edge, 2, 1);
+  // Tip.
+  plate(cv, 22, 2, 42, 16, hex('#555b64'), edge, 2);
+  cv.fill(rect(29, 0, 35, 4), PALE);
+  glow(cv, 32, 2, 14, BLUE, 0.6);
+  return cv;
+}
+
 /** Solar panel (Batch): a blue cell grid facing up, on a small gray mount at the base. */
 function drawSolar(): Canvas {
   const cv = new Canvas(CELL, CELL);
@@ -1196,6 +1261,8 @@ function main(): void {
     { name: 'part.jammer.lit', canvas: drawJammer(true) },
     { name: 'part.gun', canvas: drawGun() },
     { name: 'part.laser', canvas: drawLaser() },
+    { name: 'part.cannon', canvas: drawCannon() },
+    { name: 'part.lance', canvas: drawLance() },
     { name: 'part.armorplate', canvas: drawArmorPlate() },
     { name: 'part.solar', canvas: drawSolar() },
     { name: 'part.swivelthruster', canvas: drawSwivelThruster() },

@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'defaultTags',
 ] as const;
 
 function faces(r: Reader, v: unknown, path: string): Face[] {
@@ -260,6 +260,28 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     if (def.powerDraw <= 0) r.fail('laser', 'a laser needs a "powerDraw" above 0 (what it costs while it burns)');
     def.laser = { dps: r.positive(l, 'dps', 'laser'), range };
   } else if (def.behavior === 'laser') r.fail('behavior', 'the laser behavior needs a "laser" block (dps and range)');
+  if (o.cannon !== undefined) {
+    const c = r.obj(o.cannon, 'cannon', ['charge', 'hold', 'dead', 'damage', 'speed', 'width', 'life', 'range', 'recoil', 'backfire']);
+    if (def.acts === undefined) r.fail('cannon', 'a cannon needs "acts" (the way it fires)');
+    if (def.behavior !== 'cannon') r.fail('cannon', 'a cannon needs "behavior": "cannon" (it charges through it)');
+    if (!def.inputs.some((ch) => ch.name === 'fire')) r.fail('cannon', 'a cannon must have a "fire" input');
+    for (const out of [...GUN_OUTPUTS, 'charged']) if (!def.outputs.some((ch) => ch.name === out)) r.fail('cannon', `a cannon must have a "${out}" output`);
+    const range = r.positive(c, 'range', 'cannon');
+    const sight = def.outputs.find((ch) => ch.name === 'sight');
+    if (sight && sight.max !== range) r.fail('cannon', `its "sight" output's max must be its range (${range})`);
+    if (o.gun !== undefined || o.laser !== undefined) r.fail('cannon', 'a part is a gun, a laser, or a cannon, not two of them');
+    if (def.powerDraw <= 0) r.fail('cannon', 'a cannon needs a "powerDraw" above 0 (what it costs while it charges)');
+    const width = r.num(c, 'width', 'cannon');
+    if (width < 0 || width > 10) r.fail('cannon.width', 'must be 0 to 10 meters');
+    const recoil = r.num(c, 'recoil', 'cannon');
+    if (recoil < 0) r.fail('cannon.recoil', 'must not be negative');
+    const backfire = r.num(c, 'backfire', 'cannon');
+    if (backfire < 0) r.fail('cannon.backfire', 'must not be negative');
+    def.cannon = {
+      charge: r.positive(c, 'charge', 'cannon'), hold: r.positive(c, 'hold', 'cannon'), dead: r.positive(c, 'dead', 'cannon'), damage: r.positive(c, 'damage', 'cannon'),
+      speed: r.positive(c, 'speed', 'cannon'), width, life: r.positive(c, 'life', 'cannon'), range, recoil, backfire,
+    };
+  } else if (def.behavior === 'cannon') r.fail('behavior', 'the cannon behavior needs a "cannon" block');
   if (o.solar !== undefined) {
     const so = r.obj(o.solar, 'solar', ['power']);
     if (def.acts === undefined) r.fail('solar', 'a solar panel needs "acts" (the face that catches the sun)');

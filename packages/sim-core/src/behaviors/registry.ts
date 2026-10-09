@@ -13,6 +13,7 @@ import { fabricate } from './fabricate';
 import { fin } from './fin';
 import { piston } from './piston';
 import { laser } from './laser';
+import { cannon } from './cannon';
 
 export interface BehaviorContext {
   physics: PhysicsWorld;
@@ -31,6 +32,8 @@ export interface BehaviorContext {
   detach(face: Face, impulse: number): void;
   /** M14: whether the robot has a core in charge. A wreck latches its values but nobody fires its weapons. */
   controlled: boolean;
+  /** M15: pours `joules` back into the part's chunk (a charged gun draining). What does not fit is lost. */
+  giveBack(joules: number): void;
   /** M12, fabricators: what the part's recipe costs (seconds of build, joules), or undefined when it makes nothing. */
   job(): { seconds: number; joules: number } | undefined;
   /** M12: the build is done; the world adds the copy to the robot if the hollow is clear, else it tries next tick. */
@@ -82,4 +85,5 @@ export const BEHAVIORS: ReadonlyMap<string, Behavior> = new Map<string, Behavior
   ['charge', charge],
   ['piston', piston],
   ['laser', laser],
+  ['cannon', cannon],
 ]);

@@ -6,7 +6,7 @@ describe('parts', () => {
   const rows = partRows(defaultRegistry());
 
   it('has a row per part in builder order, with its key and legend tokens', () => {
-    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     const thruster = rows.find((r) => r.id === 'thruster');
     expect(thruster).toMatchObject({ key: '5', legend: ['T^', 'T<', 'Tv', 'T>'], mass: 1, health: 25, faces: ['N', 'E', 'W'], power: 20 });
     expect(thruster?.details.join('\n')).toContain('maxForce 160 N');
@@ -52,6 +52,15 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'laser')).toMatchObject({ key: '', legend: ['Lz^', 'Lz<', 'Lzv', 'Lz>'], mass: 4, faces: ['S'], health: 40, power: 2400 });
     expect(text('laser')).toMatch(/the first part within 300 m \(anyone's, friends and its own robot too\) loses 600 health a second, in full whatever the part/);
     expect(text('laser')).toMatch(/explodes when destroyed: 80 damage/);
+    expect(rows.find((r) => r.id === 'cannon')).toMatchObject({ key: '', legend: ['Cn^', 'Cn<', 'Cnv', 'Cn>'], mass: 40, faces: ['S'], health: 150, power: 1000 });
+    expect(text('cannon')).toMatch(/charged gun: hold fire and it charges for 6 s, drawing 1000 J\/s \(6000 J a shot;/);
+    expect(text('cannon')).toMatch(/let go before it is full and it drains back at the same rate, the energy flowing back/);
+    expect(text('cannon')).toMatch(/held full for more than 4 s it backfires/);
+    expect(text('cannon')).toMatch(/carries 500 damage: each part it meets loses what health it has, up to what the bolt has left, in full whatever the part \(armor too\)/);
+    expect(text('cannon')).toMatch(/1.5 m across/);
+    expect(text('lance')).toMatch(/charges for 3 s, drawing 1000 J\/s \(3000 J a shot;/);
+    expect(text('lance')).toMatch(/a line: one part at a time/);
+    expect(text('lance')).toMatch(/looking 400 m from the barrel's end/);
     expect(text('gun')).toMatch(/up to 1.5 degrees off the barrel's line/);
     expect(text('solar')).toMatch(/solar: adds 6 J\/s \(times the cosine of the angle between its N face and straight up.*\) to its chunk's energy pool while its N face points up/);
     expect(text('swivelthruster')).toMatch(/tilts its push up to 15 degrees counterclockwise \(positive\) or clockwise \(negative\) from its N face/);

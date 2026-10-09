@@ -35,6 +35,8 @@ import { BAY_CLEAR_SPEED, bayClearAfterTicks, copyLeaveTicks } from './bayclear'
 import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Beam } from '../weapons/beams';
+import type { Bolt } from '../weapons/bolts';
+import { WIND_ACT } from '../behaviors/cannon';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
 import { Grapples, type GrappleHost } from './grapple';
@@ -105,6 +107,12 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'unhooked'; part: string; why: 'released' | 'lost' }
   /** M13: a shell from robot `by` hit `part` of `robot` at `x`, `y`, taking `damage` off it. */
   | { tick: number; robot: number; kind: 'shellHit'; part: string; partType: string; by: number; x: number; y: number; damage: number }
+  /** M15: a charged gun (`part`) of `robot` fired its bolt from `x`, `y`. */
+  | { tick: number; robot: number; kind: 'cannonFire'; part: string; partType: string; x: number; y: number }
+  /** M15: a charged gun (`part`) of `robot` was held full too long and backfired at `x`, `y`: nothing fired. */
+  | { tick: number; robot: number; kind: 'cannonBackfire'; part: string; partType: string; x: number; y: number }
+  /** M15: a bolt from robot `by` hit `part` of `robot` at `x`, `y`, taking `damage` off it (no modifiers). */
+  | { tick: number; robot: number; kind: 'boltHit'; part: string; partType: string; by: number; x: number; y: number; damage: number }
   /** M14: a laser (`laser`) of robot `by` started burning `part` of `robot` at `x`, `y`. Once per new target, not per tick. */
   | { tick: number; robot: number; kind: 'laserBurn'; part: string; partType: string; by: number; laser: string; x: number; y: number }
   /** Batch: a smoke pod went off, leaving a cloud of `radius` meters at `x`, `y`; the pod is gone. */
@@ -171,6 +179,9 @@ interface SeenDecoy {
  * are at the end of the tick, so without it a missile closing at 130 m/s let about one shell in six through its nose.
  */
 const SHELL_SWEEP = 600;
+
+/** M15: the widest gap between the lines a wide bolt sweeps, m: under half a cell, so no part slips between two. */
+const BOLT_LANE = 0.45;
 
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
@@ -383,6 +394,12 @@ export class World {
   private readonly burns = new Map<number, { ticks: number; damage: number }>();
   /** M13: shells each robot's guns have fired. Reporting only. */
   private readonly shots = new Map<number, number>();
+  /** M15: bolts in flight, oldest first. Simulation state, hashed. */
+  private bolts: Bolt[] = [];
+  /** Bolts that stopped on the last tick, where they stopped, for drawing only. Not hashed. */
+  private spentBoltList: Bolt[] = [];
+  /** M15: shots and backfires of each robot's charged guns, and the damage their bolts did. Reporting only. */
+  private readonly cannonTotals = new Map<number, { shots: number; backfires: number; damage: number }>();
   /**
    * Velocities for new bodies, applied as kicks just before the next physics step. Until then Rapier reports them at
    * rest, so a second rebuild reads the velocity from here (M6 review). Simulation state, hashed.
@@ -563,6 +580,7 @@ export class World {
     this.physics.step();
     this.runGuns();
     this.runLasers();
+    this.runCannons();
     this.grapples.run(this.gh());
     this.damagePhase();
     this.fadeDebris();
@@ -1228,6 +1246,21 @@ export class World {
     return { ...(this.burns.get(robot) ?? { ticks: 0, damage: 0 }) };
   }
 
+  /** M15: bolts in flight, oldest first, for drawing. Read only. */
+  liveBolts(): readonly Bolt[] {
+    return this.bolts;
+  }
+
+  /** M15: bolts that stopped on the last tick, where they stopped, for drawing their last stretch. Not simulation state. */
+  spentBolts(): readonly Bolt[] {
+    return this.spentBoltList;
+  }
+
+  /** M15: a robot's charged guns so far: shots, backfires, and the damage their bolts did. Reporting only. */
+  cannonStats(robot: number): { shots: number; backfires: number; damage: number } {
+    return this.cannonTotals.get(robot) ?? { shots: 0, backfires: 0, damage: 0 };
+  }
+
   /** M13: how many shells a robot's guns have fired so far. Reporting only. */
   shotsBy(robot: number): number {
     return this.shots.get(robot) ?? 0;
@@ -1315,6 +1348,120 @@ export class World {
     }
   }
 
+  /**
+   * M15, right after the physics step: every charged gun whose behavior decided to fire or backfire this tick
+   * (`wind.act`) does it, from where its barrel is now; bolts fly; every charged gun's sight looks, as a gun's does.
+   * Firing pushes the part back its `recoil`, a backfire its `backfire`; both quietly (no fuze goes off).
+   */
+  private runCannons(): void {
+    let cannons: { robot: Robot; part: PartInstance }[] | undefined;
+    for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.cannon !== undefined) (cannons ??= []).push({ robot, part });
+    this.spentBoltList = [];
+    if (!cannons && this.bolts.length === 0) return;
+    const old = new Set(this.bolts);
+    const bodies = new Map<BodyId, Robot>();
+    for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
+    for (const { robot, part } of cannons ?? []) {
+      const spec = part.def.cannon;
+      const act = part.wind?.act ?? WIND_ACT.none;
+      if (!spec || !part.wind || act === WIND_ACT.none) continue;
+      part.wind.act = WIND_ACT.none;
+      const m = part.health > 0 ? this.muzzle(robot, part) : undefined;
+      if (!m) continue;
+      const totals = this.cannonTotals.get(robot.id) ?? { shots: 0, backfires: 0, damage: 0 };
+      this.cannonTotals.set(robot.id, totals);
+      if (act === WIND_ACT.backfire) {
+        totals.backfires++;
+        if (spec.backfire > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.backfire, jy: -m.dy * spec.backfire, quiet: true });
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'cannonBackfire', part: part.id, partType: part.def.id, x: m.x, y: m.y });
+        continue;
+      }
+      totals.shots++;
+      this.bolts.push({
+        x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + m.dx * spec.speed, vy: m.vy + m.dy * spec.speed,
+        robot: robot.id, gun: part.id, damage: spec.damage, left: spec.damage, push: spec.recoil, width: spec.width, ticks: Math.max(1, Math.round(spec.life / this.dt)),
+      });
+      if (spec.recoil > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.recoil, jy: -m.dy * spec.recoil, quiet: true });
+      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'cannonFire', part: part.id, partType: part.def.id, x: m.x, y: m.y });
+    }
+    if (this.bolts.length > 0) this.flyBolts(bodies, old);
+    for (const { robot, part } of cannons ?? []) this.look(robot, part, bodies);
+  }
+
+  /**
+   * M15: moves every bolt one tick. A bolt sweeps parallel lines across its width (no more than `BOLT_LANE` apart, one
+   * line when it has no width) and meets the colliders on any of them nearest first: a part loses what health it has,
+   * up to what the bolt has left (no `shellDamage`: nothing softens a bolt), and the bolt carries on with the rest;
+   * terrain stops it. An armed part with an impact fuze goes off at once, as under a shell. Like a shell, a bolt that
+   * was already flying also looks `SHELL_SWEEP * dt` behind itself for bodies that came through it this tick.
+   */
+  private flyBolts(bodies: Map<BodyId, Robot>, old: Set<Bolt>): void {
+    const flying: Bolt[] = [];
+    for (const b of this.bolts) {
+      b.px = b.x;
+      b.py = b.y;
+      b.vy += this.gravityY * this.dt;
+      const mx = b.vx * this.dt;
+      const my = b.vy * this.dt;
+      const len = Math.sqrt(mx * mx + my * my);
+      if (len === 0) continue;
+      const dx = mx / len;
+      const dy = my / len;
+      const back = old.has(b) ? SHELL_SWEEP * this.dt : 0;
+      const skip = (body: BodyId, owner: string | undefined): boolean => owner === b.gun && bodies.get(body)?.id === b.robot;
+      const lanes = b.width > 0 ? Math.ceil(b.width / BOLT_LANE) + 1 : 1;
+      const met = new Map<string, { body: BodyId; owner: string | undefined; distance: number }>();
+      for (let i = 0; i < lanes; i++) {
+        const off = lanes === 1 ? 0 : -b.width / 2 + (b.width * i) / (lanes - 1);
+        for (const h of this.physics.rayHits(b.x - dx * back - dy * off, b.y - dy * back + dx * off, dx, dy, len + back, skip)) {
+          if (h.distance < back) {
+            const v = this.physics.state(h.body);
+            if (-(v.vx * dx + v.vy * dy) * this.dt < back - h.distance) continue;
+          }
+          const key = `${h.body}:${h.owner ?? ''}`;
+          const seen = met.get(key);
+          if (!seen || h.distance < seen.distance) met.set(key, h);
+        }
+      }
+      const hits = [...met.values()].sort((p, q) => p.distance - q.distance || p.body - q.body || (p.owner ?? '').localeCompare(q.owner ?? ''));
+      let stopped: number | undefined;
+      for (const h of hits) {
+        const robot = bodies.get(h.body);
+        const part = h.owner === undefined ? undefined : robot?.parts.get(h.owner);
+        if (!robot || !part) {
+          stopped = h.distance;
+          break;
+        }
+        // A part already at 0 this tick (its collider goes in the damage phase) is not there any more.
+        if (part.health <= 0) continue;
+        const take = Math.min(part.health, b.left);
+        part.health = part.def.impact && part.armed !== false ? 0 : part.health - take;
+        b.left -= take;
+        const push = b.push * (take / b.damage);
+        if (push > 0) this.pendingPushes.push({ part, jx: dx * push, jy: dy * push, quiet: true });
+        const d = Math.max(0, h.distance - back);
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'boltHit', part: part.id, partType: part.def.id, by: b.robot, x: b.x + dx * d, y: b.y + dy * d, damage: take });
+        const totals = this.cannonTotals.get(b.robot);
+        if (totals) totals.damage += take;
+        if (b.left <= 0) {
+          stopped = h.distance;
+          break;
+        }
+      }
+      if (stopped !== undefined) {
+        const d = Math.max(0, stopped - back);
+        b.x += dx * d;
+        b.y += dy * d;
+        this.spentBoltList.push(b);
+        continue;
+      }
+      b.x += mx;
+      b.y += my;
+      if (--b.ticks > 0) flying.push(b);
+    }
+    this.bolts = flying;
+  }
+
   /** One laser's beam this tick: drawn always, and what it would burn (applied once every beam is cast). */
   private beam(robot: Robot, part: PartInstance, spec: { dps: number; range: number }, power: number, m: { x: number; y: number; dx: number; dy: number }, bodies: Map<BodyId, Robot>): { hitRobot: Robot; hitPart: PartInstance; damage: number; x: number; y: number } | undefined {
     const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, spec.range, (b, owner) => owner === part.id && bodies.get(b) === robot);
@@ -1377,9 +1524,11 @@ export class World {
     // M14: a part of several cells (a laser's base and barrel) fires from the cell farthest along its `acts`.
     const cells = part.footprint ?? part.def.footprint;
     if (cells.length > 1) {
+      // M15: a part two cells wide at its far end (the cannon) fires from the middle of them.
       let best = -Infinity;
       let ox = 0;
       let oy = 0;
+      let tied = 0;
       for (const fc of cells) {
         const o = rotateCell(fc, part.rot);
         const along = o.x * f.x + o.y * f.y;
@@ -1387,7 +1536,16 @@ export class World {
           best = along;
           ox = o.x;
           oy = o.y;
+          tied = 1;
+        } else if (along === best) {
+          ox += o.x;
+          oy += o.y;
+          tied++;
         }
+      }
+      if (tied > 1) {
+        ox /= tied;
+        oy /= tied;
       }
       x += c * ox - n * oy;
       y += n * ox + c * oy;
@@ -1924,7 +2082,7 @@ export class World {
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
     if (name === 'jamming' && part.def.jammer !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
-    if (part.def.gun !== undefined || part.def.laser !== undefined) return gunOutput(part, name);
+    if (part.def.gun !== undefined || part.def.laser !== undefined || part.def.cannon !== undefined) return gunOutput(part, name);
     if (part.def.grapple !== undefined) return this.grapples.output(part, name);
     return undefined;
   }
@@ -2408,6 +2566,8 @@ export class World {
   private runBehaviors(early: boolean): void {
     for (const robot of this.robots) {
       const planned: { action: PlannedAction; chunk: number; request: number }[] = [];
+      // M15: energy parts pour back this tick (a charged gun draining), by chunk, poured once the grants are settled.
+      let back: Map<number, number> | undefined;
       const chans = this.channels.get(robot.id);
       for (const part of robot.parts.values()) {
         const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
@@ -2424,6 +2584,11 @@ export class World {
           config: (key) => part.def.behaviorConfig?.[key] ?? 0,
           controlled: this.controllers.has(robot.id),
           detach: (face, impulse) => this.detach(robot, part, face, impulse),
+          giveBack: (joules) => {
+            if (!(joules > 0)) return;
+            const chunk = chunkIndex(robot, part.id);
+            (back ??= new Map()).set(chunk, (back.get(chunk) ?? 0) + joules);
+          },
           job: () => this.jobOf(robot, part),
           finish: () => this.finishBuild(robot, part),
           release: () => this.releaseBuild(robot, part),
@@ -2437,6 +2602,19 @@ export class World {
       const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, planned.filter((p) => p.chunk === c).reduce((s, p) => s + p.request, 0)));
       // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
       for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
+      if (back && !this.unlimited) {
+        for (const [chunk, joules] of back) {
+          const containers = poolContainers(robot, chunk);
+          const added = fillContainers(containers, joules);
+          if (added <= 0) continue;
+          for (const c of containers) {
+            const held = robot.parts.get(c.id);
+            if (held) held.stored = c.stored;
+          }
+          // Energy handed back was never used.
+          this.used.set(robot.id, (this.used.get(robot.id) ?? 0) - added);
+        }
+      }
     }
   }
 
@@ -2561,6 +2739,13 @@ export class World {
           h.addF64(part.beam ?? 0);
           h.addString(part.burning ?? '');
         }
+        // A charged gun's charge (M15). Other parts add nothing.
+        if (part.def.cannon !== undefined) {
+          h.addInt(part.wind?.phase ?? 0);
+          h.addF64(part.wind?.level ?? 0);
+          h.addInt(part.wind?.timer ?? 0);
+          h.addInt(part.wind?.act ?? 0);
+        }
         // A decoy's burn left and the robot it stands in for (M11). Other parts add nothing.
         if (part.def.decoy !== undefined) {
           h.addInt(part.burn ?? -1);
@@ -2652,6 +2837,17 @@ export class World {
         h.addInt(sh.robot);
         h.addString(sh.gun);
         h.addInt(sh.left);
+      }
+    }
+    // Bolts in flight (M15). None adds nothing, so worlds without charged guns hash as before.
+    if (this.bolts.length > 0) {
+      h.addString('bolts');
+      h.addInt(this.bolts.length);
+      for (const b of this.bolts) {
+        for (const v of [b.x, b.y, b.vx, b.vy, b.damage, b.left, b.push, b.width]) h.addF64(v);
+        h.addInt(b.robot);
+        h.addString(b.gun);
+        h.addInt(b.ticks);
       }
     }
     // Smoke clouds (Batch). None adds nothing, so worlds without smoke hash as before.
@@ -2801,9 +2997,9 @@ function noise(seed: number, tick: number, robot: number, key: string, n: number
   return (h >>> 0) / 4294967296;
 }
 
-/** How far a part's sight looks: a gun's (M13) or a laser's (M14) range; undefined for parts with no sight. */
+/** How far a part's sight looks: a gun's (M13), a laser's (M14), or a charged gun's (M15) range; undefined for parts with no sight. */
 function sightRange(part: PartInstance): number | undefined {
-  return part.def.gun?.range ?? part.def.laser?.range;
+  return part.def.gun?.range ?? part.def.laser?.range ?? part.def.cannon?.range;
 }
 
 /** A gun's outputs (M13): its sight after the last step; before it first looks, nothing seen within its range. */

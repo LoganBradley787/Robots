@@ -1,0 +1,32 @@
+{
+  "id": "cannon",
+  "name": "Cannon",
+  "footprint": [
+    { "x": 0, "y": 0, "faces": ["S"] },
+    { "x": 1, "y": 0, "faces": ["S"] },
+    { "x": 0, "y": 1, "faces": [] },
+    { "x": 1, "y": 1, "faces": [] },
+    { "x": 0, "y": 2, "faces": [] },
+    { "x": 1, "y": 2, "faces": [] },
+    { "x": 0, "y": 3, "faces": [] },
+    { "x": 1, "y": 3, "faces": [] }
+  ],
+  "mass": 40,
+  "health": 150,
+  "build": 6.0,
+  "symmetry": 4,
+  "inputs": [{ "name": "fire", "min": 0, "max": 1, "default": 0 }],
+  "outputs": [
+    { "name": "sight", "min": 0, "max": 250, "default": 250 },
+    { "name": "sightSide", "min": 0, "max": 5, "default": 0 },
+    { "name": "sightId", "min": 0, "max": 1000000000, "default": 0 },
+    { "name": "aim", "min": -3.141592653589793, "max": 3.141592653589793, "default": 0 },
+    { "name": "charged", "min": 0, "max": 1, "default": 0 }
+  ],
+  "powerDraw": 1000,
+  "acts": "N",
+  "behavior": "cannon",
+  "cannon": { "charge": 6, "hold": 4, "dead": 4, "damage": 500, "speed": 300, "width": 1.5, "life": 2, "range": 250, "recoil": 800, "backfire": 80 },
+  "onDestroyed": { "explode": { "radius": 3.5, "damage": 120, "pushRadius": 6, "push": 40, "lift": 1 } },
+  "sprite": { "frame": "part.cannon" }
+}

@@ -540,6 +540,46 @@
         "h": 128
       }
     },
+    "part.cannon": {
+      "frame": {
+        "x": 71,
+        "y": 411,
+        "w": 128,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 128,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 128,
+        "h": 256
+      }
+    },
+    "part.lance": {
+      "frame": {
+        "x": 203,
+        "y": 411,
+        "w": 64,
+        "h": 256
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 256
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 256
+      }
+    },
     "part.armorplate": {
       "frame": {
         "x": 343,
@@ -762,7 +802,7 @@
     },
     "part.fabbay": {
       "frame": {
-        "x": 71,
+        "x": 271,
         "y": 411,
         "w": 192,
         "h": 384
