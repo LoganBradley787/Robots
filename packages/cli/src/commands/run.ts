@@ -53,6 +53,8 @@ export interface RunReport {
   destruction: { destroyed: string[]; explosions: number; pieces: number };
   /** M13: for every robot that fired or was hit (by id, in id order): shells fired, hits and their damage, hits taken. Absent with no shells. */
   guns?: { robot: number; shots: number; hits: number; damage: number; taken: number }[];
+  /** M15: every robot whose charged guns fired or backfired: shots, backfires, parts hit, damage done. */
+  cannons?: { robot: number; shots: number; backfires: number; hits: number; damage: number }[];
   /** M14: every robot whose lasers burned: seconds of beam, damage done, parts it started burning. */
   lasers?: { robot: number; seconds: number; damage: number; burns: number }[];
   /** M7: what happened, in order: keys, drops, decouplers, splits, wakes, parts lost, blasts, script logs and crashes. */
@@ -143,6 +145,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       destruction: destructionOf(world, robot.id),
       ...gunsOf(world),
       ...lasersOf(world),
+      ...cannonsOf(world),
       ...(aims.some((a) => Object.keys(a).length > 0) ? { aims } : {}),
       finalHash: world.hash(),
       timing: { avgMs: ticks > 0 ? totalMs / ticks : 0, worstMs },
@@ -217,6 +220,10 @@ export function formatReport(r: RunReport): string {
   if (r.lasers) {
     const letter = new Map(r.pieces.map((p) => [p.id, p.mark]));
     lines.push(`lasers: ${r.lasers.map((l) => `${letter.get(l.robot) ?? `robot ${l.robot}`} burned ${f(l.seconds, 2)} s, ${f(l.damage, 1)} damage, ${l.burns} part${l.burns === 1 ? '' : 's'} hit`).join('; ')}`);
+  }
+  if (r.cannons) {
+    const letter = new Map(r.pieces.map((p) => [p.id, p.mark]));
+    lines.push(`cannons: ${r.cannons.map((c) => `${letter.get(c.robot) ?? `robot ${c.robot}`} fired ${c.shots} bolt${c.shots === 1 ? '' : 's'}, ${c.hits} part${c.hits === 1 ? '' : 's'} hit (${f(c.damage, 0)} damage)${c.backfires > 0 ? `, ${c.backfires} backfire${c.backfires === 1 ? '' : 's'}` : ''}`).join('; ')}`);
   }
   if (r.events.length > 0) {
     lines.push('events (A is the robot; other letters are pieces and drops, listed below):');
@@ -305,6 +312,15 @@ function lasersOf(world: SimWorld): { lasers?: RunReport['lasers'] } {
   // Parts, not burns: a beam that leaves a part and comes back to it counts it once.
   const burns = (id: number) => new Set(world.events.flatMap((e) => (e.kind === 'laserBurn' && e.by === id ? [`${e.robot}:${e.part}`] : []))).size;
   return { lasers: [...ids].sort((a, b) => a - b).map((id) => ({ robot: id, seconds: world.laserStats(id).ticks * world.dt, damage: world.laserStats(id).damage, burns: burns(id) })) };
+}
+
+/** M15: every robot whose charged guns fired or backfired (from the world's tally), and the parts its bolts hit. */
+function cannonsOf(world: SimWorld): { cannons?: RunReport['cannons'] } {
+  const ids = new Set<number>();
+  for (const e of world.events) if (e.kind === 'cannonFire' || e.kind === 'cannonBackfire') ids.add(e.robot);
+  if (ids.size === 0) return {};
+  const hits = (id: number) => world.events.filter((e) => e.kind === 'boltHit' && e.by === id).length;
+  return { cannons: [...ids].sort((a, b) => a - b).map((id) => ({ robot: id, ...world.cannonStats(id), hits: hits(id) })) };
 }
 
 export function energyOf(world: SimWorld, robotId: number): RunReport['energy'] {

@@ -1246,6 +1246,17 @@ export class World {
     return { ...(this.burns.get(robot) ?? { ticks: 0, damage: 0 }) };
   }
 
+  /**
+   * M15: where a part's barrel ends and which way it points (a unit vector), for drawing (a charged gun's glow, a
+   * sight line). Undefined for a part that does not act along a face. Read only.
+   */
+  barrelEnd(robotId: number, partId: string): { x: number; y: number; dx: number; dy: number } | undefined {
+    const robot = this.byId.get(robotId);
+    const part = robot?.parts.get(partId);
+    const m = robot && part ? this.muzzle(robot, part) : undefined;
+    return m ? { x: m.x, y: m.y, dx: m.dx, dy: m.dy } : undefined;
+  }
+
   /** M15: bolts in flight, oldest first, for drawing. Read only. */
   liveBolts(): readonly Bolt[] {
     return this.bolts;

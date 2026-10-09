@@ -8,6 +8,7 @@ import { RobotView } from '../render/RobotView';
 import { Effects } from '../render/Effects';
 import { ShellsView } from '../render/ShellsView';
 import { BeamsView } from '../render/BeamsView';
+import { BoltsView } from '../render/BoltsView';
 import { SmokeView } from '../render/SmokeView';
 import { RopesView } from '../render/RopesView';
 import { buildTerrainView } from '../render/TerrainView';
@@ -88,6 +89,7 @@ export class WorldScreen {
   private readonly effects = new Effects();
   private readonly shells = new ShellsView();
   private readonly beams = new BeamsView();
+  private readonly bolts = new BoltsView();
   /** M14: screen pixels the camera shakes by, dying away (a laser blowing up on screen). */
   private shake = 0;
   private readonly smoke = new SmokeView();
@@ -155,6 +157,7 @@ export class WorldScreen {
     renderer.world.addChildAt(this.ropes.root, renderer.world.getChildIndex(this.shells.root) + 1);
     // Beams glow over smoke and ropes.
     renderer.world.addChildAt(this.beams.root, renderer.world.getChildIndex(this.smoke.root) + 1);
+    renderer.world.addChildAt(this.bolts.root, renderer.world.getChildIndex(this.beams.root) + 1);
     renderer.backdrop.addChild(
       this.grid,
       buildTerrainView(file, {
@@ -201,6 +204,7 @@ export class WorldScreen {
     this.views.clear();
     this.effects.clear();
     this.beams.clear();
+    this.bolts.clear();
     this.keys.clear();
     this.focusId = undefined;
     this.eventCursor = 0;
@@ -447,9 +451,15 @@ export class WorldScreen {
       const marks = this.world.marks(r.id);
       const sights = [];
       for (const part of r.parts.values()) {
-        if ((part.def.gun === undefined && part.def.laser === undefined) || !part.sight) continue;
-        const pose = partWorldPose(this.world, r, part.id);
+        if ((part.def.gun === undefined && part.def.laser === undefined && part.def.cannon === undefined) || !part.sight) continue;
         const aim = part.sight.aim;
+        // M15: a charged gun's sight starts at the world's own barrel end (a cannon's is between its two cells).
+        const end = part.def.cannon !== undefined ? this.world.barrelEnd(r.id, part.id) : undefined;
+        if (end) {
+          sights.push({ x: end.x, y: end.y, aim, distance: part.sight.distance, side: part.sight.side });
+          continue;
+        }
+        const pose = partWorldPose(this.world, r, part.id);
         // From the barrel's end: half a cell past the base for a gun, a cell and a half for a laser (M14, 1 by 2). Both
         // are straight parts along their aim; a bent multi-cell sight part would need the world's own muzzle.
         const reach = (part.footprint ?? part.def.footprint).length - 0.5;
@@ -499,6 +509,7 @@ export class WorldScreen {
     this.effects.update(simDt);
     this.shells.draw([...this.world.liveShells(), ...this.world.spentShells()], alpha);
     this.beams.draw(this.world, alpha, simDt, this.cam.zoom);
+    this.bolts.draw(this.world, alpha, simDt, this.cam.zoom);
     this.smoke.draw(this.world.smokeClouds());
     this.ropes.draw(this.world.liveRopes());
     const focus = this.world.robots.find((r) => r.id === this.focusId);
@@ -546,6 +557,18 @@ export class WorldScreen {
       if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
       if (ev?.kind === 'decoupled') this.effects.spark(ev.x, ev.y);
       if (ev?.kind === 'shellHit') this.effects.hit(ev.x, ev.y);
+      // M15: charged guns. A ring of light at the barrel on firing (and a jolt of the camera for the cannon), a
+      // blue-white burst where a bolt takes a part, a grey-blue puff on a backfire.
+      if (ev?.kind === 'cannonFire' || ev?.kind === 'cannonBackfire') {
+        const spec = this.world.registry.has(ev.partType) ? this.world.registry.get(ev.partType).cannon : undefined;
+        const big = (spec?.width ?? 0) > 0;
+        if (ev.kind === 'cannonBackfire') this.effects.backfire(ev.x, ev.y, big ? 1.6 : 1);
+        else {
+          this.effects.boltFlash(ev.x, ev.y, big ? 2.2 : 1);
+          if (big && this.onScreen(ev.x, ev.y)) this.shake = Math.max(this.shake, 9);
+        }
+      }
+      if (ev?.kind === 'boltHit') this.effects.boltHit(ev.x, ev.y, ev.damage);
       // A part that explodes gets the blast instead of a puff (an unarmed warhead just breaks: M10).
       // A burnt-out flare (M11) just goes out.
       if (ev?.kind === 'partDestroyed' && !ev.exploded && ev.burntOut !== true) this.effects.breakPuff(ev.x, ev.y);
@@ -554,6 +577,11 @@ export class WorldScreen {
         const def = this.world.registry.get(ev.partType);
         if (def.laser !== undefined) {
           this.effects.laserBlast(ev.x, ev.y, def.onDestroyed?.explode?.radius ?? 2);
+          if (this.onScreen(ev.x, ev.y)) this.shake = Math.max(this.shake, 16);
+        }
+        // M15: a charged gun going up is the same blast in light blue.
+        if (def.cannon !== undefined) {
+          this.effects.laserBlast(ev.x, ev.y, def.onDestroyed?.explode?.radius ?? 2, 0x4fc8ff, 0xc8f0ff);
           if (this.onScreen(ev.x, ev.y)) this.shake = Math.max(this.shake, 16);
         }
       }

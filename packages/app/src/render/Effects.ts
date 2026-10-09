@@ -15,6 +15,9 @@ const SMOKE = 0x57514c;
 const DUST = 0x8a8178;
 const LASER_RED = 0xff1630;
 const LASER_HOT = 0xff8a6a;
+const BOLT_BLUE = 0x4fc8ff;
+const BOLT_PALE = 0xd6f4ff;
+const POOF = 0x8fa3b0;
 
 /**
  * Cosmetic effects on top of the robots, driven by world events (M6): a blast's flash, fireball, shock ring, and
@@ -97,7 +100,7 @@ export class Effects {
    * A laser blew up (M14, Logan: "it explodes, cuz laser"): on top of the usual blast, a white flash, a red bloom, two
    * shock rings racing out, and a burst of sparks, all glowing (added light).
    */
-  laserBlast(x: number, y: number, radius: number): void {
+  laserBlast(x: number, y: number, radius: number, bloom = LASER_RED, hot = LASER_HOT): void {
     const p = toScreen({ x, y });
     const r = radius * PIXELS_PER_METER;
     this.add(p, 0.16, (g, t) => {
@@ -106,10 +109,10 @@ export class Effects {
     }, true);
     this.add(p, 0.8, (g, t) => {
       const k = t / 0.8;
-      g.circle(0, 0, r * (1.5 + 3 * Math.sqrt(k))).fill({ color: LASER_RED, alpha: 0.55 * (1 - k) ** 1.4 });
-      g.circle(0, 0, r * (0.8 + 1.5 * Math.sqrt(k))).fill({ color: LASER_HOT, alpha: 0.65 * (1 - k) ** 2 });
+      g.circle(0, 0, r * (1.5 + 3 * Math.sqrt(k))).fill({ color: bloom, alpha: 0.55 * (1 - k) ** 1.4 });
+      g.circle(0, 0, r * (0.8 + 1.5 * Math.sqrt(k))).fill({ color: hot, alpha: 0.65 * (1 - k) ** 2 });
     }, true);
-    for (const [life, reach, color] of [[0.5, 8, 0xffffff], [0.8, 5.5, LASER_RED]] as const) {
+    for (const [life, reach, color] of [[0.5, 8, 0xffffff], [0.8, 5.5, bloom]] as const) {
       this.add(p, life, (g, t) => {
         const k = t / life;
         g.circle(0, 0, r * (0.5 + reach * k)).stroke({ color, width: 12 * (1 - k) + 2, alpha: 0.85 * (1 - k) });
@@ -128,6 +131,68 @@ export class Effects {
           .stroke({ color: 0xffd890, width: 4, alpha: 1 - k });
       }
     }, true);
+  }
+
+  /** A charged gun fired (M15): a white flash and a light blue ring bursting off the barrel. `scale` 1 for a lance. */
+  boltFlash(x: number, y: number, scale: number): void {
+    const p = toScreen({ x, y });
+    const r = scale * PIXELS_PER_METER;
+    this.add(p, 0.14, (g, t) => {
+      const k = t / 0.14;
+      g.circle(0, 0, r * (0.8 + 1.6 * k)).fill({ color: 0xffffff, alpha: 0.9 * (1 - k) });
+    }, true);
+    this.add(p, 0.4, (g, t) => {
+      const k = t / 0.4;
+      g.circle(0, 0, r * (0.6 + 1.4 * Math.sqrt(k))).fill({ color: BOLT_BLUE, alpha: 0.5 * (1 - k) ** 1.5 });
+      g.circle(0, 0, r * (0.5 + 3.5 * k)).stroke({ color: BOLT_PALE, width: 6 * (1 - k) + 1, alpha: 0.8 * (1 - k) });
+    }, true);
+  }
+
+  /** A bolt took a part (M15): a blue-white burst and sparks, bigger the more it took. */
+  boltHit(x: number, y: number, damage: number): void {
+    const p = toScreen({ x, y });
+    const r = (0.5 + Math.min(1.5, damage / 200)) * PIXELS_PER_METER;
+    this.add(p, 0.12, (g, t) => {
+      const k = t / 0.12;
+      g.circle(0, 0, r * (0.5 + k)).fill({ color: 0xffffff, alpha: 0.9 * (1 - k) });
+    }, true);
+    this.add(p, 0.35, (g, t) => {
+      const k = t / 0.35;
+      g.circle(0, 0, r * (0.4 + 1.2 * Math.sqrt(k))).fill({ color: BOLT_BLUE, alpha: 0.55 * (1 - k) ** 1.5 });
+    }, true);
+    const sparks = Array.from({ length: 8 }, () => ({ a: Math.random() * Math.PI * 2, speed: (3 + Math.random() * 5) * r, life: 0.2 + Math.random() * 0.3 }));
+    this.add(p, 0.5, (g, t) => {
+      for (const { a, speed, life } of sparks) {
+        if (t >= life) continue;
+        const k = t / life;
+        const d = speed * t * (1 - 0.4 * k);
+        const tail = Math.max(0, d - 0.3 * r);
+        g.moveTo(Math.cos(a) * tail, Math.sin(a) * tail + 4 * r * t * t)
+          .lineTo(Math.cos(a) * d, Math.sin(a) * d + 4 * r * t * t)
+          .stroke({ color: BOLT_PALE, width: 3, alpha: 1 - k });
+      }
+    }, true);
+  }
+
+  /** A charged gun was held too long (M15, Logan: "it just goes poof"): grey-blue puffs drifting off the barrel. */
+  backfire(x: number, y: number, scale: number): void {
+    const p = toScreen({ x, y });
+    const r = scale * PIXELS_PER_METER;
+    this.add(p, 0.2, (g, t) => {
+      const k = t / 0.2;
+      g.circle(0, 0, r * (0.5 + k)).fill({ color: BOLT_PALE, alpha: 0.5 * (1 - k) });
+    }, true);
+    for (let i = 0; i < 9; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const speed = (0.6 + Math.random() * 1.2) * r;
+      const size = (0.3 + Math.random() * 0.35) * r;
+      const life = 0.8 + Math.random() * 0.7;
+      this.add(p, life, (g, t) => {
+        const k = t / life;
+        const drift = 1 - (1 - k) ** 2;
+        g.circle(Math.cos(a) * speed * drift, Math.sin(a) * speed * drift * 0.6 - r * 0.8 * k, size * (0.6 + 0.9 * k)).fill({ color: POOF, alpha: 0.6 * (1 - k) });
+      });
+    }
   }
 
   /** Advances every effect by `dt` seconds and drops finished ones. */

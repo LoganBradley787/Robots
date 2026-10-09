@@ -69,6 +69,8 @@ export class Tracer {
   private readonly blasts: { x: number; y: number }[] = [];
   /** Shell hits being folded (M13), by hit robot and shooter. */
   private readonly hits = new Map<string, { ev: TraceEvent; by: string; count: number; damage: number; parts: Map<string, number>; first: number; last: number }>();
+  /** M15: a bolt's hits on one piece on one tick, folded into one line. */
+  private readonly bolts = new Map<string, { ev: TraceEvent; by: string; damage: number; parts: string[]; tick: number }>();
   /** M14: laser burns on one piece by one robot within a second, folded into one line. */
   private readonly burns = new Map<string, { ev: TraceEvent; by: string; parts: string[]; first: number; last: number }>();
   private readonly lastLog = new Map<string, TraceEvent>();
@@ -228,6 +230,28 @@ export class Tracer {
             const until = r.last > r.first ? ` until t=${r.last.toFixed(2)}` : '';
             r.ev.text = `hit by ${r.count} shell${r.count === 1 ? '' : 's'} from ${r.by}${until}: ${r.damage} damage (${parts})`;
           }
+          break;
+        }
+        case 'cannonFire':
+          push(e.robot, 'cannonFire', `${e.part} fired`);
+          break;
+        case 'cannonBackfire':
+          push(e.robot, 'cannonBackfire', `${e.part} backfired: held full too long, nothing fired`);
+          break;
+        case 'boltHit': {
+          // M15: a bolt goes through several parts in a tick: its hits on one piece on one tick fold into one line.
+          const key = `${e.robot}:${e.by}`;
+          let run = this.bolts.get(key);
+          if (run && run.tick === e.tick) {
+            run.damage += e.damage;
+            run.parts.push(e.part);
+          } else {
+            const ev: TraceEvent = { t: tickTime, robot: this.letter(e.robot), kind: 'boltHit', text: '' };
+            this.events.push(ev);
+            run = { ev, by: this.letter(e.by), damage: e.damage, parts: [e.part], tick: e.tick };
+            this.bolts.set(key, run);
+          }
+          run.ev.text = `hit by a bolt from ${run.by}: ${run.damage} damage (${run.parts.join(', ')})`;
           break;
         }
         case 'laserBurn': {
