@@ -24,5 +24,6 @@
   "behavior": "cannon",
   "cannon": { "charge": 3, "hold": 2, "dead": 2, "damage": 250, "speed": 600, "width": 0, "life": 2, "range": 400, "recoil": 300, "backfire": 30 },
   "onDestroyed": { "explode": { "radius": 2.5, "damage": 80, "pushRadius": 4, "push": 25, "lift": 1 } },
+  "sound": { "run": "charge.light", "fire": "lance" },
   "sprite": { "frame": "part.lance" }
 }

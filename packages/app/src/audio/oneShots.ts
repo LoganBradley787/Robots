@@ -298,6 +298,62 @@ function laserOff(dry: Kit): void {
   ring(dry, 0, 0.16, [210, 360], 0.3);
 }
 
+/**
+ * The cannon firing (Logan: it charges for six seconds and fires a massive shot, the highest damage there is; not as
+ * dramatic as the laser, but a lot of power). Six seconds of charge let go at once: a crack, a boom that drops
+ * through the floor, the bolt tearing away, and a long roar after it.
+ */
+function fireCannon(dry: Kit): void {
+  const k = driven(dry, 3.5);
+  burst(dry, dry.white, 0, 0.025, { type: 'highpass', f: 2000, gain: 0.7 });
+  burst(k, k.white, 0, 0.07, { type: 'bandpass', f: 1500, q: 0.6, gain: 1.5 });
+  tone(k, 'sine', 0, 0.95, 140, 26, 1.7);
+  tone(k, 'triangle', 0, 0.4, 220, 50, 0.5);
+  burst(k, k.brown, 0, 1.35, { type: 'lowpass', f: 900, f1: 70, gain: 1.5 });
+  burst(k, k.white, 0, 0.6, { type: 'lowpass', f: 4000, f1: 200, gain: 0.9 });
+  // The bolt leaving.
+  screech(dry, 0.01, 0.28, 2400, 300, 0.22);
+}
+
+/**
+ * The lance firing (Logan: a less powerful cannon that fires twice as fast, smaller and faster bolts, a long-range
+ * gun). Sharp where the cannon is huge: a hard crack, the zip of something leaving very fast, and a punch under it.
+ */
+function fireLance(dry: Kit): void {
+  const k = driven(dry, 2.5);
+  burst(dry, dry.white, 0, 0.004, { type: 'highpass', f: 3000, gain: 1 });
+  burst(k, k.white, 0, 0.05, { type: 'bandpass', f: 2400, q: 1, gain: 1.7 });
+  burst(k, k.white, 0, 0.09, { type: 'bandpass', f: 1000, q: 0.8, gain: 0.8 });
+  screech(dry, 0, 0.17, 3200, 700, 0.8);
+  tone(k, 'sine', 0, 0.14, 190, 70, 0.55);
+  burst(k, k.brown, 0, 0.25, { type: 'lowpass', f: 650, f1: 180, gain: 0.4 });
+  burst(k, k.white, 0.02, 0.22, { type: 'bandpass', f: 1200, q: 0.6, gain: 0.3 });
+}
+
+/** A charged gun held full too long: it chokes. A dull boom going nowhere, the charge winding down, sparks. */
+function backfire(dry: Kit): void {
+  const k = driven(dry, 2);
+  burst(k, k.brown, 0, 0.32, { type: 'lowpass', f: 500, f1: 150, gain: 1.2 });
+  tone(k, 'sine', 0, 0.26, 90, 38, 1);
+  burst(k, k.white, 0, 0.03, { type: 'bandpass', f: 900, q: 0.6, gain: 0.7 });
+  tone(dry, 'sawtooth', 0.02, 0.45, 260, 50, 0.14);
+  const sparks = 8 + Math.floor(k.rnd() * 5);
+  for (let i = 0; i < sparks; i++) {
+    const t = 0.03 + k.rnd() * 0.45;
+    burst(dry, dry.white, t, 0.004 + k.rnd() * 0.012, { type: 'highpass', f: 2800 + k.rnd() * 3000, gain: 0.45 * (1 - t / 0.52) });
+  }
+}
+
+/** A bolt going through a part: far past a shell's bonk. A slam, the plate caving, and what is left of it ringing. */
+function hitBolt(dry: Kit): void {
+  const k = driven(dry, 2.5);
+  burst(k, k.white, 0, 0.02, { type: 'bandpass', f: 1600, q: 0.6, gain: 0.9 });
+  tone(k, 'sine', 0, 0.3, 150, 40, 1.4);
+  burst(k, k.brown, 0, 0.36, { type: 'lowpass', f: 650, f1: 120, gain: 1.2 });
+  screech(dry, 0.01, 0.16, 520, 300, 0.2);
+  ring(dry, 0, 0.42, [260, 610, 1130], 0.6);
+}
+
 export const ONE_SHOTS: Readonly<Record<string, OneShot>> = {
   gun: { seconds: 0.11, variants: 4, make: gun },
   'hit.metal': { seconds: 0.34, variants: 3, make: hit('metal') },
@@ -315,6 +371,10 @@ export const ONE_SHOTS: Readonly<Record<string, OneShot>> = {
   ignite: { seconds: 0.42, variants: 2, make: ignite },
   'laser.on': { seconds: 0.75, variants: 2, make: laserOn },
   'laser.off': { seconds: 0.55, variants: 2, make: laserOff },
+  'fire.cannon': { seconds: 1.45, variants: 2, make: fireCannon },
+  'fire.lance': { seconds: 0.4, variants: 3, make: fireLance },
+  backfire: { seconds: 0.6, variants: 2, make: backfire },
+  'hit.bolt': { seconds: 0.5, variants: 3, make: hitBolt },
 };
 
 /** What a part sounds like struck or broken: its def's `sound.hit` when the table has it, else metal. */

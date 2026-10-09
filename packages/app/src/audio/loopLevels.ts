@@ -17,6 +17,9 @@ export const LOOP_DRIVES: Readonly<Record<string, LoopDrive>> = {
   propeller: { input: 'throttle' },
   thruster: { input: 'throttle' },
   wheel: { spin: true, over: 'maxSpeed', contact: true },
+  // A charged gun winding up: how full it is.
+  'charge.heavy': { output: 'charged' },
+  'charge.light': { output: 'charged' },
 };
 
 /** The part of a part this needs, so tests pass plain objects. */

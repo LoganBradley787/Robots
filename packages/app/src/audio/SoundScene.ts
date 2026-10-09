@@ -27,8 +27,19 @@ export interface EventSound {
   must?: true;
 }
 
-/** The one-shots a world event makes. `materialOf` gives what a part type sounds like struck (`metal`, `armor`, `soft`). */
-export function soundsFor(ev: WorldEvent, materialOf: (partType: string) => string): EventSound[] {
+/** What the sounds of an event need to know about a part type, from its def. */
+export interface PartSounds {
+  /** What it sounds like struck (`metal`, `armor`, `soft`). */
+  material(partType: string): string;
+  /** Its firing sound's name (the def's `sound.fire`), if it has one. */
+  fire(partType: string): string | undefined;
+  /** How hard it backfires, 0 to 1 (a cannon against a lance). */
+  backfire(partType: string): number;
+}
+
+/** The one-shots a world event makes. */
+export function soundsFor(ev: WorldEvent, parts: PartSounds): EventSound[] {
+  const materialOf = parts.material;
   switch (ev.kind) {
     case 'explosion':
       return [{ name: explosionFor(ev.radius), gain: Math.min(1.5, 0.6 + ev.radius / 6), rate: 1, must: true }];
@@ -37,6 +48,18 @@ export function soundsFor(ev: WorldEvent, materialOf: (partType: string) => stri
       return ev.exploded || ev.burntOut === true ? [] : [{ name: `break.${materialOf(ev.partType)}`, gain: 0.7, rate: 1 }];
     case 'shellHit':
       return [{ name: `hit.${materialOf(ev.partType)}`, gain: 0.6, rate: 1 }];
+    case 'cannonFire': {
+      // A charged gun's shot is rare and big: it always plays, as a blast does.
+      const fire = parts.fire(ev.partType);
+      return fire !== undefined && `fire.${fire}` in ONE_SHOTS ? [{ name: `fire.${fire}`, gain: 1.3, rate: 1, must: true }] : [];
+    }
+    case 'cannonBackfire':
+      return [{ name: 'backfire', gain: 0.6 + 0.6 * parts.backfire(ev.partType), rate: 1.25 - 0.4 * parts.backfire(ev.partType) }];
+    case 'boltHit': {
+      // A bolt gives each part on its path what it has left: the more it took, the harder and lower the slam.
+      const hard = Math.min(1, ev.damage / 250);
+      return [{ name: 'hit.bolt', gain: 0.5 + 0.8 * hard, rate: 1.25 - 0.35 * hard }];
+    }
     case 'decoupled':
       return [{ name: 'decouple', gain: 0.6, rate: 1 }];
     case 'impact': {
@@ -128,7 +151,14 @@ export class SoundScene {
   event(ev: WorldEvent, world: World): void {
     if (!this.engine?.ready || this.current.muted || world.tick - ev.tick > STALE_TICKS) return;
     const at = ev as { x?: number; y?: number };
-    for (const snd of soundsFor(ev, (type) => this.materialOf(world, type))) this.ask(snd.name, at.x ?? 0, at.y ?? 0, snd.gain, snd.rate, snd.must === true);
+    const def = (type: string) => (world.registry.has(type) ? world.registry.get(type) : undefined);
+    const parts: PartSounds = {
+      material: (type) => this.materialOf(world, type),
+      fire: (type) => def(type)?.sound?.fire,
+      // Against the cannon's 80 N s: a lance (30) chokes smaller.
+      backfire: (type) => Math.min(1, (def(type)?.cannon?.backfire ?? 0) / 80),
+    };
+    for (const snd of soundsFor(ev, parts)) this.ask(snd.name, at.x ?? 0, at.y ?? 0, snd.gain, snd.rate, snd.must === true);
   }
 
   /** Once per drawn frame: moves the ear to the camera, plays what was queued, and updates the loops. */

@@ -183,8 +183,8 @@ describe('PartRegistry', () => {
 
 describe('sound (M15)', () => {
   it('carries the voice names for the app', () => {
-    const d = parsePartDef({ ...minimal, sound: { run: 'propeller', hit: 'armor' } }, 'thing.json');
-    expect(d.sound).toEqual({ run: 'propeller', hit: 'armor' });
+    const d = parsePartDef({ ...minimal, sound: { run: 'propeller', hit: 'armor', fire: 'cannon' } }, 'thing.json');
+    expect(d.sound).toEqual({ run: 'propeller', hit: 'armor', fire: 'cannon' });
     expect(parsePartDef(minimal, 'thing.json').sound).toBeUndefined();
   });
 
@@ -201,6 +201,8 @@ describe('sound (M15)', () => {
     expect(reg.get('wheel')?.sound?.run).toBe('wheel');
     expect(reg.get('laser')?.sound?.run).toBe('laser');
     expect(reg.get('armorplate')?.sound?.hit).toBe('armor');
+    expect(reg.get('cannon')?.sound).toEqual({ run: 'charge.heavy', fire: 'cannon' });
+    expect(reg.get('lance')?.sound).toEqual({ run: 'charge.light', fire: 'lance' });
     expect(reg.get('frame')?.sound).toBeUndefined();
   });
 });

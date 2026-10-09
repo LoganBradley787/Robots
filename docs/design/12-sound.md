@@ -17,8 +17,9 @@ Status: built in M15 (2026-10-08), decided with Logan. Tuning is by ear at the g
 
 ## Sounds are data on the part
 - A part def may carry `sound: { run?, hit? }`. The sim carries it untouched and never hashes it.
-- `run` names a looping voice: `propeller`, `thruster`, `wheel`, `laser`.
+- `run` names a looping voice: `propeller`, `thruster`, `wheel`, `laser`, `charge.heavy` (the cannon), `charge.light` (the lance).
 - `hit` names what it sounds like struck or broken: `metal` (when absent), `armor`, `soft`.
+- `fire` names its firing sound, for a gun that fires rarely enough for the sim to log each shot: `cannon`, `lance` (the one-shots `fire.cannon`, `fire.lance`).
 - The app never names a part type. A new part gets sound by adding the field. A new voice is one entry in `LOOP_VOICES` (`loops.ts`) and, if a part's channel drives it, one in `LOOP_DRIVES` (`loopLevels.ts`).
 
 ## What triggers what
@@ -29,6 +30,10 @@ Status: built in M15 (2026-10-08), decided with Logan. Tuning is by ear at the g
 | Shell hit, by material | `shellHit` |
 | Decoupler clunk | `decoupled` |
 | Thud, and a rattle above 8 m/s | `impact` (new in M15) |
+| A charged gun filling | its `charged` output, 0 to 1: the drone climbs, opens and shudders faster as it fills, throbs when full, and winds back down if let go early |
+| A charged gun firing | `cannonFire`: the def's `sound.fire`. Always plays, like a blast |
+| A charged gun choking | `cannonBackfire`: bigger and lower for a bigger gun (the def's `cannon.backfire`) |
+| A bolt going through a part | `boltHit`: one slam for each part on its path, harder and lower the more damage it took |
 | Gun | a shell object not seen before (`ShotWatcher`), plus `shotsBy` for shells that came and went within one frame (heard from the robot's middle); the sim logs no event per shot |
 | Propeller, thruster | the parts' `throttle` input |
 | Wheel | how fast the wheel's body spins against the robot's, over its `maxSpeed` (the sim does not fill in the wheel's `angularVelocity` output); the rumble is full while the wheel touches something |
@@ -45,6 +50,7 @@ Status: built in M15 (2026-10-08), decided with Logan. Tuning is by ear at the g
 ## Loops
 - One voice per robot per voice name, never per part. 732 boosters are one burn.
 - Loudness is `min(1, 0.3 * sqrt(sum of the parts' levels))`. Pitch and tone follow the mean level of the parts that are on.
+- Propulsion is background (Logan, Gate 14): propellers and thrusters are quiet (0.3), weapons and impacts are the show.
 - A loop sits at the robot's root body. At most 12 sound at once, the loudest at the ear (one that already has a voice is favored, and a voice that falls silent is kept half a second, so they do not flicker). Looked at 20 times a second, gliding between.
 - A part driven by an input and needing energy is silent once its robot has none. A wheel is heard by its spin, so a coasting one still rolls.
 

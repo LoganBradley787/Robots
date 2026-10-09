@@ -343,10 +343,11 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   if (o.build !== undefined) def.build = r.positive(o, 'build', '');
   // M15: voice names for the app; the sim only carries them.
   if (o.sound !== undefined) {
-    const so = r.obj(o.sound, 'sound', ['run', 'hit']);
+    const so = r.obj(o.sound, 'sound', ['run', 'hit', 'fire']);
     def.sound = {};
     if (so.run !== undefined) def.sound.run = r.str(so, 'run', 'sound');
     if (so.hit !== undefined) def.sound.hit = r.str(so, 'hit', 'sound');
+    if (so.fire !== undefined) def.sound.fire = r.str(so, 'fire', 'sound');
   }
   if (o.defaultTags !== undefined) {
     def.defaultTags = r.arr(o, 'defaultTags', '').map((t, i) => {

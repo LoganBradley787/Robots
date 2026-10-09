@@ -54,10 +54,12 @@ export interface ColliderSpec {
  * The names are voices in the app's sound table.
  */
 export interface SoundSpec {
-  /** The looping voice the part makes while it works (`propeller`, `thruster`, `wheel`, `laser`). */
+  /** The looping voice the part makes while it works (`propeller`, `thruster`, `wheel`, `laser`, `charge.heavy`). */
   run?: string;
   /** What it sounds like struck or broken (`metal` when absent, `armor`, `soft`). */
   hit?: string;
+  /** What it sounds like firing, for a gun that fires rarely enough to log each shot (`cannon`, `lance`). */
+  fire?: string;
 }
 
 export interface SpriteSpec {

@@ -271,6 +271,58 @@ const burn: Maker = (engine) => {
 };
 
 /**
+ * A charged gun winding up (the cannon: six seconds; the lance: three, and lighter). The level is how full it is, so
+ * the sound is the charge: a deep drone that climbs and opens, a strained band rising over it, and a shudder that
+ * quickens. Full, it throbs hard: let go now. Let go early and it winds back down the way it came.
+ */
+function charge(base: number, bright: number): Maker {
+  return (engine, detune) => {
+    const out = gain(engine, 0);
+    const pulse = gain(engine, 1);
+    pulse.connect(out);
+    const hot = drive(engine, 3.5);
+    const open = filter(engine, 'lowpass', 300, 0.7);
+    hot.connect(open).connect(gain(engine, 0.55)).connect(pulse);
+    const a = osc(engine, 'sawtooth', base);
+    const b = osc(engine, 'sawtooth', base + 0.8);
+    a.connect(gain(engine, 0.5)).connect(hot);
+    b.connect(gain(engine, 0.5)).connect(hot);
+    const sub = osc(engine, 'sine', base * 2);
+    sub.connect(gain(engine, 0.4)).connect(pulse);
+    // The strain: one band of the drone, far up, coming in as it fills.
+    const strain = filter(engine, 'bandpass', base * 8, 7);
+    const strainGain = gain(engine, 0);
+    a.connect(strain).connect(strainGain).connect(pulse);
+    const air = noiseLoop(engine, engine.brown);
+    const airGain = gain(engine, 0);
+    air.connect(filter(engine, 'lowpass', 500 * bright, 0.7)).connect(airGain).connect(pulse);
+    const shudder = osc(engine, 'sine', 3);
+    const depth = gain(engine, 0);
+    shudder.connect(depth).connect(pulse.gain);
+    return {
+      out,
+      set(level, _grip, now) {
+        const full = level >= 0.995;
+        const f = base * (1 + 1.5 * level) * detune;
+        a.frequency.setTargetAtTime(f, now, FOLLOW);
+        b.frequency.setTargetAtTime(f + 0.8 + 2 * level, now, FOLLOW);
+        sub.frequency.setTargetAtTime(f * 2, now, FOLLOW);
+        open.frequency.setTargetAtTime((300 + 1700 * level * level) * bright, now, FOLLOW);
+        strain.frequency.setTargetAtTime(f * 8, now, FOLLOW);
+        strainGain.gain.setTargetAtTime(0.5 * level * level, now, FOLLOW);
+        airGain.gain.setTargetAtTime(0.35 * level, now, FOLLOW);
+        shudder.frequency.setTargetAtTime(full ? 9 : 3 + 9 * level, now, FOLLOW);
+        depth.gain.setTargetAtTime(full ? 0.45 : 0.2 * level, now, FOLLOW);
+        out.gain.setTargetAtTime(0.3 + 0.7 * level, now, FOLLOW);
+      },
+      stop(at) {
+        for (const n of [a, b, sub, air, shudder]) n.stop(at);
+      },
+    };
+  };
+}
+
+/**
  * The looping voices by name (a part def's `sound.run`), and how loud each is against the others. One beam is a level
  * of 1 where a drone's propellers sum to 4 or more, and a laser should be the loudest thing a robot does: hence its gain.
  */
@@ -283,6 +335,9 @@ export const LOOP_VOICES: Readonly<Record<string, { make: Maker; gain: number }>
   wheel: { make: wheel, gain: 0.5 },
   laser: { make: laser, gain: 2.6 },
   'laser.burn': { make: burn, gain: 1.7 },
+  // One gun is a level of at most 1, like one beam.
+  'charge.heavy': { make: charge(34, 1), gain: 1.2 },
+  'charge.light': { make: charge(58, 1.5), gain: 0.8 },
 };
 
 /** A voice with its place in the mix: the ear's gain, pan and dulling. */
