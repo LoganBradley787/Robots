@@ -93,20 +93,40 @@ function driven(k: Kit, amount: number): Kit {
  * clipping, which is what makes a low sound read as heavy on small speakers.
  */
 
+/** Reports in one gun sound, and the seconds between them: 40 a second, four to a shot. */
+const GUN_REPORTS = 4;
+const GUN_GAP = 0.025;
+
 /**
- * A gun (Logan, round 2: a "tek", not a thunk; they fire ten a second, so a burst should go "prprprpr" like a plane's
- * machine gun). Short and sharp: a hard crack up in the mids, a knock under it for the weight of a big gun, and it is
- * gone before the next one.
+ * A gun (Logan, round 3: still a "tuk", it should be a "brrrr", like a plane's machine gun). The guns fire ten shells
+ * a second, and ten of anything a second is tuk tuk tuk however each one sounds: a brrr is reports too close together
+ * to tell apart. So one shot sounds as four bright reports 25 ms apart, which fills the tenth of a second to the next
+ * shot: a held trigger is an unbroken 40 a second, and a buzz at that rate under it is the brrr. No knock, no thump:
+ * that was the tuk. The sim still fires ten shells a second; only the sound is faster.
  */
 function gun(dry: Kit): void {
   const k = driven(dry, 2);
-  const pitch = 0.92 + k.rnd() * 0.16;
-  burst(k, k.white, 0, 0.004, { type: 'highpass', f: 2500, gain: 1 });
-  burst(k, k.white, 0, 0.06, { type: 'bandpass', f: 1900 * pitch, q: 0.9, gain: 1.4 });
-  burst(k, k.white, 0, 0.08, { type: 'bandpass', f: 900 * pitch, q: 0.8, gain: 0.9 });
-  tone(k, 'square', 0, 0.035, 560 * pitch, 240, 0.5);
-  // Just enough bottom that it is a big gun and not a cap pistol.
-  tone(k, 'sine', 0, 0.05, 200 * pitch, 110, 0.35);
+  const pitch = 0.94 + k.rnd() * 0.12;
+  for (let i = 0; i < GUN_REPORTS; i++) {
+    const t = i * GUN_GAP;
+    const level = 0.85 + k.rnd() * 0.3;
+    burst(k, k.white, t, 0.003, { type: 'highpass', f: 3500, gain: level });
+    burst(k, k.white, t, 0.018, { type: 'bandpass', f: 2700 * pitch, q: 1, gain: 1.3 * level });
+    burst(k, k.white, t, 0.022, { type: 'bandpass', f: 1200 * pitch, q: 0.9, gain: 0.7 * level });
+    tone(k, 'square', t, 0.012, 760 * pitch, 420, 0.3 * level);
+  }
+  // The buzz of the gun itself at the rate it fires: the "rrr".
+  const buzz = k.ctx.createOscillator();
+  buzz.type = 'sawtooth';
+  buzz.frequency.value = 1 / GUN_GAP;
+  const body = k.ctx.createBiquadFilter();
+  body.type = 'lowpass';
+  body.frequency.value = 700;
+  const g = k.ctx.createGain();
+  g.gain.value = 0.13;
+  buzz.connect(body).connect(g).connect(k.out);
+  buzz.start(0);
+  buzz.stop(GUN_REPORTS * GUN_GAP);
 }
 
 /** The tones a struck plate rings at: they do not line up, which is what makes it metal and not a note. */
@@ -279,7 +299,7 @@ function laserOff(dry: Kit): void {
 }
 
 export const ONE_SHOTS: Readonly<Record<string, OneShot>> = {
-  gun: { seconds: 0.12, variants: 4, make: gun },
+  gun: { seconds: 0.11, variants: 4, make: gun },
   'hit.metal': { seconds: 0.34, variants: 3, make: hit('metal') },
   'hit.armor': { seconds: 0.4, variants: 3, make: hit('armor') },
   'hit.soft': { seconds: 0.18, variants: 2, make: hit('soft') },

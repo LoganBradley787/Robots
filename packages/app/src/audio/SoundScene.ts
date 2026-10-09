@@ -254,7 +254,8 @@ export class SoundScene {
     });
     this.pending = [];
     for (const a of this.limiter.pick(asks, engine.now)) {
-      engine.play(a.name, a.heard, a.own, a.after, a.rate * (0.94 + Math.random() * 0.12));
+      // A gun's reports are timed to run one shot into the next, so its speed is left alone.
+      engine.play(a.name, a.heard, a.own, a.after, a.name === 'gun' ? a.rate : a.rate * (0.94 + Math.random() * 0.12));
       this.played.set(a.name, (this.played.get(a.name) ?? 0) + 1);
     }
   }

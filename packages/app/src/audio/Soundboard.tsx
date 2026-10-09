@@ -95,7 +95,7 @@ function Soundboard() {
   const burstOf = (name: string): void => {
     const e = wake();
     const go = (): void => {
-      for (let i = 0; i < 15; i++) e.play(name, heard, 0.8, i * 0.1, 0.94 + Math.random() * 0.12);
+      for (let i = 0; i < 15; i++) e.play(name, heard, 0.8, i * 0.1, name === 'gun' ? 1 : 0.94 + Math.random() * 0.12);
     };
     if (e.ready) go();
     else setTimeout(go, 300);
