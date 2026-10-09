@@ -30,6 +30,7 @@ interface PartDef {
   resource?: { kind: "energy"; capacity: number };   // containers (battery)
   onDestroyed?: { explode?: { radius: number; impulse: number } };
   sprite: SpriteSpec;               // frame, mountFrame (joint parts: drawn on the parent body), animation, overlay (flame)
+  sound?: { run?: string; hit?: string }; // M15: voice names for the app (`12`); the sim carries them, never hashed
   defaultTags?: string[];
 }
 interface FootprintCell { x: number; y: number; faces: Face[] }   // faces that accept attachment
