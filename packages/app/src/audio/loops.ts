@@ -278,7 +278,8 @@ export const LOOP_VOICES: Readonly<Record<string, { make: Maker; gain: number }>
   // Logan, Gate 14: a propeller is a spinny thing that touches the air, a thruster is blasting fire. Propellers were
   // drowning the rest out (a drone has 4 to 14 of them, so its group is at or near full loudness all the time).
   propeller: { make: propeller, gain: 0.3 },
-  thruster: { make: thruster, gain: 1.3 },
+  // Logan, same gate: drones that fly on thrusters were deafening. Propulsion is background; the impacts are the show.
+  thruster: { make: thruster, gain: 0.3 },
   wheel: { make: wheel, gain: 0.5 },
   laser: { make: laser, gain: 2.6 },
   'laser.burn': { make: burn, gain: 1.7 },
