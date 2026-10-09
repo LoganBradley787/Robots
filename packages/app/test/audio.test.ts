@@ -147,7 +147,7 @@ describe('loop levels (M15)', () => {
   it('gives voices to the loudest at the ear', () => {
     const g = (robot: number, sum: number, x: number): LoopGroup => ({ key: `${robot}:propeller`, robot, voice: 'propeller', sum, on: 1, x, y: 0 });
     const groups = [g(1, 1, 0), g(2, 1, 500), g(3, 4, 100), g(4, 0, 0)];
-    const gain = (x: number) => 20 / (20 + Math.abs(x));
+    const gain = (g: LoopGroup) => 20 / (20 + Math.abs(g.x));
     expect(pickLoops(groups, gain, 2).map((p) => p.robot)).toEqual([1, 3]);
     // The silent one never gets a voice, however many there are to give.
     expect(pickLoops(groups, gain, 12).map((p) => p.robot)).toEqual([1, 3, 2]);

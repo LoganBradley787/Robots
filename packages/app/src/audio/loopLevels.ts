@@ -4,13 +4,15 @@ export interface LoopDrive {
   output?: string;
   /** The behaviorConfig value the output is divided by (a wheel's `maxSpeed`). */
   over?: string;
+  /** The voice also wants to know how many of the parts touch something (a wheel on the ground). */
+  contact?: true;
 }
 
 /** How a part's level is read, per voice name. A voice not listed here is driven some other way (the laser: its beam). */
 export const LOOP_DRIVES: Readonly<Record<string, LoopDrive>> = {
   propeller: { input: 'throttle' },
   thruster: { input: 'throttle' },
-  wheel: { output: 'angularVelocity', over: 'maxSpeed' },
+  wheel: { output: 'angularVelocity', over: 'maxSpeed', contact: true },
 };
 
 /** The part of a part this needs, so tests pass plain objects. */
@@ -48,6 +50,8 @@ export interface LoopGroup {
   on: number;
   x: number;
   y: number;
+  /** For a voice whose drive asks for `contact`: how many of the parts that are on touch something. */
+  grip?: number;
 }
 
 /** The mean level of the parts that are on, 0 to 1: what the voice's pitch and tone follow. */
@@ -59,10 +63,10 @@ export const MAX_LOOPS = 12;
 /** Quieter than this at the ear, a loop is not worth a voice. */
 export const LOOP_FLOOR = 0.003;
 
-/** The groups that get a voice: the `max` loudest at the ear (`earGain` is the ear's gain for a point). */
-export function pickLoops(groups: readonly LoopGroup[], earGain: (x: number, y: number) => number, max = MAX_LOOPS): LoopGroup[] {
+/** The groups that get a voice: the `max` loudest at the ear (`heard` is the ear's gain for a group, its voice's own loudness included). */
+export function pickLoops(groups: readonly LoopGroup[], heard: (g: LoopGroup) => number, max = MAX_LOOPS): LoopGroup[] {
   return groups
-    .map((g) => ({ g, loud: loopGain(g.sum) * earGain(g.x, g.y) }))
+    .map((g) => ({ g, loud: loopGain(g.sum) * heard(g) }))
     .filter((e) => e.loud >= LOOP_FLOOR)
     .sort((a, b) => b.loud - a.loud || (a.g.key < b.g.key ? -1 : 1))
     .slice(0, max)

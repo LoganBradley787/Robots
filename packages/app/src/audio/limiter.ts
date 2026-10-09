@@ -28,7 +28,11 @@ export class OneShotLimiter {
   /** Recent start times per sound name. */
   private readonly starts = new Map<string, number[]>();
 
-  constructor(private readonly opts: LimiterOptions = DEFAULT_LIMITS) {}
+  private readonly opts: LimiterOptions;
+
+  constructor(opts: LimiterOptions = DEFAULT_LIMITS) {
+    this.opts = opts;
+  }
 
   /** The asks that may play, loudest first. `now` is in seconds, on any clock that only moves forward. */
   pick<T extends Ask>(asks: readonly T[], now: number): T[] {

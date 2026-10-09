@@ -5,6 +5,7 @@ import { drawDebug } from '../render/DebugDraw';
 import { drawSensors, type SensorOverlay } from '../render/SensorDraw';
 import { interpolateState } from '../render/interpolate';
 import { RobotView } from '../render/RobotView';
+import { SoundScene } from '../audio/SoundScene';
 import { Effects } from '../render/Effects';
 import { ShellsView } from '../render/ShellsView';
 import { BeamsView } from '../render/BeamsView';
@@ -87,6 +88,8 @@ export class WorldScreen {
   /** One view per robot, by robot id. Rebuilt when the robot is (damage, a split), dropped when it is gone. */
   private views = new Map<number, RobotView>();
   private readonly effects = new Effects();
+  /** M15: the world's sound. It only listens. */
+  readonly sound: SoundScene;
   private readonly shells = new ShellsView();
   private readonly beams = new BeamsView();
   private readonly bolts = new BoltsView();
@@ -147,6 +150,7 @@ export class WorldScreen {
     this.world = world;
     this.settingsStore = browserStorage();
     this.deploy = loadDeploySettings(this.settingsStore);
+    this.sound = new SoundScene(this.settingsStore);
     this.cam = createCamera(file.spawn.x, file.spawn.y - 3);
     this.stepper = new FixedStepper(1000 * world.dt);
     this.lastHash = world.hash();
@@ -205,6 +209,7 @@ export class WorldScreen {
     this.effects.clear();
     this.beams.clear();
     this.bolts.clear();
+    this.sound.clear();
     this.keys.clear();
     this.focusId = undefined;
     this.eventCursor = 0;
@@ -393,6 +398,8 @@ export class WorldScreen {
   setPaused(paused: boolean): void {
     if (this.time.paused === paused) return;
     this.time.paused = paused;
+    // The frame is not drawn while the builder is open, so the sound hears of the pause here.
+    this.sound.setPaused(paused);
     if (paused) this.stepper.reset();
     else this.stepper.resume();
   }
@@ -552,6 +559,7 @@ export class WorldScreen {
     for (; this.eventCursor < this.world.events.length; this.eventCursor++) {
       const ev = this.world.events[this.eventCursor];
       const who = this.world.robots.find((r) => r.id === ev?.robot);
+      if (ev) this.sound.event(ev, this.world);
       if (ev?.kind === 'energyEmpty' && who) this.onNotice?.(`${who.name} ran out of energy`);
       if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
       if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
@@ -589,6 +597,7 @@ export class WorldScreen {
       // Only your own: an enemy's missiles wake too, and you cannot take them over.
       if (ev?.kind === 'coreWoke' && who && who.team === 0) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);
     }
+    this.sound.frame(this.world, this.cam, this.renderer.screenWidth, time);
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
     if (controlled && controller) {
       // A key bound to a script is a toggle too, lit while any of its scripts runs.
