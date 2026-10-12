@@ -448,6 +448,88 @@ describe('charged guns (M15): the cannon and the lance', () => {
     w.dispose();
   });
 
+  it('the shadow of a wall lasts the whole flight: an edge that met terrain is gone for good', async () => {
+    const walled = parseWorldFile({ name: 'walled', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 }, boxes: [{ x: 40, y: 98.45, w: 2, h: 2 }] });
+    for (const x of [55, 60, 70, 150]) {
+      const w = await World.create({ seed: 1, gravityY: 0 }, walled);
+      const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
+      const hidden = w.spawnBlueprint({ format: 1, name: 'hidden', grid: ['F'] }, { x, y: 98.9 });
+      steps(w, 5);
+      chargeUp(w, rig);
+      w.step(letGo(rig.id));
+      steps(w, 40);
+      expect(w.events.filter((e) => e.kind === 'boltHit'), `frame ${x - 40} m behind the wall`).toEqual([]);
+      expect(hidden.parts.get('frame@0,0')?.health).toBe(60);
+      w.dispose();
+    }
+  });
+
+  it('the rest of the orb flies on past the wall: a part on its middle line behind it is hit', async () => {
+    const walled = parseWorldFile({ name: 'walled', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 }, boxes: [{ x: 40, y: 98.45, w: 2, h: 2 }] });
+    const w = await World.create({ seed: 1, gravityY: 0 }, walled);
+    const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
+    const open = w.spawnBlueprint({ format: 1, name: 'open', grid: ['F'] }, { x: 70, y: 99.8 });
+    steps(w, 5);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 40);
+    expect(w.events.filter((e) => e.kind === 'boltHit')).toMatchObject([{ robot: open.id, partType: 'frame', damage: 60 }]);
+    w.dispose();
+  });
+
+  it('its own kick is not a crash: a 42 kg robot fires a cannon and keeps every part (review W1)', async () => {
+    const w = await space0();
+    const light = w.spawnBlueprint({ format: 1, name: 'light', grid: ['C Cn> = = =', '. =   = = ='], bindings: fire('cannon') }, { x: 0, y: 100 });
+    w.setUnlimitedEnergy(true);
+    const parts = light.parts.size;
+    steps(w, 5);
+    chargeUp(w, light);
+    w.step(letGo(light.id));
+    steps(w, 30);
+    expect(w.events.filter((e) => e.kind === 'cannonFire')).toHaveLength(1);
+    expect(light.parts.size).toBe(parts);
+    for (const part of light.parts.values()) expect(part.health, part.id).toBe(part.def.health);
+    // It is still thrown back by all 800 N s (a little of it goes into spin: the barrel is below its middle).
+    const body = light.groups[0]?.bodyId as number;
+    expect(w.physics.state(body).vx).toBeCloseTo(-800 / w.physics.massProperties(body).mass, 0);
+    w.dispose();
+  });
+
+  it('nor does it set off the robot\'s own armed warhead, firing or backfiring', async () => {
+    for (const wait of [0, 130]) {
+      const w = await space0();
+      const rig = w.spawnBlueprint({ format: 1, name: 'armed', grid: ['X C Ln> = = ='], legend: { X: { part: 'warhead', armed: true } }, bindings: fire('lance') }, { x: 0, y: 100 });
+      w.setUnlimitedEnergy(true);
+      const parts = rig.parts.size;
+      steps(w, 5);
+      chargeUp(w, rig);
+      steps(w, wait);
+      w.step(letGo(rig.id));
+      steps(w, 30);
+      expect(w.events.filter((e) => e.kind === (wait ? 'cannonBackfire' : 'cannonFire'))).toHaveLength(1);
+      expect(w.events.filter((e) => e.kind === 'explosion')).toEqual([]);
+      expect(rig.parts.size).toBe(parts);
+      w.dispose();
+    }
+  });
+
+  it('a bolt just does its damage: its shove is not a crash on what it hits', async () => {
+    const w = await space0();
+    const rig = w.spawnBlueprint(LANCE, { x: 0, y: 100 });
+    // A loose frame, then a robot whose heavy plate lives through the rest (190 of the bolt's 250, so 228 N s on the
+    // plate: some 9 m/s on that robot, which loses no part); the armed warhead behind the plate has a 5 m/s fuze.
+    const loose = w.spawnBlueprint({ format: 1, name: 'loose', grid: ['F'] }, { x: 50, y: 100 }, { team: 1 });
+    const target = w.spawnBlueprint({ format: 1, name: 'target', grid: ['A X'], legend: { X: { part: 'warhead', armed: true } } }, { x: 60, y: 100 }, { team: 1 });
+    steps(w, 5);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 30);
+    expect(w.events.filter((e) => e.kind === 'boltHit')).toMatchObject([{ robot: loose.id, partType: 'frame', damage: 60 }, { robot: target.id, partType: 'armorplate', damage: 190 }]);
+    expect(w.events.filter((e) => e.kind === 'explosion')).toEqual([]);
+    expect(Math.abs(w.physics.state(target.groups[0]?.bodyId as number).vx)).toBeGreaterThan(5);
+    w.dispose();
+  });
+
   it('is hashed only when present, and runs the same twice and on a replay', async () => {
     const run = async (): Promise<{ hash: string; w: World }> => {
       // On the ground with gravity on, well left of the flat world's boxes.

@@ -20,6 +20,8 @@ export interface Bolt {
   push: number;
   /** Meters across: it takes every part its width touches. 0 is a line. */
   width: number;
+  /** The lines across its width that have met terrain and hit nothing more, one bit each, lowest offset first. */
+  dead: number;
   /** Ticks of flight it has left. */
   ticks: number;
 }

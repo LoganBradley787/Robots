@@ -1387,7 +1387,9 @@ export class World {
   /**
    * M15, right after the physics step: every charged gun whose behavior decided to fire or backfire this tick
    * (`wind.act`) does it, from where its barrel is now; bolts fly; every charged gun's sight looks, as a gun's does.
-   * Firing pushes the part back its `recoil`, a backfire its `backfire`; both quietly (no fuze goes off).
+   * Firing pushes the part back its `recoil`, a backfire its `backfire`. Neither is a crash: like a blast's push it
+   * leaves the robot unsettled, so no part of it takes crash damage and no fuze of its own goes off (review W1: pushed
+   * `quiet`, as a gun's 2 N s is, the cannon's 800 N s broke any robot under 67 kg that fired it).
    */
   private runCannons(): void {
     let cannons: { robot: Robot; part: PartInstance }[] | undefined;
@@ -1408,16 +1410,16 @@ export class World {
       this.cannonTotals.set(robot.id, totals);
       if (act === WIND_ACT.backfire) {
         totals.backfires++;
-        if (spec.backfire > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.backfire, jy: -m.dy * spec.backfire, quiet: true });
+        if (spec.backfire > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.backfire, jy: -m.dy * spec.backfire });
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'cannonBackfire', part: part.id, partType: part.def.id, x: m.x, y: m.y });
         continue;
       }
       totals.shots++;
       this.bolts.push({
         x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + m.dx * spec.speed, vy: m.vy + m.dy * spec.speed,
-        robot: robot.id, gun: part.id, damage: spec.damage, left: spec.damage, push: spec.recoil, width: spec.width, ticks: Math.max(1, Math.round(spec.life / this.dt)),
+        robot: robot.id, gun: part.id, damage: spec.damage, left: spec.damage, push: spec.recoil, width: spec.width, dead: 0, ticks: Math.max(1, Math.round(spec.life / this.dt)),
       });
-      if (spec.recoil > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.recoil, jy: -m.dy * spec.recoil, quiet: true });
+      if (spec.recoil > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.recoil, jy: -m.dy * spec.recoil });
       this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'cannonFire', part: part.id, partType: part.def.id, x: m.x, y: m.y });
     }
     if (this.bolts.length > 0) this.flyBolts(bodies, old);
@@ -1428,7 +1430,8 @@ export class World {
    * M15: moves every bolt one tick. A bolt sweeps parallel lines across its width (no more than `BOLT_LANE` apart, one
    * line when it has no width) and meets the colliders on any of them nearest first: a part loses what health it has,
    * up to what the bolt has left (no `shellDamage`: nothing softens a bolt), and the bolt carries on with the rest;
-   * terrain stops it where the bolt's middle meets it, and ends any other line that meets it without stopping the bolt. An armed part with an impact fuze goes off at once, as under a shell. Like a shell, a bolt that
+   * terrain stops it where the bolt's middle meets it, and ends any other line that meets it, for good, without stopping
+   * the bolt. An armed part with an impact fuze goes off at once, as under a shell. Like a shell, a bolt that
    * was already flying also looks `SHELL_SWEEP * dt` behind itself for bodies that came through it this tick.
    */
   private flyBolts(bodies: Map<BodyId, Robot>, old: Set<Bolt>): void {
@@ -1449,11 +1452,16 @@ export class World {
       const lanes = b.width > 0 ? 2 * Math.ceil(b.width / 2 / BOLT_LANE) + 1 : 1;
       const met = new Map<string, { body: BodyId; owner: string | undefined; distance: number }>();
       for (let i = 0; i < lanes; i++) {
+        if (b.dead & (1 << i)) continue;
         const off = lanes === 1 ? 0 : -b.width / 2 + (b.width * i) / (lanes - 1);
         for (const h of this.physics.rayHits(b.x - dx * back - dy * off, b.y - dy * back + dx * off, dx, dy, len + back, skip)) {
           // Terrain stops a bolt only where its middle meets it: a wide bolt's edge skims the ground it flies along.
-          // That edge's line ends there all the same (review: it went on through a wall into what stood behind it).
-          if (off !== 0 && (h.owner === undefined || !bodies.has(h.body))) break;
+          // That edge's line ends there for the rest of the flight (review W2: ended for one tick only, it was back
+          // 10 m past a wall and took what stood behind it).
+          if (off !== 0 && (h.owner === undefined || !bodies.has(h.body))) {
+            b.dead |= 1 << i;
+            break;
+          }
           if (h.distance < back) {
             const v = this.physics.state(h.body);
             if (-(v.vx * dx + v.vy * dy) * this.dt < back - h.distance) continue;
@@ -1478,7 +1486,8 @@ export class World {
         part.health = part.def.impact && part.armed !== false ? 0 : part.health - take;
         b.left -= take;
         const push = b.push * (take / b.damage);
-        if (push > 0) this.pendingPushes.push({ part, jx: dx * push, jy: dy * push, quiet: true });
+        // Not a crash either: a bolt just does its damage (Claude's call, the review's question 2).
+        if (push > 0) this.pendingPushes.push({ part, jx: dx * push, jy: dy * push });
         const d = Math.max(0, h.distance - back);
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'boltHit', part: part.id, partType: part.def.id, by: b.robot, x: b.x + dx * d, y: b.y + dy * d, damage: take });
         const totals = this.cannonTotals.get(b.robot);
@@ -2890,6 +2899,7 @@ export class World {
         h.addInt(b.robot);
         h.addString(b.gun);
         h.addInt(b.ticks);
+        h.addInt(b.dead);
       }
     }
     // Smoke clouds (Batch). None adds nothing, so worlds without smoke hash as before.
