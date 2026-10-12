@@ -19,6 +19,11 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - `pnpm sim parts`: every part: builder key, legend tokens, mass, health, attach faces, power, and what it does. `--json` for data.
 - `pnpm sim show <bp>`: grid, legend, mass, center of mass, bodies, every core's controls (auto keys, bindings, and next to each script the keys it reads itself: `reads keys W S A D`).
 - `pnpm sim validate <bp>`: validator issues; exit 1 on errors.
+- `validate` also reads the scripts and warns (exit 0, the script's name, file, and line in the message):
+  - `SCRIPT_SYNTAX`: it does not compile. `SCRIPT_NO_TICK`: it has no `function tick()`. `SCRIPT_ERROR`: it throws or never ends as it starts (code outside any function). Each would stop the script at t=0, so fix them before a run.
+  - `SCRIPT_CHANNEL`: `set('wheels', 'throttle', 1)` where no part that answers to `wheels` has that input (the message lists the inputs it has), a `get` of a value they do not have, or a channel name no part type has at all.
+  - `SCRIPT_TARGET`: `set('wheelz', ...)` where no part has that tag, part type, or id and the robot has a name a letter or two away (`wheels`) that the script never uses.
+  - Only arguments written as plain strings are read. A name built at run time (`name + '.gun'`, `p.id`) is not checked, and neither is a name the robot simply lacks (`set('bay', ...)` on a robot with no bay is how shared scripts treat optional parts), so a clean `validate` does not prove a script reaches what it means to. The run report does.
 - A script file the blueprint names but that is not next to it is an error (`MISSING_SCRIPT`, exit 1, the file named on stderr) for `validate`, `show`, `run`, `determinism`, `duel`, and `tournament`: nothing runs until the file exists.
 - `pnpm sim run <bp> [flags]`: simulate and report.
   - `--x <n> --y <n>`: where the core lands (default: the world spawn at (0, 6)). Spawn in open ground, like `--x -100 --y 3`; the flat world's boxes are near x 0 to 18.

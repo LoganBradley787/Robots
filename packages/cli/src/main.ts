@@ -2,7 +2,7 @@ import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type Wo
 import { BLUEPRINT_DIR, DEFAULT_WORLD, loadBlueprintFile, readBlueprint, readJson, REPO_ROOT, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
-import { validateCommand } from './commands/validate';
+import { validateWithScripts } from './commands/validate';
 import { showBlueprint } from './commands/show';
 import { tune } from './commands/tune';
 import { formatReplay, replayCommand } from './commands/replay';
@@ -32,7 +32,9 @@ commands
   show <bp>          print the grid, legend, mass, center of mass, body structure, and every core's controls
   parts              print every part: builder key, legend tokens, mass, health, faces, power, what it does
   validate <bp>      print validator issues; exit 1 on errors. A script file that is not next to the
-                     blueprint is an error here and for show, run, determinism, duel and tournament
+                     blueprint is an error here and for show, run, determinism, duel and tournament. Also
+                     warns about a script that would stop at t=0 (it does not compile, has no tick()) and
+                     about set() and get() on a tag or channel written as a plain string that reaches nothing
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
   replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
                      ends in the same state (exit 1 on mismatch)
@@ -195,7 +197,7 @@ async function main(): Promise<number> {
     return s.ok ? 0 : 1;
   }
   if (command === 'validate') {
-    const v = validateCommand(raw);
+    const v = await validateWithScripts(raw);
     console.log(v.text);
     return v.ok ? 0 : 1;
   }
