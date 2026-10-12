@@ -11,7 +11,7 @@ describe('a missing script file (review T1)', () => {
   const whole = join(dir, 'y.json');
 
   it.each([['validate'], ['show'], ['run'], ['determinism']])('is an error for %s, naming the file', (command) => {
-    const r = sim(command, broken, '--seconds', '1');
+    const r = sim(command, broken);
     expect(r.code).toBe(1);
     expect(r.stderr).toContain('error MISSING_SCRIPT: script file x.drive.js not found');
     expect(r.stderr).toContain(broken);

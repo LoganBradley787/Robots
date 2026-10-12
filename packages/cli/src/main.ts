@@ -15,6 +15,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { defaultRegistry, isRotation, orientRaw, type Rotation } from '@robots/sim-core';
 import { parseTeam } from './spawnSpec';
 import { parseDrop } from './drops';
+import { flagProblem } from './flags';
 import { bench, BENCH_SCENES, formatBench, type BenchScene } from './commands/bench';
 import { duel, formatDuel, SpawnRefused, type Bounds, type DuelEntry } from './commands/duel';
 import { formatResults, parseRoster, rankingTable, runTournament, speedTable } from './commands/tournament';
@@ -71,7 +72,7 @@ commands
                      each titan, scripts that stopped) to --out (default tournaments/out). --only <name> runs
                      just that titan's pairings
 
-flags
+flags (for run and determinism unless a command lists its own; a flag a command does not read is refused, exit 2)
   --world <path>     world json (default: worlds/flat.json; for duel and tournament, worlds/arena.json)
   --seconds <n>      simulated seconds (default: 5)
   --seed <n>         world seed (default: 1)
@@ -147,6 +148,12 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 0;
   }
+  // A flag the command does not read is refused, never ignored (review T3).
+  const problem = flagProblem(command, [...flags.keys(), ...(dropArgs.length > 0 ? ['drop'] : [])]);
+  if (problem !== undefined) {
+    console.error(`${problem}\npnpm sim help lists every command and flag`);
+    return 2;
+  }
   if (command === 'replay') {
     if (bpArg === undefined) {
       console.error('replay needs a replay file, like replays/2026-09-23-1512-car.json');
@@ -180,26 +187,25 @@ async function main(): Promise<number> {
     return 2;
   }
   const raw = loadBlueprintFile(bpArg);
+  // show and validate read the file as written and take no flags; run and determinism deploy it flipped or turned (M8).
+  if (command === 'show') {
+    const s = showBlueprint(raw);
+    console.log(s.text);
+    return s.ok ? 0 : 1;
+  }
+  if (command === 'validate') {
+    const v = validateCommand(raw);
+    console.log(v.text);
+    return v.ok ? 0 : 1;
+  }
+
   const rot = flags.has('rot') ? numberFlag(flags, 'rot', 0) : 0;
   if (!isRotation(rot)) {
     console.error(`--rot must be 0, 90, 180, or 270, got ${rot}`);
     return 2;
   }
-  // show and validate read the file as written; run and determinism deploy it flipped or turned (M8).
-  const deploy = command === 'run' || command === 'determinism';
-  const blueprint = deploy ? orientRaw(raw, { flip: flags.has('flip'), rot }, defaultRegistry()) : raw;
+  const blueprint = orientRaw(raw, { flip: flags.has('flip'), rot }, defaultRegistry());
   const team = flags.has('team') ? parseTeam(flags.get('team') ?? '') : 0;
-
-  if (command === 'show') {
-    const s = showBlueprint(blueprint);
-    console.log(s.text);
-    return s.ok ? 0 : 1;
-  }
-  if (command === 'validate') {
-    const v = validateCommand(blueprint);
-    console.log(v.text);
-    return v.ok ? 0 : 1;
-  }
 
   const seconds = numberFlag(flags, 'seconds', 5);
   const seed = seedFlag(flags);

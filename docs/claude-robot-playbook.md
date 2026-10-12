@@ -34,6 +34,7 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - `pnpm sim mirror <bp> [--axis <half cells>] [--save <name or path.json>] [--force]`: flips left to right in place.
 - `place` and `mirror` print the blueprint's JSON on stdout (scripts inline) and their notes on stderr, so `> draft.json` captures a clean file. Better: `--save drafts/x.json` writes the blueprint and every script as files there (`x.hover.js`, `x.missile1.guide.js`); `--save x` writes them into `blueprints/`.
 - Every command takes `--help`.
+- A flag a command does not read is refused: a misspelled `--secnds 1` on `run` exits 2 with `unknown flag --secnds; did you mean --seconds?` and the flags `run` takes. `show`, `validate`, and `tune` take none; the run flags above are for `run` and `determinism` (`--json` for `run` only).
 
 ## Reading a run report
 - **Once per second:** robot A's core position, tilt in degrees (counterclockwise positive), speed, resting.
