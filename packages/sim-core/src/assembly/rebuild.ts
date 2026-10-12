@@ -14,10 +14,6 @@ export interface BodyMotion {
   w: number;
   comX: number;
   comY: number;
-  /** How much its velocity and spin changed in its last step: what a piece of it can expect of its first. */
-  dvx: number;
-  dvy: number;
-  dw: number;
 }
 
 export interface RebuildHost {
@@ -25,11 +21,8 @@ export interface RebuildHost {
   tick: number;
   /** A body's motion, counting a kick it was given earlier this tick (Rapier reports it only after a step). */
   motion(body: BodyId): BodyMotion;
-  /**
-   * Gives a new body its velocity (set outright, or as `PhysicsWorld.kick` on the next step for a multibody link),
-   * with the change the body it came from saw in its last step (`dvx`, `dvy`, `dw` of its `BodyMotion`).
-   */
-  kick(body: BodyId, vx: number, vy: number, w: number, dvx: number, dvy: number, dw: number): void;
+  /** Gives a new body its velocity on the next step (`PhysicsWorld.kick`). */
+  kick(body: BodyId, vx: number, vy: number, w: number): void;
   /** Forgets anything kept for a body that is about to be removed. */
   forget(body: BodyId): void;
   newRobotId(): number;
@@ -140,9 +133,7 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
       const m = from[g.index];
       if (!m) continue;
       const mp = physics.massProperties(g.bodyId);
-      const ry = mp.comY - m.comY;
-      const rx = mp.comX - m.comX;
-      host.kick(g.bodyId, m.vx - m.w * ry, m.vy + m.w * rx, m.w, m.dvx - m.dw * ry, m.dvy + m.dw * rx, m.dw);
+      host.kick(g.bodyId, m.vx - m.w * (mp.comY - m.comY), m.vy + m.w * (mp.comX - m.comX), m.w);
     }
     const chunk = { partIds: [...ids], groups: groups.map((g) => g.index), ...(piece.cores > 0 ? { coreId: rootId } : {}) };
     let made: Robot;

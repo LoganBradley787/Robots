@@ -464,6 +464,21 @@ describe('charged guns (M15): the cannon and the lance', () => {
     }
   });
 
+  it('terrain behind the gun takes nothing off the orb: its edge still hits what only its edge reaches', async () => {
+    // A box against the back of the cannon, never on the orb's way; a bolt in flight also looks 10 m behind itself.
+    const backed = parseWorldFile({ name: 'backed', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 }, boxes: [{ x: -0.4, y: 99, w: 1.6, h: 0.8 }] });
+    const w = await World.create({ seed: 1, gravityY: 0 }, backed);
+    const rig = w.spawnBlueprint({ format: 1, name: 'bare', grid: ['C Cn> = = =', '. =   = = ='], bindings: fire('cannon') }, { x: 0, y: 100 });
+    const low = w.spawnBlueprint({ format: 1, name: 'low', grid: ['F'] }, { x: 60, y: 98.9 });
+    w.setUnlimitedEnergy(true);
+    steps(w, 5);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 40);
+    expect(w.events.filter((e) => e.kind === 'boltHit')).toMatchObject([{ robot: low.id, partType: 'frame', damage: 60 }]);
+    w.dispose();
+  });
+
   it('the rest of the orb flies on past the wall: a part on its middle line behind it is hit', async () => {
     const walled = parseWorldFile({ name: 'walled', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 }, boxes: [{ x: 40, y: 98.45, w: 2, h: 2 }] });
     const w = await World.create({ seed: 1, gravityY: 0 }, walled);

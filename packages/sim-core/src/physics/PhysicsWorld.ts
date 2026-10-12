@@ -176,6 +176,9 @@ export class PhysicsWorld {
   private readonly jointsAt = new Map<BodyId, JointId[]>();
   /** Invisible bodies that exist for another body (its multibody root, its joint pivot), removed with it. */
   private readonly helpers = new Map<BodyId, BodyId[]>();
+  /** The forces added to each body through `addForceAt` for the next step, and those of the last step. */
+  private pushing = new Map<BodyId, { fx: number; fy: number }>();
+  private pushed = new Map<BodyId, { fx: number; fy: number }>();
   /** Bodies that are links of a multibody (anything with a turning or sliding joint, or a kept root angle). */
   private readonly linked = new Set<BodyId>();
   private nextId: BodyId = 1;
@@ -245,6 +248,8 @@ export class PhysicsWorld {
     this.prev.delete(id);
     this.jointChildren.delete(id);
     this.linked.delete(id);
+    this.pushing.delete(id);
+    this.pushed.delete(id);
     this.forced.delete(id);
   }
 
@@ -290,6 +295,14 @@ export class PhysicsWorld {
     body.addForce({ x: (m * (vx - v.x)) / this.world.timestep, y: (m * (vy - v.y)) / this.world.timestep }, true);
     body.addTorque((body.principalInertia() * (w - body.angvel())) / this.world.timestep, true);
     this.forced.add(id);
+  }
+
+  /**
+   * The sum of the forces `addForceAt` gave the body for the last step (thrust, fins, pushes, ropes), N. Not gravity,
+   * drag, contacts, joints or a kick.
+   */
+  forceLastStep(id: BodyId): { fx: number; fy: number } {
+    return this.pushed.get(id) ?? { fx: 0, fy: 0 };
   }
 
   /**
@@ -597,6 +610,11 @@ export class PhysicsWorld {
    * multibody links, whose velocities Rapier recomputes from the joints, so a direct impulse on a link is lost.
    */
   addForceAt(id: BodyId, fx: number, fy: number, px: number, py: number): void {
+    const sum = this.pushing.get(id);
+    if (sum) {
+      sum.fx += fx;
+      sum.fy += fy;
+    } else this.pushing.set(id, { fx, fy });
     this.body(id).addForceAtPoint({ x: fx, y: fy }, { x: px, y: py }, true);
     this.forced.add(id);
   }
@@ -847,6 +865,8 @@ export class PhysicsWorld {
     }
     this.pullRopes();
     this.world.step();
+    this.pushed = this.pushing;
+    this.pushing = new Map();
     for (const id of this.forced) {
       const b = this.body(id);
       b.resetForces(false);

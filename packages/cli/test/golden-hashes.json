@@ -15,7 +15,7 @@
   "big-launcher": "a55e78ea",
   "drone-bombed": "7d376e6c",
   "drone-bomb-vs-drone": "fbf5dcd5",
-  "truck-vs-car": "ded40e38",
+  "truck-vs-car": "e3525d92",
   "enemy-flying-silo-vs-hunter": "75bd10e0",
   "enemy-big-drone-vs-hunter": "2e667b74",
   "enemy-carrier-vs-hunter": "1055a815",
@@ -23,10 +23,10 @@
   "fab-drone": "18705a08",
   "enemy-fab-drone-vs-cars": "a2c822a0",
   "bomb-fab-drones": "0ceef561",
-  "gun-drone-vs-missile": "e50882dc",
+  "gun-drone-vs-missile": "99c3f219",
   "enemy-gun-drone-vs-hunter": "0f139b0d",
-  "laser-tower-vs-missile": "96e4ffa4",
-  "enemy-laser-drone-vs-gun-drone": "839e82ac",
+  "laser-tower-vs-missile": "d7478e73",
+  "enemy-laser-drone-vs-gun-drone": "3b00462c",
   "cannon-drone-vs-hunter": "ff0478b7",
-  "lance-drone-vs-laser-drone": "aa98970a"
+  "lance-drone-vs-laser-drone": "5ddfb0ac"
 }

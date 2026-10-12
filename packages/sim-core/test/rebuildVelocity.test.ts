@@ -35,19 +35,22 @@ const speed = (w: World, r: Robot): number => {
   return Math.sqrt(s.vx * s.vx + s.vy * s.vy);
 };
 
-/** Flies a blueprint at full throttle for `ticks`, taking one of its top frames every tick when `lose`. */
-async function fly(blueprint: unknown, ticks: number, lose: boolean): Promise<number> {
+/**
+ * Flies a blueprint for `ticks`, taking one of its top frames every tick when `lose`. Full throttle goes on at tick
+ * `on` (before the first tick by default) and off at tick `off`.
+ */
+async function fly(blueprint: unknown, ticks: number, lose: boolean, on = -1, off = Infinity): Promise<number> {
   const w = await World.create({ seed: 1, gravityY: 0 }, space);
   const r = w.spawnBlueprint(blueprint, { x: 0, y: 100 });
   w.setUnlimitedEnergy(true);
-  w.step([{ robot: r.id, pressed: ['w'], released: [] }]);
+  w.step(on < 0 ? [{ robot: r.id, pressed: ['w'], released: [] }] : []);
   const spare = [...r.parts.values()].filter((p) => p.def.id === 'frame' && p.y >= 2).map((p) => p.id);
   for (let i = 0; i < ticks; i++) {
     if (lose) {
       const part = r.parts.get(spare[i] as string);
       if (part) part.health = 0;
     }
-    w.step();
+    w.step(i === on ? [{ robot: r.id, pressed: ['w'], released: [] }] : i === off ? [{ robot: r.id, pressed: [], released: ['w'] }] : []);
   }
   // A hull with joints reports a rebuilt body's velocity a step late: let the last rebuild settle.
   for (let i = 0; i < 3; i++) w.step();
@@ -72,6 +75,24 @@ describe('velocity across rebuilds (review S1, S2)', () => {
     expect(whole).toBeGreaterThan(5);
     expect(shot).toBeGreaterThan(whole * 0.95);
     expect(shot).toBeLessThan(whole * 1.6);
+  });
+
+  it('what changes while it is losing parts counts too: thrust that comes on, and thrust that goes off (review of the fix)', async () => {
+    for (const blueprint of [SLAB, WHEELED]) {
+      const name = (blueprint as { name: string }).name;
+      // Throttle on at tick 5 of the streak.
+      const onWhole = await fly(blueprint, 30, false, 5);
+      const onShot = await fly(blueprint, 30, true, 5);
+      expect(onWhole, name).toBeGreaterThan(5);
+      expect(onShot, name).toBeGreaterThan(onWhole * 0.95);
+      expect(onShot, name).toBeLessThan(onWhole * 2);
+      // Throttle off at tick 15.
+      const offWhole = await fly(blueprint, 30, false, -1, 15);
+      const offShot = await fly(blueprint, 30, true, -1, 15);
+      expect(offWhole, name).toBeGreaterThan(3);
+      expect(offShot, name).toBeGreaterThan(offWhole * 0.95);
+      expect(offShot, name).toBeLessThan(offWhole * 1.3);
+    }
   });
 
   it('the tick after a part loss, a script still reads its own velocity and spin', async () => {
