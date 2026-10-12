@@ -20,7 +20,7 @@ Logan: building is more than dragging pieces. Later it means scripts and sensor 
 ## Placing parts: pick then paint
 - Click a part in the palette (or press its number key) to hold it. Click a cell to place it; hold and drag to place a run of them. A ghost shows where it goes and whether it fits.
 - Erasing is the eraser tool (`E`, then left-click or drag); right-click opens the part menu (changed in M3, see `11`). `R` rotates the held part (`Shift+R` the other way). `Esc` drops what you are holding.
-- With nothing held, click selects a part; drag selects a box of parts. The part menu (right-click, `11`) edits the selection's tags, auto controls, and rotation. A turn that would put a multi-cell part's cells on another part is refused, for the whole selection, and the stats bar says why (`laser@2,1 turned would overlap frame@1,1 at (1, 1)`), as it does for a held blueprint that does not fit (review E1).
+- With nothing held, click selects a part; drag selects a box of parts. A part is in the box when any of its cells is, so a laser is picked up by its barrel and a bay by a wall (review E4). The part menu (right-click, `11`) edits the selection's tags, auto controls, and rotation. A turn that would put a multi-cell part's cells on another part is refused, for the whole selection, and the stats bar says why (`laser@2,1 turned would overlap frame@1,1 at (1, 1)`), as it does for a held blueprint that does not fit (review E1).
 - Undo and redo (`Cmd/Ctrl+Z`, `Shift+Cmd/Ctrl+Z`). One drag is one undo step.
 
 ## Placing a saved blueprint (M7)

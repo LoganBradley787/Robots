@@ -8,9 +8,11 @@ import {
   setPartRotations,
   mirrorX,
   partAt,
+  partCells,
   placePart,
   type Blueprint,
   type PartRegistry,
+  type PlacedPart,
   type Rotation,
 } from '@robots/sim-core';
 import { placeStamp, type Stamp } from './stamp';
@@ -100,7 +102,7 @@ export function lineCells(a: Cell, b: Cell): Cell[] {
   return out;
 }
 
-/** A click selects the part under it; a drag selects every part whose cell is in the box. Shift adds or toggles. */
+/** A click selects the part under it; a drag selects every part with a cell in the box. Shift adds or toggles. */
 function selectAfter(editor: EditorState, bp: Blueprint, registry: PartRegistry, a: Cell, b: Cell): string[] {
   const shift = editor.gesture?.kind === 'select' && editor.gestureShift === true;
   if (a.x === b.x && a.y === b.y) {
@@ -111,7 +113,9 @@ function selectAfter(editor: EditorState, bp: Blueprint, registry: PartRegistry,
   }
   const [x0, x1] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
   const [y0, y1] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
-  const inBox = bp.parts.filter((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1).map((p) => p.id);
+  // Any cell of the part counts, not only its origin: a laser is picked up by its barrel too (review E4).
+  const cellsOf = (p: PlacedPart): Cell[] => (registry.has(p.part) ? partCells(p, registry).map((c) => c.cell) : [{ x: p.x, y: p.y }]);
+  const inBox = bp.parts.filter((p) => cellsOf(p).some((c) => c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1)).map((p) => p.id);
   return shift ? [...editor.selection, ...inBox.filter((id) => !editor.selection.includes(id))] : inBox;
 }
 

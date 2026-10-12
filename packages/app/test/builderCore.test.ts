@@ -236,6 +236,17 @@ describe('selection', () => {
     expect(r.gestures).toEqual([]);
   });
 
+  it('a box over any cell of a multi-cell part selects it, as a click there does (review E4)', () => {
+    // The laser's origin is (2, 1); its barrel is the cell above.
+    const src = expandBlueprint({ format: 1, name: 'l', grid: ['. . = .', '. F Lz^ F', 'C F F F'] }).blueprint as Blueprint;
+    const box = (a: { x: number; y: number }, b: { x: number; y: number }): string[] =>
+      run([{ type: 'down', cell: a, button: 'left', shift: false }, { type: 'move', cell: b }, { type: 'up', cell: b }], src).editor.selection;
+    expect(box({ x: 1, y: 2 }, { x: 3, y: 2 })).toEqual(['laser@2,1']);
+    expect(box({ x: 3, y: 2 }, { x: 4, y: 3 })).toEqual([]);
+    // Each part once, in part order, however many of its cells are in the box.
+    expect(box({ x: 2, y: 2 }, { x: 3, y: 1 })).toEqual(['laser@2,1', 'frame@3,1']);
+  });
+
   it('delete removes the selection in one edit and clears it', () => {
     const bp = car();
     const r = run([{ type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 1 } }, { type: 'deleteSelection' }], bp);
