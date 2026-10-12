@@ -116,6 +116,7 @@
 .world-toolbar .speed { min-width: 34px; text-align: center; font: 12px ui-monospace, Menlo, monospace; }
 #ui .world-toolbar button.on { border-color: var(--accent); color: var(--accent); }
 #ui .world-toolbar button.on.enemy { border-color: #e5645a; color: #e5645a; }
+.world-toolbar .volume { width: 70px; accent-color: var(--accent); }
 .world-toolbar .stress { position: relative; }
 .world-toolbar .stress-menu {
   position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; padding: 8px 10px;

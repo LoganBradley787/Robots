@@ -190,6 +190,7 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
 - **The robots:** `enemy-laser-tower` (two turrets on an armored block of dense batteries, 121 kg, no wheels) and `enemy-laser-drone` (the gun drone's airframe with laser turrets on its ends, holding 270 m off: outside gun reach).
 - **What it does (measured):** a hovering hunter 150 m off loses its missiles and then its core in about 1.7 s; a seeker missile fired from 410 m dies the moment it crosses 300 m; a core behind three armor plates goes in under 2 s; an enemy laser drone takes an enemy gun drone apart in about 4 s and takes nothing (its shells never reach 270 m). Two mirror laser towers trade their facing lasers on the same tick, then neither can reach the other. Inside 300 m a tower burns a launcher before it can fire.
 - **Reports:** `C burned by A's laser until t=...: <parts>` (each new part the beam starts on, folded per second) and a `lasers:` line (seconds burned, damage, parts hit).
+- **Hard hits (M15):** the run report has an `impacts:` line (how many times a body's speed changed by more than 2 m/s in one step, and the hardest). A landing or a crash shows up there; a robot that should fly smoothly and logs dozens is bouncing off something.
 
 ## Charged guns: the cannon and the lance (M15)
 - **The short gun first:** since M15 the ordinary gun sprays (1.5 degrees: about 2.6 m off at 100 m), its sight is 100 m, and turret scripts fire at 150 m (`reach`). Measurements of guns above this section were taken with the old gun (0.5 degrees, 150 m, 250 m reach).

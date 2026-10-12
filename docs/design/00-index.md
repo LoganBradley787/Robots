@@ -15,5 +15,6 @@ These docs refer to working notes (`docs/plans/`, `docs/research/`, `docs/critiq
 - `09-execution-strategy.md`: roles, task units, handoff protocol, verification gates, parallelism, milestone boundaries.
 - `10-builder.md`: the blueprint builder screen, saving, and deploy, as decided with Logan.
 - `11-control.md`: possession, robots you stop controlling, driving feel, the keys bar, and replays, as decided with Logan.
+- `12-sound.md`: synthesized sound: voices as data on parts, what triggers what, the camera as the ear, limits.
 
 Source of truth for the vision: `../handoff-2026-09-22.md`. Working rules: `../../CLAUDE.md`.

@@ -11,5 +11,6 @@
   "powerDraw": 0,
   "behavior": "battery",
   "resource": { "kind": "energy", "capacity": 1500 },
+  "sound": { "hit": "soft" },
   "sprite": { "frame": "part.battery" }
 }

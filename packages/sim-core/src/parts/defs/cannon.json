@@ -28,5 +28,6 @@
   "behavior": "cannon",
   "cannon": { "charge": 6, "hold": 4, "dead": 4, "damage": 500, "speed": 300, "width": 1.5, "life": 2, "range": 250, "recoil": 800, "backfire": 80 },
   "onDestroyed": { "explode": { "radius": 3.5, "damage": 120, "pushRadius": 6, "push": 40, "lift": 1 } },
+  "sound": { "run": "charge.heavy", "fire": "cannon" },
   "sprite": { "frame": "part.cannon" }
 }

@@ -16,5 +16,6 @@
   "behaviorConfig": { "maxForce": 400, "swivel": 15 },
   "acts": "N",
   "autoControl": { "channel": "throttle", "kind": "push" },
+  "sound": { "run": "thruster" },
   "sprite": { "frame": "part.swivelthruster", "overlay": "fx.flame" }
 }

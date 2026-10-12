@@ -18,6 +18,10 @@ export interface WorldActions {
   saveReplay(): void;
   toggleUnlimitedEnergy(): void;
   toggleDeployTeam(): void;
+  /** M15: sound off and on, its volume (0 to 1), and whether far sounds arrive late. */
+  toggleMute(): void;
+  setVolume(volume: number): void;
+  toggleSoundDelay(): void;
   /** M9: drops `n` hovering drones, or `n` enemy drones a side for a battle, around the middle of the screen. */
   stress(kind: 'hover' | 'battle', n: number): void;
   toBuilder(): void;
@@ -95,6 +99,27 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
           </div>
         )}
       </span>
+      <span class="sep" />
+      <button class={v.sound.muted ? '' : 'on'} onClick={actions.toggleMute} title={v.sound.awake ? 'Sound on or off' : 'Sound starts with your first click or key press'}>
+        {v.sound.muted ? 'Sound off' : v.sound.awake ? 'Sound on' : 'Sound (click)'}
+      </button>
+      <input
+        class="volume"
+        type="range"
+        min="0"
+        max="1"
+        step="0.05"
+        value={v.sound.volume}
+        disabled={v.sound.muted}
+        aria-label="volume"
+        title="Volume"
+        onInput={(e) => actions.setVolume(Number((e.target as HTMLInputElement).value))}
+        onPointerUp={(e) => (e.target as HTMLInputElement).blur()}
+      />
+      <button class={v.sound.delay ? 'on' : ''} onClick={actions.toggleSoundDelay} title="Far sounds arrive late, at the speed of sound: a blast 340 m away is heard a second after its flash">
+        Sound delay
+      </button>
+      <span class="sep" />
       <button onClick={actions.clearDebris} disabled={v.robots === 0} title="Remove every robot nobody can control: debris, robots that lost their core, bombs">
         Clear debris
       </button>

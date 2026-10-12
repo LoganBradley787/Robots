@@ -14,5 +14,6 @@
   "autoControl": { "channel": "speed", "kind": "axis" },
   "joint": { "kind": "revolute", "mountFace": "N", "motor": "velocity", "maxTorque": 20, "motorFactor": 0.6 },
   "collider": { "shape": "ball", "radius": 0.45, "friction": 1.5 },
+  "sound": { "run": "wheel" },
   "sprite": { "frame": "part.wheel", "mountFrame": "part.wheel.mount" }
 }
