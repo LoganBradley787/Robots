@@ -124,7 +124,7 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - The robot's own controls reach the copy's parts by part type or id (`decoupler`, `thruster@3,0`) or by the scope tag (`missile1`). Tag the robot's own parts (`left`, `right`) so its controls never grab a missile's parts by type.
 - Parts must not overlap. Leave an empty row or column of dots where the copy goes if it would land below row 0 or left of column 0; otherwise the file falls back to the long `parts` form (`place` says so).
 - Logan does the same in the builder: the palette's Blueprints section holds a copy (R turns, F flips), and the Controls and Scripts panels have a Controls for picker for each placed core.
-- `--save <name>` writes the blueprint and a copy of every script under the new name (`launcher.missile1.guide.js`). `--force` replaces an existing file.
+- `--save <name>` writes the blueprint and a copy of every script under the new name (`launcher.missile1.guide.js`). `--force` replaces an existing file. A result that does not validate is not saved: the errors go to stderr, exit 1, and no file is written (true of `mirror --save` too).
 
 ## Turrets (rotators)
 Learned building `turret-drone` (Gate 6); most of a turret's design time goes to this geometry.

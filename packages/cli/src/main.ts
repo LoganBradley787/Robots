@@ -42,7 +42,8 @@ commands
                      grid (x right, y up, the bottom row is y 0), as the builder's Blueprints palette does.
                      Prints the result's json (notes go to stderr, so > file.json is clean). --save <name>
                      writes blueprints/<name>.json and its scripts as files; --save <path>.json writes them
-                     there instead (a drafts folder). --force replaces an existing file
+                     there instead (a drafts folder). --force replaces an existing file. A result that does not
+                     validate is not saved (exit 1)
   bench [scene] [--n <count>] [--seconds <n>] [--json]
                      time ticks on this machine (M9): hover (missile-drone-10prop hovering, 1 to 100 of
                      them, the default), big (one flying-silo), battle (enemy drones, team 1 against team 2,

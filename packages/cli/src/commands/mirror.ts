@@ -12,7 +12,7 @@ export interface MirrorOutput {
   text: string;
   /** For stderr: notes, warnings, and validator issues, so stdout stays pure json. */
   notes: string[];
-  /** Files to write when saving, relative to blueprints/. */
+  /** Files to write when saving, relative to blueprints/; none when the result does not validate. */
   files: { file: string; text: string }[];
 }
 
@@ -32,6 +32,8 @@ export function mirrorCommand(raw: unknown, args: MirrorArgs): MirrorOutput {
   const v = validateBlueprint(toFileJson(bp, registry, { inlineScripts: true }), registry);
   if (v.issues.length > 0) notes.push(formatIssues(v.issues));
   if (args.saveAs === undefined) return { ok: v.ok, text: JSON.stringify(toFileJson(dropForeignScriptFiles(bp), registry, { inlineScripts: true }), null, 2), notes, files: [] };
+  // A result that does not validate is never written (review T4): the errors are above, on stderr.
+  if (!v.ok) return { ok: false, text: '', notes: [...notes, `not saved: ${args.saveAs} does not validate; fix the errors, or leave --save off to print its json`], files: [] };
   const file = `${args.saveAs}.json`;
   bp = assignScriptFiles({ ...bp, name: args.saveAs }, file, false);
   const files = [{ file, text: `${JSON.stringify(toFileJson(bp, registry), null, 2)}\n` }, ...scriptFiles(bp)];
