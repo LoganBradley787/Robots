@@ -176,6 +176,8 @@ export class PhysicsWorld {
   private readonly jointsAt = new Map<BodyId, JointId[]>();
   /** Invisible bodies that exist for another body (its multibody root, its joint pivot), removed with it. */
   private readonly helpers = new Map<BodyId, BodyId[]>();
+  /** Bodies that are links of a multibody (anything with a turning or sliding joint, or a kept root angle). */
+  private readonly linked = new Set<BodyId>();
   private nextId: BodyId = 1;
   private nextJointId: JointId = 1;
   /**
@@ -242,6 +244,7 @@ export class PhysicsWorld {
     this.bodies.delete(id);
     this.prev.delete(id);
     this.jointChildren.delete(id);
+    this.linked.delete(id);
     this.forced.delete(id);
   }
 
@@ -255,12 +258,14 @@ export class PhysicsWorld {
     const s = this.state(id);
     const root = this.createBody({ x: s.x, y: s.y, kind: 'dynamic' }, HELPER_MASS);
     this.addHelper(id, root);
+    this.linked.add(id);
     const weld = this.world.createMultibodyJoint(RAPIER.JointData.fixed({ x: 0, y: 0 }, angle, { x: 0, y: 0 }, 0), this.body(root), this.body(id), true);
     weld.setContactsEnabled(false);
   }
 
   private noteJoint(jointId: JointId, parent: BodyId, child: BodyId): void {
     for (const body of [parent, child]) {
+      this.linked.add(body);
       const list = this.jointsAt.get(body);
       if (list) list.push(jointId);
       else this.jointsAt.set(body, [jointId]);
@@ -285,6 +290,27 @@ export class PhysicsWorld {
     body.addForce({ x: (m * (vx - v.x)) / this.world.timestep, y: (m * (vy - v.y)) / this.world.timestep }, true);
     body.addTorque((body.principalInertia() * (w - body.angvel())) / this.world.timestep, true);
     this.forced.add(id);
+  }
+
+  /**
+   * Whether the body is a link of a multibody. Rapier ignores velocity writes on a link and reports a kicked link's
+   * velocity a step late; a body that is not one can be given its velocity outright (`setVelocity`).
+   */
+  isLinked(id: BodyId): boolean {
+    return this.linked.has(id);
+  }
+
+  /**
+   * Sets a body's velocity now: its center of mass moves at (vx, vy) and it turns at w. Only for a body that is not a
+   * link (`isLinked`); a link takes a `kick`.
+   */
+  setVelocity(id: BodyId, vx: number, vy: number, w: number): void {
+    if (this.linked.has(id)) throw new Error(`body ${id} is a multibody link: kick it`);
+    const body = this.body(id);
+    body.setLinvel({ x: vx, y: vy }, true);
+    body.setAngvel(w, true);
+    // It has not been stepped: its state a step ago is its state now.
+    this.prev.set(id, readState(body));
   }
 
   /** Whether the body still exists. */

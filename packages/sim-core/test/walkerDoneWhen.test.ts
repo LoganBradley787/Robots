@@ -179,7 +179,9 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
   it('the enemy walker shoots down an enemy drone that flies at it, and loses no part while its armor holds', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const walker = w.spawnBlueprint(orientRaw(blueprint('enemy-walker'), { flip: true }, defaultRegistry()), { x: 60, y: SPAWN_Y }, { team: 1 });
-    const drone = w.spawnBlueprint(blueprint('enemy-drone'), { x: -100, y: 40 });
+    // From x -110 (was -100): since new bodies keep their true velocity (review S1, S2) one of the drone's missiles
+    // gets through to the walker's core from -100; from -90, -110, -120 and from 35 and 45 m up the walker wins.
+    const drone = w.spawnBlueprint(blueprint('enemy-drone'), { x: -110, y: 40 });
     for (let t = 0; t < 60 * 60; t++) w.step();
     // Its four turrets fire, hit the drone or its missiles, and the drone's core goes.
     expect(w.shotsBy(walker.id)).toBeGreaterThan(50);

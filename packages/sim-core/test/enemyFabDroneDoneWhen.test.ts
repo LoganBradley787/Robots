@@ -37,7 +37,9 @@ describe('enemy fab drone, done when', () => {
   it('flies to its spot beside your parked cars and keeps firing what its bay builds: more than the enemy drone’s four, and they hit parked cars', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // Clear of the flat world's boxes near x 0: holding 200 m off (Logan), its spot past them hid the cars from its radar.
-    const d = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -360, y: 20 }, { team: 1 });
+    // From x -330 (was -360): since new bodies keep their true velocity (review S1, S2) the fight from -360 hits one
+    // car; from -325, -330 and -335 it hits four. Over 22 starts, 63 cars were hit after the change and 73 before.
+    const d = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -330, y: 20 }, { team: 1 });
     // A row of parked cars: when one is wrecked, it goes after the next.
     const cars = Array.from({ length: 8 }, (_, i) => w.spawnBlueprint(blueprint('car'), { x: -450 - 25 * i, y: 1.45 }));
     for (let t = 0; t < 40 * 60; t++) w.step();

@@ -76,7 +76,9 @@ describe('M14 lasers, done when', () => {
     const propellers = [...hunter.parts.values()].filter((p) => p.def.id === 'propeller').length;
     expect(coreLostAt(w, hunter) !== undefined || propellers === 0).toBe(true);
     // Its missiles were burnt first (at 600 a second the hunter can be gone before the last one).
-    expect(w.events.filter((e) => e.kind === 'partDestroyed' && family(w, hunter).has(e.robot) && e.partType === 'heavywarhead').length).toBeGreaterThanOrEqual(3);
+    // Every heavy warhead in this world is the hunter's. Not counted by `family`: a missile gone whole is no longer
+    // among the world's robots, so its warhead was missed (2 counted of 4 burnt).
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' && e.partType === 'heavywarhead').length).toBeGreaterThanOrEqual(3);
     expect(partsLost(w, tower)).toBe(0);
     w.dispose();
   });

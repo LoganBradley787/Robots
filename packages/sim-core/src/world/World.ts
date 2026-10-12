@@ -1,5 +1,5 @@
 import { loadRapier } from '../physics/rapier';
-import { PhysicsWorld, type BodyId, type ShapeSpec } from '../physics/PhysicsWorld';
+import { PhysicsWorld, type BodyId, type BodyState, type ShapeSpec } from '../physics/PhysicsWorld';
 import { Prng } from '../rng/Prng';
 import { StateHasher } from '../replay/StateHasher';
 import { InputLog, type WorldChange } from '../replay/InputLog';
@@ -192,6 +192,22 @@ const SHELL_SWEEP = 600;
 
 /** M15: the widest gap between the lines a wide bolt sweeps, m: under half a cell, so no part slips between two. */
 const BOLT_LANE = 0.45;
+
+/**
+ * The most a body's velocity (m/s, gravity aside) or spin (rad/s) changes in one step under steady forces: 6 g. More
+ * is a jolt, and is not handed on to the pieces of a rebuilt body.
+ */
+const STEADY_DV = 1;
+
+/** A velocity for a new body's center of mass and spin, and the change its old body saw in its last step. */
+interface Kick {
+  vx: number;
+  vy: number;
+  w: number;
+  dvx: number;
+  dvy: number;
+  dw: number;
+}
 
 /** Blasts resolved per tick at most (`03`); the rest wait for the next tick. */
 export const MAX_BLASTS_PER_TICK = 100;
@@ -414,13 +430,15 @@ export class World {
    * Velocities for new bodies, applied as kicks just before the next physics step. Until then Rapier reports them at
    * rest, so a second rebuild reads the velocity from here (M6 review). Simulation state, hashed.
    */
-  private readonly pendingKicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
+  private readonly pendingKicks = new Map<BodyId, Kick>();
   /**
    * Kicks given on this tick's step. A kicked multibody link moves at part speed during that step and reports about
    * 88% after it, yet it is at the full target (it moves at exactly that speed on the next step), so until it has been
    * stepped twice the target is its velocity. Cleared when the next kicks go in. Derived from hashed state.
    */
-  private lastKicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
+  private readonly recentKicks = new Map<BodyId, { kick: Kick; steps: number }>();
+  /** Bodies given their velocity outright since the last step (`launch`): unsettled like a kicked one. Not hashed. */
+  private launched: BodyId[] = [];
   /**
    * Bodies whose velocity jumps for a reason other than a hit (a kick after a rebuild, a blast push), by the last tick
    * the impact check ignores them. Not hashed: it is derived from what happened on recent ticks.
@@ -745,7 +763,7 @@ export class World {
    * (the impact check ignores it). For tests and tools; a raw physics kick reads as a crash.
    */
   kickRobot(robot: Robot, vx: number, vy: number, w = 0): void {
-    for (const g of robot.groups) this.pendingKicks.set(g.bodyId, { vx, vy, w });
+    for (const g of robot.groups) this.pendingKicks.set(g.bodyId, { vx, vy, w, dvx: 0, dvy: this.gravityY * this.dt, dw: 0 });
   }
 
   /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
@@ -767,7 +785,7 @@ export class World {
     this.debrisRest.delete(robot.id);
     for (const g of robot.groups) {
       this.pendingKicks.delete(g.bodyId);
-      this.lastKicks.delete(g.bodyId);
+      this.recentKicks.delete(g.bodyId);
       this.physics.removeBody(g.bodyId);
     }
     robot.groups = [];
@@ -1048,10 +1066,10 @@ export class World {
           physics: this.physics,
           tick: this.tickCount,
           motion: (body) => this.motion(body),
-          kick: (body, vx, vy, w) => this.pendingKicks.set(body, { vx, vy, w }),
+          kick: (body, vx, vy, w, dvx, dvy, dw) => this.launch(body, { vx, vy, w, dvx, dvy, dw }),
           forget: (body) => {
             this.pendingKicks.delete(body);
-            this.lastKicks.delete(body);
+            this.recentKicks.delete(body);
           },
           newRobotId: () => this.nextRobotId++,
           full: this.fullRebuild,
@@ -1105,18 +1123,56 @@ export class World {
   }
 
   /**
-   * A body's pose and motion. A kick not yet stepped, or stepped only once, is the body's real velocity (Rapier reports
-   * a kicked link late); after one step it has also fallen for a step.
+   * Gives a new body (a rebuilt piece's) its velocity. A body with no joints has it set outright, so it is the body's
+   * velocity at once and everything that acts on it in the next step counts (review S1). A multibody link cannot be
+   * written to: it gets a kick on the next step. Either way the body is unsettled for that step and the one after.
    */
-  private motion(body: BodyId): BodyMotion {
+  private launch(body: BodyId, kick: Kick): void {
+    if (this.physics.isLinked(body)) {
+      this.pendingKicks.set(body, kick);
+      return;
+    }
+    this.physics.setVelocity(body, kick.vx, kick.vy, kick.w);
+    this.launched.push(body);
+  }
+
+  /**
+   * A body's true velocity, and how much it changed in the body's last step. Rapier does not know a kick until it is
+   * stepped, and reports a kicked link wrongly after its first step (measured: neither the kick nor the kick and what
+   * the step added; right from the second). Until then the velocity is the kick's, then the kick's and the change the
+   * body it came from saw in its last step, which stands in for whatever acts on it now (thrust, the ground, a rope:
+   * review S1, where one step of gravity stood in for all of it). A body with no joints is always reported right.
+   */
+  private truth(body: BodyId): { s: BodyState; dvx: number; dvy: number; dw: number } {
     const s = this.physics.state(body);
-    const mp = this.physics.massProperties(body);
-    const base = { x: s.x, y: s.y, angle: s.angle, comX: mp.comX, comY: mp.comY };
     const k = this.pendingKicks.get(body);
-    if (k) return { ...base, vx: k.vx, vy: k.vy, w: k.w };
-    const last = this.lastKicks.get(body);
-    if (last) return { ...base, vx: last.vx, vy: last.vy + this.gravityY * this.dt, w: last.w };
-    return { ...base, vx: s.vx, vy: s.vy, w: s.w };
+    if (k) return { s: { ...s, vx: k.vx, vy: k.vy, w: k.w }, dvx: k.dvx, dvy: k.dvy, dw: k.dw };
+    const recent = this.physics.isLinked(body) ? this.recentKicks.get(body) : undefined;
+    if (recent) {
+      const { kick, steps } = recent;
+      const now = steps === 1 ? { ...s, vx: kick.vx + kick.dvx, vy: kick.vy + kick.dvy, w: kick.w + kick.dw } : s;
+      return { s: now, dvx: kick.dvx, dvy: kick.dvy, dw: kick.dw };
+    }
+    const p = this.physics.prevState(body);
+    const dvx = s.vx - p.vx;
+    const dvy = s.vy - p.vy - this.gravityY * this.dt;
+    const dw = s.w - p.w;
+    // A jolt (a crash, a blast, a bolt) is over: only a steady change says anything about the next step.
+    const steady = dvx * dvx + dvy * dvy <= STEADY_DV * STEADY_DV && Math.abs(dw) <= STEADY_DV;
+    return { s, dvx: steady ? dvx : 0, dvy: (steady ? dvy : 0) + this.gravityY * this.dt, dw: steady ? dw : 0 };
+  }
+
+  /** A body's state with its true velocity (review S2: a new body read as standing still for a tick). */
+  private bodyState(body: BodyId): BodyState {
+    if (!this.pendingKicks.has(body) && !this.recentKicks.has(body)) return this.physics.state(body);
+    return this.truth(body).s;
+  }
+
+  /** A body's pose and motion, for the pieces a rebuild makes of it. */
+  private motion(body: BodyId): BodyMotion {
+    const { s, dvx, dvy, dw } = this.truth(body);
+    const mp = this.physics.massProperties(body);
+    return { x: s.x, y: s.y, angle: s.angle, comX: mp.comX, comY: mp.comY, vx: s.vx, vy: s.vy, w: s.w, dvx, dvy, dw };
   }
 
   /** One blast: damage and push every part cell of every robot near it (`damage/explosion`). Terrain is immune. */
@@ -1173,12 +1229,19 @@ export class World {
     const settle = (body: BodyId): void => {
       this.unsettled.set(body, Math.max(this.unsettled.get(body) ?? 0, this.tickCount + 2));
     };
-    this.lastKicks = new Map(this.pendingKicks);
+    // A kick is kept for the two steps after which Rapier reports the body right (`truth`).
+    for (const [body, r] of this.recentKicks) {
+      if (r.steps >= 2) this.recentKicks.delete(body);
+      else r.steps++;
+    }
     for (const [body, k] of this.pendingKicks) {
       this.physics.kick(body, k.vx, k.vy, k.w);
+      this.recentKicks.set(body, { kick: k, steps: 1 });
       settle(body);
     }
     this.pendingKicks.clear();
+    for (const body of this.launched) if (this.physics.hasBody(body)) settle(body);
+    this.launched = [];
     if (this.pendingPushes.length === 0) return;
     const owner = new Map<PartInstance, Robot>();
     for (const robot of this.robots) for (const part of robot.parts.values()) owner.set(part, robot);
@@ -1464,7 +1527,7 @@ export class World {
             break;
           }
           if (h.distance < back) {
-            const v = this.physics.state(h.body);
+            const v = this.bodyState(h.body);
             if (-(v.vx * dx + v.vy * dy) * this.dt < back - h.distance) continue;
           }
           const key = `${h.body}:${h.owner ?? ''}`;
@@ -1561,7 +1624,7 @@ export class World {
   private muzzle(robot: Robot, part: PartInstance): { x: number; y: number; dx: number; dy: number; vx: number; vy: number } | undefined {
     const group = robot.groups[part.group];
     if (!group || part.def.acts === undefined) return undefined;
-    const s = this.physics.state(group.bodyId);
+    const s = this.bodyState(group.bodyId);
     const com = this.physics.massProperties(group.bodyId);
     const pose = partWorldPose(this, robot, part.id);
     const f = faceDir(rotateFace(part.def.acts, part.rot));
@@ -1625,7 +1688,7 @@ export class World {
       const hits = this.physics.rayHits(sh.x - dx * back, sh.y - dy * back, dx, dy, len + back, skip);
       const hit = hits.find((h) => {
         if (h.distance >= back) return true;
-        const v = this.physics.state(h.body);
+        const v = this.bodyState(h.body);
         return -(v.vx * dx + v.vy * dy) * this.dt >= back - h.distance;
       });
       if (hit) {
@@ -2058,7 +2121,7 @@ export class World {
     const bodyOf = (group: number): BodyPose => {
       let b = bodies[group];
       if (!b) {
-        const s = this.physics.state(robot.groups[group]?.bodyId ?? 0);
+        const s = this.bodyState(robot.groups[group]?.bodyId ?? 0);
         b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
         bodies[group] = b;
       }
@@ -2145,7 +2208,7 @@ export class World {
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const core = partWorldPose(this, robot, coreId);
     const coreBody = robot.groups[robot.parts.get(coreId)?.group ?? 0]?.bodyId ?? 0;
-    const s = this.physics.state(coreBody);
+    const s = this.bodyState(coreBody);
     let mass = 0;
     for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
     const energy = referenceEnergy(robot);
@@ -2277,7 +2340,7 @@ export class World {
     let vy = 0;
     for (const g of r.groups) {
       const mp = this.physics.massProperties(g.bodyId);
-      const s = this.physics.state(g.bodyId);
+      const s = this.bodyState(g.bodyId);
       mass += mp.mass;
       cx += mp.mass * mp.comX;
       cy += mp.mass * mp.comY;
@@ -2289,7 +2352,7 @@ export class World {
     const core = coreId !== undefined && this.controllers.has(r.id) && r.parts.has(coreId);
     if (core) {
       const pose = partWorldPose(this, r, coreId);
-      const s = this.physics.state(r.groups[r.parts.get(coreId)?.group ?? 0]?.bodyId ?? 0);
+      const s = this.bodyState(r.groups[r.parts.get(coreId)?.group ?? 0]?.bodyId ?? 0);
       return { core, pos: { x: pose.x, y: pose.y }, vel: { x: s.vx, y: s.vy }, center, mass };
     }
     return { core, pos: center, vel: mass > 0 ? { x: vx / mass, y: vy / mass } : { x: 0, y: 0 }, center, mass };
@@ -2515,7 +2578,7 @@ export class World {
         const group = r.groups[part.group];
         if (!group) continue;
         const pose = partWorldPose(this, r, part.id);
-        const s = this.physics.state(group.bodyId);
+        const s = this.bodyState(group.bodyId);
         const list = of.get(part.decoyOf) ?? [];
         list.push({ robot: r, partId: part.id, pos: { x: pose.x, y: pose.y }, vel: { x: s.vx, y: s.vy } });
         of.set(part.decoyOf, list);
@@ -2842,6 +2905,9 @@ export class World {
       h.addF64(k.vx);
       h.addF64(k.vy);
       h.addF64(k.w);
+      h.addF64(k.dvx);
+      h.addF64(k.dvy);
+      h.addF64(k.dw);
     }
     h.addInt(this.pendingPushes.length);
     for (const p of this.pendingPushes) {
