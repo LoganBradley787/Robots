@@ -84,10 +84,40 @@ export function removeTagFromParts(bp: Blueprint, ids: readonly string[], tag: s
   return { ...bp, parts: bp.parts.map((p) => (ids.includes(p.id) ? withTags(p, p.tags.filter((x) => x !== tag && x !== p.id)) : p)) };
 }
 
-export function setPartRotation(bp: Blueprint, _registry: PartRegistry, id: string, rot: Rotation): Blueprint {
-  const p = bp.parts.find((q) => q.id === id);
-  if (!p || p.rot === rot) return bp;
-  return { ...bp, parts: bp.parts.map((q) => (q.id === id ? { ...q, rot } : q)) };
+export type RotateResult = { ok: true; blueprint: Blueprint } | { ok: false; error: string };
+
+/**
+ * Turns the given parts in place, all at once, or refuses the whole thing when a turned part's cells would land on
+ * another part (review E1: a multi-cell part turned onto a neighbour used to lose one of the two on save). Parts
+ * turned together are checked where they end up, so two neighbours can swing clear of each other in one step.
+ */
+export function setPartRotations(bp: Blueprint, registry: PartRegistry, rots: ReadonlyMap<string, Rotation>): RotateResult {
+  const turned = new Set<string>();
+  const parts = bp.parts.map((p) => {
+    const rot = rots.get(p.id);
+    if (rot === undefined || rot === p.rot) return p;
+    turned.add(p.id);
+    return { ...p, rot };
+  });
+  if (turned.size === 0) return { ok: true, blueprint: bp };
+  const occupied = new Map<string, string>();
+  for (const p of parts) if (!turned.has(p.id)) for (const c of cellsOf(p, registry)) occupied.set(`${c.x},${c.y}`, p.id);
+  for (const p of parts) {
+    if (!turned.has(p.id)) continue;
+    for (const c of cellsOf(p, registry)) {
+      const key = `${c.x},${c.y}`;
+      const hit = occupied.get(key);
+      if (hit !== undefined) return { ok: false, error: `${p.id} turned would overlap ${hit} at (${c.x}, ${c.y})` };
+      occupied.set(key, p.id);
+    }
+  }
+  return { ok: true, blueprint: { ...bp, parts } };
+}
+
+/** Turns one part in place. A turn onto another part is refused: the same blueprint comes back (`setPartRotations` says why). */
+export function setPartRotation(bp: Blueprint, registry: PartRegistry, id: string, rot: Rotation): Blueprint {
+  const r = setPartRotations(bp, registry, new Map([[id, rot]]));
+  return r.ok ? r.blueprint : bp;
 }
 
 export function setBindings(bp: Blueprint, bindings: Binding[]): Blueprint {

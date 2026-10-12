@@ -12,10 +12,14 @@ import {
   removeTagFromParts,
   setBindings,
   setPartRotation,
+  setPartRotations,
+  setPartsSize,
 } from '../src/blueprint/edit';
 import { mirrorBlueprint, mirrorRotation, mirrorX } from '../src/blueprint/mirror';
 import { staticStats } from '../src/blueprint/stats';
 import { toFileJson } from '../src/blueprint/serialize';
+import { validateBlueprint } from '../src/blueprint/validate';
+import { defaultSize } from '../src/parts/footprint';
 import { defaultRegistry } from '../src/parts/registry';
 
 const reg = defaultRegistry();
@@ -170,5 +174,53 @@ describe('toFileJson', () => {
       .blueprint as Blueprint;
     const json = toFileJson(src, reg) as Record<string, unknown>;
     expect(json.parts).toEqual([{ id: 'hull', part: 'frame', x: 0, y: 0, rot: 90, tags: ['body'] }]);
+  });
+});
+
+describe('parts never share a cell after an edit (review E1)', () => {
+  const laserBot = (): Blueprint => {
+    const r = expandBlueprint({ format: 1, name: 'l', grid: ['. . = .', '. F Lz^ F', 'C F F F'] });
+    if (!r.blueprint) throw new Error(JSON.stringify(r.issues));
+    return r.blueprint;
+  };
+
+  it('a turn onto another part is refused, with the reason', () => {
+    const bp = laserBot();
+    expect(setPartRotation(bp, reg, 'laser@2,1', 90)).toBe(bp);
+    expect(setPartRotations(bp, reg, new Map([['laser@2,1', 90]]))).toEqual({ ok: false, error: 'laser@2,1 turned would overlap frame@1,1 at (1, 1)' });
+    // Into free cells it turns: with the frame gone the barrel has room.
+    const open = removeParts(bp, ['frame@1,1']);
+    expect(setPartRotation(open, reg, 'laser@2,1', 90).parts.find((p) => p.id === 'laser@2,1')?.rot).toBe(90);
+  });
+
+  it('parts turned together are checked where they end up', () => {
+    // One laser with its barrel up, one two cells right with its barrel pointing left, into the cell between them.
+    const bp = expandBlueprint({ format: 1, name: 'l', grid: ['=   .   .', 'Lz^ =   Lz<'] }).blueprint as Blueprint;
+    // Turned alone, the first one's barrel lands on the second one's.
+    expect(setPartRotations(bp, reg, new Map([['laser@0,0', 270]])).ok).toBe(false);
+    // Turned together, the second barrel has left the cell the first one swings into.
+    const both = setPartRotations(bp, reg, new Map([['laser@0,0', 270], ['laser@2,0', 0]]));
+    expect(both.ok && both.blueprint.parts.map((p) => p.rot)).toEqual([270, 0]);
+  });
+
+  it('a blueprint with two parts on one cell is saved whole, in the parts form, and the validator names the overlap', () => {
+    const bp = laserBot();
+    const overlapping: Blueprint = { ...bp, parts: bp.parts.map((p) => (p.id === 'laser@2,1' ? { ...p, rot: 90 as const } : p)) };
+    const json = toFileJson(overlapping, reg) as Record<string, unknown>;
+    expect(json.grid).toBeUndefined();
+    expect(json.parts).toHaveLength(7);
+    expect(expandBlueprint(json).blueprint?.parts).toHaveLength(7);
+    expect(validateBlueprint(json, reg).issues.map((i) => i.code)).toContain('OVERLAP');
+  });
+
+  it('a bay grown onto another part keeps both, and the validator names the overlap', () => {
+    // A frame one cell right of the bay's right wall: one cell wider and the wall is on it.
+    const [w] = defaultSize(reg.get('fabbay')) ?? [0, 0];
+    const bp = expandBlueprint({ format: 1, name: 'b', parts: [{ part: 'fabbay', x: 1, y: 0 }, { part: 'frame', x: w + 2, y: 0 }] }).blueprint as Blueprint;
+    expect(validateBlueprint(toFileJson(bp, reg), reg).issues.map((i) => i.code)).not.toContain('OVERLAP');
+    const grown = setPartsSize(bp, ['fabbay@1,0'], (s) => [s[0] + 1, s[1]], reg);
+    const json = toFileJson(grown, reg) as Record<string, unknown>;
+    expect(json.parts).toHaveLength(2);
+    expect(validateBlueprint(json, reg).issues.map((i) => i.code)).toContain('OVERLAP');
   });
 });

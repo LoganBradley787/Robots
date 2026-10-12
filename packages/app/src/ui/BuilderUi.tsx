@@ -157,7 +157,7 @@ export function StatsBadge({ store }: { store: Store<AppState> }) {
           placing {stamp.name} {stamp.rot}°{stamp.flipped ? ' flipped' : ''}
         </span>
       )}
-      {stamp && refused && <span class="refused">{refused}</span>}
+      {refused && <span class="refused">{refused}</span>}
       {eraser && <span class="on">eraser</span>}
     </div>
   );

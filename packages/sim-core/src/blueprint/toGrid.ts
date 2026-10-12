@@ -11,8 +11,8 @@ export interface GridForm {
 
 /**
  * Renders a blueprint as grid rows plus a legend, keeping every part at its cell so ids and binding targets survive
- * a round trip. Returns null when a grid cannot express the blueprint (a cell below or left of (0, 0), or a custom
- * part id); use the `parts` form then. Parts that match a default token (same part and rotation, no extra tags) use
+ * a round trip. Returns null when a grid cannot express the blueprint (a cell below or left of (0, 0), a custom
+ * part id, or two parts on one cell, which a grid would write as one and lose the other); use the `parts` form then. Parts that match a default token (same part and rotation, no extra tags) use
  * it; others get generated lowercase tokens. Extra cells of multi-cell parts are written as `=`. Validate first.
  */
 export function toGrid(bp: Blueprint, registry: PartRegistry): GridForm | null {
@@ -44,8 +44,10 @@ export function toGrid(bp: Blueprint, registry: PartRegistry): GridForm | null {
     }
     for (const { cell } of partCells(p, registry)) {
       if (cell.x < 0 || cell.y < 0) return null;
+      const key = `${cell.x},${cell.y}`;
+      if (cells.has(key)) return null;
       const origin = cell.x === p.x && cell.y === p.y;
-      cells.set(`${cell.x},${cell.y}`, origin ? token : '=');
+      cells.set(key, origin ? token : '=');
       maxX = Math.max(maxX, cell.x);
       maxY = Math.max(maxY, cell.y);
     }

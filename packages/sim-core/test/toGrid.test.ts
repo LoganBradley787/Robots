@@ -42,4 +42,10 @@ describe('toGrid', () => {
     expect(toGrid(bp({ parts: [{ part: 'frame', x: -1, y: 0 }] }), reg)).toBeNull();
     expect(toGrid(bp({ parts: [{ id: 'hull', part: 'frame', x: 0, y: 0 }] }), reg)).toBeNull();
   });
+
+  it('returns null when two parts share a cell, so neither is written over the other (review E1)', () => {
+    // The laser's barrel (rot 90) points left onto the frame at (1, 1).
+    const src = bp({ parts: [{ part: 'core', x: 0, y: 0 }, { part: 'frame', x: 1, y: 0 }, { part: 'frame', x: 1, y: 1 }, { part: 'laser', x: 2, y: 1, rot: 90 }] });
+    expect(toGrid(src, reg)).toBeNull();
+  });
 });

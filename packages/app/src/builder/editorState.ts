@@ -5,7 +5,7 @@ import {
   mirroredShift,
   mirrorRotation,
   removeParts,
-  setPartRotation,
+  setPartRotations,
   mirrorX,
   partAt,
   placePart,
@@ -25,7 +25,7 @@ export interface EditorState {
   held?: { part: string; rot: Rotation };
   /** A saved blueprint held to place as a copy (M7). Never together with `held` or `eraser`. */
   stamp?: Stamp;
-  /** Why the last click with a held blueprint did not place it. */
+  /** Why the last edit was refused: a click with a held blueprint that did not place it, or a turn onto another part. */
   refused?: string;
   /** The eraser tool (`E`): left-click or drag erases. Never together with `held`. */
   eraser?: true;
@@ -163,12 +163,15 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       // With the part menu open, rotation is for the parts it is on, not the part in your hand.
       if (editor.held && !editor.menu) return { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp };
       if (editor.stamp && !editor.menu) return { editor: { ...editor, stamp: { ...editor.stamp, rot: rotateBy(editor.stamp.rot, e.dir) } }, bp };
-      let out = bp;
+      // The selection turns as one change, or not at all when a turned part would land on another (review E1).
+      const rots = new Map<string, Rotation>();
       for (const id of editor.selection) {
-        const p = out.parts.find((q) => q.id === id);
-        if (p) out = setPartRotation(out, registry, id, rotateBy(p.rot, e.dir));
+        const p = bp.parts.find((q) => q.id === id);
+        if (p) rots.set(id, rotateBy(p.rot, e.dir));
       }
-      return { editor, bp: out };
+      const r = setPartRotations(bp, registry, rots);
+      const { refused: _refused, ...rest } = editor;
+      return r.ok ? { editor: rest, bp: r.blueprint } : { editor: { ...rest, refused: r.error }, bp };
     }
     case 'deleteSelection': {
       if (editor.selection.length === 0) return { editor, bp };
@@ -197,7 +200,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       return { editor: { ...editor, mirror: { ...editor.mirror, axisHalfCells: editor.mirror.axisHalfCells + e.delta, axisSet: true } }, bp };
     case 'down': {
       if (editor.gesture) return { editor, bp };
-      const { menu: _menu, ...closed } = editor;
+      const { menu: _menu, refused: _refused, ...closed } = editor;
       if (e.button === 'right') {
         // Right-click opens the part menu: on the selection when the part is in it, else on just that part.
         const hit = partAt(bp, registry, e.cell.x, e.cell.y);
@@ -208,8 +211,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       if (editor.stamp) {
         // A held blueprint is placed whole in one click (one undo step), or refused whole.
         const r = placeStamp(bp, editor.stamp, e.cell, editor.mirror, registry);
-        const { refused: _refused, ...rest } = closed;
-        return r.ok ? { editor: { ...rest, hover: e.cell, selection: [] }, bp: r.bp } : { editor: { ...rest, hover: e.cell, refused: r.error }, bp };
+        return r.ok ? { editor: { ...closed, hover: e.cell, selection: [] }, bp: r.bp } : { editor: { ...closed, hover: e.cell, refused: r.error }, bp };
       }
       const kind = editor.eraser ? 'erase' : editor.held ? 'paint' : 'select';
       const next = {

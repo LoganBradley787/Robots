@@ -9,7 +9,7 @@ export interface BuilderView {
   held?: { part: string; rot: Rotation };
   /** A saved blueprint held to place as a copy (M7). */
   stamp?: { name: string; rot: Rotation; flipped: boolean };
-  /** Why the last click with it was refused. */
+  /** Why the last edit was refused (a click with the held blueprint, or a turn onto another part). */
   refused?: string;
   /** The core the Controls and Scripts panels edit (absent: the main core), its controls, and every core to pick. */
   controlsFor?: string;
