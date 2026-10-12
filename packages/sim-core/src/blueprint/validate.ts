@@ -7,6 +7,7 @@ import type { Face } from '../parts/types';
 import { expandBlueprint } from './expand';
 import { toFileJson } from './serialize';
 import { allScripts } from './scripts';
+import { nearestNames } from './nearest';
 import { hollowAt, placedRecipeCells, recipePlacement, scopeBase } from '../fabricate/recipe';
 import type { Binding, Blueprint, Issue, PlacedPart, ScriptSpec } from './types';
 
@@ -38,6 +39,43 @@ function listIds(ids: readonly string[]): string {
   return ids.length > MAX_LISTED ? `${shown}, and ${ids.length - MAX_LISTED} more` : shown;
 }
 
+/** For a message about a core id that is not there (review Q1): the cores there are, and why an id may have moved. */
+function coresHint(cores: readonly PlacedPart[]): string {
+  return `(cores here: ${listIds(cores.map((c) => c.id)) || 'none'}; a part's id is <part>@<x>,<y> counted from the bottom left cell, so a new bottom row or left column renames every part)`;
+}
+
+/** ` did you mean 'x'?` for a name that is nearly one of `names`, else nothing. */
+function didYouMean(word: string, names: readonly string[]): string {
+  const near = nearestNames(word, names)[0];
+  return near !== undefined ? `; did you mean '${near}'?` : '';
+}
+
+/**
+ * Grids whose rows differ in length (review Q2), as messages: the file's own, then each recipe's. A token dropped
+ * from a row still expands, into a lopsided robot. Rows left empty are not counted. Read from the raw file, since
+ * the expanded blueprint no longer knows its rows.
+ */
+function raggedGrids(raw: unknown, label: string): { message: string; path: string }[] {
+  if (typeof raw !== 'object' || raw === null) return [];
+  const o = raw as { grid?: unknown; recipes?: unknown };
+  const out: { message: string; path: string }[] = [];
+  if (Array.isArray(o.grid) && o.grid.every((r) => typeof r === 'string')) {
+    const rows = (o.grid as string[]).map((r, row) => ({ row, cells: r.trim() === '' ? 0 : r.trim().split(/\s+/).length })).filter((r) => r.cells > 0);
+    const longest = rows.reduce((a, b) => (b.cells > a.cells ? b : a), rows[0] ?? { row: 0, cells: 0 });
+    const short = rows.filter((r) => r.cells !== longest.cells);
+    if (short.length > 0) {
+      out.push({
+        message: `${label}grid rows differ in length: row ${longest.row} (from the top) has ${longest.cells} cells, ${listIds(short.map((r) => `row ${r.row} has ${r.cells}`))}; a short row ends early on the right, so write '.' for each empty cell`,
+        path: 'grid',
+      });
+    }
+  }
+  if (label === '' && typeof o.recipes === 'object' && o.recipes !== null && !Array.isArray(o.recipes)) {
+    for (const [name, r] of Object.entries(o.recipes as Record<string, unknown>)) out.push(...raggedGrids(r, `recipe ${name}: `).map((g) => ({ message: g.message, path: `recipes.${name}.grid` })));
+  }
+  return out;
+}
+
 function sortFaces(faces: Face[]): Face[] {
   return FACES.filter((f) => faces.includes(f));
 }
@@ -55,6 +93,7 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
   };
 
   const src = expanded.blueprint;
+  for (const g of raggedGrids(raw, '')) warn('RAGGED_GRID', g.message, { path: g.path });
   // Structural checks. Assembly assumes all of these pass.
   for (const p of src.parts) {
     if (!registry.has(p.part)) {
@@ -117,11 +156,11 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
 
   const cores = blueprint.parts.filter((p) => isCore(p, registry));
   if (blueprint.primaryCore !== undefined && !cores.some((c) => c.id === blueprint.primaryCore)) {
-    err('BAD_PRIMARY_CORE', `primaryCore '${blueprint.primaryCore}' is not a core in this blueprint`, { path: 'primaryCore' });
+    err('BAD_PRIMARY_CORE', `primaryCore '${blueprint.primaryCore}' is not a core in this blueprint ${coresHint(cores)}`, { path: 'primaryCore' });
     return { issues, ok: false };
   }
   for (const id of blueprint.corePriority ?? []) {
-    if (!cores.some((c) => c.id === id)) err('BAD_CORE_PRIORITY', `corePriority lists '${id}', which is not a core in this blueprint`);
+    if (!cores.some((c) => c.id === id)) err('BAD_CORE_PRIORITY', `corePriority lists '${id}', which is not a core in this blueprint ${coresHint(cores)}`);
   }
   if (cores.length === 0) warn('NO_CORE', 'blueprint has no core; it will spawn as debris');
 
@@ -165,7 +204,7 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
   for (const c of blueprint.cores ?? []) {
     const label = `core ${c.core}${c.scope !== undefined ? ` (${c.scope})` : ''}: `;
     if (c.core === rootId) err('BAD_CORE_CONTROLS', `cores lists ${c.core}, the primary core; its controls are the top-level bindings and scripts`, { path: `cores.${c.core}` });
-    else if (!cores.some((p) => p.id === c.core)) err('BAD_CORE_CONTROLS', `cores lists '${c.core}', which is not a core in this blueprint`, { path: `cores.${c.core}` });
+    else if (!cores.some((p) => p.id === c.core)) err('BAD_CORE_CONTROLS', `cores lists '${c.core}', which is not a core in this blueprint ${coresHint(cores)}`, { path: `cores.${c.core}` });
     if (seenCores.has(c.core)) err('BAD_CORE_CONTROLS', `cores lists ${c.core} twice`);
     seenCores.add(c.core);
     checkScripts(c.scripts, err, label);
@@ -304,14 +343,21 @@ function checkBindings(
     }
     const tagged = parts.filter((p) => matchesTarget({ part: p.matchPart ?? p.part, tags: p.tags }, b.target as string));
     if (tagged.length === 0) {
-      err('BAD_TARGET', `${label}binding key '${b.key}' targets '${b.target}' but no part has that tag or part type`);
+      // What a target could have been (review Q1): the tags and part types these controls see, ids left out.
+      const tags = [...new Set(parts.flatMap((p) => p.tags.filter((t) => t !== p.id)))];
+      const types = [...new Set(parts.map((p) => p.matchPart ?? p.part))];
+      const near = didYouMean(b.target as string, [...tags, ...types, ...parts.map((p) => p.id)]);
+      err('BAD_TARGET', `${label}binding key '${b.key}' targets '${b.target}' but no part has that tag or part type${near} (tags here: ${listIds(tags) || 'none'}; part types here: ${listIds(types)})`);
       continue;
     }
     const hasInput = (p: PlacedPart): boolean => registry.get(p.part).inputs.some((c) => c.name === b.channel);
     const lacking = tagged.filter((p) => !hasInput(p));
     if (lacking.length === tagged.length) {
-      const kinds = [...new Set(tagged.map((p) => p.part))].join(' and ');
-      err('BAD_CHANNEL', `${label}binding key '${b.key}' writes channel '${b.channel}' on tag '${b.target}' but ${kinds} has no input '${b.channel}'`);
+      const kinds = [...new Set(tagged.map((p) => p.part))];
+      const inputs = (kind: string): string[] => registry.get(kind).inputs.map((c) => c.name);
+      const near = didYouMean(b.channel as string, kinds.flatMap(inputs));
+      const has = kinds.map((k) => `a ${k}'s inputs: ${inputs(k).join(', ') || 'none'}`).join('; ');
+      err('BAD_CHANNEL', `${label}binding key '${b.key}' writes channel '${b.channel}' on tag '${b.target}' but ${kinds.join(' and ')} has no input '${b.channel}'${near} (${has})`);
     } else if (lacking.length > 0) {
       const ids = listIds(lacking.map((p) => p.id));
       warn(

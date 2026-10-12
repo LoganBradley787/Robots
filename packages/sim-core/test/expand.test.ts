@@ -65,7 +65,7 @@ describe('expandBlueprint', () => {
       {
         severity: 'error',
         code: 'UNKNOWN_TOKEN',
-        message: "grid token '@' at row 1 column 1 is not in the legend",
+        message: "grid token '@' at row 1 column 1 (rows from the top; cell (1, 0) from the bottom left, as other messages count) is not in the legend",
         cell: { x: 1, y: 0 },
       },
     ]);

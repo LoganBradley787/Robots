@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { resolveScripts, SCRIPT_FILE } from '@robots/sim-core';
+import { nearestNames, resolveScripts, SCRIPT_FILE } from '@robots/sim-core';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -27,14 +27,31 @@ export function listBlueprints(): string[] {
 
 /** A path to a .json file, or a bare name looked up in blueprints/. */
 export function resolveBlueprint(arg: string): string {
-  if (arg.endsWith('.json') || arg.includes('/')) return resolveUserPath(arg);
+  if (arg.endsWith('.json') || arg.includes('/')) {
+    const path = resolveUserPath(arg);
+    if (!existsSync(path)) throw new Error(`no file at ${path} (a path is read from the folder the command was typed in; a blueprint in blueprints/ goes by its bare name, like car)`);
+    return path;
+  }
   const p = resolve(BLUEPRINT_DIR, `${arg}.json`);
-  if (!existsSync(p)) throw new Error(`no blueprint named '${arg}' (available: ${listBlueprints().join(', ') || 'none'})`);
+  if (!existsSync(p)) {
+    // The likely ones first (review Q3): the whole list is 90 names long.
+    const all = listBlueprints();
+    const near = nearestNames(arg, all, 3);
+    throw new Error(`no blueprint named '${arg}'${near.length > 0 ? `; nearest: ${near.join(', ')}` : ''} (all: ${all.join(', ') || 'none'})`);
+  }
   return p;
 }
 
+/** A json file's content. A path that leads nowhere and text that is not JSON are said in plain words, with the file's name (review Q3). */
 export function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, 'utf8'));
+  if (!existsSync(path)) throw new Error(`no file at ${path} (a path is read from the folder the command was typed in)`);
+  const text = readFileSync(path, 'utf8');
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    const comma = /,\s*[}\]]/.test(text) ? '; JSON allows no comma after the last item of a list or object, and this file has one' : '';
+    throw new Error(`${path} is not valid JSON: ${e instanceof Error ? e.message : String(e)}${comma}`);
+  }
 }
 
 /** A path to a replay file, or a bare name looked up in replays/. */
