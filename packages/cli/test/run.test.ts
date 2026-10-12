@@ -290,6 +290,21 @@ describe('placeCommand (M7)', () => {
     expect(JSON.parse(out.files[0]?.text ?? '').name).toBe('missile-car');
   });
 
+  it('gives no files to save when the result does not validate (review T4)', async () => {
+    const { placeCommand } = await import('../src/commands/place');
+    const { mirrorCommand } = await import('../src/commands/mirror');
+    const bad = { ...carJson, bindings: [{ key: 'a', mode: 'hold', target: 'nope', channel: 'speed', value: 1 }] };
+    for (const out of [placeCommand(bad, missile, { at: { x: 2, y: 2 }, saveAs: 'missile-car' }), mirrorCommand(bad, { saveAs: 'rac' })]) {
+      expect(out.ok).toBe(false);
+      expect(out.files).toEqual([]);
+      expect(out.text).toBe('');
+      expect(out.notes.join('\n')).toContain('error BAD_TARGET');
+      expect(out.notes.at(-1)).toMatch(/^not saved: /);
+    }
+    // Without --save the json is still printed, as before, for the author to fix.
+    expect(mirrorCommand(bad, {}).text).toContain('"name"');
+  });
+
   it('notes when the copy lands below row 0, which the grid form cannot hold', async () => {
     const { placeCommand } = await import('../src/commands/place');
     const out = placeCommand(carJson, { format: 1, name: 'm', grid: ['C', 'X'] }, { at: { x: 1, y: -1 } });

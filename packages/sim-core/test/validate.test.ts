@@ -66,7 +66,31 @@ describe('validateBlueprint', () => {
 
   it('BAD_PRIMARY_CORE', () => {
     const i = only({ format: 1, name: 't', grid: ['C F'], primaryCore: 'frame@1,0' });
-    expect(i?.message).toBe("primaryCore 'frame@1,0' is not a core in this blueprint");
+    expect(i?.message).toBe("primaryCore 'frame@1,0' is not a core in this blueprint (cores here: core@0,0; a part's id is <part>@<x>,<y> counted from the bottom left cell, so a new bottom row or left column renames every part)");
+  });
+
+  it('BAD_CORE_PRIORITY names the cores there are', () => {
+    const i = only({ format: 1, name: 't', grid: ['C C'], corePriority: ['core@2,0'] });
+    expect(i?.message).toBe("corePriority lists 'core@2,0', which is not a core in this blueprint (cores here: core@0,0, core@1,0; a part's id is <part>@<x>,<y> counted from the bottom left cell, so a new bottom row or left column renames every part)");
+  });
+
+  it('RAGGED_GRID warns about rows of unequal length (review Q2)', () => {
+    const r = validateBlueprint({ format: 1, name: 't', grid: ['F  F  C  F', 'W  .  W', '', '   '] }, reg);
+    expect(r.ok).toBe(false);
+    expect(r.issues[0]).toEqual({
+      severity: 'warning',
+      code: 'RAGGED_GRID',
+      message: "grid rows differ in length: row 0 (from the top) has 4 cells, row 1 has 3; a short row ends early on the right, so write '.' for each empty cell",
+      path: 'grid',
+    });
+    // Rows of one length, and rows left empty, say nothing.
+    expect(issuesOf({ format: 1, name: 't', grid: ['F  C  F', '', 'F  .  F'] }).map((i) => i.code)).not.toContain('RAGGED_GRID');
+    expect(issuesOf(car)).toEqual([]);
+  });
+
+  it('RAGGED_GRID reaches into recipes', () => {
+    const bp = { format: 1, name: 't', grid: ['C  F'], recipes: { pod: { format: 1, name: 'pod', grid: ['C  F  F', 'F  F'] } } };
+    expect(issuesOf(bp).filter((i) => i.code === 'RAGGED_GRID').map((i) => i.message)).toEqual([expect.stringMatching(/^recipe pod: grid rows differ in length: row 0 \(from the top\) has 3 cells, row 1 has 2/)]);
   });
 
   it('UNATTACHED names the faces that touch nothing', () => {
@@ -105,10 +129,19 @@ describe('validateBlueprint', () => {
     const codes = (bindings: unknown[], scripts: unknown[] = []) =>
       issuesOf({ ...base, bindings, scripts }).map((i) => `${i.severity}:${i.code}:${i.message}`);
     expect(codes([{ key: 'a', mode: 'hold', target: 'wheels', channel: 'speed', value: 1 }])).toEqual([
-      "error:BAD_TARGET:binding key 'a' targets 'wheels' but no part has that tag or part type",
+      "error:BAD_TARGET:binding key 'a' targets 'wheels' but no part has that tag or part type; did you mean 'wheel'? (tags here: props; part types here: propeller, core, wheel)",
+    ]);
+    expect(codes([{ key: 'a', mode: 'hold', target: 'guns', channel: 'fire', value: 1 }])).toEqual([
+      "error:BAD_TARGET:binding key 'a' targets 'guns' but no part has that tag or part type (tags here: props; part types here: propeller, core, wheel)",
     ]);
     expect(codes([{ key: 'f', mode: 'toggle', target: 'props', channel: 'speed', value: 1 }])).toEqual([
-      "error:BAD_CHANNEL:binding key 'f' writes channel 'speed' on tag 'props' but propeller has no input 'speed'",
+      "error:BAD_CHANNEL:binding key 'f' writes channel 'speed' on tag 'props' but propeller has no input 'speed' (a propeller's inputs: throttle)",
+    ]);
+    expect(codes([{ key: 'f', mode: 'hold', target: 'props', channel: 'throtle', value: 1 }])).toEqual([
+      "error:BAD_CHANNEL:binding key 'f' writes channel 'throtle' on tag 'props' but propeller has no input 'throtle'; did you mean 'throttle'? (a propeller's inputs: throttle)",
+    ]);
+    expect(codes([{ key: 'f', mode: 'hold', target: 'core', channel: 'speed', value: 1 }])).toEqual([
+      "error:BAD_CHANNEL:binding key 'f' writes channel 'speed' on tag 'core' but core has no input 'speed' (a core's inputs: none)",
     ]);
     expect(codes([{ key: 'h', mode: 'script', script: 'hover' }])).toEqual([
       "error:BAD_SCRIPT_REF:binding key 'h' toggles script 'hover', which is not in scripts",

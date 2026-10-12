@@ -198,7 +198,8 @@ function expandGrid(raw: Obj, parts: PlacedPart[], continuations: { x: number; y
       }
       const entry = legend.get(token);
       if (!entry) {
-        err('UNKNOWN_TOKEN', `grid token '${token}' at row ${i} column ${x} is not in the legend`, { cell: { x, y } });
+        // Both counts (review Q8): the file's row from the top, and the cell from the bottom left that every other message uses.
+        err('UNKNOWN_TOKEN', `grid token '${token}' at row ${i} column ${x} (rows from the top; cell (${x}, ${y}) from the bottom left, as other messages count) is not in the legend`, { cell: { x, y } });
         return;
       }
       const id = partId(entry.part, x, y);

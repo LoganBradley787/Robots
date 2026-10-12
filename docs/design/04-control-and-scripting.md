@@ -177,5 +177,6 @@ interface ParamSpec { default: number; min?: number; max?: number; step?: number
   - `mark(x, y, label)`: up to 4 points per tick for the debug overlay and the CLI side view. Not simulation state. Non-finite points are skipped, and `set()` ignores a NaN or infinite value with one log line (M8 review; both used to stop the script).
   - `contacts` and `inbox` are host-set globals, like `parts` and `self`: a script's own variable with that name is overwritten every tick.
   - A sensor sees nothing until it has been powered once (its first tick after deploy).
+- **Checked before a run** (review 2026-10-09): `pnpm sim validate` compiles every script the way the world does and warns about one that would stop at t=0 (no `tick`, a syntax error, a throw at the top level), and about plain string targets and channels in `set()` and `get()` that reach nothing (`02`, Validator).
 - **An AI is scripts:** `enemy-drone` has no engine AI; its pilot script flies, aims, launches, and dodges from `contacts`. `AiCoreSource` above is not needed.
 

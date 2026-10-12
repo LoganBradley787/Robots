@@ -161,7 +161,7 @@ describe('controls per core in files', () => {
     const raw = { format: 1, name: 't', grid: ['C  C'], cores: { 'frame@9,9': {}, 'core@0,0': {} } };
     const codes = validateBlueprint(raw, reg).issues.filter((i) => i.code === 'BAD_CORE_CONTROLS').map((i) => i.message);
     expect(codes).toEqual([
-      "cores lists 'frame@9,9', which is not a core in this blueprint",
+      "cores lists 'frame@9,9', which is not a core in this blueprint (cores here: core@0,0, core@1,0; a part's id is <part>@<x>,<y> counted from the bottom left cell, so a new bottom row or left column renames every part)",
       'cores lists core@0,0, the primary core; its controls are the top-level bindings and scripts',
     ]);
   });

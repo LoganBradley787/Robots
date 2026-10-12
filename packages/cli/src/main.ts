@@ -1,8 +1,8 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
-import { BLUEPRINT_DIR, DEFAULT_WORLD, readBlueprint, readJson, REPO_ROOT, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
+import { BLUEPRINT_DIR, DEFAULT_WORLD, loadBlueprintFile, readBlueprint, readJson, REPO_ROOT, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
-import { validateCommand } from './commands/validate';
+import { validateWithScripts } from './commands/validate';
 import { showBlueprint } from './commands/show';
 import { tune } from './commands/tune';
 import { formatReplay, replayCommand } from './commands/replay';
@@ -15,6 +15,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { defaultRegistry, isRotation, orientRaw, type Rotation } from '@robots/sim-core';
 import { parseTeam } from './spawnSpec';
 import { parseDrop } from './drops';
+import { flagProblem } from './flags';
 import { bench, BENCH_SCENES, formatBench, type BenchScene } from './commands/bench';
 import { duel, formatDuel, SpawnRefused, type Bounds, type DuelEntry } from './commands/duel';
 import { formatResults, parseRoster, rankingTable, runTournament, speedTable } from './commands/tournament';
@@ -30,7 +31,10 @@ commands
                      side view of every piece's path over the ground and boxes
   show <bp>          print the grid, legend, mass, center of mass, body structure, and every core's controls
   parts              print every part: builder key, legend tokens, mass, health, faces, power, what it does
-  validate <bp>      print validator issues; exit 1 on errors
+  validate <bp>      print validator issues; exit 1 on errors. A script file that is not next to the
+                     blueprint is an error here and for show, run, determinism, duel and tournament. Also
+                     warns about a script that would stop at t=0 (it does not compile, has no tick()) and
+                     about set() and get() on a tag or channel written as a plain string that reaches nothing
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
   replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
                      ends in the same state (exit 1 on mismatch)
@@ -40,7 +44,8 @@ commands
                      grid (x right, y up, the bottom row is y 0), as the builder's Blueprints palette does.
                      Prints the result's json (notes go to stderr, so > file.json is clean). --save <name>
                      writes blueprints/<name>.json and its scripts as files; --save <path>.json writes them
-                     there instead (a drafts folder). --force replaces an existing file
+                     there instead (a drafts folder). --force replaces an existing file. A result that does not
+                     validate is not saved (exit 1)
   bench [scene] [--n <count>] [--seconds <n>] [--json]
                      time ticks on this machine (M9): hover (missile-drone-10prop hovering, 1 to 100 of
                      them, the default), big (one flying-silo), battle (enemy drones, team 1 against team 2,
@@ -70,7 +75,7 @@ commands
                      each titan, scripts that stopped) to --out (default tournaments/out). --only <name> runs
                      just that titan's pairings
 
-flags
+flags (for run and determinism unless a command lists its own; a flag a command does not read is refused, exit 2)
   --world <path>     world json (default: worlds/flat.json; for duel and tournament, worlds/arena.json)
   --seconds <n>      simulated seconds (default: 5)
   --seed <n>         world seed (default: 1)
@@ -146,6 +151,12 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 0;
   }
+  // A flag the command does not read is refused, never ignored (review T3).
+  const problem = flagProblem(command, [...flags.keys(), ...(dropArgs.length > 0 ? ['drop'] : [])]);
+  if (problem !== undefined) {
+    console.error(`${problem}\npnpm sim help lists every command and flag`);
+    return 2;
+  }
   if (command === 'replay') {
     if (bpArg === undefined) {
       console.error('replay needs a replay file, like replays/2026-09-23-1512-car.json');
@@ -178,28 +189,26 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 2;
   }
-  const loaded = readBlueprint(resolveBlueprint(bpArg));
-  for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to the blueprint`);
+  const raw = loadBlueprintFile(bpArg);
+  // show and validate read the file as written and take no flags; run and determinism deploy it flipped or turned (M8).
+  if (command === 'show') {
+    const s = showBlueprint(raw);
+    console.log(s.text);
+    return s.ok ? 0 : 1;
+  }
+  if (command === 'validate') {
+    const v = await validateWithScripts(raw);
+    console.log(v.text);
+    return v.ok ? 0 : 1;
+  }
+
   const rot = flags.has('rot') ? numberFlag(flags, 'rot', 0) : 0;
   if (!isRotation(rot)) {
     console.error(`--rot must be 0, 90, 180, or 270, got ${rot}`);
     return 2;
   }
-  // show and validate read the file as written; run and determinism deploy it flipped or turned (M8).
-  const deploy = command === 'run' || command === 'determinism';
-  const blueprint = deploy ? orientRaw(loaded.raw, { flip: flags.has('flip'), rot }, defaultRegistry()) : loaded.raw;
+  const blueprint = orientRaw(raw, { flip: flags.has('flip'), rot }, defaultRegistry());
   const team = flags.has('team') ? parseTeam(flags.get('team') ?? '') : 0;
-
-  if (command === 'show') {
-    const s = showBlueprint(blueprint);
-    console.log(s.text);
-    return s.ok ? 0 : 1;
-  }
-  if (command === 'validate') {
-    const v = validateCommand(blueprint);
-    console.log(v.text);
-    return v.ok ? 0 : 1;
-  }
 
   const seconds = numberFlag(flags, 'seconds', 5);
   const seed = seedFlag(flags);
@@ -270,9 +279,7 @@ async function duelCommand(positional: string[], flags: Map<string, string>): Pr
     return 2;
   }
   const entry = (arg: string, height: string): DuelEntry => {
-    const loaded = readBlueprint(resolveBlueprint(arg));
-    for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to ${arg}`);
-    return { name: basename(arg, '.json'), raw: loaded.raw, ...(flags.has(height) ? { y: numberFlag(flags, height, 0) } : {}) };
+    return { name: basename(arg, '.json'), raw: loadBlueprintFile(arg), ...(flags.has(height) ? { y: numberFlag(flags, height, 0) } : {}) };
   };
   const bounds = boundsFlag(flags);
   if (bounds === null) return 2;
@@ -309,8 +316,8 @@ async function tournamentCommand(positional: string[], flags: Map<string, string
     return 2;
   }
   const titans = parseRoster(readJson(resolveUserPath(rosterArg)));
-  // A missing blueprint stops the run here, before any duel.
-  for (const t of titans) resolveBlueprint(t.name);
+  // A missing blueprint or script file stops the run here, before any duel.
+  for (const t of titans) loadBlueprintFile(t.name);
   const seeds = (flags.get('seeds') ?? '1,2,3').split(',').map((s) => (s.trim() === '' ? Number.NaN : Number(s)));
   if (seeds.length === 0 || seeds.some((s) => !Number.isInteger(s) || s < 0 || s > 0xffffffff)) {
     console.error(`--seeds must be whole numbers with commas between, like 1,2,3; got ${flags.get('seeds') ?? ''}`);

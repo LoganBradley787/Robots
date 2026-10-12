@@ -19,6 +19,15 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - `pnpm sim parts`: every part: builder key, legend tokens, mass, health, attach faces, power, and what it does. `--json` for data.
 - `pnpm sim show <bp>`: grid, legend, mass, center of mass, bodies, every core's controls (auto keys, bindings, and next to each script the keys it reads itself: `reads keys W S A D`).
 - `pnpm sim validate <bp>`: validator issues; exit 1 on errors.
+- Messages name what exists: `BAD_TARGET` lists the tags and part types there are and the nearest one, `BAD_CHANNEL` the part's inputs, and a core id that is not there (`BAD_PRIMARY_CORE`, `BAD_CORE_PRIORITY`, `BAD_CORE_CONTROLS`) the cores there are. Ids are `<part>@<x>,<y>` counted from the bottom left cell, so adding a bottom row or a left column renames every part: fix `primaryCore`, `cores`, and id targets after it.
+- `RAGGED_GRID` (warning): the grid's rows differ in length. A token dropped from a row still makes a robot, a lopsided one, so write `.` for every empty cell.
+- An unknown blueprint name gives the three nearest names first; a wrong path says `no file at <path>`; a JSON error names the file (and says so when it is a comma after the last item).
+- `validate` also reads the scripts and warns (exit 0, the script's name, file, and line in the message):
+  - `SCRIPT_SYNTAX`: it does not compile. `SCRIPT_NO_TICK`: it has no `function tick()`. `SCRIPT_ERROR`: it throws or never ends as it starts (code outside any function). Each would stop the script at t=0, so fix them before a run.
+  - `SCRIPT_CHANNEL`: `set('wheels', 'throttle', 1)` where no part that answers to `wheels` has that input (the message lists the inputs it has), a `get` of a value they do not have, or a channel name no part type has at all.
+  - `SCRIPT_TARGET`: `set('wheelz', ...)` where no part has that tag, part type, or id and the robot has a name a letter or two away (`wheels`) that the script never uses.
+  - Only arguments written as plain strings are read. A name built at run time (`name + '.gun'`, `p.id`) is not checked, and neither is a name the robot simply lacks (`set('bay', ...)` on a robot with no bay is how shared scripts treat optional parts), so a clean `validate` does not prove a script reaches what it means to. The run report does.
+- A script file the blueprint names but that is not next to it is an error (`MISSING_SCRIPT`, exit 1, the file named on stderr) for `validate`, `show`, `run` (a `--drop` too), `determinism`, `duel`, and `tournament`: nothing runs until the file exists.
 - `pnpm sim run <bp> [flags]`: simulate and report.
   - `--x <n> --y <n>`: where the core lands (default: the world spawn at (0, 6)). Spawn in open ground, like `--x -100 --y 3`; the flat world's boxes are near x 0 to 18.
   - `--seconds <n>` (default 5), `--seed <n>`.
@@ -33,6 +42,7 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - `pnpm sim mirror <bp> [--axis <half cells>] [--save <name or path.json>] [--force]`: flips left to right in place.
 - `place` and `mirror` print the blueprint's JSON on stdout (scripts inline) and their notes on stderr, so `> draft.json` captures a clean file. Better: `--save drafts/x.json` writes the blueprint and every script as files there (`x.hover.js`, `x.missile1.guide.js`); `--save x` writes them into `blueprints/`.
 - Every command takes `--help`.
+- A flag a command does not read is refused: a misspelled `--secnds 1` on `run` exits 2 with `unknown flag --secnds; did you mean --seconds?` and the flags `run` takes. `show`, `validate`, and `tune` take none; the run flags above are for `run` and `determinism` (`--json` for `run` only).
 
 ## Reading a run report
 - **Once per second:** robot A's core position, tilt in degrees (counterclockwise positive), speed, resting.
@@ -122,7 +132,7 @@ Run `pnpm sim parts` for the full table. g is 9.81.
 - The robot's own controls reach the copy's parts by part type or id (`decoupler`, `thruster@3,0`) or by the scope tag (`missile1`). Tag the robot's own parts (`left`, `right`) so its controls never grab a missile's parts by type.
 - Parts must not overlap. Leave an empty row or column of dots where the copy goes if it would land below row 0 or left of column 0; otherwise the file falls back to the long `parts` form (`place` says so).
 - Logan does the same in the builder: the palette's Blueprints section holds a copy (R turns, F flips), and the Controls and Scripts panels have a Controls for picker for each placed core.
-- `--save <name>` writes the blueprint and a copy of every script under the new name (`launcher.missile1.guide.js`). `--force` replaces an existing file.
+- `--save <name>` writes the blueprint and a copy of every script under the new name (`launcher.missile1.guide.js`). `--force` replaces an existing file. A result that does not validate is not saved: the errors go to stderr, exit 1, and no file is written (true of `mirror --save` too).
 
 ## Turrets (rotators)
 Learned building `turret-drone` (Gate 6); most of a turret's design time goes to this geometry.
