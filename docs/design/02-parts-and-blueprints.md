@@ -303,6 +303,7 @@ Runs on load, on every editor change, and in the headless runner. Returns a list
 - `UNKNOWN_TOKEN`: "grid token 'Q' at row 1 column 3 is not in the legend".
 - `SCRIPT_SYNTAX`: "script 'hover' line 12: unexpected token" (M5, needs QuickJS).
 - `BAD_CORE_CONTROLS` (M7): a `cores` key that is not a core in the blueprint, or the primary core (whose controls are the top-level fields). Binding checks (`BAD_TARGET`, `BAD_CHANNEL`, `BAD_KEY`, `BAD_SCRIPT_REF`) run for each core in its own scope, with messages prefixed `core <id> (<scope>): `.
+- `MISSING_SCRIPT` (review 2026-10-09, CLI only): a script's `{ file }` that is not next to the blueprint. An error for `validate`, `show`, `run`, `determinism`, `duel`, and `tournament` (exit 1, nothing runs), where it used to be a warning and a script that stopped at t=0. The app still loads the blueprint and shows a notice.
 - Also shipped in M1: `BAD_FORMAT`, `BAD_ROTATION`, `UNKNOWN_PART`, `EMPTY`, `DUPLICATE_ID`, `BAD_CONTINUATION`, `BAD_PRIMARY_CORE`, `BAD_CORE_PRIORITY`, `CHANNEL_SKIPPED` (warning: some tagged parts lack the channel), `BAD_SCRIPT_REF`, `BAD_BINDING`, `BAD_SCRIPT`, and `UNSUPPORTED` (sub-assembly legend entries until M6). The root part (primary core) is never reported `UNATTACHED`; the parts that fail to reach it are.
 
 ## Helpers for authors

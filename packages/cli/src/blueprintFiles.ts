@@ -55,3 +55,16 @@ export function readBlueprint(path: string): { raw: unknown; missing: string[] }
     return existsSync(p) ? readFileSync(p, 'utf8') : undefined;
   });
 }
+
+/**
+ * A blueprint by name or path with its scripts loaded, for a command that deploys or checks it. A script file that is
+ * not there is an error (review T1): the robot would spawn with a script that stops at t=0.
+ */
+export function loadBlueprintFile(arg: string): unknown {
+  const path = resolveBlueprint(arg);
+  const loaded = readBlueprint(path);
+  if (loaded.missing.length > 0) {
+    throw new Error(loaded.missing.map((f) => `error MISSING_SCRIPT: script file ${f} not found next to ${path} (a script's file sits in the blueprint's folder; write it, or fix "file" in the blueprint)`).join('\n'));
+  }
+  return loaded.raw;
+}

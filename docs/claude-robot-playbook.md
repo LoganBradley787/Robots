@@ -19,6 +19,7 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - `pnpm sim parts`: every part: builder key, legend tokens, mass, health, attach faces, power, and what it does. `--json` for data.
 - `pnpm sim show <bp>`: grid, legend, mass, center of mass, bodies, every core's controls (auto keys, bindings, and next to each script the keys it reads itself: `reads keys W S A D`).
 - `pnpm sim validate <bp>`: validator issues; exit 1 on errors.
+- A script file the blueprint names but that is not next to it is an error (`MISSING_SCRIPT`, exit 1, the file named on stderr) for `validate`, `show`, `run`, `determinism`, `duel`, and `tournament`: nothing runs until the file exists.
 - `pnpm sim run <bp> [flags]`: simulate and report.
   - `--x <n> --y <n>`: where the core lands (default: the world spawn at (0, 6)). Spawn in open ground, like `--x -100 --y 3`; the flat world's boxes are near x 0 to 18.
   - `--seconds <n>` (default 5), `--seed <n>`.

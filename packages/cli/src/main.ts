@@ -1,5 +1,5 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
-import { BLUEPRINT_DIR, DEFAULT_WORLD, readBlueprint, readJson, REPO_ROOT, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
+import { BLUEPRINT_DIR, DEFAULT_WORLD, loadBlueprintFile, readBlueprint, readJson, REPO_ROOT, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateCommand } from './commands/validate';
@@ -30,7 +30,8 @@ commands
                      side view of every piece's path over the ground and boxes
   show <bp>          print the grid, legend, mass, center of mass, body structure, and every core's controls
   parts              print every part: builder key, legend tokens, mass, health, faces, power, what it does
-  validate <bp>      print validator issues; exit 1 on errors
+  validate <bp>      print validator issues; exit 1 on errors. A script file that is not next to the
+                     blueprint is an error here and for show, run, determinism, duel and tournament
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
   replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
                      ends in the same state (exit 1 on mismatch)
@@ -178,8 +179,7 @@ async function main(): Promise<number> {
     console.log(USAGE);
     return 2;
   }
-  const loaded = readBlueprint(resolveBlueprint(bpArg));
-  for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to the blueprint`);
+  const raw = loadBlueprintFile(bpArg);
   const rot = flags.has('rot') ? numberFlag(flags, 'rot', 0) : 0;
   if (!isRotation(rot)) {
     console.error(`--rot must be 0, 90, 180, or 270, got ${rot}`);
@@ -187,7 +187,7 @@ async function main(): Promise<number> {
   }
   // show and validate read the file as written; run and determinism deploy it flipped or turned (M8).
   const deploy = command === 'run' || command === 'determinism';
-  const blueprint = deploy ? orientRaw(loaded.raw, { flip: flags.has('flip'), rot }, defaultRegistry()) : loaded.raw;
+  const blueprint = deploy ? orientRaw(raw, { flip: flags.has('flip'), rot }, defaultRegistry()) : raw;
   const team = flags.has('team') ? parseTeam(flags.get('team') ?? '') : 0;
 
   if (command === 'show') {
@@ -270,9 +270,7 @@ async function duelCommand(positional: string[], flags: Map<string, string>): Pr
     return 2;
   }
   const entry = (arg: string, height: string): DuelEntry => {
-    const loaded = readBlueprint(resolveBlueprint(arg));
-    for (const f of loaded.missing) console.error(`warning: script file ${f} not found next to ${arg}`);
-    return { name: basename(arg, '.json'), raw: loaded.raw, ...(flags.has(height) ? { y: numberFlag(flags, height, 0) } : {}) };
+    return { name: basename(arg, '.json'), raw: loadBlueprintFile(arg), ...(flags.has(height) ? { y: numberFlag(flags, height, 0) } : {}) };
   };
   const bounds = boundsFlag(flags);
   if (bounds === null) return 2;
@@ -309,8 +307,8 @@ async function tournamentCommand(positional: string[], flags: Map<string, string
     return 2;
   }
   const titans = parseRoster(readJson(resolveUserPath(rosterArg)));
-  // A missing blueprint stops the run here, before any duel.
-  for (const t of titans) resolveBlueprint(t.name);
+  // A missing blueprint or script file stops the run here, before any duel.
+  for (const t of titans) loadBlueprintFile(t.name);
   const seeds = (flags.get('seeds') ?? '1,2,3').split(',').map((s) => (s.trim() === '' ? Number.NaN : Number(s)));
   if (seeds.length === 0 || seeds.some((s) => !Number.isInteger(s) || s < 0 || s > 0xffffffff)) {
     console.error(`--seeds must be whole numbers with commas between, like 1,2,3; got ${flags.get('seeds') ?? ''}`);
