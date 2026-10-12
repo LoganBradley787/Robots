@@ -62,6 +62,12 @@ describe('blast model (M6)', () => {
     expect(fx.push[2]).toEqual({ jx: 0, jy: 0 });
   });
 
+  it('a cell exactly `lift` below the center is pushed straight up, never NaN (review S5)', () => {
+    // A laser's numbers, and the cell below it, where its mount usually is.
+    const fx = blastEffects(O, { radius: 2.5, damage: 80, pushRadius: 4, push: 25, lift: 1 }, [cell(0, -1)], []);
+    expect(fx.push[0]).toEqual({ jx: 0, jy: 25 * (1 - 1 / 4) });
+  });
+
   it('segment against a rotated box', () => {
     expect(segmentHitsBox(-2, 0, 2, 0, 0, 0, 0.5, 0.5, 0)).toBe(true);
     expect(segmentHitsBox(-2, 1, 2, 1, 0, 0, 0.5, 0.5, 0)).toBe(false);

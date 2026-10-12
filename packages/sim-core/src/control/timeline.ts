@@ -1,6 +1,7 @@
 import type { RobotInput } from './types';
 import { appendEdge } from './edges';
 import { keyProblem } from './keys';
+import { compareText } from '../replay/compareText';
 
 /** One key held from `down` to `up` seconds after the run starts. `up` equal to `down` is a one-tick tap. */
 export interface KeyPress {
@@ -18,7 +19,7 @@ export class TimelineError extends Error {}
  */
 export function parseKeyTimeline(spec: unknown): KeyPress[] {
   const presses = typeof spec === 'string' ? parseText(spec) : parseJson(spec);
-  presses.sort((a, b) => a.down - b.down || a.key.localeCompare(b.key));
+  presses.sort((a, b) => a.down - b.down || compareText(a.key, b.key));
   const lastUp = new Map<string, number>();
   for (const p of presses) {
     const prev = lastUp.get(p.key);

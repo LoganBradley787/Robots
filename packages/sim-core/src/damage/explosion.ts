@@ -66,7 +66,8 @@ export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec
       // instead of only rolling it along on its wheels.
       const ly = dy + spec.lift;
       const l = Math.sqrt(dx * dx + ly * ly);
-      push[i] = { jx: (j * dx) / l, jy: (j * ly) / l };
+      // A cell exactly `lift` below the center has no direction of its own (review S5: it got a NaN push): up.
+      push[i] = l > 1e-9 ? { jx: (j * dx) / l, jy: (j * ly) / l } : { jx: 0, jy: j };
     }
   });
   return { damage, push };

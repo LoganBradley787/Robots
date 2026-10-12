@@ -36,6 +36,7 @@ import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Beam } from '../weapons/beams';
 import type { Bolt } from '../weapons/bolts';
+import { compareText } from '../replay/compareText';
 import { WIND_ACT } from '../behaviors/cannon';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
@@ -1471,7 +1472,7 @@ export class World {
           if (!seen || h.distance < seen.distance) met.set(key, h);
         }
       }
-      const hits = [...met.values()].sort((p, q) => p.distance - q.distance || p.body - q.body || (p.owner ?? '').localeCompare(q.owner ?? ''));
+      const hits = [...met.values()].sort((p, q) => p.distance - q.distance || p.body - q.body || compareText(p.owner ?? '', q.owner ?? ''));
       let stopped: number | undefined;
       for (const h of hits) {
         const robot = bodies.get(h.body);

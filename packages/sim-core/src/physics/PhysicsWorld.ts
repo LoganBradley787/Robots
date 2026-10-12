@@ -1,5 +1,6 @@
 import * as RAPIER from '@dimforge/rapier2d-deterministic-compat';
 import type { StateHasher } from '../replay/StateHasher';
+import { compareText } from '../replay/compareText';
 
 /** Stable id owned by us. Rapier handles are index plus generation and get reused; ours never do. */
 export type BodyId = number;
@@ -699,7 +700,7 @@ export class PhysicsWorld {
       if (body !== undefined && !skip?.(body, owner)) out.push({ body, owner, distance: hit.timeOfImpact });
       return true;
     });
-    return out.sort((a, b) => a.distance - b.distance || a.body - b.body || (a.owner ?? '').localeCompare(b.owner ?? ''));
+    return out.sort((a, b) => a.distance - b.distance || a.body - b.body || compareText(a.owner ?? '', b.owner ?? ''));
   }
 
   /**
