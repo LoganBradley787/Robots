@@ -1,9 +1,9 @@
-import { partCells } from '../assembly/assemble';
+import { partCells, rootPartId } from '../assembly/assemble';
 import { defaultSize } from '../parts/footprint';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import type { Binding, Blueprint, PlacedPart, Recipe } from './types';
+import type { Binding, Blueprint, CoreControls, PlacedPart, Recipe, ScriptSpec } from './types';
 
 /**
  * Pure edit operations for the builder. Each returns a new Blueprint, or the same object when nothing changed,
@@ -36,17 +36,17 @@ export function placePart(bp: Blueprint, registry: PartRegistry, part: string, x
   const hit = bp.parts.filter(covered);
   const same = hit[0];
   if (hit.length === 1 && same && same.part === part && same.x === x && same.y === y && same.rot === rot) return bp;
-  const cleared = removeParts(bp, hit.map((p) => p.id));
+  const cleared = removeParts(bp, hit.map((p) => p.id), registry);
   const id = uniqueId(partId(part, x, y), new Set(cleared.parts.map((p) => p.id)));
   return { ...cleared, parts: [...cleared.parts, { id, part, x, y, rot, tags: [id] }] };
 }
 
 export function erasePartAt(bp: Blueprint, registry: PartRegistry, x: number, y: number): Blueprint {
   const hit = partAt(bp, registry, x, y);
-  return hit ? removeParts(bp, [hit.id]) : bp;
+  return hit ? removeParts(bp, [hit.id], registry) : bp;
 }
 
-export function removeParts(bp: Blueprint, ids: readonly string[]): Blueprint {
+export function removeParts(bp: Blueprint, ids: readonly string[], registry: PartRegistry): Blueprint {
   if (!bp.parts.some((p) => ids.includes(p.id))) return bp;
   const out: Blueprint = { ...bp, parts: bp.parts.filter((p) => !ids.includes(p.id)) };
   // Everything that named a removed part by id goes with it (M7): a core's controls, and the pilot and takeover
@@ -62,7 +62,53 @@ export function removeParts(bp: Blueprint, ids: readonly string[]): Blueprint {
     if (order.length > 0) out.corePriority = order;
     else delete out.corePriority;
   }
+  // With the primary core gone the next core is the primary one, and the primary core's controls are the top-level
+  // ones: an entry of its own in `cores` would never validate again (review E3).
+  const root = rootPartId(bp, registry);
+  if (root !== undefined && ids.includes(root)) {
+    const next = rootPartId(out, registry);
+    const entry = out.cores?.find((c) => c.core === next);
+    if (entry) return promoteControls(out, entry);
+  }
   return out;
+}
+
+/**
+ * Moves a core's controls to the top level and drops its `cores` entry. Nothing the robot had is lost: its own
+ * bindings and scripts stay and the core's come after them, a binding both had once, a script id both had under a new
+ * name (`guide-2`) that the core's bindings follow. A scoped core's targets get its scope (`burn` to `missile1.burn`),
+ * so its bindings still mean its own parts; the code of its scripts is not rewritten.
+ */
+function promoteControls(bp: Blueprint, entry: CoreControls): Blueprint {
+  const scope = entry.scope;
+  const scoped = new Set(scope === undefined ? [] : bp.parts.filter((p) => p.tags.includes(scope)).flatMap((p) => p.tags));
+  const target = (t: string): string => (scope !== undefined && !bp.parts.some((p) => p.id === t) && scoped.has(`${scope}.${t}`) ? `${scope}.${t}` : t);
+  const taken = new Set(bp.scripts.map((s) => s.id));
+  const renamed = new Map<string, string>();
+  const scripts: ScriptSpec[] = entry.scripts.map((s) => {
+    const id = uniqueName(s.id, taken);
+    taken.add(id);
+    renamed.set(s.id, id);
+    return id === s.id ? s : { ...s, id };
+  });
+  const same = (a: Binding, b: Binding): boolean => a.key === b.key && a.mode === b.mode && a.target === b.target && a.channel === b.channel && a.value === b.value && a.script === b.script;
+  const bindings = [...bp.bindings];
+  for (const b of entry.bindings) {
+    const moved: Binding = { ...b, ...(b.target !== undefined ? { target: target(b.target) } : {}), ...(b.script !== undefined ? { script: renamed.get(b.script) ?? b.script } : {}) };
+    // A script binding is never a repeat: the script it runs is the core's own, whatever it is called.
+    if (moved.mode === 'script' || !bindings.some((x) => same(x, moved))) bindings.push(moved);
+  }
+  const out: Blueprint = { ...bp, bindings, scripts: [...bp.scripts, ...scripts] };
+  if (entry.autoControls === false) out.autoControls = false;
+  const cores = (bp.cores ?? []).filter((c) => c !== entry);
+  if (cores.length > 0) out.cores = cores;
+  else delete out.cores;
+  return out;
+}
+
+function uniqueName(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }
 
 /** Explicit tags first, the implicit id tag last, like the grid expansion writes them. */

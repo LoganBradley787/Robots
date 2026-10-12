@@ -173,18 +173,18 @@ describe('controls per core in files', () => {
   });
 
   it('erasing a core drops its controls', () => {
-    expect(removeParts(placed.blueprint, ['core@1,4']).cores).toBeUndefined();
+    expect(removeParts(placed.blueprint, ['core@1,4'], reg).cores).toBeUndefined();
   });
 
   it('erasing or painting over the pilot or a placed core leaves nothing pointing at it (review)', () => {
     expect(placed.blueprint.primaryCore).toBe('core@1,1');
-    const noPilot = removeParts(placed.blueprint, ['core@1,1']);
+    const noPilot = removeParts(placed.blueprint, ['core@1,1'], reg);
     expect(noPilot.primaryCore).toBeUndefined();
     const painted = placePart(placed.blueprint, reg, 'frame', 1, 4, 0);
     expect(painted.cores).toBeUndefined();
     expect(validateBlueprint(toFileJson(painted, reg, { inlineScripts: true }), reg).issues.filter((i) => i.severity === 'error')).toEqual([]);
     const ordered = { ...placed.blueprint, corePriority: ['core@1,4', 'core@1,1'] };
-    expect(removeParts(ordered, ['core@1,4']).corePriority).toEqual(['core@1,1']);
+    expect(removeParts(ordered, ['core@1,4'], reg).corePriority).toEqual(['core@1,1']);
   });
 
   it('saving names the pilot when there are two cores, so reading order never changes it (review)', () => {

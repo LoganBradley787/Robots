@@ -176,7 +176,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
     case 'deleteSelection': {
       if (editor.selection.length === 0) return { editor, bp };
       const { menu: _menu, ...rest } = editor;
-      return { editor: { ...rest, selection: [] }, bp: removeParts(bp, editor.selection) };
+      return { editor: { ...rest, selection: [] }, bp: removeParts(bp, editor.selection, registry) };
     }
     case 'escape': {
       const { held: _held, eraser: _eraser, menu: _menu, stamp: _stamp, refused: _refused, gesture: g, gestureShift: _shift, ...rest } = editor;

@@ -258,7 +258,7 @@ describe('selection', () => {
     expect(r.editor.selection).toEqual(['laser@2,1']);
     // What would be saved still has all seven parts.
     expect(expandBlueprint(toFileJson(r.bp, reg)).blueprint?.parts).toHaveLength(7);
-    const open = removeParts(src, ['frame@1,1']);
+    const open = removeParts(src, ['frame@1,1'], reg);
     const ok = run([{ type: 'rotate', dir: 1 }], open, r.editor);
     expect(ok.bp.parts.find((p) => p.id === 'laser@2,1')?.rot).toBe(90);
     expect(ok.editor.refused).toBeUndefined();
