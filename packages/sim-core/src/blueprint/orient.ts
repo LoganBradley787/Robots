@@ -10,7 +10,7 @@ import { validateBlueprint } from './validate';
 import type { Binding, Blueprint } from './types';
 
 export interface Orientation {
-  /** Left to right, across the root part's column, before turning. */
+  /** Left to right, across the middle of the root part's cells, before turning. */
   flip?: boolean;
   /** Counterclockwise, around the root part's cell. */
   rot?: Rotation;
@@ -18,7 +18,8 @@ export interface Orientation {
 
 /**
  * The whole blueprint flipped and turned around its root part (the primary core, or the first part), for deploying a
- * robot facing the other way (M8). The root keeps its cell, so the robot lands where the ghost shows it. Parts get the
+ * robot facing the other way (M8). The root keeps its cells (lying on its side, its origin's column), so the robot
+ * lands where the ghost shows it, and flipping twice gives the same blueprint back. Parts get the
  * ids of their new cells, and everything that named a part by id follows (binding targets, `primaryCore`,
  * `corePriority`, each core's controls). Tags and scripts stay as they are, as with `mirrorBlueprint`: a script that
  * steers by its parts' positions and its heading works turned; one with hard-coded left and right may not.
@@ -31,13 +32,18 @@ export function orientBlueprint(bp: Blueprint, o: Orientation, registry: PartReg
   const rootId = rootPartId(bp, registry);
   const root = bp.parts.find((p) => p.id === rootId);
   if (!root) return bp;
+  // The flip is across the column the root's own cells are symmetric about, in half cells from its origin: its
+  // origin's column for a one-cell root, half a cell off for a cannon two cells wide. Across its origin's column such a
+  // root would land a cell to the side, and again on every flip (review E5).
+  const rootCells = registry.has(root.part) ? footprintOf(registry.get(root.part), root.size).map((c) => c.x) : [0];
+  const axis = rotateCell({ x: Math.min(...rootCells) + Math.max(...rootCells), y: 0 }, root.rot).x + 0;
   const newId = new Map<string, string>();
   const parts = bp.parts.map((p) => {
     let dx = p.x - root.x;
     let dy = p.y - root.y;
     let r = p.rot;
     if (o.flip) {
-      dx = -dx;
+      dx = axis - dx;
       r = mirrorRotation(r);
       // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
       const shift = registry.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), r) : { x: 0, y: 0 };

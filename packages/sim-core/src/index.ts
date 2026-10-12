@@ -42,7 +42,7 @@ export { sampleRobot, partWorldPose, DriveTracker } from './metrics/robotMetrics
 export type { RobotSample, DriveMetrics } from './metrics/robotMetrics';
 export { parseKeyTimeline, timelineInputs, TimelineError } from './control/timeline';
 export type { KeyPress } from './control/timeline';
-export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls } from './blueprint/edit';
+export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setPartRotations, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls } from './blueprint/edit';
 export { mirrorRotation, mirrorX, mirrorBlueprint, mirrorProblem } from './blueprint/mirror';
 export { footprintBox, footprintOf, mirrorable, mirroredShift, partMass, defaultSize, cupFootprint } from './parts/footprint';
 export { hollowCells, hollowAt, recipePlacement, recipeStats, buildSeconds, scopeBase } from './fabricate/recipe';
@@ -51,7 +51,7 @@ export type { Orientation } from './blueprint/orient';
 export { staticStats } from './blueprint/stats';
 export type { StaticStats } from './blueprint/stats';
 export { toFileJson } from './blueprint/serialize';
-export { resolveScripts, allScripts, scriptFiles, scriptFileName, assignScriptFiles, dropForeignScriptFiles } from './blueprint/scripts';
+export { resolveScripts, allScripts, scriptFiles, scriptFileName, scriptFileClash, assignScriptFiles, dropForeignScriptFiles } from './blueprint/scripts';
 export { SCRIPT_FILE } from './blueprint/validate';
 export { createQuickJsHost } from './script/quickjs';
 export { DEFAULT_LIMITS } from './script/types';

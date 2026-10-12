@@ -12,10 +12,14 @@ import {
   removeTagFromParts,
   setBindings,
   setPartRotation,
+  setPartRotations,
+  setPartsSize,
 } from '../src/blueprint/edit';
 import { mirrorBlueprint, mirrorRotation, mirrorX } from '../src/blueprint/mirror';
 import { staticStats } from '../src/blueprint/stats';
 import { toFileJson } from '../src/blueprint/serialize';
+import { validateBlueprint } from '../src/blueprint/validate';
+import { defaultSize } from '../src/parts/footprint';
 import { defaultRegistry } from '../src/parts/registry';
 
 const reg = defaultRegistry();
@@ -63,7 +67,7 @@ describe('edit operations', () => {
   });
 
   it('removeParts removes by id', () => {
-    expect(removeParts(car(), ['wheel@0,0', 'wheel@5,0']).parts).toHaveLength(6);
+    expect(removeParts(car(), ['wheel@0,0', 'wheel@5,0'], reg).parts).toHaveLength(6);
   });
 
   it('tags: add to many, keep the id tag, dedupe, remove', () => {
@@ -170,5 +174,122 @@ describe('toFileJson', () => {
       .blueprint as Blueprint;
     const json = toFileJson(src, reg) as Record<string, unknown>;
     expect(json.parts).toEqual([{ id: 'hull', part: 'frame', x: 0, y: 0, rot: 90, tags: ['body'] }]);
+  });
+});
+
+describe('parts never share a cell after an edit (review E1)', () => {
+  const laserBot = (): Blueprint => {
+    const r = expandBlueprint({ format: 1, name: 'l', grid: ['. . = .', '. F Lz^ F', 'C F F F'] });
+    if (!r.blueprint) throw new Error(JSON.stringify(r.issues));
+    return r.blueprint;
+  };
+
+  it('a turn onto another part is refused, with the reason', () => {
+    const bp = laserBot();
+    expect(setPartRotation(bp, reg, 'laser@2,1', 90)).toBe(bp);
+    expect(setPartRotations(bp, reg, new Map([['laser@2,1', 90]]))).toEqual({ ok: false, error: 'laser@2,1 turned would overlap frame@1,1 at (1, 1)' });
+    // Into free cells it turns: with the frame gone the barrel has room.
+    const open = removeParts(bp, ['frame@1,1'], reg);
+    expect(setPartRotation(open, reg, 'laser@2,1', 90).parts.find((p) => p.id === 'laser@2,1')?.rot).toBe(90);
+  });
+
+  it('parts turned together are checked where they end up', () => {
+    // One laser with its barrel up, one two cells right with its barrel pointing left, into the cell between them.
+    const bp = expandBlueprint({ format: 1, name: 'l', grid: ['=   .   .', 'Lz^ =   Lz<'] }).blueprint as Blueprint;
+    // Turned alone, the first one's barrel lands on the second one's.
+    expect(setPartRotations(bp, reg, new Map([['laser@0,0', 270]])).ok).toBe(false);
+    // Turned together, the second barrel has left the cell the first one swings into.
+    const both = setPartRotations(bp, reg, new Map([['laser@0,0', 270], ['laser@2,0', 0]]));
+    expect(both.ok && both.blueprint.parts.map((p) => p.rot)).toEqual([270, 0]);
+  });
+
+  it('a blueprint with two parts on one cell is saved whole, in the parts form, and the validator names the overlap', () => {
+    const bp = laserBot();
+    const overlapping: Blueprint = { ...bp, parts: bp.parts.map((p) => (p.id === 'laser@2,1' ? { ...p, rot: 90 as const } : p)) };
+    const json = toFileJson(overlapping, reg) as Record<string, unknown>;
+    expect(json.grid).toBeUndefined();
+    expect(json.parts).toHaveLength(7);
+    expect(expandBlueprint(json).blueprint?.parts).toHaveLength(7);
+    expect(validateBlueprint(json, reg).issues.map((i) => i.code)).toContain('OVERLAP');
+  });
+
+  it('a bay grown onto another part keeps both, and the validator names the overlap', () => {
+    // A frame one cell right of the bay's right wall: one cell wider and the wall is on it.
+    const [w] = defaultSize(reg.get('fabbay')) ?? [0, 0];
+    const bp = expandBlueprint({ format: 1, name: 'b', parts: [{ part: 'fabbay', x: 1, y: 0 }, { part: 'frame', x: w + 2, y: 0 }] }).blueprint as Blueprint;
+    expect(validateBlueprint(toFileJson(bp, reg), reg).issues.map((i) => i.code)).not.toContain('OVERLAP');
+    const grown = setPartsSize(bp, ['fabbay@1,0'], (s) => [s[0] + 1, s[1]], reg);
+    const json = toFileJson(grown, reg) as Record<string, unknown>;
+    expect(json.parts).toHaveLength(2);
+    expect(validateBlueprint(json, reg).issues.map((i) => i.code)).toContain('OVERLAP');
+  });
+});
+
+describe('erasing the primary core promotes the next one with its controls (review E3)', () => {
+  const errors = (bp: Blueprint): string[] => validateBlueprint(toFileJson(bp, reg, { inlineScripts: true }), reg).issues.filter((i) => i.severity === 'error').map((i) => i.message);
+  const twoCores = (extra: object): Blueprint => {
+    const r = expandBlueprint({ format: 1, name: 't', grid: ['C C T<'], ...extra });
+    if (!r.blueprint) throw new Error(JSON.stringify(r.issues));
+    return r.blueprint;
+  };
+  const drive = { key: 'w', mode: 'hold', target: 'thruster', channel: 'throttle', value: 1 };
+  const backup = { key: 'b', mode: 'hold', target: 'thruster', channel: 'throttle', value: 0.5 };
+
+  it('its controls move to the top level and its entry goes, so the robot still validates', () => {
+    const bp = twoCores({ bindings: [drive], cores: { 'core@1,0': { bindings: [backup], scripts: [{ id: 'limp', source: 'function tick() {}' }], autoControls: false } } });
+    expect(errors(bp)).toEqual([]);
+    const out = erasePartAt(bp, reg, 0, 0);
+    expect(out.cores).toBeUndefined();
+    // The robot's own controls stay, the promoted core's come after them.
+    expect(out.bindings).toEqual([drive, backup]);
+    expect(out.scripts.map((s) => s.id)).toEqual(['limp']);
+    expect(out.autoControls).toBe(false);
+    expect(errors(out)).toEqual([]);
+  });
+
+  it('a named pilot that is erased hands over the same way, and other cores keep their entries', () => {
+    const r = expandBlueprint({ format: 1, name: 't', grid: ['C F C T<', '. C . .'], primaryCore: 'core@1,0', cores: { 'core@0,1': { bindings: [backup] }, 'core@2,1': { bindings: [drive] } } });
+    const out = removeParts(r.blueprint as Blueprint, ['core@1,0'], reg);
+    expect(out.primaryCore).toBeUndefined();
+    expect(out.bindings).toEqual([backup]);
+    expect(out.cores?.map((c) => c.core)).toEqual(['core@2,1']);
+    expect(errors(out)).toEqual([]);
+  });
+
+  it('a binding both had is kept once, and a script id both had gets a new name its bindings follow', () => {
+    const run = { key: 'g', mode: 'script', script: 'go' };
+    const bp = twoCores({
+      bindings: [drive, run],
+      scripts: [{ id: 'go', source: 'function tick() { /* main */ }' }],
+      cores: { 'core@1,0': { bindings: [drive, { ...run, key: 'h' }], scripts: [{ id: 'go', source: 'function tick() { /* backup */ }' }] } },
+    });
+    const out = erasePartAt(bp, reg, 0, 0);
+    expect(out.bindings).toEqual([drive, run, { key: 'h', mode: 'script', script: 'go-2' }]);
+    expect(out.scripts.map((s) => [s.id, s.source])).toEqual([['go', 'function tick() { /* main */ }'], ['go-2', 'function tick() { /* backup */ }']]);
+    expect(errors(out)).toEqual([]);
+  });
+
+  it("a placed copy's core keeps aiming at its own parts: its targets get its scope", () => {
+    const r = expandBlueprint({
+      format: 1,
+      name: 't',
+      grid: ['C c t'],
+      legend: { c: { part: 'core', tags: ['m1'] }, t: { part: 'thruster', rot: 90, tags: ['m1', 'm1.burn'] } },
+      cores: { 'core@1,0': { scope: 'm1', bindings: [{ ...drive, target: 'burn' }, { ...backup, target: 'thruster@2,0' }] } },
+    });
+    const bp = r.blueprint as Blueprint;
+    expect(errors(bp)).toEqual([]);
+    const out = erasePartAt(bp, reg, 0, 0);
+    expect(out.cores).toBeUndefined();
+    expect(out.bindings.map((b) => b.target)).toEqual(['m1.burn', 'thruster@2,0']);
+    expect(errors(out)).toEqual([]);
+  });
+
+  it('erasing a core that was not the pilot, or the only core, moves nothing', () => {
+    const bp = twoCores({ bindings: [drive], cores: { 'core@1,0': { bindings: [backup] } } });
+    const out = erasePartAt(bp, reg, 1, 0);
+    expect([out.bindings, out.cores]).toEqual([[drive], undefined]);
+    const lone = removeParts(out, ['core@0,0'], reg);
+    expect(lone.bindings).toEqual([drive]);
   });
 });

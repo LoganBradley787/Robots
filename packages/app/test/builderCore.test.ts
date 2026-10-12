@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankBlueprint, defaultRegistry, type Blueprint } from '@robots/sim-core';
+import { blankBlueprint, defaultRegistry, expandBlueprint, removeParts, toFileJson, type Blueprint } from '@robots/sim-core';
 import { History } from '../src/builder/history';
 import { initialEditor, reduce, type EditorEvent, type EditorState } from '../src/builder/editorState';
 
@@ -236,6 +236,17 @@ describe('selection', () => {
     expect(r.gestures).toEqual([]);
   });
 
+  it('a box over any cell of a multi-cell part selects it, as a click there does (review E4)', () => {
+    // The laser's origin is (2, 1); its barrel is the cell above.
+    const src = expandBlueprint({ format: 1, name: 'l', grid: ['. . = .', '. F Lz^ F', 'C F F F'] }).blueprint as Blueprint;
+    const box = (a: { x: number; y: number }, b: { x: number; y: number }): string[] =>
+      run([{ type: 'down', cell: a, button: 'left', shift: false }, { type: 'move', cell: b }, { type: 'up', cell: b }], src).editor.selection;
+    expect(box({ x: 1, y: 2 }, { x: 3, y: 2 })).toEqual(['laser@2,1']);
+    expect(box({ x: 3, y: 2 }, { x: 4, y: 3 })).toEqual([]);
+    // Each part once, in part order, however many of its cells are in the box.
+    expect(box({ x: 2, y: 2 }, { x: 3, y: 1 })).toEqual(['laser@2,1', 'frame@3,1']);
+  });
+
   it('delete removes the selection in one edit and clears it', () => {
     const bp = car();
     const r = run([{ type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 1 } }, { type: 'deleteSelection' }], bp);
@@ -247,6 +258,21 @@ describe('selection', () => {
     const bp = run([{ type: 'pick', index: 4 }, { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 0 } }]).bp;
     const r = run([{ type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 0 } }, { type: 'rotate', dir: 1 }], bp);
     expect(r.bp.parts[0]?.rot).toBe(90);
+  });
+
+  it('a turn onto another part is refused and says why; the next turn that fits clears the notice (review E1)', () => {
+    const src = expandBlueprint({ format: 1, name: 'l', grid: ['. . = .', '. F Lz^ F', 'C F F F'] }).blueprint as Blueprint;
+    const select: EditorEvent[] = [{ type: 'down', cell: { x: 2, y: 2 }, button: 'left', shift: false }, { type: 'up', cell: { x: 2, y: 2 } }];
+    const r = run([...select, { type: 'rotate', dir: 1 }], src);
+    expect(r.bp).toBe(src);
+    expect(r.editor.refused).toBe('laser@2,1 turned would overlap frame@1,1 at (1, 1)');
+    expect(r.editor.selection).toEqual(['laser@2,1']);
+    // What would be saved still has all seven parts.
+    expect(expandBlueprint(toFileJson(r.bp, reg)).blueprint?.parts).toHaveLength(7);
+    const open = removeParts(src, ['frame@1,1'], reg);
+    const ok = run([{ type: 'rotate', dir: 1 }], open, r.editor);
+    expect(ok.bp.parts.find((p) => p.id === 'laser@2,1')?.rot).toBe(90);
+    expect(ok.editor.refused).toBeUndefined();
   });
 
   it('turning mirror on the first time puts the axis on the core column', () => {

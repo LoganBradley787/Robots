@@ -5,12 +5,14 @@ import {
   mirroredShift,
   mirrorRotation,
   removeParts,
-  setPartRotation,
+  setPartRotations,
   mirrorX,
   partAt,
+  partCells,
   placePart,
   type Blueprint,
   type PartRegistry,
+  type PlacedPart,
   type Rotation,
 } from '@robots/sim-core';
 import { placeStamp, type Stamp } from './stamp';
@@ -25,7 +27,7 @@ export interface EditorState {
   held?: { part: string; rot: Rotation };
   /** A saved blueprint held to place as a copy (M7). Never together with `held` or `eraser`. */
   stamp?: Stamp;
-  /** Why the last click with a held blueprint did not place it. */
+  /** Why the last edit was refused: a click with a held blueprint that did not place it, or a turn onto another part. */
   refused?: string;
   /** The eraser tool (`E`): left-click or drag erases. Never together with `held`. */
   eraser?: true;
@@ -100,7 +102,7 @@ export function lineCells(a: Cell, b: Cell): Cell[] {
   return out;
 }
 
-/** A click selects the part under it; a drag selects every part whose cell is in the box. Shift adds or toggles. */
+/** A click selects the part under it; a drag selects every part with a cell in the box. Shift adds or toggles. */
 function selectAfter(editor: EditorState, bp: Blueprint, registry: PartRegistry, a: Cell, b: Cell): string[] {
   const shift = editor.gesture?.kind === 'select' && editor.gestureShift === true;
   if (a.x === b.x && a.y === b.y) {
@@ -111,7 +113,9 @@ function selectAfter(editor: EditorState, bp: Blueprint, registry: PartRegistry,
   }
   const [x0, x1] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
   const [y0, y1] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
-  const inBox = bp.parts.filter((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1).map((p) => p.id);
+  // Any cell of the part counts, not only its origin: a laser is picked up by its barrel too (review E4).
+  const cellsOf = (p: PlacedPart): Cell[] => (registry.has(p.part) ? partCells(p, registry).map((c) => c.cell) : [{ x: p.x, y: p.y }]);
+  const inBox = bp.parts.filter((p) => cellsOf(p).some((c) => c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1)).map((p) => p.id);
   return shift ? [...editor.selection, ...inBox.filter((id) => !editor.selection.includes(id))] : inBox;
 }
 
@@ -163,17 +167,20 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       // With the part menu open, rotation is for the parts it is on, not the part in your hand.
       if (editor.held && !editor.menu) return { editor: { ...editor, held: { ...editor.held, rot: rotateBy(editor.held.rot, e.dir) } }, bp };
       if (editor.stamp && !editor.menu) return { editor: { ...editor, stamp: { ...editor.stamp, rot: rotateBy(editor.stamp.rot, e.dir) } }, bp };
-      let out = bp;
+      // The selection turns as one change, or not at all when a turned part would land on another (review E1).
+      const rots = new Map<string, Rotation>();
       for (const id of editor.selection) {
-        const p = out.parts.find((q) => q.id === id);
-        if (p) out = setPartRotation(out, registry, id, rotateBy(p.rot, e.dir));
+        const p = bp.parts.find((q) => q.id === id);
+        if (p) rots.set(id, rotateBy(p.rot, e.dir));
       }
-      return { editor, bp: out };
+      const r = setPartRotations(bp, registry, rots);
+      const { refused: _refused, ...rest } = editor;
+      return r.ok ? { editor: rest, bp: r.blueprint } : { editor: { ...rest, refused: r.error }, bp };
     }
     case 'deleteSelection': {
       if (editor.selection.length === 0) return { editor, bp };
       const { menu: _menu, ...rest } = editor;
-      return { editor: { ...rest, selection: [] }, bp: removeParts(bp, editor.selection) };
+      return { editor: { ...rest, selection: [] }, bp: removeParts(bp, editor.selection, registry) };
     }
     case 'escape': {
       const { held: _held, eraser: _eraser, menu: _menu, stamp: _stamp, refused: _refused, gesture: g, gestureShift: _shift, ...rest } = editor;
@@ -197,7 +204,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       return { editor: { ...editor, mirror: { ...editor.mirror, axisHalfCells: editor.mirror.axisHalfCells + e.delta, axisSet: true } }, bp };
     case 'down': {
       if (editor.gesture) return { editor, bp };
-      const { menu: _menu, ...closed } = editor;
+      const { menu: _menu, refused: _refused, ...closed } = editor;
       if (e.button === 'right') {
         // Right-click opens the part menu: on the selection when the part is in it, else on just that part.
         const hit = partAt(bp, registry, e.cell.x, e.cell.y);
@@ -208,8 +215,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       if (editor.stamp) {
         // A held blueprint is placed whole in one click (one undo step), or refused whole.
         const r = placeStamp(bp, editor.stamp, e.cell, editor.mirror, registry);
-        const { refused: _refused, ...rest } = closed;
-        return r.ok ? { editor: { ...rest, hover: e.cell, selection: [] }, bp: r.bp } : { editor: { ...rest, hover: e.cell, refused: r.error }, bp };
+        return r.ok ? { editor: { ...closed, hover: e.cell, selection: [] }, bp: r.bp } : { editor: { ...closed, hover: e.cell, refused: r.error }, bp };
       }
       const kind = editor.eraser ? 'erase' : editor.held ? 'paint' : 'select';
       const next = {

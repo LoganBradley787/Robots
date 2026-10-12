@@ -308,7 +308,7 @@ Runs on load, on every editor change, and in the headless runner. Returns a list
 
 ## Helpers for authors
 - `mirror(blueprint, axis)`: reflects the grid and rotations, fixes wheel and thruster tokens.
-- `toGrid(blueprint)`: renders a `parts` blueprint back into `grid` plus `legend` text for display or copy.
+- `toGrid(blueprint)`: renders a `parts` blueprint back into `grid` plus `legend` text for display or copy. It gives nothing when a grid cannot express the blueprint: a cell below or left of (0, 0), a custom part id, or two parts on one cell.
 - Both are pure functions in `blueprint/` with tests, so Claude can call them from the CLI.
 - As built (M7): `mirrorBlueprint(bp, axisHalfCells)` also renames everything that names a part by id (binding targets, `primaryCore`, `corePriority`, `cores`); scripts are copied unchanged. The CLI (`docs/claude-robot-playbook.md` has the full list): `pnpm sim parts` (every part def as a table), `show` (grid via `toGrid`, mass, bodies, every core's controls), `mirror <bp> [--axis] [--save]`, `place <target> <source> --at x,y [--rot] [--mirror] [--save]`, and `run`, whose report lists events in order, every piece's final state, and an ASCII side view of every piece's path.
 

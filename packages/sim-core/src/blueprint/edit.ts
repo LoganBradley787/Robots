@@ -1,9 +1,9 @@
-import { partCells } from '../assembly/assemble';
+import { partCells, rootPartId } from '../assembly/assemble';
 import { defaultSize } from '../parts/footprint';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import type { Binding, Blueprint, PlacedPart, Recipe } from './types';
+import type { Binding, Blueprint, CoreControls, PlacedPart, Recipe, ScriptSpec } from './types';
 
 /**
  * Pure edit operations for the builder. Each returns a new Blueprint, or the same object when nothing changed,
@@ -36,17 +36,17 @@ export function placePart(bp: Blueprint, registry: PartRegistry, part: string, x
   const hit = bp.parts.filter(covered);
   const same = hit[0];
   if (hit.length === 1 && same && same.part === part && same.x === x && same.y === y && same.rot === rot) return bp;
-  const cleared = removeParts(bp, hit.map((p) => p.id));
+  const cleared = removeParts(bp, hit.map((p) => p.id), registry);
   const id = uniqueId(partId(part, x, y), new Set(cleared.parts.map((p) => p.id)));
   return { ...cleared, parts: [...cleared.parts, { id, part, x, y, rot, tags: [id] }] };
 }
 
 export function erasePartAt(bp: Blueprint, registry: PartRegistry, x: number, y: number): Blueprint {
   const hit = partAt(bp, registry, x, y);
-  return hit ? removeParts(bp, [hit.id]) : bp;
+  return hit ? removeParts(bp, [hit.id], registry) : bp;
 }
 
-export function removeParts(bp: Blueprint, ids: readonly string[]): Blueprint {
+export function removeParts(bp: Blueprint, ids: readonly string[], registry: PartRegistry): Blueprint {
   if (!bp.parts.some((p) => ids.includes(p.id))) return bp;
   const out: Blueprint = { ...bp, parts: bp.parts.filter((p) => !ids.includes(p.id)) };
   // Everything that named a removed part by id goes with it (M7): a core's controls, and the pilot and takeover
@@ -62,7 +62,53 @@ export function removeParts(bp: Blueprint, ids: readonly string[]): Blueprint {
     if (order.length > 0) out.corePriority = order;
     else delete out.corePriority;
   }
+  // With the primary core gone the next core is the primary one, and the primary core's controls are the top-level
+  // ones: an entry of its own in `cores` would never validate again (review E3).
+  const root = rootPartId(bp, registry);
+  if (root !== undefined && ids.includes(root)) {
+    const next = rootPartId(out, registry);
+    const entry = out.cores?.find((c) => c.core === next);
+    if (entry) return promoteControls(out, entry);
+  }
   return out;
+}
+
+/**
+ * Moves a core's controls to the top level and drops its `cores` entry. Nothing the robot had is lost: its own
+ * bindings and scripts stay and the core's come after them, a binding both had once, a script id both had under a new
+ * name (`guide-2`) that the core's bindings follow. A scoped core's targets get its scope (`burn` to `missile1.burn`),
+ * so its bindings still mean its own parts; the code of its scripts is not rewritten.
+ */
+function promoteControls(bp: Blueprint, entry: CoreControls): Blueprint {
+  const scope = entry.scope;
+  const scoped = new Set(scope === undefined ? [] : bp.parts.filter((p) => p.tags.includes(scope)).flatMap((p) => p.tags));
+  const target = (t: string): string => (scope !== undefined && !bp.parts.some((p) => p.id === t) && scoped.has(`${scope}.${t}`) ? `${scope}.${t}` : t);
+  const taken = new Set(bp.scripts.map((s) => s.id));
+  const renamed = new Map<string, string>();
+  const scripts: ScriptSpec[] = entry.scripts.map((s) => {
+    const id = uniqueName(s.id, taken);
+    taken.add(id);
+    renamed.set(s.id, id);
+    return id === s.id ? s : { ...s, id };
+  });
+  const same = (a: Binding, b: Binding): boolean => a.key === b.key && a.mode === b.mode && a.target === b.target && a.channel === b.channel && a.value === b.value && a.script === b.script;
+  const bindings = [...bp.bindings];
+  for (const b of entry.bindings) {
+    const moved: Binding = { ...b, ...(b.target !== undefined ? { target: target(b.target) } : {}), ...(b.script !== undefined ? { script: renamed.get(b.script) ?? b.script } : {}) };
+    // A script binding is never a repeat: the script it runs is the core's own, whatever it is called.
+    if (moved.mode === 'script' || !bindings.some((x) => same(x, moved))) bindings.push(moved);
+  }
+  const out: Blueprint = { ...bp, bindings, scripts: [...bp.scripts, ...scripts] };
+  if (entry.autoControls === false) out.autoControls = false;
+  const cores = (bp.cores ?? []).filter((c) => c !== entry);
+  if (cores.length > 0) out.cores = cores;
+  else delete out.cores;
+  return out;
+}
+
+function uniqueName(base: string, taken: Set<string>): string {
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }
 
 /** Explicit tags first, the implicit id tag last, like the grid expansion writes them. */
@@ -84,10 +130,40 @@ export function removeTagFromParts(bp: Blueprint, ids: readonly string[], tag: s
   return { ...bp, parts: bp.parts.map((p) => (ids.includes(p.id) ? withTags(p, p.tags.filter((x) => x !== tag && x !== p.id)) : p)) };
 }
 
-export function setPartRotation(bp: Blueprint, _registry: PartRegistry, id: string, rot: Rotation): Blueprint {
-  const p = bp.parts.find((q) => q.id === id);
-  if (!p || p.rot === rot) return bp;
-  return { ...bp, parts: bp.parts.map((q) => (q.id === id ? { ...q, rot } : q)) };
+export type RotateResult = { ok: true; blueprint: Blueprint } | { ok: false; error: string };
+
+/**
+ * Turns the given parts in place, all at once, or refuses the whole thing when a turned part's cells would land on
+ * another part (review E1: a multi-cell part turned onto a neighbour used to lose one of the two on save). Parts
+ * turned together are checked where they end up, so two neighbours can swing clear of each other in one step.
+ */
+export function setPartRotations(bp: Blueprint, registry: PartRegistry, rots: ReadonlyMap<string, Rotation>): RotateResult {
+  const turned = new Set<string>();
+  const parts = bp.parts.map((p) => {
+    const rot = rots.get(p.id);
+    if (rot === undefined || rot === p.rot) return p;
+    turned.add(p.id);
+    return { ...p, rot };
+  });
+  if (turned.size === 0) return { ok: true, blueprint: bp };
+  const occupied = new Map<string, string>();
+  for (const p of parts) if (!turned.has(p.id)) for (const c of cellsOf(p, registry)) occupied.set(`${c.x},${c.y}`, p.id);
+  for (const p of parts) {
+    if (!turned.has(p.id)) continue;
+    for (const c of cellsOf(p, registry)) {
+      const key = `${c.x},${c.y}`;
+      const hit = occupied.get(key);
+      if (hit !== undefined) return { ok: false, error: `${p.id} turned would overlap ${hit} at (${c.x}, ${c.y})` };
+      occupied.set(key, p.id);
+    }
+  }
+  return { ok: true, blueprint: { ...bp, parts } };
+}
+
+/** Turns one part in place. A turn onto another part is refused: the same blueprint comes back (`setPartRotations` says why). */
+export function setPartRotation(bp: Blueprint, registry: PartRegistry, id: string, rot: Rotation): Blueprint {
+  const r = setPartRotations(bp, registry, new Map([[id, rot]]));
+  return r.ok ? r.blueprint : bp;
 }
 
 export function setBindings(bp: Blueprint, bindings: Binding[]): Blueprint {

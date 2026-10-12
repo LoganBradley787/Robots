@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import variant from '@jitl/quickjs-wasmfile-release-sync';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { createQuickJsHost } from '../src/script/quickjs';
 import type { ScriptHost } from '../src/script/types';
 import flatJson from '../../../worlds/flat.json';
@@ -9,6 +9,8 @@ import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import type { Robot } from '../src/world/Robot';
 import { expandBlueprint } from '../src/blueprint/expand';
+import { isCore, partCells, rootPartId } from '../src/assembly/assemble';
+import { mirrorProblem } from '../src/blueprint/mirror';
 import { orientBlueprint, orientRaw } from '../src/blueprint/orient';
 import { resolveScripts } from '../src/blueprint/scripts';
 import { validateBlueprint } from '../src/blueprint/validate';
@@ -95,5 +97,70 @@ describe('orientBlueprint (M8 deploy flip and turn)', () => {
     const core = missile.groups[missile.parts.get(missile.primaryCoreId ?? '')?.group ?? 0]?.bodyId as number;
     expect(w.physics.state(core).vx).toBeLessThan(-10);
     w.dispose();
+  });
+});
+
+describe('flipping keeps the root part where it is (review E5)', () => {
+  const stock = readdirSync(new URL('../../../blueprints/', import.meta.url))
+    .filter((f) => f.endsWith('.json'))
+    .sort()
+    .map((f) => ({ name: f.slice(0, -'.json'.length), bp: expand(JSON.parse(bpFile(f))) }));
+  const rootCells = (bp: Blueprint): string[] => {
+    const root = bp.parts.find((p) => p.id === rootPartId(bp, reg));
+    return root ? partCells(root, reg).map((c) => `${c.cell.x},${c.cell.y}`).sort() : [];
+  };
+
+  it('a two-wide root flips onto its own cells, and flipping twice gives the blueprint back', () => {
+    // The cannon is two cells wide: its origin is its left column, so its mirror image is not about that column.
+    const bp = expand(JSON.parse(bpFile('cannon-turret.json')));
+    expect(bp.parts[0]?.part).toBe('cannon');
+    const once = orientBlueprint(bp, { flip: true }, reg);
+    expect(rootCells(once)).toEqual(rootCells(bp));
+    expect(orientBlueprint(once, { flip: true }, reg).parts).toEqual(bp.parts);
+    // Upside down it keeps its cells too. On its side its two columns are two rows and its barrel swings to the
+    // other side of its origin's column, as a one-cell gun's does; two flips still give the blueprint back.
+    const down = orientBlueprint(bp, { rot: 180 }, reg);
+    expect(rootCells(orientBlueprint(down, { flip: true }, reg))).toEqual(rootCells(down));
+    for (const rot of [90, 180, 270] as const) {
+      const turned = orientBlueprint(bp, { rot }, reg);
+      expect(orientBlueprint(orientBlueprint(turned, { flip: true }, reg), { flip: true }, reg).parts).toEqual(turned.parts);
+    }
+  });
+
+  it('every stock blueprint comes back from two flips, and from four quarter turns', () => {
+    expect(stock.length).toBeGreaterThanOrEqual(90);
+    const multiCellRoots: string[] = [];
+    for (const { name, bp } of stock) {
+      const root = bp.parts.find((p) => p.id === rootPartId(bp, reg));
+      if (root && !isCore(root, reg) && partCells(root, reg).length > 1) multiCellRoots.push(name);
+      let turned = bp;
+      for (let i = 0; i < 4; i++) turned = orientBlueprint(turned, { rot: 90 }, reg);
+      expect(turned.parts, `${name} turned four times`).toEqual(bp.parts);
+      if (mirrorProblem(bp, reg)) continue;
+      expect(orientBlueprint(orientBlueprint(bp, { flip: true }, reg), { flip: true }, reg).parts, `${name} flipped twice`).toEqual(bp.parts);
+    }
+    // Of the stock blueprints only the cannon turret has a multi-cell first part and no core; the lance and laser
+    // turrets start with their rotator. The next test covers those guns as roots.
+    expect(multiCellRoots).toContain('cannon-turret');
+  });
+
+  it('a cannon, a lance or a laser as the root comes back from two flips, whichever way it points', () => {
+    for (const part of ['cannon', 'lance', 'laser']) {
+      for (const rot of [0, 90, 180, 270] as const) {
+        const bp = expand({ format: 1, name: 'g', parts: [{ part, x: 5, y: 5, rot }, { part: 'frame', x: 9, y: 9 }, { part: 'thruster', x: 10, y: 9, rot: 90 }] });
+        const once = orientBlueprint(bp, { flip: true }, reg);
+        expect(orientBlueprint(once, { flip: true }, reg).parts, `${part} at ${rot}`).toEqual(bp.parts);
+        if (rot === 0 || rot === 180) expect(rootCells(once), `${part} at ${rot}`).toEqual(rootCells(bp));
+      }
+    }
+  });
+
+  it('a bay as the root flips onto its own cells at every size', () => {
+    for (const size of [undefined, [1, 1], [2, 3], [4, 2]] as const) {
+      const bp = expand({ format: 1, name: 'b', parts: [{ part: 'fabbay', x: 3, y: 2, ...(size ? { size } : {}) }, { part: 'frame', x: 3, y: 1 }, { part: 'thruster', x: 2, y: 1, rot: 90 }] });
+      const once = orientBlueprint(bp, { flip: true }, reg);
+      expect(rootCells(once)).toEqual(rootCells(bp));
+      expect(orientBlueprint(once, { flip: true }, reg).parts).toEqual(bp.parts);
+    }
   });
 });

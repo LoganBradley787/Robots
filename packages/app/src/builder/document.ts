@@ -1,4 +1,4 @@
-import { allScripts, assignScriptFiles, dropForeignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, SCRIPT_FILE, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
+import { allScripts, assignScriptFiles, dropForeignScriptFiles, blankBlueprint, expandBlueprint, resolveScripts, SCRIPT_FILE, scriptFileClash, scriptFiles, toFileJson, type Blueprint, type PartRegistry } from '@robots/sim-core';
 import { fileForName, type BlueprintListing } from '../storage/blueprintApi';
 
 export type UnsavedChoice = 'save' | 'discard' | 'cancel';
@@ -48,8 +48,16 @@ export class DocumentController {
     this.savedJson = this.serialize(draft);
   }
 
-  /** A file that expandBlueprint would reject could never be opened again, so it is never written. */
-  private writable(json: unknown): boolean {
+  /**
+   * A file that expandBlueprint would reject could never be opened again, so it is never written. Nor is anything
+   * written when two scripts name one file (review E2): the second write would replace the first one's code.
+   */
+  private writable(bp: Blueprint, json: unknown): boolean {
+    const clash = scriptFileClash(bp);
+    if (clash !== undefined) {
+      this.deps.notify?.(`Cannot save yet: two scripts would be written to the file '${clash}'; Save As gives each its own`);
+      return false;
+    }
     const { blueprint, issues } = expandBlueprint(json);
     if (blueprint) return true;
     this.deps.notify?.(`Cannot save yet: ${issues.map((i) => i.message).join('; ')}`);
@@ -118,7 +126,7 @@ export class DocumentController {
     // Scripts without a file yet, or with another blueprint's file, get one named after this blueprint.
     const draft = assignScriptFiles(dropForeignScriptFiles(this.deps.getDraft(), file), file, true);
     const json = toFileJson(draft, this.deps.registry);
-    if (!this.writable(json)) return false;
+    if (!this.writable(draft, json)) return false;
     await this.write(file, draft, json);
     // File names go onto the current draft, so edits made while saving are kept (as Save As does).
     const current = this.deps.getDraft();
@@ -171,7 +179,7 @@ export class DocumentController {
     // Scripts are copied to files named after the new blueprint, so the original's scripts stay as they were.
     const copy = assignScriptFiles({ ...this.deps.getDraft(), name }, file, false);
     const json = toFileJson(copy, this.deps.registry);
-    if (!this.writable(json)) return false;
+    if (!this.writable(copy, json)) return false;
     await this.write(file, copy, json);
     // Rename after the write, from the current draft, so edits made while saving are kept.
     const renamed = { ...assignScriptFiles(this.deps.getDraft(), file, false), name };
