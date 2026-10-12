@@ -235,4 +235,32 @@ describe('DocumentController', () => {
     expect(await t.doc.open('drone.json')).toBe(true);
     expect(notes).toEqual(['drone.json: script file not found: gone.js']);
   });
+
+  it('Save As files a second core\'s script and a recipe\'s script of the same name apart (review E2)', async () => {
+    const mother = {
+      format: 1,
+      name: 'mother',
+      grid: ['C C'],
+      cores: { 'core@1,0': { scope: 'child', scripts: [{ id: 'guide', source: 'function tick() { /* core */ }' }] } },
+      recipes: { child: { format: 1, name: 'child', grid: ['C'], scripts: [{ id: 'guide', source: 'function tick() { /* recipe */ }' }] } },
+    };
+    const t = setup({ 'mother.json': mother }, { names: ['copy'] });
+    await t.doc.open('mother.json');
+    expect(await t.doc.saveAs()).toBe(true);
+    expect(t.files['copy.child.guide.js']).toBe('function tick() { /* core */ }');
+    expect(t.files['copy.child.guide-2.js']).toBe('function tick() { /* recipe */ }');
+  });
+
+  it('never writes when two scripts name the same file: the second would replace the first (review E2)', async () => {
+    const twins = { format: 1, name: 'twins', grid: ['C'], scripts: [{ id: 'a', source: 'function tick() { /* a */ }', file: 'twins.same.js' }, { id: 'b', source: 'function tick() { /* b */ }', file: 'twins.same.js' }] };
+    const notices: string[] = [];
+    const t = setup({ 'twins.json': twins });
+    t.deps.notify = (m) => notices.push(m);
+    await t.doc.open('twins.json');
+    t.edit((b) => placePart(b, reg, 'frame', 1, 0, 0));
+    expect(await t.doc.save()).toBe(false);
+    expect(t.files['twins.same.js']).toBeUndefined();
+    expect(t.files['twins.json']).toEqual(twins);
+    expect(notices).toEqual(["Cannot save yet: two scripts would be written to the file 'twins.same.js'; Save As gives each its own"]);
+  });
 });

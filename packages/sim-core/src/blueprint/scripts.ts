@@ -76,12 +76,6 @@ function coreWord(c: CoreControls): string {
 }
 
 /**
- * Points scripts at files named after `blueprintFile` (Save As writes copies; the originals stay). Every script gets
- * its own file: a name another script already uses gets a number (`drone.hover-2.js`), so two scripts never overwrite
- * each other. A script whose code was never loaded keeps its file, since there is nothing to copy. Other cores'
- * scripts are named with their core: `launcher.missile1.guide.js`.
- */
-/**
  * Forgets the file of every script whose file is not named after `blueprintFile` (or of every script, without one),
  * so the next save gives it a file of this blueprint's own (M7 review: a blueprint made from another's JSON would
  * otherwise save over the other's script, a live link Logan ruled out).
@@ -99,9 +93,32 @@ export function dropForeignScriptFiles(bp: Blueprint, blueprintFile?: string): B
   return out;
 }
 
+/** A file two scripts of the blueprint (its recipes' included) both name, if any: saving would write one over the other. */
+export function scriptFileClash(bp: Blueprint): string | undefined {
+  const seen = new Set<string>();
+  for (const s of allScripts(bp)) {
+    if (s.file === undefined) continue;
+    if (seen.has(s.file)) return s.file;
+    seen.add(s.file);
+  }
+  return undefined;
+}
+
+/**
+ * Points scripts at files named after `blueprintFile` (Save As writes copies; the originals stay). Every script gets
+ * its own file: a name another script already uses gets a number (`drone.hover-2.js`), so two scripts never overwrite
+ * each other. A script whose code was never loaded keeps its file, since there is nothing to copy. Other cores'
+ * scripts are named with their core: `launcher.missile1.guide.js`.
+ */
 export function assignScriptFiles(bp: Blueprint, blueprintFile: string, onlyMissing: boolean): Blueprint {
   const keep = (s: ScriptSpec): boolean => s.file !== undefined && (onlyMissing || typeof s.source !== 'string');
+  // One set of taken names for the blueprint and its recipes (review E2): a core scoped `child` and a recipe named
+  // `child` both file a `guide` script as `<name>.child.guide.js`, and the second must get a number.
   const used = new Set(allScripts(bp).filter(keep).map((s) => s.file as string));
+  return assignFiles(bp, blueprintFile, keep, used);
+}
+
+function assignFiles(bp: Blueprint, blueprintFile: string, keep: (s: ScriptSpec) => boolean, used: Set<string>): Blueprint {
   const assign = (s: ScriptSpec, core?: CoreControls): ScriptSpec => {
     if (keep(s)) return s;
     const id = core ? `${coreWord(core)}.${fileWord(s.id) || 'script'}` : s.id;
@@ -115,6 +132,6 @@ export function assignScriptFiles(bp: Blueprint, blueprintFile: string, onlyMiss
   const out: Blueprint = { ...bp, scripts };
   if (bp.cores && bp.cores.length > 0) out.cores = bp.cores.map((c) => ({ ...c, scripts: c.scripts.map((s) => assign(s, c)) }));
   // A recipe's scripts (M12) are filed under the recipe: `fab-drone.missile-up.guide.js`.
-  if (bp.recipes) out.recipes = bp.recipes.map((r) => ({ ...r, blueprint: assignScriptFiles(r.blueprint, `${blueprintFile.replace(/\.json$/, '')}.${fileWord(r.name) || 'recipe'}.json`, onlyMissing) }));
+  if (bp.recipes) out.recipes = bp.recipes.map((r) => ({ ...r, blueprint: assignFiles(r.blueprint, `${blueprintFile.replace(/\.json$/, '')}.${fileWord(r.name) || 'recipe'}.json`, keep, used) }));
   return out;
 }

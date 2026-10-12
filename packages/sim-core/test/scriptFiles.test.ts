@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignScriptFiles, resolveScripts, scriptFileName, scriptFiles } from '../src/blueprint/scripts';
+import { allScripts, assignScriptFiles, resolveScripts, scriptFileClash, scriptFileName, scriptFiles } from '../src/blueprint/scripts';
 import { expandBlueprint } from '../src/blueprint/expand';
 import { toFileJson } from '../src/blueprint/serialize';
 import { validateBlueprint } from '../src/blueprint/validate';
@@ -63,5 +63,32 @@ describe('script files do not collide (M5 review)', () => {
     expect(copy.scripts.map((s) => s.file)).toEqual(['copy.old.js', 'copy.hover.js', 'drone.lost.js']);
     const shared = validateBlueprint({ format: 1, name: 'd', grid: ['C'], scripts: [{ id: 'a', source: 'x', file: 'same.js' }, { id: 'b', source: 'y', file: 'same.js' }] }, reg);
     expect(shared.issues.find((i) => i.code === 'BAD_SCRIPT')?.message).toContain("two scripts use the file 'same.js'");
+  });
+});
+
+describe("a core's script and a recipe's script never share a file (review E2)", () => {
+  // A second core scoped `child` with a script `guide`, and a recipe named `child` with a `guide` of its own.
+  const raw = {
+    format: 1,
+    name: 'mother',
+    grid: ['C C'],
+    cores: { 'core@1,0': { scope: 'child', scripts: [{ id: 'guide', source: 'function tick() { /* core */ }' }] } },
+    recipes: { child: { format: 1, name: 'child', grid: ['C'], scripts: [{ id: 'guide', source: 'function tick() { /* recipe */ }' }] } },
+  };
+
+  it('Save As gives each its own file, and nothing is lost', () => {
+    const bp = expandBlueprint(raw).blueprint as Blueprint;
+    const copy = assignScriptFiles(bp, 'mother.json', false);
+    expect(allScripts(copy).map((s) => s.file)).toEqual(['mother.child.guide.js', 'mother.child.guide-2.js']);
+    expect(scriptFiles(copy).map((f) => f.text)).toEqual(['function tick() { /* core */ }', 'function tick() { /* recipe */ }']);
+    expect(scriptFileClash(copy)).toBeUndefined();
+    expect(validateBlueprint(toFileJson(copy, reg), reg).issues.filter((i) => i.code === 'BAD_SCRIPT')).toEqual([]);
+    // Save (only scripts without a file get one) keeps the names it gave.
+    expect(allScripts(assignScriptFiles(copy, 'mother.json', true)).map((s) => s.file)).toEqual(['mother.child.guide.js', 'mother.child.guide-2.js']);
+  });
+
+  it('scriptFileClash names a file two scripts would be written to', () => {
+    const bp = expandBlueprint({ format: 1, name: 'd', grid: ['C'], scripts: [{ id: 'a', source: 'x', file: 'same.js' }, { id: 'b', source: 'y', file: 'same.js' }] }).blueprint as Blueprint;
+    expect(scriptFileClash(bp)).toBe('same.js');
   });
 });
