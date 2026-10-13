@@ -15,6 +15,7 @@ import {
   replacePartType,
   stampPlacement,
   type Blueprint,
+  type CoreControls,
   type PartDrivers,
   type PartRegistry,
   type PartStamp,
@@ -53,6 +54,8 @@ export interface Fx {
   swaps?: SwapOutcome[];
   /** Parts whose id changed (a move, a swap): old id to new id. */
   renames?: Map<string, string>;
+  /** A copy of a whole named assembly got a name of its own: the old name and the new one. */
+  named?: Array<{ from: string; to: string }>;
 }
 
 export function cellsOfPart(p: PlacedPart, registry: PartRegistry): Cell[] {
@@ -129,7 +132,7 @@ export function placeHeld(bp: Blueprint, registry: PartRegistry, held: { part: s
 
   const name = typeName(registry, held.part);
   let out = bp;
-  const fx: Required<Fx> = { placed: [], swaps: [], renames: new Map() };
+  const fx: { placed: string[]; swaps: SwapOutcome[]; renames: Map<string, string> } = { placed: [], swaps: [], renames: new Map() };
   for (const [i, s] of spots.entries()) {
     const hit = partsOn(out, registry, cells[i] ?? []);
     const same = hit[0];
@@ -160,6 +163,72 @@ export interface HeldCopy {
   rot: Rotation;
   /** Flipped left to right (F), before turning. */
   flipped: boolean;
+  /**
+   * The named assemblies the copy holds all of (`wholeScopes`), with the controls of the cores among them. Each copy
+   * placed gets a name of its own for these (`gun-turret1` to `gun-turret13`).
+   */
+  scopes?: string[];
+  cores?: CoreControls[];
+}
+
+/**
+ * The named assemblies that lie wholly inside the given parts (M16). A placed robot's parts carry its name as a tag
+ * (`gun-turret1`) and their own tags under it (`gun-turret1.gun`); when every part of the robot that carries that
+ * name is among `ids`, the copy is another one of those, not more of the same one. An assembly inside another that is
+ * whole is covered by the outer one. A plain group (no tags under its name) is never one of these.
+ */
+export function wholeScopes(bp: Blueprint, ids: readonly string[]): string[] {
+  const picked = bp.parts.filter((p) => ids.includes(p.id));
+  const names = new Set<string>();
+  for (const p of picked) for (const t of p.tags) if (t !== p.id && p.tags.some((u) => u.startsWith(`${t}.`))) names.add(t);
+  const under = (tag: string, s: string): boolean => tag === s || tag.startsWith(`${s}.`);
+  const whole = [...names].filter((s) => bp.parts.every((p) => ids.includes(p.id) || !p.tags.some((t) => t !== p.id && under(t, s))));
+  return whole.filter((s) => !whole.some((o) => o !== s && s.startsWith(`${o}.`)));
+}
+
+/** A copy of the given parts to hold: the parts as they stand, and what makes whole assemblies among them whole. */
+export function copyOf(bp: Blueprint, stamp: PartStamp, ids: readonly string[]): HeldCopy {
+  const scopes = wholeScopes(bp, ids);
+  const cores = (bp.cores ?? []).filter((c) => ids.includes(c.core) && c.scope !== undefined && scopes.some((s) => c.scope === s || c.scope?.startsWith(`${s}.`) === true));
+  return { stamp, rot: 0, flipped: false, ...(scopes.length > 0 ? { scopes } : {}), ...(cores.length > 0 ? { cores } : {}) };
+}
+
+/** `gun-turret13` for `gun-turret1`: the name with the first number no tag and no core of the robot uses yet. */
+function freeName(bp: Blueprint, like: string): string {
+  const base = like.replace(/\d+$/, '');
+  const used = (s: string): boolean => bp.parts.some((p) => p.tags.some((t) => t === s || t.startsWith(`${s}.`))) || (bp.cores ?? []).some((c) => c.scope === s || c.scope?.startsWith(`${s}.`) === true);
+  for (let n = 1; ; n++) if (!used(`${base}${n}`)) return `${base}${n}`;
+}
+
+/**
+ * Gives the whole assemblies in a copy just placed names of their own: the copies' tags move from the old name to a
+ * free one, and a copied core gets its own entry in `cores` under the new name, with the original's keys and scripts
+ * (the scripts as new ones of this robot: they get files of their own at the next save).
+ */
+function nameCopies(bp: Blueprint, copy: HeldCopy, ids: ReadonlyMap<string, string>): { bp: Blueprint; named: Array<{ from: string; to: string }> } {
+  const named: Array<{ from: string; to: string }> = [];
+  let out = bp;
+  const fresh = new Set(ids.values());
+  for (const from of copy.scopes ?? []) {
+    const to = freeName(out, from);
+    const rename = (t: string): string => (t === from ? to : t.startsWith(`${from}.`) ? `${to}${t.slice(from.length)}` : t);
+    const parts = out.parts.map((p) => (fresh.has(p.id) ? { ...p, tags: p.tags.map((t) => (t === p.id ? t : rename(t))) } : p));
+    const cores = [...(out.cores ?? [])];
+    for (const c of copy.cores ?? []) {
+      const core = ids.get(c.core);
+      if (core === undefined || c.scope === undefined || rename(c.scope) === c.scope) continue;
+      cores.push({
+        ...c,
+        core,
+        scope: rename(c.scope),
+        bindings: c.bindings.map((b) => (b.target !== undefined && ids.has(b.target) ? { ...b, target: ids.get(b.target) as string } : { ...b })),
+        scripts: c.scripts.map(({ file: _file, ...rest }) => rest),
+      });
+    }
+    out = { ...out, parts, ...(cores.length > 0 ? { cores } : {}) };
+    named.push({ from, to });
+  }
+  return { bp: out, named };
 }
 
 function copySpots(copy: HeldCopy, cell: Cell, mirror: MirrorSetting, registry: PartRegistry): Array<{ at: Cell; rot: Rotation; mirror: boolean }> {
@@ -178,10 +247,12 @@ export function copyGhost(copy: HeldCopy, cell: Cell, mirror: MirrorSetting, reg
 /**
  * Places a held copy with its anchor on `cell`: every part keeps the original's groups and settings (`placePartStamp`).
  * All of it lands, with its mirror image in mirror mode, or none of it. A copy of one part landing on that very part
- * (same type, same turn) changes nothing, so a drag can pass over what it has painted.
+ * (same type, same turn) changes nothing, so a drag can pass over what it has painted. A copy that holds all of a named
+ * assembly (a whole placed turret) lands under a name of its own (`nameCopies`).
  */
 export function placeCopy(bp: Blueprint, registry: PartRegistry, copy: HeldCopy, cell: Cell, mirror: MirrorSetting): PlaceOutcome {
   let out = bp;
+  const named: Array<{ from: string; to: string }> = [];
   const one = copy.stamp.parts.length === 1;
   for (const [i, s] of copySpots(copy, cell, mirror, registry).entries()) {
     const want = stampPlacement(copy.stamp, s.at, registry, { rot: s.rot, mirror: s.mirror });
@@ -189,10 +260,12 @@ export function placeCopy(bp: Blueprint, registry: PartRegistry, copy: HeldCopy,
     if (one && only && out.parts.some((p) => p.part === only.part && p.x === only.x && p.y === only.y && p.rot === only.rot)) continue;
     const r = placePartStamp(out, registry, copy.stamp, s.at, { rot: s.rot, mirror: s.mirror });
     if (!r.ok) return { ok: false, error: i === 0 ? takenText(out, registry, want) ?? sentence(r.error) : `The mirrored copy does not fit: ${r.error}.` };
-    out = r.blueprint;
+    const n = nameCopies(r.blueprint, copy, r.ids);
+    out = n.bp;
+    named.push(...n.named);
   }
   // A copy is not blank (it has the original's groups), so it is not listed as `placed`: nothing is offered for it.
-  return { ok: true, bp: out, fx: {} };
+  return { ok: true, bp: out, fx: named.length > 0 ? { named } : {} };
 }
 
 /** "That cell is taken by a frame." for parts that would land on others, else undefined. */

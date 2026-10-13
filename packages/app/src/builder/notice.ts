@@ -163,7 +163,10 @@ export function editNote(before: Blueprint, after: Blueprint, registry: PartRegi
   const swaps = fx.swaps ?? [];
   const now = new Set(after.parts.map((p) => p.id));
   const removed = before.parts.filter((p) => !now.has(renames.get(p.id) ?? p.id)).map((p) => p.id);
+  const named = fx.named ?? [];
   const lines = [
+    // A copy of a whole named assembly is another one of them, under its own name.
+    ...named.slice(0, 3).map((n) => ({ text: `Placed as ${n.to}: a copy of all of ${n.from} is one more of them, with a name of its own. A script that finds them by name drives it by itself.` })),
     ...swapLines(swaps, registry),
     ...(removed.length > 0 ? removedLines(before, after, registry, removed) : []),
     ...movedLines(before, renames, new Set(swaps.map((s) => s.report.oldId))),

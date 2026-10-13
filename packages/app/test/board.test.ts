@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { blankBlueprint, defaultRegistry, expandBlueprint, type Blueprint } from '@robots/sim-core';
 import { History } from '../src/builder/history';
 import { initialEditor, reduce, type EditorEvent, type EditorState, type ReduceResult } from '../src/builder/editorState';
-import { groupOffers, mirrorTwin, swapParts, type Fx } from '../src/builder/boardOps';
+import { groupOffers, mirrorTwin, swapParts, wholeScopes, type Fx } from '../src/builder/boardOps';
 import { editNote } from '../src/builder/notice';
 import { applyNameFix, partInputs, scriptProblems, showScript } from '../src/builder/scriptView';
 
@@ -258,6 +258,56 @@ describe('copies carry everything', () => {
     d.send({ type: 'rotate', dir: 1 }, ...click(6, 3));
     expect(cells(d.bp).slice(8)).toEqual(['propeller@6,3:90', 'frame@6,4:90']);
     expect(d.steps()).toBe(2);
+  });
+});
+
+describe('a copy of a whole named assembly is one more of them', () => {
+  // Two placed turrets, as `pnpm sim place` and the Assemblies tab name them, and a missile with its own core.
+  const armed = (): Blueprint =>
+    bp({
+      grid: ['g  t  C  u  h  .  m  b'],
+      legend: {
+        g: { part: 'gun', tags: ['turret1', 'turret1.gun'] },
+        t: { part: 'rotator', tags: ['turret1', 'turret1.rot'] },
+        u: { part: 'rotator', tags: ['turret2', 'turret2.rot'] },
+        h: { part: 'gun', tags: ['turret2', 'turret2.gun'] },
+        m: { part: 'core', tags: ['missile1'] },
+        b: { part: 'thruster', tags: ['missile1', 'missile1.burn'] },
+      },
+      cores: { 'core@6,0': { scope: 'missile1', bindings: [{ key: 'x', mode: 'hold', target: 'burn', channel: 'throttle', value: 1 }], scripts: [{ id: 'guide', file: 't.missile1.guide.js', source: "function tick() { set('burn', 'throttle', 1); }" }] } },
+    });
+
+  it('knows a whole assembly from part of one, and from a plain group', () => {
+    const b = armed();
+    expect(wholeScopes(b, ['gun@0,0', 'rotator@1,0'])).toEqual(['turret1']);
+    expect(wholeScopes(b, ['gun@0,0'])).toEqual([]);
+    expect(wholeScopes(b, b.parts.map((p) => p.id))).toEqual(['turret1', 'turret2', 'missile1']);
+    expect(wholeScopes(drone(), drone().parts.map((p) => p.id))).toEqual([]);
+  });
+
+  it('Cmd+D on a whole turret places it under the next free name; Alt+click on its gun joins the same turret', () => {
+    const d = drive(armed()).send(down(-1, 1), move(1, 0), up(1, 0), move(0, 0), { type: 'duplicate' }, ...click(0, 2));
+    expect(tagsOf(d.bp, 'gun@0,2')).toEqual(['turret3', 'turret3.gun']);
+    expect(tagsOf(d.bp, 'rotator@1,2')).toEqual(['turret3', 'turret3.rot']);
+    expect(d.fx.at(-1)?.named).toEqual([{ from: 'turret1', to: 'turret3' }]);
+    expect(editNote(armed(), d.bp, reg, d.fx.at(-1) ?? {})?.lines[0]?.text).toContain('Placed as turret3');
+    // The next one is turret4, and it is all one undo step each.
+    d.send(...click(0, 4));
+    expect(tagsOf(d.bp, 'gun@0,4')).toEqual(['turret4', 'turret4.gun']);
+    expect(d.steps()).toBe(2);
+    const like = drive(armed()).send(...click(0, 0, { alt: true }), ...click(0, 2));
+    expect(tagsOf(like.bp, 'gun@0,2')).toEqual(['turret1', 'turret1.gun']);
+  });
+
+  it("a copied core brings its keys and scripts under the new name, as the robot's own new scripts", () => {
+    const d = drive(armed()).send(down(5, 1), move(7, 0), up(7, 0), move(6, 0), { type: 'duplicate' }, ...click(6, 2));
+    expect(tagsOf(d.bp, 'thruster@7,2')).toEqual(['missile2', 'missile2.burn']);
+    const entry = d.bp.cores?.find((c) => c.core === 'core@6,2');
+    expect(entry).toMatchObject({ scope: 'missile2', bindings: [{ key: 'x', target: 'burn' }] });
+    expect(entry?.scripts).toEqual([{ id: 'guide', enabled: armed().cores?.[0]?.scripts[0]?.enabled, params: {}, source: "function tick() { set('burn', 'throttle', 1); }" }]);
+    // The copy's script reaches the copy's thruster, and only that.
+    expect(showScript(d.bp, reg, 'core@6,2', 'guide')?.reached).toEqual(['thruster@7,2']);
+    expect(d.bp.cores).toHaveLength(2);
   });
 });
 

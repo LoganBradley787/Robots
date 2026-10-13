@@ -1,5 +1,5 @@
 import { isCore, partAt, removeParts, setPartRotations, stampOfParts, type Blueprint, type PartRegistry, type PlacedPart, type Rotation } from '@robots/sim-core';
-import { cellsOfPart, eraseAt, moveSelection, placeCopy, placeHeld, sentence, type Cell, type Fx, type HeldCopy, type PlaceOutcome } from './boardOps';
+import { cellsOfPart, copyOf, eraseAt, moveSelection, placeCopy, placeHeld, sentence, type Cell, type Fx, type HeldCopy, type PlaceOutcome } from './boardOps';
 import { placeStamp, type Stamp } from './stamp';
 
 export type { Cell } from './boardOps';
@@ -129,7 +129,7 @@ function mergeFx(a: Fx | undefined, b: Fx | undefined): Fx | undefined {
   if (!b) return a;
   const renames = new Map(a.renames ?? []);
   for (const [from, to] of b.renames ?? []) renames.set(from, to);
-  return { placed: [...(a.placed ?? []), ...(b.placed ?? [])], swaps: [...(a.swaps ?? []), ...(b.swaps ?? [])], renames };
+  return { placed: [...(a.placed ?? []), ...(b.placed ?? [])], swaps: [...(a.swaps ?? []), ...(b.swaps ?? [])], renames, named: [...(a.named ?? []), ...(b.named ?? [])] };
 }
 
 /** The hand emptied: no part, no copy, no held robot, no eraser. */
@@ -224,7 +224,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       // Held by the part under the cursor when that is one of them, else by the first.
       const under = editor.hover ? partAt(bp, registry, editor.hover.x, editor.hover.y) : undefined;
       const anchor = under && editor.selection.includes(under.id) ? under : (picked[0] as PlacedPart);
-      return { editor: { ...emptied(editor), copy: { stamp: stampOfParts(bp, editor.selection, anchor.id), rot: 0, flipped: false }, selection: [] }, bp };
+      return { editor: { ...emptied(editor), copy: copyOf(bp, stampOfParts(bp, editor.selection, anchor.id), editor.selection), selection: [] }, bp };
     }
     case 'selectAll': {
       if (editor.gesture || handFull(editor)) return { editor, bp };
@@ -273,7 +273,7 @@ export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, regis
       if (e.alt === true) {
         // Alt+click: another like that one. A copy of that very part (type, turn, groups, settings) goes into the hand.
         if (!hit) return { editor: at, bp };
-        return { editor: { ...emptied(at), copy: { stamp: stampOfParts(bp, [hit.id]), rot: 0, flipped: false }, selection: [] }, bp };
+        return { editor: { ...emptied(at), copy: copyOf(bp, stampOfParts(bp, [hit.id]), [hit.id]), selection: [] }, bp };
       }
       if (editor.stamp) {
         // A held blueprint is placed whole in one click (one undo step), or refused whole.

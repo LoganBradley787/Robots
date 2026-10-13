@@ -220,7 +220,7 @@ export class Builder {
     if (r.fx && this.step) {
       const renames = new Map(this.step.fx.renames ?? []);
       for (const [from, to] of r.fx.renames ?? []) renames.set(from, to);
-      this.step.fx = { placed: [...(this.step.fx.placed ?? []), ...(r.fx.placed ?? [])], swaps: [...(this.step.fx.swaps ?? []), ...(r.fx.swaps ?? [])], renames };
+      this.step.fx = { placed: [...(this.step.fx.placed ?? []), ...(r.fx.placed ?? [])], swaps: [...(this.step.fx.swaps ?? []), ...(r.fx.swaps ?? [])], renames, named: [...(this.step.fx.named ?? []), ...(r.fx.named ?? [])] };
     }
     this.history.commit(r.bp);
     if (r.gesture === 'end') {

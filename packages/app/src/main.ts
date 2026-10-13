@@ -90,7 +90,7 @@ async function boot(): Promise<void> {
   scene.show(blank, registry, { w: renderer.screenWidth, h: renderer.screenHeight });
   builder.setHotbar(store.get().hotbar);
   // For driving the builder from a test browser (dev server only): where a cell is on screen, and what the state is.
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>)['__robots'] = { builder, scene, store, pointOf: (x: number, y: number) => scene.pointOf({ x: x - 0.5, y: y - 0.5 }, renderer.screenWidth, renderer.screenHeight) };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>)['__robots'] = { builder, scene, store, worldScreen, pointOf: (x: number, y: number) => scene.pointOf({ x: x - 0.5, y: y - 0.5 }, renderer.screenWidth, renderer.screenHeight) };
   builder.origin = () => {
     const r = renderer.app.canvas.getBoundingClientRect();
     return { x: r.left, y: r.top };

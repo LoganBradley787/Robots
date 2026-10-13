@@ -81,10 +81,12 @@ export function BoardChips({ store, registry, actions }: { store: Store<AppState
             <span>
               Lit: what <b>{shown.id}.js</b> drives
             </span>
-            <span class="key-reach">
-              <i class="sw solid" />
-              {shown.reached.length}
-            </span>
+            {(shown.reached.length > 0 || shown.fits.length === 0) && (
+              <span class="key-reach" title="Parts it reaches by a name written in its code">
+                <i class="sw solid" />
+                {shown.reached.length}
+              </span>
+            )}
             {shown.fits.length > 0 && (
               <span class="key-reach" title="They fit a name the script builds in its own code">
                 <i class="sw dashed" />
