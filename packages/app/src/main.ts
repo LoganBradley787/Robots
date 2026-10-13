@@ -22,6 +22,7 @@ import { createStore } from './ui/store';
 import type { AppState } from './ui/appState';
 import { App } from './ui/App';
 import { BuilderScene } from './builder/BuilderScene';
+import { applyLayout, BOARD_OFFSET } from './ui/layout';
 import { Builder } from './builder/Builder';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
@@ -56,11 +57,13 @@ async function boot(): Promise<void> {
   const blank = blankBlueprint('untitled');
   const store = createStore<AppState>({
     mode: 'builder',
-    builder: { draft: blank, eraser: false, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry), controls: { bindings: [], scripts: [], autoOn: true }, cores: [{ label: 'main core' }] },
+    builder: { draft: blank, eraser: false, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry), controls: { bindings: [], scripts: [], autoOn: true }, cores: [{ label: 'main core' }], partFocus: 0 },
     doc: { name: blank.name, dirty: false, files: [] },
     icons: {},
+    panel: { tab: 'robot', problemsOpen: true },
   });
-  const scene = new BuilderScene(renderer.builder, (f) => textures.part(f));
+  applyLayout(uiEl);
+  const scene = new BuilderScene(renderer.builder, (f) => textures.part(f), BOARD_OFFSET);
   const builder = new Builder(registry, scene, store, blank);
 
   const doc = new DocumentController({
@@ -119,8 +122,11 @@ async function boot(): Promise<void> {
     const d = store.get().builder.draft;
     if (d === lastDraft) return;
     lastDraft = d;
+    // The name follows the draft (a rename, or an undo of one), so the top strip and the file's messages agree with it.
+    if (d.name !== doc.state.name) doc.state = { ...doc.state, name: d.name };
     const dirty = doc.isDirty();
-    if (dirty !== store.get().doc.dirty) store.set({ doc: { ...store.get().doc, dirty } });
+    const shown = store.get().doc;
+    if (dirty !== shown.dirty || d.name !== shown.name) store.set({ doc: { ...shown, name: d.name, dirty } });
   });
   const run = (p: Promise<unknown>): void => {
     p.then(() => syncDoc(true)).catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
@@ -256,6 +262,24 @@ async function boot(): Promise<void> {
     },
     closeMenu: () => builder.dispatch({ type: 'closeMenu' }),
     eraser: () => builder.dispatch({ type: 'eraser' }),
+    putDown: () => {
+      const e = builder.editor;
+      if (e.held || e.eraser || e.stamp) builder.dispatch({ type: 'escape' });
+    },
+    toggleMirror: () => builder.dispatch({ type: 'toggleMirror' }),
+    undo: () => builder.undo(),
+    redo: () => builder.redo(),
+    rename: (name) => builder.edit((bp) => (name.trim() === '' || name.trim() === bp.name ? bp : { ...bp, name: name.trim() })),
+    select: (ids) => builder.select(ids),
+    showTab: (tab) => store.set((s) => ({ panel: { ...s.panel, tab } })),
+    script: () => {
+      // One script: straight to its code (again closes it). None or several: the list.
+      const scripts = store.get().builder.controls.scripts;
+      const only = scripts.length === 1 ? scripts[0] : undefined;
+      if (store.get().scriptEditor !== undefined) store.set({ scriptEditor: undefined });
+      else if (only) store.set({ scriptEditor: only.id });
+      store.set((s) => ({ panel: { ...s.panel, tab: 'behaviors' } }));
+    },
     addScript: () => {
       let id = '';
       editControls((c) => {
@@ -321,7 +345,8 @@ async function boot(): Promise<void> {
       const go = async (): Promise<void> => {
         const d = deployDecision(store.get().builder.issues, doc.isDirty());
         if (d.step === 'blocked') {
-          notify(store, `Fix ${d.errors} error${d.errors === 1 ? '' : 's'} before deploying (see Issues).`);
+          notify(store, `Fix ${d.errors} problem${d.errors === 1 ? '' : 's'} before testing. The list is at the bottom right.`);
+          store.set((s) => ({ panel: { ...s.panel, problemsOpen: true } }));
           return;
         }
         if (d.step === 'confirm-unsaved' && !(await doc.confirmLeave())) return;
@@ -470,7 +495,8 @@ async function boot(): Promise<void> {
     }
     // macOS sends no keyup for a key let go while Cmd is down, so a Cmd chord lets go of the robot's keys.
     if (e.key === 'Meta') worldScreen.keys.releaseAll();
-    if (isTypingTarget(e.target) || store.get().dialog) return;
+    // The library is over the board: its keys are its own.
+    if (isTypingTarget(e.target) || store.get().dialog || (modes.mode === 'builder' && store.get().panel.overlay === 'library')) return;
     if (e.code === 'Tab') {
       e.preventDefault();
       worldScreen.cancelPlacing();

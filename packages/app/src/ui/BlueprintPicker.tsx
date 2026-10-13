@@ -28,13 +28,8 @@ export function matches(f: BlueprintFile, query: string): boolean {
     .every((w) => hay.includes(w));
 }
 
-/**
- * The builder's blueprint picker: a button with the open blueprint's name; click it for a search box over every saved
- * blueprint, grouped (yours, enemies, missiles and bombs, pieces and targets). Type to filter, arrows to move, Enter
- * opens, Esc closes.
- */
-export function BlueprintPicker({ files, current, label, onOpen }: { files: readonly BlueprintFile[]; current: string | undefined; label: string; onOpen(file: string): void }) {
-  const [open, setOpen] = useState(false);
+/** Open: a search box over every saved robot, grouped. Type to filter, arrows to move, Enter opens, Esc closes. */
+export function BlueprintPicker({ files, current, onOpen, onClose }: { files: readonly BlueprintFile[]; current: string | undefined; onOpen(file: string): void; onClose(): void }) {
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -43,80 +38,58 @@ export function BlueprintPicker({ files, current, label, onOpen }: { files: read
   const shown = files.filter((f) => matches(f, query));
   const ordered = GROUPS.flatMap((g) => shown.filter((f) => groupOf(f.file) === g).sort((a, b) => a.name.localeCompare(b.name)));
 
+  useEffect(() => input.current?.focus(), []);
   useEffect(() => {
-    if (!open) return;
-    input.current?.focus();
-    const away = (e: MouseEvent): void => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    window.addEventListener('mousedown', away);
-    return () => window.removeEventListener('mousedown', away);
-  }, [open]);
-
-  useEffect(() => {
-    box.current?.querySelector('.bp-item.at')?.scrollIntoView({ block: 'nearest' });
-  }, [index, open]);
-
-  const pick = (f: BlueprintFile | undefined): void => {
-    if (!f) return;
-    setOpen(false);
-    setQuery('');
-    onOpen(f.file);
-  };
+    box.current?.querySelector('.mi.at')?.scrollIntoView({ block: 'nearest' });
+  }, [index]);
 
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'ArrowDown') setIndex((i) => Math.min(ordered.length - 1, i + 1));
     else if (e.key === 'ArrowUp') setIndex((i) => Math.max(0, i - 1));
-    else if (e.key === 'Enter') pick(ordered[index]);
-    else if (e.key === 'Escape') setOpen(false);
-    else return;
+    else if (e.key === 'Enter') {
+      const f = ordered[index];
+      if (f) onOpen(f.file);
+    } else return;
     e.preventDefault();
-    e.stopPropagation();
   };
 
   let at = 0;
   return (
-    <div class="bp-picker" ref={box}>
-      <button class="bp-current" onClick={() => { setOpen(!open); setIndex(0); setQuery(''); }} title="Pick a blueprint (type to search)">
-        {current === undefined ? '(not saved yet)' : label} <span class="bp-caret">▾</span>
-      </button>
-      {open && (
-        <div class="bp-menu panel">
-          <input
-            ref={input}
-            class="bp-search"
-            placeholder={`Search ${files.length} blueprints`}
-            value={query}
-            onInput={(e) => { setQuery((e.target as HTMLInputElement).value); setIndex(0); }}
-            onKeyDown={onKey}
-          />
-          <div class="bp-list">
-            {ordered.length === 0 && <div class="bp-empty">Nothing matches</div>}
-            {GROUPS.map((g) => {
-              const items = ordered.filter((f) => groupOf(f.file) === g);
-              if (items.length === 0) return null;
-              return (
-                <div key={g} class="bp-group">
-                  <div class="bp-group-head">{g} <span class="bp-count">{items.length}</span></div>
-                  {items.map((f) => {
-                    const i = at++;
-                    return (
-                      <div
-                        key={f.file}
-                        class={`bp-item${i === index ? ' at' : ''}${f.file === current ? ' current' : ''}`}
-                        onMouseEnter={() => setIndex(i)}
-                        onMouseDown={(e) => { e.preventDefault(); pick(f); }}
-                      >
-                        {f.name}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+    <div class="win plate" ref={box} style={{ width: '420px' }}>
+      <div class="edhead">
+        <span class="h" style={{ fontSize: '15px' }}>
+          Open a robot
+        </span>
+        <span class="gap" />
+        <button type="button" class="btn" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      <div class="search-row">
+        <input ref={input} class="field" placeholder={`Search ${files.length} robots`} value={query} onInput={(e) => { setQuery((e.target as HTMLInputElement).value); setIndex(0); }} onKeyDown={onKey} />
+      </div>
+      <div class="scroll">
+        {ordered.length === 0 && <p class="empty">Nothing matches.</p>}
+        {GROUPS.map((g) => {
+          const items = ordered.filter((f) => groupOf(f.file) === g);
+          if (items.length === 0) return null;
+          return (
+            <div key={g}>
+              <div class="cat h">
+                {g} <span class="n">{items.length}</span>
+              </div>
+              {items.map((f) => {
+                const i = at++;
+                return (
+                  <button type="button" key={f.file} class={`mi${i === index ? ' at' : ''}${f.file === current ? ' on' : ''}`} onMouseEnter={() => setIndex(i)} onClick={() => onOpen(f.file)}>
+                    <span>{f.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

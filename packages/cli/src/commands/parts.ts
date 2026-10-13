@@ -1,7 +1,7 @@
 import { CRASH_REACH, CRASH_SAFE, DEFAULT_LEGEND, hollowCells, type PartDef, type PartRegistry } from '@robots/sim-core';
 
 export interface PartRow {
-  /** The builder key that picks it (1 to 9, 0, -). */
+  /** The builder key that picks it until the hotbar is changed (1 to 9: the hotbar starts as the first nine parts). */
   key: string;
   id: string;
   /** Default legend tokens for it, rotation 0 first. */
@@ -16,7 +16,7 @@ export interface PartRow {
   details: string[];
 }
 
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', ';', "'", '/'];
+const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
 
 /** Units for behavior settings, by setting name. */
 const UNITS: Record<string, string> = {

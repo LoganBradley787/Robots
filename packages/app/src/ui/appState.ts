@@ -19,6 +19,10 @@ export interface BuilderView {
   selection: string[];
   /** The part menu: which parts it edits and where it opened (page pixels). */
   menu?: { ids: string[]; x: number; y: number };
+  /** The cell under the cursor. */
+  hover?: { x: number; y: number };
+  /** Goes up by one on each right-click on a part: the inspector turns to its Part tab. */
+  partFocus: number;
   mirror: { on: boolean; axisHalfCells: number; axisSet: boolean };
   canUndo: boolean;
   canRedo: boolean;
@@ -53,6 +57,16 @@ export interface ActiveDialog extends DialogSpec {
   resolve(answer: { value: string; input: string }): void;
 }
 
+export type InspectorTab = 'part' | 'robot' | 'keys' | 'behaviors';
+
+/** What the builder's panels show (M16): nothing here is saved. */
+export interface PanelState {
+  tab: InspectorTab;
+  problemsOpen: boolean;
+  /** The library (Open) or the key list (?), over the board. */
+  overlay?: 'library' | 'help';
+}
+
 /** State shared between the canvas screens and the Preact panels. */
 export interface AppState {
   mode: Mode;
@@ -67,4 +81,5 @@ export interface AppState {
   world?: WorldView;
   /** The script open in the builder's code editor, by id. */
   scriptEditor?: string;
+  panel: PanelState;
 }

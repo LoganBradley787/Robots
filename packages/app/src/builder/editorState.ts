@@ -31,7 +31,7 @@ export interface EditorState {
   refused?: string;
   /** The eraser tool (`E`): left-click or drag erases. Never together with `held`. */
   eraser?: true;
-  /** The part menu (right-click, `11`) is open on these parts. */
+  /** A right-click put the inspector on these parts (M16; it was the floating part menu): R turns them, not the part in hand. */
   menu?: { ids: string[] };
   hover?: Cell;
   gesture?: { kind: 'paint' | 'erase' | 'select'; start: Cell; last: Cell };
@@ -137,12 +137,12 @@ function applyAt(editor: EditorState, bp: Blueprint, kind: 'paint' | 'erase', c:
   return placePart(once, registry, held.part, mx + shift.x, c.y + shift.y, rot);
 }
 
-/** Pure builder input handling. `partIds` is the palette order (number keys 1 to 9, then 0). */
+/** Pure builder input handling. `partIds` is what the number keys pick, in order: the hotbar (M16). A name no part has picks nothing. */
 export function reduce(editor: EditorState, bp: Blueprint, e: EditorEvent, registry: PartRegistry, partIds: readonly string[]): ReduceResult {
   switch (e.type) {
     case 'pick': {
       const part = partIds[e.index];
-      return part === undefined ? { editor, bp } : reduce(editor, bp, { type: 'hold', part }, registry, partIds);
+      return part === undefined || !registry.has(part) ? { editor, bp } : reduce(editor, bp, { type: 'hold', part }, registry, partIds);
     }
     case 'hold': {
       const rot = editor.held?.part === e.part ? editor.held.rot : 0;

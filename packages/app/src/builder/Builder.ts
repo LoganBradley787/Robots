@@ -1,31 +1,38 @@
-import { staticStats, toFileJson, validateBlueprint, type Blueprint, type Issue, type PartRegistry } from '@robots/sim-core';
+import { partAt, staticStats, toFileJson, validateBlueprint, type Blueprint, type Issue, type PartRegistry, type StaticStats } from '@robots/sim-core';
 import { panByPixels, zoomBy } from '../render/camera';
 import type { Store } from '../ui/store';
 import type { AppState } from '../ui/appState';
 import { History } from './history';
 import { initialEditor, reduce, type Cell, type EditorEvent, type EditorState } from './editorState';
 import type { BuilderScene, Overlay } from './BuilderScene';
-import { controlCores, controlsOf } from './coreControls';
+import { controlCores, controlsOf, type ControlsView } from './coreControls';
 
 /** The builder screen's controller: input goes through the pure reducer and history, output goes to the scene and store. */
 export class Builder {
   readonly history: History;
   editor: EditorState = initialEditor();
   private readonly registry: PartRegistry;
-  private readonly partIds: string[];
+  /** What the keys 1 to 9 pick, in order: the first nine parts. */
+  private readonly hotbar: string[];
   private readonly scene: BuilderScene;
   private readonly store: Store<AppState>;
   private issues: Issue[] = [];
   private panning: { id: number; x: number; y: number } | null = null;
   /** Where the part menu opened, in page pixels. It stays put while you pan. */
   private menuAt = { x: 0, y: 0 };
+  /** Counts right-clicks on a part, so the inspector can turn to its Part tab on each one. */
+  private partFocus = 0;
+  /** Worked out from the draft once per change, not on every move of the mouse. */
+  private stats: StaticStats;
+  private controls: { bp: Blueprint; core: string | undefined; view: ControlsView; cores: { core?: string; label: string }[] } | undefined;
   private spaceDown = false;
   /** The core whose controls the panels edit (M7); undefined is the main core. */
   controlsFor: string | undefined;
 
   constructor(registry: PartRegistry, scene: BuilderScene, store: Store<AppState>, initial: Blueprint) {
     this.registry = registry;
-    this.partIds = registry.ids();
+    this.hotbar = registry.ids().slice(0, 9);
+    this.stats = staticStats(initial, registry);
     this.scene = scene;
     this.store = store;
     this.history = new History(initial);
@@ -74,7 +81,7 @@ export class Builder {
 
   dispatch(e: EditorEvent): void {
     const before = this.draft;
-    const r = reduce(this.editor, before, e, this.registry, this.partIds);
+    const r = reduce(this.editor, before, e, this.registry, this.hotbar);
     this.editor = r.editor;
     if (r.gesture === 'begin') this.history.beginGesture();
     this.history.commit(r.bp);
@@ -110,6 +117,8 @@ export class Builder {
     }
     if (e.button !== 0 && e.button !== 2) return;
     if (e.button === 2) this.menuAt = { x: e.clientX, y: e.clientY };
+    // A right-click on a part selects it and shows it in the inspector.
+    if (e.button === 2 && partAt(this.draft, this.registry, cell.x, cell.y)) this.partFocus++;
     this.dispatch({ type: 'down', cell, button: e.button === 2 ? 'right' : 'left', shift: e.shiftKey });
   }
 
@@ -153,18 +162,10 @@ export class Builder {
       return true;
     }
     if (mod) return false;
-    const digit = /^Digit([0-9])$/.exec(e.code);
+    const digit = /^Digit([1-9])$/.exec(e.code);
     if (digit) {
-      // 1 to 9 pick the first nine parts, 0 the tenth (the rotator).
-      const n = Number(digit[1]);
-      this.dispatch({ type: 'pick', index: n === 0 ? 9 : n - 1 });
-      return true;
-    }
-    // After 0: minus picks the eleventh part (the cell), equals the twelfth (the seeker), semicolon the thirteenth (the
-    // radar), quote the fourteenth (the booster), slash the fifteenth (the heavy warhead).
-    const extra = ['Minus', 'Equal', 'Semicolon', 'Quote', 'Slash'].indexOf(e.code);
-    if (extra >= 0) {
-      this.dispatch({ type: 'pick', index: 10 + extra });
+      // 1 to 9 pick the first nine parts.
+      this.dispatch({ type: 'pick', index: Number(digit[1]) - 1 });
       return true;
     }
     switch (e.code) {
@@ -214,7 +215,7 @@ export class Builder {
       const cell = i.cell ?? (part ? { x: part.x, y: part.y } : undefined);
       if (cell) (i.severity === 'error' ? errorCells : warningCells).push(cell);
     }
-    const stats = staticStats(this.draft, this.registry);
+    const stats = this.stats;
     const g = this.editor.gesture;
     return {
       errorCells,
@@ -229,18 +230,21 @@ export class Builder {
     const bp = this.draft;
     if (draftChanged) {
       this.issues = validateBlueprint(toFileJson(bp, this.registry), this.registry).issues;
+      this.stats = staticStats(bp, this.registry);
       this.scene.drawParts(bp, this.registry);
     }
     this.scene.drawGhost(this.editor, bp, this.registry);
     this.scene.drawOverlay(this.overlay(), this.editor, bp, this.registry);
     const e = this.editor;
-    const cores = controlCores(bp, this.registry);
+    if (this.controls?.bp !== bp) this.controls = undefined;
+    const cores = this.controls?.cores ?? controlCores(bp, this.registry);
     // A core that was erased (or undone away) falls back to the main core.
     // The open script editor goes too: it names a script by id, and the main core may have one of the same name.
     if (this.controlsFor !== undefined && !cores.some((c) => c.core === this.controlsFor)) {
       this.controlsFor = undefined;
       this.store.set({ scriptEditor: undefined });
     }
+    if (!this.controls || this.controls.core !== this.controlsFor) this.controls = { bp, core: this.controlsFor, view: controlsOf(bp, this.registry, this.controlsFor), cores };
     this.store.set({
       builder: {
         draft: bp,
@@ -248,16 +252,18 @@ export class Builder {
         ...(e.stamp ? { stamp: { name: e.stamp.name, rot: e.stamp.rot, flipped: e.stamp.flipped } } : {}),
         ...(e.refused !== undefined ? { refused: e.refused } : {}),
         ...(this.controlsFor !== undefined ? { controlsFor: this.controlsFor } : {}),
-        controls: controlsOf(bp, this.registry, this.controlsFor),
+        controls: this.controls.view,
         cores,
         eraser: e.eraser === true,
         selection: e.selection,
         ...(e.menu ? { menu: { ids: e.menu.ids.filter((id) => bp.parts.some((p) => p.id === id)), ...this.menuAt } } : {}),
+        ...(e.hover ? { hover: e.hover } : {}),
+        partFocus: this.partFocus,
         mirror: e.mirror,
         canUndo: this.history.canUndo,
         canRedo: this.history.canRedo,
         issues: this.issues,
-        stats: staticStats(bp, this.registry),
+        stats: this.stats,
       },
     });
   }

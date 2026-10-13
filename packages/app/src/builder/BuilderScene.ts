@@ -7,7 +7,16 @@ import { PIXELS_PER_METER, toScreen, toScreenAngle } from '../render/units';
 import type { Cell, EditorState } from './editorState';
 import { stampGhost } from './stamp';
 
-export const BUILDER_BG = 0x13203a;
+/**
+ * The board's colours (M16, look: Shop floor). They repeat the tokens in `ui/styles.css` (--board, --grid,
+ * --grid-major, --sel, --warn, --bad), because PixiJS draws the board and cannot read CSS.
+ */
+export const BUILDER_BG = 0x1b1e21;
+const GRID = 0x2a2f34;
+const GRID_MAJOR = 0x3a4047;
+const SELECT = 0xf2b705;
+const WARN = 0xe08a2e;
+const BAD = 0xe5533c;
 const GRID_EXTENT = 60;
 
 export interface Overlay {
@@ -31,9 +40,12 @@ export class BuilderScene {
   private readonly overlay = new Graphics();
   private readonly texture: (name: string) => Texture;
   private bgSize = { w: 0, h: 0 };
+  /** Where the middle of the board the player sees is, from the middle of the canvas, in pixels: the panels cover its edges. */
+  private readonly offset: { x: number; y: number };
 
-  constructor(root: Container, frame: (name: string) => Texture) {
+  constructor(root: Container, frame: (name: string) => Texture, offset: { x: number; y: number } = { x: 0, y: 0 }) {
     this.texture = frame;
+    this.offset = offset;
     this.content.addChild(this.buildGrid(), this.parts, this.overlay, this.ghost);
     root.addChild(this.bg, this.content);
   }
@@ -46,17 +58,17 @@ export class BuilderScene {
       g.moveTo(a.x, a.y).lineTo(b.x, b.y);
     };
     // Lines sit on cell edges (half-integers), since parts sit on integer cell centers.
-    const levels: Array<{ keep: (i: number) => boolean; alpha: number }> = [
-      { keep: (i) => i % 5 !== 0, alpha: 0.07 },
-      { keep: (i) => i % 5 === 0, alpha: 0.16 },
+    const levels: Array<{ keep: (i: number) => boolean; color: number }> = [
+      { keep: (i) => i % 5 !== 0, color: GRID },
+      { keep: (i) => i % 5 === 0, color: GRID_MAJOR },
     ];
-    for (const { keep, alpha } of levels) {
+    for (const { keep, color } of levels) {
       for (let i = -GRID_EXTENT; i <= GRID_EXTENT; i++) {
         if (!keep(i)) continue;
         line(i - 0.5, -GRID_EXTENT, i - 0.5, GRID_EXTENT);
         line(-GRID_EXTENT, i - 0.5, GRID_EXTENT, i - 0.5);
       }
-      g.stroke({ color: 0x9fb4d8, alpha, pixelLine: true });
+      g.stroke({ color, pixelLine: true });
     }
     return g;
   }
@@ -129,15 +141,15 @@ export class BuilderScene {
       g.rect(tl.x, tl.y, (1 - 2 * inset) * PIXELS_PER_METER, (1 - 2 * inset) * PIXELS_PER_METER);
     };
     for (const c of o.warningCells) cellRect(c);
-    if (o.warningCells.length > 0) g.stroke({ color: 0xffb347, width: 2 });
+    if (o.warningCells.length > 0) g.stroke({ color: WARN, width: 2 });
     for (const c of o.errorCells) cellRect(c);
-    if (o.errorCells.length > 0) g.stroke({ color: 0xff4d4d, width: 2 });
+    if (o.errorCells.length > 0) g.stroke({ color: BAD, width: 2 });
     for (const id of o.selection) {
       const p = bp.parts.find((q) => q.id === id);
       // Every cell of a multi-cell part (M12).
       if (p) for (const c of registry.has(p.part) ? partCells(p, registry) : [{ cell: p }]) cellRect(c.cell, 0.01);
     }
-    if (o.selection.length > 0) g.stroke({ color: 0x6fd3ff, width: 2 });
+    if (o.selection.length > 0) g.stroke({ color: SELECT, width: 2 });
     if (o.box) {
       const minX = Math.min(o.box.a.x, o.box.b.x);
       const maxX = Math.max(o.box.a.x, o.box.b.x);
@@ -145,8 +157,8 @@ export class BuilderScene {
       const maxY = Math.max(o.box.a.y, o.box.b.y);
       const tl = toScreen({ x: minX - 0.5, y: maxY + 0.5 });
       g.rect(tl.x, tl.y, (maxX - minX + 1) * PIXELS_PER_METER, (maxY - minY + 1) * PIXELS_PER_METER)
-        .fill({ color: 0x6fd3ff, alpha: 0.08 })
-        .stroke({ color: 0x6fd3ff, width: 1, alpha: 0.8 });
+        .fill({ color: 0xffffff, alpha: 0.06 })
+        .stroke({ color: SELECT, width: 1, alpha: 0.9 });
     }
     if (editor.eraser && editor.hover) {
       // The eraser shows the cells it would clear (both sides in mirror mode).
@@ -156,7 +168,7 @@ export class BuilderScene {
         const hit = partAt(bp, registry, x, editor.hover.y);
         for (const c of hit && registry.has(hit.part) ? partCells(hit, registry) : [{ cell: { x, y: editor.hover.y } }]) cellRect(c.cell, 0.02);
       }
-      g.fill({ color: 0xff4d4d, alpha: 0.18 }).stroke({ color: 0xff7a7a, width: 2 });
+      g.fill({ color: BAD, alpha: 0.2 }).stroke({ color: BAD, width: 2 });
     }
     if (editor.mirror.on) {
       const ax = editor.mirror.axisHalfCells / 2;
@@ -165,13 +177,13 @@ export class BuilderScene {
         const b = toScreen({ x: ax, y: y + 0.25 });
         g.moveTo(a.x, a.y).lineTo(b.x, b.y);
       }
-      g.stroke({ color: 0xc792ea, width: 2, alpha: 0.9 });
+      g.stroke({ color: SELECT, width: 2, alpha: 0.9 });
     }
     if (o.com) {
       const c = toScreen(o.com);
       const r = PIXELS_PER_METER * 0.22;
-      g.circle(c.x, c.y, r).fill({ color: 0xffffff, alpha: 0.9 }).stroke({ color: 0x13203a, width: 2 });
-      g.moveTo(c.x - r, c.y).lineTo(c.x + r, c.y).moveTo(c.x, c.y - r).lineTo(c.x, c.y + r).stroke({ color: 0x13203a, width: 2 });
+      g.circle(c.x, c.y, r).fill({ color: 0xe6e2d6, alpha: 0.92 }).stroke({ color: BUILDER_BG, width: 2 });
+      g.moveTo(c.x - r, c.y).lineTo(c.x + r, c.y).moveTo(c.x, c.y - r).lineTo(c.x, c.y + r).stroke({ color: BUILDER_BG, width: 2 });
     }
     void registry;
   }
@@ -183,10 +195,12 @@ export class BuilderScene {
       this.bgSize = { w, h };
     }
     applyCamera(this.content, this.cam, w, h);
+    this.content.position.x += this.offset.x;
+    this.content.position.y += this.offset.y;
   }
 
   cellAt(sx: number, sy: number, w: number, h: number): Cell {
-    const p = screenToWorld(this.cam, sx, sy, w, h);
+    const p = screenToWorld(this.cam, sx - this.offset.x, sy - this.offset.y, w, h);
     return { x: Math.floor(p.x + 0.5), y: Math.floor(p.y + 0.5) };
   }
 }

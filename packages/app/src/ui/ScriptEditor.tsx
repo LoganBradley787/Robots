@@ -3,6 +3,7 @@ import type { ParamSpec, ScriptError } from '@robots/sim-core';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
+import { Button, NumberField } from './kit';
 
 export type ScriptCheck = { ok: true; params: Record<string, ParamSpec> } | { ok: false; error: ScriptError };
 
@@ -40,15 +41,17 @@ export function ScriptEditor({ store, actions }: { store: Store<AppState>; actio
   if (!id || !spec) return null;
   const params = check?.ok ? Object.entries(check.params) : [];
   return (
-    <div class="script-editor panel">
+    <div class="script-editor plate">
       <div class="script-editor-head">
-        <strong>{name}</strong>
-        <span class="muted small">script "{spec.id}" · saved with the blueprint</span>
-        <span class="spacer" />
-        <button onClick={actions.closeScript}>Done</button>
+        <span class="h" style={{ fontSize: '14px' }}>
+          {name}
+        </span>
+        <span class="dim small">script "{spec.id}", saved with the robot</span>
+        <span class="gap" />
+        <Button onClick={actions.closeScript}>Done</Button>
       </div>
       {source === undefined ? (
-        <p class="refused">The file {name} was not found, so there is no code to edit.</p>
+        <p class="bad-text">The file {name} was not found, so there is no code to edit.</p>
       ) : (
         <textarea
           ref={area}
@@ -74,31 +77,16 @@ export function ScriptEditor({ store, actions }: { store: Store<AppState>; actio
           }}
         />
       )}
-      <div class="script-status">
-        {check === undefined ? (
-          <span class="muted small">checking...</span>
-        ) : check.ok ? (
-          <span class="ok small">no errors</span>
-        ) : (
-          <span class="refused small">
-            {check.error.kind}: {check.error.message}
-          </span>
-        )}
+      <div class={`script-status ${check === undefined ? 'wait' : check.ok ? '' : 'bad'}`}>
+        <i />
+        {check === undefined ? <span class="dim">checking...</span> : check.ok ? <span>No errors.</span> : <span>{check.error.kind}: {check.error.message}</span>}
       </div>
       {params.length > 0 && (
         <div class="script-params">
           {params.map(([p, ps]) => (
-            <label key={p} class="field small" title={`default ${ps.default}${ps.min !== undefined ? `, min ${ps.min}` : ''}${ps.max !== undefined ? `, max ${ps.max}` : ''}`}>
+            <label key={p} title={`default ${ps.default}${ps.min !== undefined ? `, min ${ps.min}` : ''}${ps.max !== undefined ? `, max ${ps.max}` : ''}`}>
               <span>{p}</span>
-              <input
-                type="number"
-                step="any"
-                value={spec.params[p] ?? ps.default}
-                onChange={(e) => {
-                  const v = Number((e.target as HTMLInputElement).value);
-                  actions.setScriptParam(spec.id, p, Number.isFinite(v) && v !== ps.default ? v : undefined);
-                }}
-              />
+              <NumberField value={spec.params[p] ?? ps.default} label={p} onChange={(v) => actions.setScriptParam(spec.id, p, v !== ps.default ? v : undefined)} />
             </label>
           ))}
         </div>

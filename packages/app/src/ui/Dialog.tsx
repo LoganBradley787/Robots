@@ -36,7 +36,7 @@ export function Dialog({ dialog }: { dialog: ActiveDialog }) {
   });
 
   return (
-    <div class="dialog-backdrop panel" onPointerDown={(e) => e.target === e.currentTarget && answer(dialog.cancelValue)}>
+    <div class="dialog-backdrop" onPointerDown={(e) => e.target === e.currentTarget && answer(dialog.cancelValue)}>
       <div class="dialog" role="dialog" aria-modal="true" aria-label={dialog.title}>
         <h2>{dialog.title}</h2>
         {dialog.message && <p>{dialog.message}</p>}
