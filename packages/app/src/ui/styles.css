@@ -359,8 +359,8 @@ button kbd { margin: 0; opacity: 0.75; }
 /* Whose keys (a robot with several cores). */
 .cores-for { display: flex; align-items: flex-start; gap: 6px; margin: 0 0 8px; }
 .cores-for .lbl { color: var(--dim); font-size: 11px; padding-top: 4px; flex: none; }
-.cores-for .seg { flex: 1; }
-#ui .cores-for .seg > button { flex: 1 1 auto; text-align: center; justify-content: center; }
+.cores-for .seg { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); }
+#ui .cores-for .seg > button { text-align: center; justify-content: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The drawn keyboard. --k is one key's width; a row never passes the panel at 12 keys and a half. */
 .kb { --k: 20px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .kb .r { display: flex; gap: 2px; align-items: center; }

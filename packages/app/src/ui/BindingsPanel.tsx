@@ -55,6 +55,8 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
   const draft = useStore(store, (s) => s.builder.draft);
   // M7: the picked core's controls (the main core's are the blueprint's top level).
   const controls = useStore(store, (s) => s.builder.controls);
+  // Another robot opened: the key picked on the last one means nothing here.
+  const robot = useStore(store, (s) => `${s.doc.file ?? ''}\0${s.doc.name}`);
   const main = controls.core === undefined;
   const scope = controls.scope;
   const bindings = controls.bindings;
@@ -68,7 +70,7 @@ export function BindingsPanel({ store, registry, actions }: { store: Store<AppSt
     setPicked(undefined);
     setOpen(undefined);
     wait.cancel();
-  }, [controls.core]);
+  }, [controls.core, robot]);
   useEffect(() => () => actions.lightParts(undefined), []);
 
   const owners = keyOwners(draft, registry, controls);

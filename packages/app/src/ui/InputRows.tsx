@@ -95,15 +95,13 @@ export function InputRows({ draft, registry, part, def, controls, cores, driven,
                 class="kline auto"
                 key={`a${b.key}${b.value}`}
                 onClick={() => actions.claimAuto([part.id], false)}
-                title="An auto key: the game gave it this key because of what the part is. Click to make it yours: auto goes off for this part and the same key is written as your own, which you can then change. One undo step."
+                title="An auto key, while held: the game gave it this key because of what the part is. Click to make it yours: auto goes off for this part and the same key is written as your own, which you can then change. One undo step."
               >
                 <KeyCap small auto>
                   {keyLabel(b.key)}
                 </KeyCap>
                 <span class="tag">auto</span>
-                <span class="what">
-                  {MODE_WORDS.hold}, {valueWords(b.value ?? 0, c)}
-                </span>
+                <span class="what">{valueWords(b.value ?? 0, c)}</span>
                 <span class="mk">make it mine</span>
               </button>
             ))}
