@@ -1,8 +1,11 @@
-import { useState } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
+import { useRef, useState } from 'preact/hooks';
+import { worldKeyCap } from '../app/keys';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import { teamName } from '../world/deploySettings';
+import { Button, Popover, Slider } from './kit';
 
 export interface WorldActions {
   worldTogglePause(): void;
@@ -27,105 +30,181 @@ export interface WorldActions {
   toBuilder(): void;
 }
 
-/** Every world control as a button, with its key. Reset is only here, and it asks first. */
+const HOVER_COUNTS = [10, 25, 50, 100];
+
+/**
+ * The world bar (M16 step 7): a small transport in the middle of the bottom edge (back to the builder, play or pause,
+ * step, speed) and two menus. View holds what changes how you see and hear the world; Sandbox holds what changes the
+ * world. Every row says its state and its key, and every world key works as it always did: the menus are only another
+ * way to press them. It was one row of nineteen controls, wider than the page.
+ */
 export function WorldToolbar({ store, actions }: { store: Store<AppState>; actions: WorldActions }) {
   const v = useStore(store, (s) => s.world);
-  const [stressOpen, setStressOpen] = useState(false);
   if (!v) return null;
-  const stress = (kind: 'hover' | 'battle', n: number): void => {
-    setStressOpen(false);
-    actions.stress(kind, n);
-  };
+  const none = v.robots === 0;
+  const onOff = (on: boolean): string => (on ? 'on' : 'off');
   return (
-    <div class="world-toolbar panel">
-      <button onClick={actions.toBuilder} title="Tab">
-        Builder <kbd>Tab</kbd>
-      </button>
+    <div class="transport plate" onContextMenu={(e) => e.preventDefault()}>
+      <Button onClick={actions.toBuilder} title="Back to the builder (Tab)">
+        &#9664; Builder <kbd>Tab</kbd>
+      </Button>
       <span class="sep" />
-      <button onClick={actions.worldTogglePause}>
-        {v.paused ? 'Play' : 'Pause'} <kbd>Space</kbd>
-      </button>
-      <button onClick={actions.worldStep}>
-        Step <kbd>.</kbd>
-      </button>
-      <button onClick={actions.worldSlower} aria-label="slower">
-        <kbd>[</kbd>
-      </button>
-      <span class="speed">x{v.timeScale}</span>
-      <button onClick={actions.worldFaster} aria-label="faster">
-        <kbd>]</kbd>
-      </button>
+      <Button class="pp" kind={v.paused ? 'go' : undefined} onClick={actions.worldTogglePause} title={v.paused ? 'Play (Space)' : 'Pause (Space)'}>
+        {v.paused ? 'Play' : 'Pause'} <kbd>{worldKeyCap('togglePause')}</kbd>
+      </Button>
+      <Button onClick={actions.worldStep} title="One tick forward, then paused (.)">
+        Step <kbd>{worldKeyCap('step')}</kbd>
+      </Button>
       <span class="sep" />
-      <button onClick={actions.worldCamera} disabled={v.robots === 0} title={v.follow ? 'next robot' : 'follow again'}>
-        {v.follow ? 'Next robot' : 'Follow'} <kbd>,</kbd>
-      </button>
-      <button onClick={actions.worldHome} title="Camera back to the drop point">
-        Home
-      </button>
-      <button class={v.debug ? 'on' : ''} onClick={actions.worldToggleDebug}>
-        Debug <kbd>\</kbd>
-      </button>
-      <button class={v.grid ? 'on' : ''} onClick={actions.worldToggleGrid}>
-        Grid <kbd>`</kbd>
-      </button>
-      <span class="sep" />
-      <button class={v.deployTeam !== 0 ? 'on enemy' : ''} onClick={actions.toggleDeployTeam} title="Which side the next robot you deploy joins. You only control your own; enemies run their scripts. While placing, F flips and R turns.">
-        Deploy as: {teamName(v.deployTeam)}
-      </button>
-      <button class={v.unlimitedEnergy ? 'on' : ''} onClick={actions.toggleUnlimitedEnergy} title="Sandbox: every part gets all the energy it asks for, and nothing drains">
-        Unlimited energy
-      </button>
-      <button onClick={actions.saveReplay} disabled={v.robots === 0} title="Save this run to replays/ so the headless runner can rerun it exactly">
-        Save replay
-      </button>
-      <span class="stress">
-        <button class={stressOpen ? 'on' : ''} onClick={() => setStressOpen(!stressOpen)} title="Drop a crowd of scripted robots to see how the sim copes. Turn on Debug for the numbers, and Unlimited energy so the drones do not run dry and fall">
-          Stress
-        </button>
-        {stressOpen && (
-          <div class="stress-menu panel">
-            <div class="stress-row">
-              Hover:
-              {[10, 25, 50, 100].map((n) => (
-                <button key={n} onClick={() => stress('hover', n)}>
-                  {n}
-                </button>
-              ))}
-            </div>
-            <div class="stress-row">
-              Battle:
-              <button onClick={() => stress('battle', 6)}>6 vs 6</button>
-            </div>
-          </div>
-        )}
+      <Button icon kind="ghost" onClick={actions.worldSlower} label="slower" title={`Slower (${worldKeyCap('slower')})`}>
+        &minus;
+      </Button>
+      <span class="speed" title={`Speed. ${worldKeyCap('slower')} slower, ${worldKeyCap('faster')} faster`}>
+        x{v.timeScale}
       </span>
+      <Button icon kind="ghost" onClick={actions.worldFaster} label="faster" title={`Faster (${worldKeyCap('faster')})`}>
+        +
+      </Button>
       <span class="sep" />
-      <button class={v.sound.muted ? '' : 'on'} onClick={actions.toggleMute} title={v.sound.awake ? 'Sound on or off' : 'Sound starts with your first click or key press'}>
-        {v.sound.muted ? 'Sound off' : v.sound.awake ? 'Sound on' : 'Sound (click)'}
-      </button>
-      <input
-        class="volume"
-        type="range"
-        min="0"
-        max="1"
-        step="0.05"
-        value={v.sound.volume}
-        disabled={v.sound.muted}
-        aria-label="volume"
-        title="Volume"
-        onInput={(e) => actions.setVolume(Number((e.target as HTMLInputElement).value))}
-        onPointerUp={(e) => (e.target as HTMLInputElement).blur()}
-      />
-      <button class={v.sound.delay ? 'on' : ''} onClick={actions.toggleSoundDelay} title="Far sounds arrive late, at the speed of sound: a blast 340 m away is heard a second after its flash">
-        Sound delay
-      </button>
-      <span class="sep" />
-      <button onClick={actions.clearDebris} disabled={v.robots === 0} title="Remove every robot nobody can control: debris, robots that lost their core, bombs">
-        Clear debris
-      </button>
-      <button class="danger" onClick={actions.worldReset} disabled={v.robots === 0}>
-        Clear robots
-      </button>
+      <BarMenu label="View" title="Camera, grid, debug and sound">
+        {() => (
+          <>
+            <Row
+              label={v.follow ? 'Next robot' : 'Follow the robot'}
+              state={none ? 'no robots' : v.follow ? 'following' : 'camera is free'}
+              cap={worldKeyCap('camera')}
+              disabled={none}
+              onPick={actions.worldCamera}
+              title={v.follow ? 'Moves the camera, and control, to the next robot of yours' : 'The camera goes back to the robot it was on'}
+            />
+            <Row label="Home" state="the drop point" onPick={actions.worldHome} title="Camera back to where robots drop in" />
+            <Row label="Grid" state={onOff(v.grid)} on={v.grid} cap={worldKeyCap('toggleGrid')} onPick={actions.worldToggleGrid} />
+            <Row label="Debug overlay" state={onOff(v.debug)} on={v.debug} cap={worldKeyCap('toggleDebug')} onPick={actions.worldToggleDebug} title="Physics outlines, what sensors see, and the tick, hash and timing text at the top left" />
+            <div class="mi-sep" />
+            <Row
+              label="Sound"
+              state={v.sound.muted ? 'off' : v.sound.awake ? 'on' : 'on at your next click'}
+              on={!v.sound.muted}
+              onPick={actions.toggleMute}
+              title={v.sound.awake ? 'Sound on or off' : 'A browser lets sound start only after a click or a key press'}
+            />
+            <div class={`wrow slide${v.sound.muted ? ' off' : ''}`} title="Volume">
+              <span class="lb">Volume</span>
+              <Slider value={v.sound.volume} min={0} max={1} step={0.05} disabled={v.sound.muted} label="volume" onChange={actions.setVolume} />
+              <span class="st">{Math.round(v.sound.volume * 100)}%</span>
+            </div>
+            <Row label="Far sounds arrive late" state={onOff(v.sound.delay)} on={v.sound.delay} onPick={actions.toggleSoundDelay} title="At the speed of sound: a blast 340 m away is heard a second after its flash" />
+          </>
+        )}
+      </BarMenu>
+      <BarMenu label="Sandbox" title="Deploy side, energy, stress test, clearing up, replays" align="right">
+        {(close) => (
+          <>
+            <Row
+              label="Deploy as"
+              state={teamName(v.deployTeam).toLowerCase()}
+              on={v.deployTeam !== 0}
+              enemy={v.deployTeam !== 0}
+              onPick={actions.toggleDeployTeam}
+              title="Which side the next robot you deploy joins. You only control your own; enemies run their scripts. While placing, F flips and R turns."
+            />
+            <Row label="Unlimited energy" state={onOff(v.unlimitedEnergy)} on={v.unlimitedEnergy} onPick={actions.toggleUnlimitedEnergy} title="Every part gets all the energy it asks for, and nothing drains" />
+            <div class="mi-sep" />
+            <div class="wblock" title="Drops a crowd of scripted robots around the middle of the screen, to see how the sim copes. Turn on Debug for the numbers, and Unlimited energy so the drones do not run dry and fall.">
+              <div class="wb-head">Stress test</div>
+              <div class="wb-line">
+                <span class="lb">Hovering drones</span>
+                {HOVER_COUNTS.map((n) => (
+                  <Button
+                    small
+                    key={n}
+                    onClick={() => {
+                      close();
+                      actions.stress('hover', n);
+                    }}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+              <div class="wb-line">
+                <span class="lb">A battle</span>
+                <Button
+                  small
+                  onClick={() => {
+                    close();
+                    actions.stress('battle', 6);
+                  }}
+                >
+                  6 against 6
+                </Button>
+              </div>
+            </div>
+            <div class="mi-sep" />
+            <Row
+              label="Clear debris"
+              state=""
+              disabled={none}
+              onPick={() => {
+                close();
+                actions.clearDebris();
+              }}
+              title="Removes every robot nobody can control: debris, robots that lost their core, spent pieces"
+            />
+            <Row
+              label="Save replay"
+              state=""
+              disabled={none}
+              onPick={() => {
+                close();
+                actions.saveReplay();
+              }}
+              title="Saves this run to replays/ so the headless runner can rerun it exactly"
+            />
+            <Row
+              label="Reset world"
+              state={none ? 'empty' : `${v.robots} ${v.robots === 1 ? 'robot' : 'robots'}`}
+              danger
+              disabled={none}
+              onPick={() => {
+                close();
+                actions.worldReset();
+              }}
+              title="Removes every robot from the world. It asks first. Your blueprints are not touched."
+            />
+          </>
+        )}
+      </BarMenu>
     </div>
+  );
+}
+
+/** A bar button that opens a box of rows over it. Esc, a press anywhere else, or a resize closes it. Rows that only flip something leave it open, so the new state shows. */
+function BarMenu({ label, title, align, children }: { label: string; title: string; align?: 'left' | 'right'; children(close: () => void): ComponentChildren }) {
+  const [open, setOpen] = useState(false);
+  const anchor = useRef<HTMLSpanElement>(null);
+  return (
+    <span ref={anchor} style={{ display: 'inline-flex' }}>
+      <Button on={open} onClick={() => setOpen(!open)} title={title}>
+        {label} <span class="caret">{open ? '▾' : '▴'}</span>
+      </Button>
+      {open && (
+        <Popover anchor={anchor} onClose={() => setOpen(false)} class="wmenu" {...(align ? { align } : {})}>
+          <div class="wm-head h">{label}</div>
+          {children(() => setOpen(false))}
+        </Popover>
+      )}
+    </span>
+  );
+}
+
+/** One menu row: what it is, its state now, and its key when it has one. */
+function Row({ label, state, on, enemy, cap, onPick, disabled, danger, title }: { label: string; state: string; on?: boolean; enemy?: boolean; cap?: string; onPick(): void; disabled?: boolean; danger?: boolean; title?: string }) {
+  return (
+    <button type="button" class={`mi wrow${danger ? ' danger' : ''}`} disabled={disabled} title={title} onClick={onPick} role={on !== undefined ? 'menuitemcheckbox' : 'menuitem'} aria-checked={on}>
+      <span class="lb">{label}</span>
+      <span class={`st${on ? ' lit' : ''}${enemy ? ' enemy' : ''}`}>{state}</span>
+      <span class="kc">{cap !== undefined && <kbd>{cap}</kbd>}</span>
+    </button>
   );
 }

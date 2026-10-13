@@ -14,7 +14,7 @@ function label(key: string): string {
 }
 
 /**
- * The controlled robot's keys (`11`): letters only, no descriptions. Lit while held; toggle keys show a dot when on.
+ * The controlled robot's energy and keys (`11`), as key caps just above the transport: letters only, no descriptions. Lit while held; toggle keys show a dot when on.
  * Pressing a button holds its key until the pointer lets go or leaves, so a click taps and a press holds.
  */
 export function KeysBar({ store, actions }: { store: Store<AppState>; actions: KeysBarActions }) {
@@ -39,13 +39,14 @@ export function KeysBar({ store, actions }: { store: Store<AppState>; actions: K
   });
   const pct = e?.percent ?? 0;
   return (
-    <div class="keys-bar panel" title={`${c.name}'s keys`}>
+    <div class="keys-bar plate" title={`${c.name}'s energy and keys. Click a key to tap it, press to hold it.`}>
       {e && (
         <div class="energy" title={unlimited ? 'unlimited energy is on' : `${pct}% of ${e.capacity} energy`}>
+          <span class="h">Energy</span>
           <div class="energy-track">
             <div class={`energy-fill${pct < 15 ? ' low' : ''}${unlimited ? ' unlimited' : ''}`} style={{ width: `${unlimited ? 100 : pct}%` }} />
           </div>
-          <span class="energy-text">{unlimited ? 'unlimited' : e.capacity === 0 ? 'no energy' : `${pct}%`}</span>
+          <span class="energy-text">{unlimited ? 'no limit' : e.capacity === 0 ? 'none' : `${pct}%`}</span>
         </div>
       )}
       {c.keys.map((k) => (

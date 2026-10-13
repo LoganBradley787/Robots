@@ -51,6 +51,14 @@ Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), 
 - The buttons act as the keys: press and hold the button to hold the key, click to tap it. A toggle flips on the click.
 - Editing controls stays in the builder.
 
+## The world bar (M16, as built)
+- A small transport in the middle of the bottom edge: Builder (Tab), Play or Pause (Space), Step (.), slower ([), the speed, faster (]). Then two menus.
+- **View**: follow or next robot (,), home, grid (`), debug overlay (\), sound, volume, far sounds arrive late.
+- **Sandbox**: deploy as (yours or enemy), unlimited energy, stress test (hovering drones 10, 25, 50, 100; a battle of 6 against 6), clear debris, save replay, reset world (it asks first).
+- Every menu row shows its state now and its key. A row that only flips something leaves the menu open, so the new state shows. Esc or a press anywhere else closes a menu. Every world key works as before; the key caps on the bar are read from the world key table (`app/keys.ts`).
+- The top left shows one small line: the clock, the speed, "paused", and the robot you control or watch. While a robot is held for dropping, a second line says how to place it. The raw text (tick, hash, fps, timing, hints) shows only with Debug on.
+- The keys bar (below) sits just above the transport: energy as a bar, then the keys as key caps.
+
 ## Replays
 - Every run in the world can be saved as a replay file: the world, every spawn, and every key press and release, by tick. `pnpm sim replay <file>` reruns it headless and checks it ends in the same state. This is how Logan can hand Claude a bug ("it flips when I do this").
 - (M8) Each spawn carries its team; a replay saved before M8 plays as all team 0.

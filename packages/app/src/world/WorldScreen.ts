@@ -1,3 +1,4 @@
+import { statusLine } from '../app/Hud';
 import type { Graphics, Ticker } from 'pixi.js';
 import { World, activeControls, keysScriptsRead, orientRaw, partWorldPose, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
@@ -33,7 +34,7 @@ import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 
-const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the toolbar below)';
+const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the bar below)';
 
 /** One key of the controlled robot, for the keys bar. */
 export interface KeyView {
@@ -128,7 +129,7 @@ export class WorldScreen {
   private readonly renderer: Renderer;
   private readonly textures: GameTextures;
   private readonly file: WorldFile;
-  private readonly hud: { set(lines: string[]): void };
+  private readonly hud: { set(lines: string[], debug?: boolean): void };
 
   private scriptKeysOf(scripts: readonly ScriptSpec[]): Set<string> {
     const out = new Set<string>();
@@ -144,7 +145,7 @@ export class WorldScreen {
     return out;
   }
 
-  private constructor(renderer: Renderer, textures: GameTextures, file: WorldFile, world: World, hud: { set(lines: string[]): void }) {
+  private constructor(renderer: Renderer, textures: GameTextures, file: WorldFile, world: World, hud: { set(lines: string[], debug?: boolean): void }) {
     this.renderer = renderer;
     this.textures = textures;
     this.file = file;
@@ -174,7 +175,7 @@ export class WorldScreen {
     );
   }
 
-  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[]): void }, scripts: ScriptHost, clock?: ScriptClock): Promise<WorldScreen> {
+  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[], debug?: boolean): void }, scripts: ScriptHost, clock?: ScriptClock): Promise<WorldScreen> {
     const screen = new WorldScreen(renderer, textures, file, await World.create({ seed: 1, scripts }, file), hud);
     screen.scriptHost = scripts;
     screen.clock = clock;
@@ -641,15 +642,30 @@ export class WorldScreen {
       this.lastView = key;
       this.onView?.(view);
     }
-    this.hud.set([
-      `tick ${this.world.tick}   t=${this.world.time.toFixed(2)}s   ${Math.round(ticker.FPS)} fps`,
-      `${time.paused ? 'PAUSED' : 'running'}   x${time.timeScale}   zoom ${this.cam.zoom.toFixed(2)}   follow ${this.cam.follow ? 'on' : 'off'}`,
-      robotLine,
-      ...placingLines,
-      ...(this.debugVisible ? [...this.perf.lines(this.world.robots.length), this.sound.debugLine()] : []),
-      `hash ${this.lastHash}`,
-      HELP,
-    ]);
+    if (this.debugVisible) {
+      this.hud.set(
+        [
+          `tick ${this.world.tick}   t=${this.world.time.toFixed(2)}s   ${Math.round(ticker.FPS)} fps`,
+          `${time.paused ? 'PAUSED' : 'running'}   x${time.timeScale}   zoom ${this.cam.zoom.toFixed(2)}   follow ${this.cam.follow ? 'on' : 'off'}`,
+          robotLine,
+          ...placingLines,
+          ...this.perf.lines(this.world.robots.length),
+          this.sound.debugLine(),
+          `hash ${this.lastHash}`,
+          HELP,
+        ],
+        true,
+      );
+    } else {
+      // M16: one small line (time, speed, and the robot you control or watch). The raw text is behind Debug.
+      const who =
+        focus !== undefined
+          ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name}`
+          : this.world.robots.length > 0
+            ? 'following no robot: click one'
+            : 'no robots yet: build one and press Test';
+      this.hud.set([statusLine(this.world.time, time.timeScale, time.paused, who), ...placingLines]);
+    }
     this.perf.add({ frameMs: ticker.deltaMS, ticks, simMs, scriptMs: scripts.ms, scriptCalls: scripts.calls, viewMs: performance.now() - viewStart });
   }
 }
