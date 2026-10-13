@@ -139,7 +139,24 @@ export const PRELUDE = String.raw`
   var indexOf = bind(call, Array.prototype.indexOf);
   var copyWithin = bind(call, Array.prototype.copyWithin);
   var repeat = bind(call, String.prototype.repeat);
+  var keysOf = Object.keys;
   var fixed = ['id', 'type', 'tags', 'pos', 'mass', 'in', 'out'];
+  // M16: each part type's static numbers (partSpec.ts), as sent, and the ones already frozen for use. Every part of
+  // a type shares one spec object, frozen all the way down the first time a part of that type is made.
+  var specTable = create(null);
+  var specReady = create(null);
+  function deepFreeze(v) {
+    if (v === null || typeof v !== 'object') return v;
+    var names = keysOf(v);
+    for (var j = 0; j < names.length; j++) deepFreeze(v[names[j]]);
+    return freeze(v);
+  }
+  function specOf(type) {
+    var ready = specReady[type];
+    if (ready !== undefined) return ready;
+    if (!hasOwn.call(specTable, type)) return undefined;
+    return (specReady[type] = deepFreeze(specTable[type]));
+  }
   var lock = { writable: false, configurable: false };
   // The parts by type and by tag, each list in parts order, for get(): null until a get() needs it, then kept up to
   // date as the layout is patched (or dropped, when a patch moves parts about, and built again on the next get()).
@@ -160,7 +177,12 @@ export const PRELUDE = String.raw`
     var outO = parse(zeros(l[5]));
     var pos = { x: 0, y: 0 };
     var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
-    var o = { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO };
+    // Its type's spec (M16) comes last, and only when the host sent one: without, a part is as it was before M16.
+    var sp = specOf(r.type);
+    var o = sp === undefined
+      ? { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO }
+      : { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, spec: sp };
+    if (sp !== undefined) defineProperty(o, 'spec', lock);
     // Only the numbers change from tick to tick: nothing can be replaced, added, or deleted, so the refill always
     // reaches what the script sees and a script's own writes last one tick at most.
     for (var j = 0; j < fixed.length; j++) defineProperty(o, fixed[j], lock);
@@ -337,6 +359,8 @@ export const PRELUDE = String.raw`
   }
   return {
     layout: function (json) { setLayout(json); return ''; },
+    // Parts made from here on take their spec from this table; parts already made keep the one they have.
+    partSpecs: function (json) { specTable = parse(json); specReady = create(null); return ''; },
     patch: function (json) { patchLayout(json); return ''; },
     setup: function (buf, extras) {
       load(buf, extras);

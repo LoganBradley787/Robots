@@ -25,8 +25,9 @@ All commands run from the repo root. `<bp>` is a name in `blueprints/` or a path
 - `validate` also reads the scripts and warns (exit 0, the script's name, file, and line in the message):
   - `SCRIPT_SYNTAX`: it does not compile. `SCRIPT_NO_TICK`: it has no `function tick()`. `SCRIPT_ERROR`: it throws or never ends as it starts (code outside any function). Each would stop the script at t=0, so fix them before a run.
   - `SCRIPT_CHANNEL`: `set('wheels', 'throttle', 1)` where no part that answers to `wheels` has that input (the message lists the inputs it has), a `get` of a value they do not have, or a channel name no part type has at all.
-  - `SCRIPT_TARGET`: `set('wheelz', ...)` where no part has that tag, part type, or id and the robot has a name a letter or two away (`wheels`) that the script never uses.
-  - Only arguments written as plain strings are read. A name built at run time (`name + '.gun'`, `p.id`) is not checked, and neither is a name the robot simply lacks (`set('bay', ...)` on a robot with no bay is how shared scripts treat optional parts), so a clean `validate` does not prove a script reaches what it means to. The run report does.
+  - `SCRIPT_TARGET` (M16): a plain `set('x', ...)` or `get('x', ...)` whose name reaches nothing on the robot: no part has that tag, part type, or id as the script's own core sees it (a placed missile's script sees `missile1.fins` as `fins`). It names the line and lists the real names, nearest first, with a "did you mean" for a near miss. A tag that reaches nothing always warns. A part type the robot lacks warns when the script uses it alone (`set('fin', 'deflect', ...)` on a robot with no fin), and is left alone when the same script makes the same call on a name that does reach a part with that input: `set('warhead', 'arm', 1); set('heavywarhead', 'arm', 1);` is quiet on a robot with either. Names a bay's copies get at run time (`bay1`, `bay2.fins`) and the part types of what a bay builds are left alone. What copies of one script share (a guide on each of twelve missiles) is said once, with `the same in 11 more copies of this script (...)`.
+  - Only arguments written as plain strings are read. A name built at run time (`name + '.gun'`, `p.id`) is not checked, and neither are the names in a script's own tests (`p.type === 'gun'`, `p.tags.includes('stab')`), so a clean `validate` does not prove a script reaches what it means to. The run report does.
+  - A script shared between robots that reaches for a tag only some of them carry (`set('bay', ...)`, `set('dprop', ...)`) now warns on the robots without it. That is expected: either guard it out of the robot's own copy of the script, or read it as "this line does nothing here".
 - A script file the blueprint names but that is not next to it is an error (`MISSING_SCRIPT`, exit 1, the file named on stderr) for `validate`, `show`, `run` (a `--drop` too), `determinism`, `duel`, and `tournament`: nothing runs until the file exists.
 - `pnpm sim run <bp> [flags]`: simulate and report.
   - `--x <n> --y <n>`: where the core lands (default: the world spawn at (0, 6)). Spawn in open ground, like `--x -100 --y 3`; the flat world's boxes are near x 0 to 18.
@@ -92,7 +93,8 @@ function tick() {
 }
 ```
 - `self`: `{ pos: {x, y}, vel: {x, y}, angle, angVel, mass, energy: { stored, capacity } }` of the script's core and its piece. Angles in radians, counterclockwise positive, 0 as built.
-- `parts`: `[{ id, type, tags, pos, angle, mass, in, out }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `mass` in kg, `in` the input channels, `out` the outputs like a decoupler's `armed`.
+- `parts`: `[{ id, type, tags, pos, angle, mass, in, out, spec }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `mass` in kg, `in` the input channels, `out` the outputs like a decoupler's `armed`.
+- `part.spec` (M16): the part definition's static numbers, the same frozen object for every part of a type. `spec.in.<input>` is `{ min, max, default }`; `spec.config` is the behavior's numbers (`maxForce` of a thruster, propeller, or booster in N; `maxTorque` of a gyro in N m; a rotator's `range` and `turnSpeed`; a wheel's `maxSpeed`); `spec.powerDraw` and `spec.maxHealth`; and any other block of numbers the definition has, under its own name (`spec.gun.speed`, `spec.gun.range`, `spec.sensor.range`, `spec.resource.capacity`, `spec.joint.maxTorque`). It says what the definition says, not what the part is doing right now.
 - `set(target, channel, value)`, `get(target, channel)`: target is a tag, a part type, or an id. `get` is a lookup (the parts are kept by type and tag), so it costs the same on a 40 part robot and a 4000 part one.
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
 - `state` (kept between ticks), `dt`, `time`, `frame`, `param()`, `log(...)` (up to 20 lines per second per robot; the run report shows them), `random()`, `clamp`, `lerp`, `sign`, `Math`.
@@ -105,6 +107,14 @@ function tick() {
 - `contacts`, `inbox`, `parts`, `self`, `state`, `keys` are set by the host every tick: do not name your own variables that. `set()` with NaN or Infinity is ignored with one log line; `mark()` skips such points.
 - Signs that trip people: a gyro's `spin` is clockwise positive (the opposite of `self.angle`); a rotator's `angle` output is -1 to 1 of its range.
 - Name parts by tag or type in scripts, never by id: ids change when a blueprint is placed or mirrored.
+
+### Scripts that survive an edit (M16, advice)
+For a robot Logan may edit by hand in the builder (add a gun, swap a thruster, take a propeller off). This is advice, not a requirement: some robots cannot be made editable (a walker's gait, a titan built around exact geometry), and no existing robot has to be rewritten for it.
+- **Drive groups, and loop over them.** Tag what a script drives (`lift`, `guns`, `turret1.rot`) and write `set('lift', 'throttle', t)` or `for (const p of parts) if (p.tags.includes('guns')) ...`. A part added to the group in the builder is then driven with no change to the code, and the builder can show which parts a script reaches and which look left out.
+- **Read strengths from the parts.** `p.spec.config.maxForce`, `p.spec.config.maxTorque`, `p.spec.in.throttle.max`, `p.spec.gun.speed` instead of a `lift = 120` param or a bare `400 *`. Add them up each tick (or in `setup()` and again when `parts.length` changes), so the script is right for however many engines the robot has now. Mass is already live in `self.mass` and `p.mass`.
+- **No hardcoded counts or orders.** Not `COUNT = 4` or `ORDER = [1, 4, 2, 3]`: count the group (`parts.filter((p) => p.tags.includes('rack'))`) and sort it by position or tag.
+- **Plain names where you can.** `set('guns', ...)` is read by the builder and by `validate`; a target built in code (`'grip' + k`, `set(p.id, ...)`) works the same in the world but cannot be checked or shown.
+- **A part type in `set()` reaches only that type.** `set('thruster', ...)` does not reach a `swivelthruster` swapped in for it (the builder's Swap leaves the old type's name on the new part as a tag for exactly this), and a script's own `p.type === 'thruster'` never matches the new part. A group has neither problem.
 
 ## Numbers that matter
 Run `pnpm sim parts` for the full table. g is 9.81.

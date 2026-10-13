@@ -60,15 +60,59 @@ describe('scriptIssues (review T2)', () => {
     expect(await lines('while (true) {}\nfunction tick() {}')).toEqual([expect.stringMatching(/^warning SCRIPT_ERROR: script 'drive' \(x\.drive\.js\) stops as it starts: ran too long/)]);
   });
 
-  it('reports a target no part answers to, with its line and the nearest name', async () => {
+  it('reports a target no part answers to, with its line, the nearest name, and the real names', async () => {
     expect(await lines("function tick() {\n\n  set('wheelz', 'speed', 1);\n}")).toEqual([
-      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 3: set('wheelz', ...) reaches nothing: no part has that tag, part type, or id; did you mean 'wheels'?",
+      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 3: set('wheelz', ...) reaches nothing: no part has that tag, part type, or id; did you mean 'wheels'? (tags here: wheels; part types here: wheel, core, frame)",
     ]);
   });
 
-  it('leaves a name the robot lacks alone unless it is nearly one it has and the script does not use', async () => {
-    // Stock scripts are shared between robots: a tag only some carry (`dprop` beside `lprop`), or a part type.
-    expect(await lines("function tick() { set('wheels', 'speed', 1); set('wheelz', 'speed', 1); if (get('bay', 'ready') > 0) set('bay', 'release', 1); set('gun', 'fire', 1); }")).toEqual([]);
+  it('reports every plain name that reaches nothing (M16): a tag the robot lacks, and a part type it lacks too', async () => {
+    // Until M16 these were left alone (a script shared between robots reaches for names only some carry), and a
+    // robot whose script drove nothing printed `ok`.
+    const said = await lines("function tick() {\n  set('wheels', 'speed', 1);\n  set('wheelz', 'speed', 1);\n  if (get('bay', 'ready') > 0) set('bay', 'release', 1);\n  set('gun', 'fire', 1);\n}");
+    expect(said.map((l) => l.replace(/ \(tags here: .*$/, ''))).toEqual([
+      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 3: set('wheelz', ...) reaches nothing: no part has that tag, part type, or id; did you mean 'wheels'?",
+      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 4: get('bay', ...) reaches nothing: no part has that tag, part type, or id",
+      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 4: set('bay', ...) reaches nothing: no part has that tag, part type, or id",
+      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 5: set('gun', ...) reaches nothing: no part has that tag, part type, or id",
+    ]);
+    for (const l of said) expect(l).toMatch(/ \(tags here: wheels; part types here: (core|frame|wheel), (core|frame|wheel), (core|frame|wheel)\)$/);
+  });
+
+  it('leaves alone a part type the script drives as one of several, and still says one it drives alone', async () => {
+    // `wheel` is there and takes `speed`: `thruster` with `speed` is the other half of "whichever it has".
+    expect(await lines("function tick() { set('wheel', 'speed', 1); set('thruster', 'speed', 1); }")).toEqual([]);
+    // Another input is another call: nothing on the robot takes `throttle` from this script.
+    expect((await lines("function tick() { set('wheel', 'speed', 1); set('thruster', 'throttle', 1); }")).map((l) => l.replace(/ \(tags here: .*$/, ''))).toEqual([
+      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 1: set('thruster', ...) reaches nothing: no part has that tag, part type, or id",
+    ]);
+    // A tag is never one of several: `wheelz` beside a working `wheels` is still a mistake.
+    expect(await lines("function tick() { set('wheels', 'speed', 1); set('wheelz', 'speed', 1); }")).toHaveLength(1);
+  });
+
+  it('says once what copies of one script share, with the count and who runs them', async () => {
+    const guide = "function tick() {\n  set('fins', 'deflect', 0);\n}";
+    const bp = {
+      format: 1,
+      name: 'x',
+      grid: ['K  .  L  .  M', 'D  .  D  .  D', 'F  C  F  F  F'],
+      legend: { K: { part: 'core', tags: ['m1'] }, L: { part: 'core', tags: ['m2'] }, M: { part: 'core', tags: ['m3'] } },
+      primaryCore: 'core@1,0',
+      cores: {
+        'core@0,2': { scope: 'm1', scripts: [{ id: 'guide', source: guide }] },
+        'core@2,2': { scope: 'm2', scripts: [{ id: 'guide', source: guide }] },
+        'core@4,2': { scope: 'm3', scripts: [{ id: 'guide', source: `${guide}\n// its own copy, edited` }] },
+      },
+    };
+    const said = formatIssues(await scriptIssues(bp)).split('\n');
+    expect(said).toHaveLength(2);
+    expect(said[0]).toMatch(/^warning SCRIPT_TARGET: core core@0,2 \(m1\): script 'guide' line 2: set\('fins', \.\.\.\) reaches nothing: .*\); the same in 1 more copy of this script \(core core@2,2 \(m2\)\)$/);
+    // A copy that was edited is its own script.
+    expect(said[1]).toMatch(/^warning SCRIPT_TARGET: core core@4,2 \(m3\): script 'guide' line 2: set\('fins', \.\.\.\) reaches nothing: .*\)$/);
+  });
+
+  it('does not guess at a target built in code, nor judge the names in a type or tag test', async () => {
+    expect(await lines("function tick() { for (const p of parts) if (p.type === 'gun' || p.tags.includes('turret')) set(p.id, 'fire', 1); set('grip' + 1, 'fire', 1); }")).toEqual([]);
   });
 
   it('reports a channel the target does not have, with the ones it has', async () => {
@@ -111,12 +155,22 @@ describe('pnpm sim validate with scripts', () => {
     expect(r.stdout).toMatch(/^warning SCRIPT_SYNTAX: script 'drive' \(x\.drive\.js\) does not compile/);
   });
 
-  it('finds nothing to say about any stock blueprint', async () => {
+  it('finds nothing to say about any stock blueprint but names that reach nothing, and those are the known ones', async () => {
+    // M16: a plain name that reaches nothing is said. A part type a script drives as one of several (a guide that
+    // arms `warhead` and `heavywarhead` alike) is left alone; what is left on the stock robots is tags only some of
+    // them carry (`bay`, `dprop`, `pd`) and a part type a shared script drives alone (`fin`, `swivelthruster`'s
+    // `swivel`, a `thruster`). The robots are left as they are; this holds the list of such names still, so a new
+    // one is looked at when it appears.
     const noisy: string[] = [];
+    const dead = new Set<string>();
     for (const name of listBlueprints()) {
-      const issues = await scriptIssues(loadBlueprintFile(name));
-      if (issues.length > 0) noisy.push(`${name}: ${formatIssues(issues)}`);
+      for (const i of await scriptIssues(loadBlueprintFile(name))) {
+        const m = i.code === 'SCRIPT_TARGET' ? /line \d+: (?:set|get)\('([^']+)', \.\.\.\) reaches nothing: /.exec(i.message) : null;
+        if (i.severity === 'warning' && m) dead.add(m[1] as string);
+        else noisy.push(`${name}: ${formatIssues([i])}`);
+      }
     }
     expect(noisy).toEqual([]);
+    expect([...dead].sort()).toEqual(['bay', 'dprop', 'fin', 'pd', 'swivelthruster', 'thruster']);
   }, 120_000);
 });
