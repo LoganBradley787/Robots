@@ -12,6 +12,7 @@ import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
 import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
+import { partSpec, partSpecsJson } from '../script/partSpec';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, jamNear, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, smokeBlocks, type SmokeCloud } from '../sensors/smoke';
@@ -362,6 +363,8 @@ export class World {
   /** Every robot in `robots`, by id (M9: lookups on every tick without scanning the list). */
   private readonly byId = new Map<number, Robot>();
   private layouts = 0;
+  /** M16: every part type's static numbers as one JSON text (`partSpecsJson`), made on first use and handed with every layout. */
+  private partSpecs: string | undefined;
   /** Scripts per robot, on robots with a core. */
   private readonly runners = new Map<number, ScriptRunner>();
   /** Recent `log()` lines from scripts, oldest first (at most LOG_KEEP). */
@@ -2099,6 +2102,8 @@ export class World {
     const patch = last && !this.fullLayouts ? layoutPatch(last.rows, layout) : undefined;
     const handed: ScriptLayout = {
       id: ++this.layouts,
+      // The same text for every layout of this world, so a script is sent it once (M16).
+      specs: (this.partSpecs ??= partSpecsJson(this.registry)),
       get json() {
         return (json ??= layoutJson(layout));
       },
@@ -2236,7 +2241,7 @@ export class World {
         const v = referenceOutput(robot, p, id, o.name);
         if (v !== undefined) out[o.name] = v;
       }
-      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out });
+      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out, spec: partSpec(p.def) });
     }
     return {
       frame: this.tickCount,

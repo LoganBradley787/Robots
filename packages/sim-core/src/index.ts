@@ -58,6 +58,8 @@ export { editDistance, nearestNames } from './blueprint/nearest';
 export { createQuickJsHost } from './script/quickjs';
 export { DEFAULT_LIMITS } from './script/types';
 export { inputToFrame } from './script/frame';
+export { partSpec, partSpecsJson } from './script/partSpec';
+export type { ScriptPartSpec } from './script/partSpec';
 export type { ScriptFrame, ScriptLayout } from './script/frame';
 export { keysScriptsRead } from './script/keysRead';
 export { readScript, calls, plainStrings, scriptRuns, partsReached, scriptReach, partsScriptReaches, namesAvailable, deadNames, undrivenParts, scriptIdMentions, partDrivers, scriptNameIssues } from './script/reading';

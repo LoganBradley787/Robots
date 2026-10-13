@@ -66,7 +66,7 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
           handles.push(h);
           return h;
         };
-        const entries = { layout: fn('layout'), patch: fn('patch'), setup: fn('setup'), tick: fn('tick'), specs: fn('specs'), hasTick: fn('hasTick'), inspect: fn('inspect') };
+        const entries = { layout: fn('layout'), patch: fn('patch'), partSpecs: fn('partSpecs'), setup: fn('setup'), tick: fn('tick'), specs: fn('specs'), hasTick: fn('hasTick'), inspect: fn('inspect') };
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
         const user = run(c, meter, () => c.evalCode(source, opts.name), true);
         if (!user.ok) return fail(user.error);
@@ -152,6 +152,8 @@ class QuickJsInstance implements ScriptInstance {
   private disposed = false;
   /** The layout this script last read (M9); a frame with another id sends its layout first, as a patch on this one when it has one. */
   private layoutId: number | undefined;
+  /** The part specs this script was last sent (M16, `ScriptLayout.specs`): the world's is one text, so this is sent once. */
+  private specsSeen: string | undefined;
 
   constructor(
     runtime: QuickJSRuntime,
@@ -205,6 +207,15 @@ class QuickJsInstance implements ScriptInstance {
     try {
       this.meter.arm(this.limits.budgetPerTick);
       if (frame.layout.id !== this.layoutId) {
+        // The part types' static numbers first (M16), when they are not the ones this script holds: the layout's parts take their `spec` from them.
+        const specs = frame.layout.specs;
+        if (specs !== undefined && specs !== this.specsSeen) {
+          const text = ctx.newString(specs);
+          const r = run(ctx, this.meter, () => ctx.callFunction(this.entries.partSpecs, ctx.undefined, text));
+          text.dispose();
+          if (!r.ok) return r;
+          this.specsSeen = specs;
+        }
         // A patch on the layout this script holds when there is one, else the whole layout.
         const patch = frame.layout.patch !== undefined && frame.layout.patch.from === this.layoutId ? frame.layout.patch.json : undefined;
         const text = ctx.newString(patch ?? frame.layout.json);
@@ -230,6 +241,7 @@ class QuickJsInstance implements ScriptInstance {
 interface Entries {
   layout: QuickJSHandle;
   patch: QuickJSHandle;
+  partSpecs: QuickJSHandle;
   setup: QuickJSHandle;
   tick: QuickJSHandle;
   inspect: QuickJSHandle;

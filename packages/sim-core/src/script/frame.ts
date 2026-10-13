@@ -4,7 +4,9 @@ import type { ScriptContact, ScriptInput } from './types';
  * How a tick's input crosses into a script (M9). Parsing JSON text into part objects inside the sandbox was most of
  * a script's cost, so the input is split in three:
  * - the layout (JSON): each part's id, type, tags, mass, and the names of its `in` and `out` values, in order. It
- *   changes only when the robot does, and a script is sent it only when its `id` differs from the last one it saw;
+ *   changes only when the robot does, and a script is sent it only when its `id` differs from the last one it saw.
+ *   With it goes `specs` (M16): each part type's static numbers (`partSpec.ts`), which never change, so a script is
+ *   sent that text once and every part of a type shares one `spec` object;
  * - the numbers (one Float64Array): everything that moves, in a fixed order (`HEADER`, `SELF`, then per part its
  *   position, angle, `in` values, and `out` values);
  * - the extras (JSON, or '' when all are empty): keys, contacts, and inbox.
@@ -21,6 +23,12 @@ export interface ScriptLayout {
    * objects of every part that is as it was and makes only the others. A script holding any other layout reads `json`.
    */
   patch?: { from: number; json: string };
+  /**
+   * M16: each part type's static numbers as JSON, `{ "<type>": spec }` (`partSpecsJson`), for at least every type in
+   * the layout. A script is sent it before the layout, and only when it is not the text it was sent last (the world
+   * hands every layout the same one). Absent: parts have no `spec`.
+   */
+  specs?: string;
 }
 
 export interface ScriptFrame {
@@ -205,5 +213,9 @@ export function inputToFrame(input: ScriptInput, layoutId: number): ScriptFrame 
     for (const v of Object.values(p.out)) ok = put(numbers, k++, v) && ok;
   }
   numbers[0] = ok ? 1 : 0;
-  return { layout: { id: layoutId, json: layoutJson(parts) }, numbers, extras: extrasJson(input) };
+  // The spec of each type, from the first part of the type that has one.
+  const specs = new Map<string, string>();
+  for (const p of input.parts) if (p.spec !== undefined && !specs.has(p.type)) specs.set(p.type, JSON.stringify(p.spec));
+  const specsJson = specs.size === 0 ? undefined : `{${[...specs].map(([type, json]) => `${JSON.stringify(type)}:${json}`).join(',')}}`;
+  return { layout: { id: layoutId, json: layoutJson(parts), ...(specsJson !== undefined ? { specs: specsJson } : {}) }, numbers, extras: extrasJson(input) };
 }

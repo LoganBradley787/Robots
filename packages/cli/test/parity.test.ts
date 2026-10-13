@@ -8,6 +8,10 @@ import { scriptHost } from '../src/scriptHost';
  * just before it runs) must be exactly what the old path gave it: `JSON.parse(JSON.stringify(input))` of the input the
  * world built before M9. Compared as JSON text (the sandbox's text re-printed by Node, so numbers print the same way), so
  * key order counts too.
+ *
+ * M16: the input now carries each part's `spec` (its definition's static numbers, `script/partSpec.ts`), sent with the
+ * layout and not per tick. The comparison is the same, on more: every part of every call must hold the spec the
+ * reference gives it, as its last key, whether the part came from a whole layout or a patch.
  */
 describe('scripts see what they saw before M9', () => {
   for (const scene of GOLDEN_SCENES) {
@@ -15,6 +19,8 @@ describe('scripts see what they saw before M9', () => {
       const inner = await scriptHost();
       let expected = '';
       let calls = 0;
+      /** Calls whose reference had a part without its spec: the comparison below would then prove nothing about specs. */
+      let unspecced = 0;
       const mismatches: string[] = [];
       const check = (instance: ScriptInstance, when: string): void => {
         calls++;
@@ -50,10 +56,13 @@ describe('scripts see what they saw before M9', () => {
         },
       };
       const scriptProbe = (_robot: number, reference: () => ScriptInput): void => {
-        expected = JSON.stringify(reference());
+        const input = reference();
+        if (input.parts.some((p) => p.spec === undefined || typeof p.spec.maxHealth !== 'number' || typeof p.spec.in !== 'object')) unspecced++;
+        expected = JSON.stringify(input);
       };
       await runScene(scene, { scripts: host, scriptProbe });
       expect(mismatches).toEqual([]);
+      expect(unspecced).toBe(0);
       if (scene.name !== 'car' && scene.name !== 'hopper' && scene.name !== 'longcar-bomb' && scene.name !== 'launcher') expect(calls).toBeGreaterThan(100);
     });
   }

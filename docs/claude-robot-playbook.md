@@ -93,7 +93,8 @@ function tick() {
 }
 ```
 - `self`: `{ pos: {x, y}, vel: {x, y}, angle, angVel, mass, energy: { stored, capacity } }` of the script's core and its piece. Angles in radians, counterclockwise positive, 0 as built.
-- `parts`: `[{ id, type, tags, pos, angle, mass, in, out }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `mass` in kg, `in` the input channels, `out` the outputs like a decoupler's `armed`.
+- `parts`: `[{ id, type, tags, pos, angle, mass, in, out, spec }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `mass` in kg, `in` the input channels, `out` the outputs like a decoupler's `armed`.
+- `part.spec` (M16): the part definition's static numbers, the same frozen object for every part of a type. `spec.in.<input>` is `{ min, max, default }`; `spec.config` is the behavior's numbers (`maxForce` of a thruster, propeller, or booster in N; `maxTorque` of a gyro in N m; a rotator's `range` and `turnSpeed`; a wheel's `maxSpeed`); `spec.powerDraw` and `spec.maxHealth`; and any other block of numbers the definition has, under its own name (`spec.gun.speed`, `spec.gun.range`, `spec.sensor.range`, `spec.resource.capacity`, `spec.joint.maxTorque`). It says what the definition says, not what the part is doing right now.
 - `set(target, channel, value)`, `get(target, channel)`: target is a tag, a part type, or an id. `get` is a lookup (the parts are kept by type and tag), so it costs the same on a 40 part robot and a 4000 part one.
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
 - `state` (kept between ticks), `dt`, `time`, `frame`, `param()`, `log(...)` (up to 20 lines per second per robot; the run report shows them), `random()`, `clamp`, `lerp`, `sign`, `Math`.
@@ -106,6 +107,14 @@ function tick() {
 - `contacts`, `inbox`, `parts`, `self`, `state`, `keys` are set by the host every tick: do not name your own variables that. `set()` with NaN or Infinity is ignored with one log line; `mark()` skips such points.
 - Signs that trip people: a gyro's `spin` is clockwise positive (the opposite of `self.angle`); a rotator's `angle` output is -1 to 1 of its range.
 - Name parts by tag or type in scripts, never by id: ids change when a blueprint is placed or mirrored.
+
+### Scripts that survive an edit (M16, advice)
+For a robot Logan may edit by hand in the builder (add a gun, swap a thruster, take a propeller off). This is advice, not a requirement: some robots cannot be made editable (a walker's gait, a titan built around exact geometry), and no existing robot has to be rewritten for it.
+- **Drive groups, and loop over them.** Tag what a script drives (`lift`, `guns`, `turret1.rot`) and write `set('lift', 'throttle', t)` or `for (const p of parts) if (p.tags.includes('guns')) ...`. A part added to the group in the builder is then driven with no change to the code, and the builder can show which parts a script reaches and which look left out.
+- **Read strengths from the parts.** `p.spec.config.maxForce`, `p.spec.config.maxTorque`, `p.spec.in.throttle.max`, `p.spec.gun.speed` instead of a `lift = 120` param or a bare `400 *`. Add them up each tick (or in `setup()` and again when `parts.length` changes), so the script is right for however many engines the robot has now. Mass is already live in `self.mass` and `p.mass`.
+- **No hardcoded counts or orders.** Not `COUNT = 4` or `ORDER = [1, 4, 2, 3]`: count the group (`parts.filter((p) => p.tags.includes('rack'))`) and sort it by position or tag.
+- **Plain names where you can.** `set('guns', ...)` is read by the builder and by `validate`; a target built in code (`'grip' + k`, `set(p.id, ...)`) works the same in the world but cannot be checked or shown.
+- **A part type in `set()` reaches only that type.** `set('thruster', ...)` does not reach a `swivelthruster` swapped in for it (the builder's Swap leaves the old type's name on the new part as a tag for exactly this), and a script's own `p.type === 'thruster'` never matches the new part. A group has neither problem.
 
 ## Numbers that matter
 Run `pnpm sim parts` for the full table. g is 9.81.

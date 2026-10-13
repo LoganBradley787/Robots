@@ -79,6 +79,26 @@ interface InputFrame {
 
 As built (M9, script speed): what a script sees is unchanged, but it crosses into the sandbox in three pieces (`script/frame.ts`): a layout (each part's id, type, tags, mass, and the names of its `in` and `out` values) sent only when the robot changes, one binary block of every number that moves, and a small JSON text for keys, contacts, and inbox. Part objects are built once per layout and refilled in place every tick; their fields other than the numbers are read-only, so a script copies what it keeps. JSON's quirks are kept (`-0` arrives as `0`, `NaN` and `Infinity` as `null`). A parity test checks every script call in 15 scenes against the old JSON path, and golden hashes (`packages/cli/test/golden-hashes.json`) check that no run changed. Part objects are sealed and their non-number fields read-only: a write to them is ignored (a TypeError in strict mode), `tags` is frozen, and `get()` reads the parts as sent, whatever a script does to its own `parts` array.
 
+As built (M16, part strengths): every part object also carries `spec`, its definition's static numbers, so a script can add up what its engines can do and adapt when one is added or removed, instead of carrying "lift 120 per propeller" as a constant its owner must keep right by hand.
+
+- `part.spec.in.<input>`: `{ min, max, default }` for each input (`p.spec.in.throttle.max`).
+- `part.spec.config`: the numbers of the definition's `behaviorConfig`: a thruster's or propeller's `maxForce` (N), a gyro's `maxTorque` (N m), a rotator's `range` (radians) and `turnSpeed`, a wheel's `maxSpeed`, a piston's `stroke`. `{}` for a part without one.
+- `part.spec.powerDraw` (J/s at full use) and `part.spec.maxHealth`.
+- Every other block of the definition that holds numbers, under the definition's own name, with only its numbers: `p.spec.gun.speed` (a shell's speed, for leading a target), `p.spec.gun.range`, `p.spec.sensor.range`, `p.spec.resource.capacity`, `p.spec.joint.maxTorque`, `p.spec.cannon.charge`. Text, lists, and blocks inside blocks are left out. `pnpm sim parts --json` shows each definition.
+- One rule for every part (`script/partSpec.ts`), never per part type: a new part's numbers show up without engine work.
+
+```js
+// Full lift, read off the parts: right for 2 propellers or 12, and for a thruster swapped in for one.
+let lift = 0;
+for (const p of parts) if (p.tags.includes('lift')) lift += p.spec.config.maxForce;
+set('lift', 'throttle', clamp(self.mass * 9.81 / lift, 0, 1));
+```
+
+- It is the same frozen object for every part of a type, the last key of a part (`id, type, tags, pos, angle, mass, in, out, spec`), and read-only like the rest: a write to it is ignored.
+- It never changes, so it is not in the numbers sent every tick. The world hands every layout one JSON text for all part types (`ScriptLayout.specs`), and a script is sent it once, before its first layout; a part gets its type's object when it is made. A tick costs what it did.
+- Existing scripts are unaffected and no golden hash changed. The one thing a script written before M16 can notice is the new key itself (`Object.keys(part)`, `JSON.stringify(part)`); no stock script lists a part's keys. The parity test now compares the spec too, on every part of every script call.
+- The numbers are what the definition says, not what the part is doing: a damaged or unpowered thruster still reads its full `maxForce`.
+
 Injected globals inside the sandbox. Everything is plain data; no host objects leak in.
 
 ```js
@@ -178,5 +198,6 @@ interface ParamSpec { default: number; min?: number; max?: number; step?: number
   - `contacts` and `inbox` are host-set globals, like `parts` and `self`: a script's own variable with that name is overwritten every tick.
   - A sensor sees nothing until it has been powered once (its first tick after deploy).
 - **Checked before a run** (review 2026-10-09): `pnpm sim validate` compiles every script the way the world does and warns about one that would stop at t=0 (no `tick`, a syntax error, a throw at the top level), and about plain string targets and channels in `set()` and `get()` that reach nothing (`02`, Validator).
+- **Reading a script without running it** (M16, `script/reading.ts`, pure, shared by the builder and `validate`): `readScript(source)` lists the plain quoted names a script uses with the line, column, and offsets of each (targets of `set()` and `get()` with their input or output name, `tags.includes('x')`, `.type === 'x'`, `.id === 'x'`) and flags targets built in code (`'grip' + k`, `set(p.id, ...)`, a template string), since the list is then not the whole story. From it: what each name reaches under the script's own core scope (`scriptReach`), names that reach nothing (`deadNames`, with the real names nearest first), parts that look like they belong to a script but are in none of its groups (`undrivenParts`, silent whenever the script builds a target in code or names the type), and what drives one part (`partDrivers`, for a swap). Since M16 `validate` warns (`SCRIPT_TARGET`) for every plain `set()` or `get()` name that reaches nothing, a part type the robot lacks included; before, it spoke only for a near misspelling. Names in a script's own tests are not judged (a `p.type === 'core'` may be about a robot it is looking at), and a target built in code is never guessed at.
 - **An AI is scripts:** `enemy-drone` has no engine AI; its pilot script flies, aims, launches, and dodges from `contacts`. `AiCoreSource` above is not needed.
 
