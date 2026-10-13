@@ -81,3 +81,8 @@ export async function loadScriptFile(file: string): Promise<string | undefined> 
 export async function saveScriptFile(file: string, text: string): Promise<void> {
   await check(await fetch(`${BASE}/${file}`, { method: 'PUT', headers: { 'content-type': 'text/javascript' }, body: text }));
 }
+
+/** The shelf of shared behaviors (M16): every file in the repo's `behaviors/` folder with its text. Read only. */
+export async function loadShelfFiles(): Promise<{ file: string; text: string }[]> {
+  return (await (await check(await fetch('/api/behaviors'))).json()) as { file: string; text: string }[];
+}

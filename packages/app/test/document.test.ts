@@ -165,6 +165,18 @@ describe('DocumentController', () => {
     expect(t.asked[0]).toContain("What's on screen stays");
   });
 
+  it('delete takes the robot\'s own script files with it, and leaves a file another blueprint owns (M16)', async () => {
+    const t = setup({ 'other.lent.js': 'function tick() {}' }, { names: ['flyer'], confirms: [true] });
+    t.edit((b) => ({ ...placePart(b, reg, 'core', 0, 0, 0), scripts: [{ id: 'hover', enabled: true, params: {}, source: 'function tick() {}' }] }));
+    expect(await t.doc.saveAs()).toBe(true);
+    expect(Object.keys(t.files).sort()).toEqual(['flyer.hover.js', 'flyer.json', 'other.lent.js']);
+    expect(await t.doc.remove()).toBe(true);
+    expect(Object.keys(t.files)).toEqual(['other.lent.js']);
+    expect(t.asked.at(-1)).toContain('blueprints/flyer.json and its script file (flyer.hover.js)');
+    // What is on screen stays, script and all.
+    expect(t.draft().scripts.map((s) => s.id)).toEqual(['hover']);
+  });
+
   it('newBlank while dirty with Save saves first', async () => {
     const t = setup({ 'car.json': carFile }, { unsaved: ['save'] });
     await t.doc.open('car.json');

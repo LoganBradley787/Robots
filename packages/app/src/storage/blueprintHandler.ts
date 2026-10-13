@@ -178,3 +178,30 @@ function scriptRequest(method: string, file: string, body: string, store: FileSt
       return json(405, { error: `method ${method} is not allowed` });
   }
 }
+
+/** A shelf file: `hover.js`, `aim-and-fire.js`. */
+const SHELF_NAME = /^[a-z0-9][a-z0-9-]*\.js$/;
+
+/**
+ * The shelf of shared behaviors (M16): the repo's `behaviors/` folder, read only. `/` lists every behavior file with
+ * its text (there are few, and the builder wants them all at once), sorted by file name; `/<file>.js` is one file's
+ * text. Nothing can be written through here: the shelf is edited as files, and a robot gets its own copy.
+ */
+export function handleShelfRequest(method: string, url: string, store: Pick<FileStore, 'list' | 'read'>): ApiResponse {
+  if (method !== 'GET') return json(405, { error: 'the shelf is read only' });
+  const path = url.split('?')[0] ?? '/';
+  if (path === '/' || path === '') {
+    const files = store
+      .list()
+      .filter((f) => SHELF_NAME.test(f))
+      .sort();
+    return json(200, files.flatMap((file) => {
+      const text = store.read(file);
+      return text === undefined ? [] : [{ file, text }];
+    }));
+  }
+  const file = path.slice(1);
+  if (!SHELF_NAME.test(file)) return json(400, { error: `bad behavior file name "${file}"` });
+  const text = store.read(file);
+  return text === undefined ? json(404, { error: `no behavior ${file}` }) : { status: 200, body: text };
+}

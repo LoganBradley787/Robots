@@ -195,9 +195,21 @@ export class DocumentController {
   async remove(): Promise<boolean> {
     const file = this.state.file;
     if (file === undefined) return false;
-    const msg = `Delete "${this.state.name}"? This removes blueprints/${file}. What's on screen stays, as an unsaved blueprint.`;
+    // Its own script files go with it (M16): the ones named after this blueprint (`drone.hover.js` for `drone.json`),
+    // which Save and Save As wrote for it alone. A script file another blueprint lent it is not its own, and stays.
+    const stem = file.slice(0, -'.json'.length);
+    const own = [...new Set(allScripts(this.deps.getDraft()).flatMap((s) => (s.file !== undefined && s.file.startsWith(`${stem}.`) && SCRIPT_FILE.test(s.file) && !s.file.includes('..') ? [s.file] : [])))];
+    const also = own.length === 0 ? '' : ` and its script file${own.length === 1 ? '' : 's'} (${own.join(', ')})`;
+    const msg = `Delete "${this.state.name}"? This removes blueprints/${file}${also}. What's on screen stays, as an unsaved blueprint.`;
     if (!(await this.deps.confirm(msg))) return false;
     await this.deps.api.remove(file);
+    for (const f of own) {
+      try {
+        await this.deps.api.remove(f);
+      } catch {
+        // never written, or gone already: nothing to remove
+      }
+    }
     this.state = { name: this.state.name };
     this.savedJson = this.serialize(blankBlueprint(this.state.name));
     return true;

@@ -1,4 +1,4 @@
-import { addTagToParts, staticStats, toFileJson, validateBlueprint, type Blueprint, type Issue, type PartRegistry, type StaticStats } from '@robots/sim-core';
+import { addTagToParts, partAt, staticStats, toFileJson, validateBlueprint, type Blueprint, type Issue, type PartRegistry, type StaticStats } from '@robots/sim-core';
 import { panByPixels, zoomBy } from '../render/camera';
 import type { Store } from '../ui/store';
 import type { AppState, CursorNote } from '../ui/appState';
@@ -9,6 +9,7 @@ import type { BuilderScene, Overlay } from './BuilderScene';
 import { controlCores, controlsOf, type ControlsView } from './coreControls';
 import { editNote, swapLines, type NoteLine } from './notice';
 import { applyNameFix, scriptProblems, showScript, type NameFix, type ScriptProblem, type ScriptShow } from './scriptView';
+import { fillAccept, fillBack, fillCurrent, fillDone, fillHelp, fillSentence, fillSkip, fillToggle, finishFill, type FillState } from './shelf';
 
 /** The builder screen's controller: input goes through the pure reducer and history, output goes to the scene and store. */
 export class Builder {
@@ -48,11 +49,18 @@ export class Builder {
   private seq = 0;
   /** The script whose reach is lit on the board, by id, among the scripts of the core the panels are on. */
   private shownId: string | undefined;
-  /** The same, for as long as the mouse rests on a script's row: it wins over `shownId` and leaves it alone. */
-  private peekId: string | undefined;
   private shown: { bp: Blueprint; core: string | undefined; id: string; view: ScriptShow | undefined } | undefined;
   /** The core whose controls the panels edit (M7); undefined is the main core. */
   controlsFor: string | undefined;
+  /** A behavior's slot being filled (M16): while it is, the board's clicks pick parts for it and edit nothing. */
+  private fill: FillState | undefined;
+  /** Told when slot filling ends with a behavior attached or changed: the script's id. */
+  onFilled: ((scriptId: string, mode: 'add' | 'change') => void) | undefined;
+  /**
+   * Asked first about a plain click on a part with an empty hand (M16: the script view takes the part's name). True
+   * means the click was taken and the board does nothing with it.
+   */
+  onPartClick: ((id: string) => boolean) | undefined;
 
   constructor(registry: PartRegistry, scene: BuilderScene, store: Store<AppState>, initial: Blueprint) {
     this.registry = registry;
@@ -78,6 +86,7 @@ export class Builder {
     this.note = undefined;
     this.cursorNote = undefined;
     this.shownId = undefined;
+    this.fill = undefined;
     // A robot just opened sits in the middle of the board, all of it in view.
     this.scene.show(bp, this.registry, this.screen);
     this.refresh(true);
@@ -90,11 +99,98 @@ export class Builder {
 
   /** Picks the core the Controls and Scripts panels edit. */
   setControlsFor(core: string | undefined): void {
-    if (core !== this.controlsFor) {
-      this.shownId = undefined;
-      this.peekId = undefined;
-    }
+    if (core !== this.controlsFor) this.shownId = undefined;
     this.controlsFor = core;
+    this.refresh(false);
+  }
+
+  /**
+   * Starts filling a behavior's slots on the board (M16): the hand is emptied, the selection let go, and until it is
+   * accepted through or called off a click on a part only puts it in the slot or takes it out.
+   */
+  startFill(state: FillState): void {
+    if (this.editor.gesture) this.dispatch({ type: 'endGesture' });
+    if (handFull(this.editor)) this.dispatch({ type: 'escape' });
+    this.editor = { ...this.editor, selection: [] };
+    this.fill = state;
+    this.note = undefined;
+    this.cursorNote = undefined;
+    this.refresh(false);
+    if (fillDone(state)) this.finishFill();
+  }
+
+  get filling(): boolean {
+    return this.fill !== undefined;
+  }
+
+  /** Accept the slot as picked and go on to the next; after the last, the behavior is attached and its groups written, as one undo step. */
+  fillAccept(): void {
+    this.fillStep(fillAccept);
+  }
+
+  /** Skip an optional slot: it stays as it was. */
+  fillSkip(): void {
+    this.fillStep(fillSkip);
+  }
+
+  fillBack(): void {
+    if (!this.fill) return;
+    this.fill = fillBack(this.fill);
+    this.cursorNote = undefined;
+    this.refresh(false);
+  }
+
+  /** Calls the whole thing off: nothing was changed. */
+  fillCancel(): void {
+    if (!this.fill) return;
+    this.fill = undefined;
+    this.cursorNote = undefined;
+    this.refresh(false);
+  }
+
+  private fillStep(step: (s: FillState) => { state: FillState; refused?: string }): void {
+    if (!this.fill) return;
+    const r = step(this.fill);
+    this.fill = r.state;
+    this.cursorNote = r.refused !== undefined ? { seq: ++this.seq, ...(this.pointer ?? { x: this.screen.w / 2, y: this.screen.h / 2 }), text: r.refused } : undefined;
+    if (fillDone(r.state)) this.finishFill();
+    else this.refresh(false);
+  }
+
+  private finishFill(): void {
+    const state = this.fill;
+    if (!state) return;
+    this.fill = undefined;
+    const r = finishFill(this.draft, this.registry, state);
+    if (!r.ok) {
+      this.say([{ text: `Not added: ${r.error}.`, bad: true }], false);
+      return;
+    }
+    const changed = r.bp !== this.draft;
+    this.history.commit(r.bp);
+    this.cursorNote = undefined;
+    this.note = { seq: ++this.seq, lines: changed ? r.lines : [{ text: `${state.name}: nothing changed.` }], undo: changed };
+    this.refresh(changed);
+    this.onFilled?.(r.scriptId, state.mode);
+  }
+
+  /** A click on the board while a slot is being filled. */
+  private fillClick(cell: Cell): void {
+    if (!this.fill) return;
+    const hit = partAt(this.draft, this.registry, cell.x, cell.y);
+    this.cursorNote = undefined;
+    if (hit) {
+      const r = fillToggle(this.fill, this.draft, this.registry, hit.id);
+      this.fill = r.state;
+      if (r.refused !== undefined) this.cursorNote = { seq: ++this.seq, ...(this.pointer ?? { x: 0, y: 0 }), text: r.refused };
+    }
+    this.refresh(false);
+  }
+
+  /** What the panels cover of the board now (the script view takes room at the left while it is open). */
+  setBoardInsets(insets: { left: number; right: number; top: number; bottom: number }, fit: boolean): void {
+    this.scene.setInsets(insets);
+    if (fit) this.scene.show(this.draft, this.registry, this.screen);
     this.refresh(false);
   }
 
@@ -105,6 +201,16 @@ export class Builder {
     this.history.commit(next);
     this.note = undefined;
     this.cursorNote = undefined;
+    this.refresh(true);
+  }
+
+  /** The same, and then says what it did, with Undo in the notice. `fn` gives the same blueprint back when there is nothing to do. */
+  editAndSay(fn: (bp: Blueprint) => { bp: Blueprint; lines: NoteLine[] }): void {
+    const r = fn(this.draft);
+    if (r.bp === this.draft) return;
+    this.history.commit(r.bp);
+    this.cursorNote = undefined;
+    this.note = r.lines.length > 0 ? { seq: ++this.seq, lines: r.lines, undo: true } : undefined;
     this.refresh(true);
   }
 
@@ -126,13 +232,6 @@ export class Builder {
   showScript(id: string | undefined): void {
     if (id === this.shownId) return;
     this.shownId = id;
-    this.refresh(false);
-  }
-
-  /** Lights up a script's reach for now (the mouse is on its row); undefined goes back to the one kept lit, if any. */
-  peekScript(id: string | undefined): void {
-    if (id === this.peekId) return;
-    this.peekId = id;
     this.refresh(false);
   }
 
@@ -251,12 +350,12 @@ export class Builder {
 
   /** Ignored mid-drag: undoing inside an open gesture would cut the rest of the drag out of history. */
   undo(): void {
-    if (this.editor.gesture || !this.history.undo()) return;
+    if (this.fill || this.editor.gesture || !this.history.undo()) return;
     this.afterTravel();
   }
 
   redo(): void {
-    if (this.editor.gesture || !this.history.redo()) return;
+    if (this.fill || this.editor.gesture || !this.history.redo()) return;
     this.afterTravel();
   }
 
@@ -295,6 +394,15 @@ export class Builder {
       return;
     }
     if (e.button !== 0 && e.button !== 2) return;
+    if (this.fill) {
+      if (e.button === 0) this.fillClick(cell);
+      return;
+    }
+    // A plain click on a part with an empty hand may be for someone else (the script view takes the part's name).
+    if (e.button === 0 && !e.shiftKey && !e.altKey && this.onPartClick && !handFull(this.editor)) {
+      const hit = partAt(this.draft, this.registry, cell.x, cell.y);
+      if (hit && this.onPartClick(hit.id)) return;
+    }
     this.shift = e.shiftKey;
     this.dispatch({ type: 'down', cell, button: e.button === 2 ? 'right' : 'left', shift: e.shiftKey, alt: e.altKey });
   }
@@ -321,6 +429,7 @@ export class Builder {
       this.panning = null;
       return;
     }
+    if (this.fill) return;
     this.dispatch({ type: 'up', cell });
   }
 
@@ -339,6 +448,14 @@ export class Builder {
   onKeyDown(e: KeyboardEvent): boolean {
     if (e.key === 'Shift') this.setShift(true);
     const mod = e.metaKey || e.ctrlKey;
+    if (this.fill) {
+      // A slot is being filled: Enter accepts it, Esc calls the whole thing off, and no other key edits the robot.
+      if (e.code === 'Space') this.spaceDown = true;
+      else if (!mod && e.code === 'Escape') this.fillCancel();
+      else if (!mod && (e.code === 'Enter' || e.code === 'NumpadEnter')) this.fillAccept();
+      else return mod && (e.code === 'KeyZ' || e.code === 'KeyY' || e.code === 'KeyD' || e.code === 'KeyA');
+      return true;
+    }
     if (mod && e.code === 'KeyZ') {
       if (e.shiftKey) this.redo();
       else this.undo();
@@ -413,15 +530,12 @@ export class Builder {
   }
 
   private shownView(): ScriptShow | undefined {
-    const id = this.peekId ?? this.shownId;
+    const id = this.shownId;
     if (id === undefined) return undefined;
     const bp = this.draft;
     if (!this.shown || this.shown.bp !== bp || this.shown.core !== this.controlsFor || this.shown.id !== id) this.shown = { bp, core: this.controlsFor, id, view: showScript(bp, this.registry, this.controlsFor, id) };
     // A script that is gone (removed, renamed, undone away) lights nothing.
-    if (!this.shown.view) {
-      if (this.peekId === id) this.peekId = undefined;
-      else this.shownId = undefined;
-    }
+    if (!this.shown.view) this.shownId = undefined;
     return this.shown.view;
   }
 
@@ -442,8 +556,13 @@ export class Builder {
       selection: this.editor.selection,
       ...(g?.kind === 'box' && (g.start.x !== g.last.x || g.start.y !== g.last.y) ? { box: { a: g.start, b: g.last } } : {}),
       ...(shown ? { reach: { reached: shown.reached, fits: shown.fits, undriven: shown.undriven.map((u) => u.part) } } : {}),
+      ...(this.fillSlotNow() ? { pick: { chosen: this.fillSlotNow()?.chosen ?? [], could: this.fillSlotNow()?.could ?? [] } } : {}),
       swap: this.shift,
     };
+  }
+
+  private fillSlotNow(): { chosen: string[]; could: string[] } | undefined {
+    return this.fill ? fillCurrent(this.fill) : undefined;
   }
 
   private refresh(draftChanged: boolean): void {
@@ -471,9 +590,14 @@ export class Builder {
     const copy = e.copy;
     const copied = copy ? copy.stamp.parts : [];
     const g = e.gesture;
+    const fill = this.fill;
+    const slot = fill ? fillCurrent(fill) : undefined;
     this.store.set({
       builder: {
         draft: bp,
+        ...(fill && slot
+          ? { fill: { name: fill.name, mode: fill.mode, sentence: fillSentence(fill), help: fillHelp(fill), step: fill.index + 1, steps: fill.slots.length, optional: !slot.slot.required, canBack: fill.index > 0, picked: slot.chosen.length } }
+          : {}),
         ...(e.held ? { held: e.held } : {}),
         ...(e.stamp ? { stamp: { name: e.stamp.name, rot: e.stamp.rot, flipped: e.stamp.flipped } } : {}),
         ...(copy

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Plugin } from 'vite';
-import { BLUEPRINTS, handleBlueprintRequest, REPLAYS, type FileStore, type StoreOptions } from '../src/storage/blueprintHandler.ts';
+import { BLUEPRINTS, handleBlueprintRequest, handleShelfRequest, REPLAYS, type FileStore, type StoreOptions } from '../src/storage/blueprintHandler.ts';
 
 /** Serves a folder of JSON files at `route` during `vite dev`. The handler rejects any name that could escape it. */
 function jsonFileStore(dir: string, route: string, opts: StoreOptions): Plugin {
@@ -47,4 +47,22 @@ export function blueprintStore(dir: string): Plugin {
 /** `replays/` at /api/replays (M3): the world toolbar's Save replay writes here. */
 export function replayStore(dir: string): Plugin {
   return jsonFileStore(dir, '/api/replays', REPLAYS);
+}
+
+/** `behaviors/` at /api/behaviors (M16): the shelf of shared behaviors, read only. Read from disk on every ask, so a file an agent just wrote is there. */
+export function behaviorShelf(dir: string): Plugin {
+  return {
+    name: 'robots-behavior-shelf',
+    configureServer(server) {
+      server.middlewares.use('/api/behaviors', (req, res) => {
+        const r = handleShelfRequest(req.method ?? 'GET', req.url ?? '/', {
+          list: () => (existsSync(dir) ? readdirSync(dir) : []),
+          read: (f) => (existsSync(join(dir, f)) ? readFileSync(join(dir, f), 'utf8') : undefined),
+        });
+        res.statusCode = r.status;
+        res.setHeader('content-type', 'application/json');
+        res.end(r.body);
+      });
+    },
+  };
 }

@@ -20,6 +20,8 @@ const WARN = 0xe08a2e;
 const BAD = 0xe5533c;
 /** What a script reaches: a cool colour, so it is never taken for the selection (yellow) or a problem (orange, red). */
 const REACH = 0x3fc1d4;
+/** What is picked for a behavior's slot (M16): green, so it is never taken for the selection, a script's reach, or a problem. Repeats --pick. */
+const PICK = 0x8fe36a;
 const INK = 0xe6e2d6;
 const GHOST_BAD = 0xff7a7a;
 const GHOST_SWAP = 0xffd76a;
@@ -40,6 +42,11 @@ export interface Overlay {
   reach?: { reached: readonly string[]; fits: readonly string[]; undriven: readonly string[] };
   /** Shift is down: a part placed on a taken cell swaps what is there. */
   swap?: boolean;
+  /**
+   * A behavior's slot being filled (M16): the parts picked for it, and the parts that could be. Everything else is
+   * dimmed, and nothing else is lit while it lasts.
+   */
+  pick?: { chosen: readonly string[]; could: readonly string[] };
 }
 
 /** Draws the builder: background, grid, parts, the held-part ghost, and overlays. Reads state, never edits it. */
@@ -57,9 +64,9 @@ export class BuilderScene {
   private gridKey = '';
   private mirror: { on: boolean; axisHalfCells: number } = { on: false, axisHalfCells: 0 };
   /** What the panels cover of the canvas, from each edge, in pixels: the board the player sees is what is left. */
-  private readonly insets: { left: number; right: number; top: number; bottom: number };
+  private insets: { left: number; right: number; top: number; bottom: number };
   /** Where the middle of that board is, from the middle of the canvas. */
-  private readonly offset: { x: number; y: number };
+  private offset: { x: number; y: number };
 
   constructor(root: Container, frame: (name: string) => Texture, insets: { left: number; right: number; top: number; bottom: number } = { left: 0, right: 0, top: 0, bottom: 0 }) {
     this.texture = frame;
@@ -67,6 +74,17 @@ export class BuilderScene {
     this.offset = { x: (insets.left - insets.right) / 2, y: (insets.top - insets.bottom) / 2 };
     this.content.addChild(this.grid, this.parts, this.overlay, this.ghost);
     root.addChild(this.bg, this.content);
+  }
+
+  /** What the panels cover now (the script view takes more of the left while it is open). The view stays where it is on the canvas. */
+  setInsets(insets: { left: number; right: number; top: number; bottom: number }): void {
+    const next = { x: (insets.left - insets.right) / 2, y: (insets.top - insets.bottom) / 2 };
+    // Keep what is under the old middle under it still: only `show` moves the view.
+    const s = this.cam.zoom * PIXELS_PER_METER;
+    this.cam = { ...this.cam, x: this.cam.x + (next.x - this.offset.x) / s, y: this.cam.y - (next.y - this.offset.y) / s };
+    this.insets = insets;
+    this.offset = next;
+    this.gridKey = '';
   }
 
   /**
@@ -194,7 +212,34 @@ export class BuilderScene {
       }
     };
 
-    if (o.reach) {
+    if (o.pick) {
+      // A slot being filled: what could fill it stays bright with a thin dashed frame, what is picked gets a solid one.
+      const could = new Set(o.pick.could);
+      const chosen = new Set(o.pick.chosen);
+      let any = false;
+      for (const p of bp.parts) {
+        if (could.has(p.id) || chosen.has(p.id)) continue;
+        for (const c of cellsOf(p)) cellRect(c, 0);
+        any = true;
+      }
+      if (any) g.fill({ color: BUILDER_BG, alpha: 0.7 });
+      let some = false;
+      for (const p of bp.parts) {
+        if (!could.has(p.id) || chosen.has(p.id)) continue;
+        for (const c of cellsOf(p)) dashedCell(c, 0.07);
+        some = true;
+      }
+      if (some) g.stroke({ color: PICK, width: 1.5, alpha: 0.8 });
+      some = false;
+      for (const p of bp.parts) {
+        if (!chosen.has(p.id)) continue;
+        for (const c of cellsOf(p)) cellRect(c, 0.04);
+        some = true;
+      }
+      if (some) g.fill({ color: PICK, alpha: 0.24 }).stroke({ color: PICK, width: 3 });
+    }
+
+    if (o.reach && !o.pick) {
       // The script's parts stay bright and get a frame; the rest of the robot steps back.
       const lit = new Set([...o.reach.reached, ...o.reach.fits, ...o.reach.undriven]);
       let any = false;
