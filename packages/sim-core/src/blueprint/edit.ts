@@ -1,8 +1,10 @@
 import { isCore, partCells, rootPartId } from '../assembly/assemble';
-import { defaultSize } from '../parts/footprint';
+import { rotateCell } from '../parts/faces';
+import { defaultSize, footprintOf, mirroredShift } from '../parts/footprint';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
+import { mirrorProblem, mirrorRotation } from './mirror';
 import type { Binding, Blueprint, CoreControls, PlacedPart, Recipe, ScriptSpec } from './types';
 
 /**
@@ -547,4 +549,104 @@ export function replacePartAt(bp: Blueprint, registry: PartRegistry, part: strin
   if (!old) return { ok: false, error: `there is no part at (${x}, ${y}) to replace` };
   if (hit.length > 1) return { ok: false, error: `a ${part} at (${x}, ${y}) would cover ${hit.length} parts (${hit.map((p) => p.id).join(', ')}); it can take the place of one` };
   return swapPart(bp, registry, old, { part, x, y, rot }, opts);
+}
+
+/**
+ * Parts picked up to be placed again (M16: "another like this", duplicate, a copy held in the hand). Each is the part
+ * as it stood, tags and settings and all, with its cell measured from the anchor part's origin.
+ */
+export interface PartStamp {
+  parts: PlacedPart[];
+}
+
+export interface StampOptions {
+  rot?: Rotation;
+  /** Flip the stamp left to right (across its anchor's column) before turning it. */
+  mirror?: boolean;
+  /** The cells copies may land on. Absent: anywhere. */
+  area?: CellArea;
+}
+
+/** `ids` maps each copied part's id in the stamp (the original's) to its copy's id. */
+export type CopyResult = { ok: true; blueprint: Blueprint; ids: Map<string, string> } | { ok: false; error: string };
+
+/**
+ * A stamp of the given parts, in blueprint order. The anchor (the part whose origin the stamp is held by) is
+ * `anchorId`, else the first of `ids` the blueprint has. Ids it does not have are skipped; with none left the stamp is
+ * empty.
+ */
+export function stampOfParts(bp: Blueprint, ids: readonly string[], anchorId?: string): PartStamp {
+  const picked = bp.parts.filter((p) => ids.includes(p.id));
+  const first = ids.find((id) => picked.some((p) => p.id === id));
+  const anchor = picked.find((p) => p.id === anchorId) ?? picked.find((p) => p.id === first);
+  if (!anchor) return { parts: [] };
+  return { parts: picked.map((p) => ({ ...p, x: p.x - anchor.x, y: p.y - anchor.y, tags: [...p.tags] })) };
+}
+
+/**
+ * Where a stamp's parts would stand with its anchor on `at`: the copies as they would be placed, still under the
+ * originals' ids (and id tags). For the ghost a builder draws, and for `placePartStamp`. Flipped first, then turned,
+ * like a placed blueprint (`placeBlueprint`).
+ */
+export function stampPlacement(stamp: PartStamp, at: { x: number; y: number }, registry: PartRegistry, opts: StampOptions = {}): PlacedPart[] {
+  const rot: Rotation = opts.rot ?? 0;
+  return stamp.parts.map((p) => {
+    let dx = p.x;
+    let dy = p.y;
+    let r = p.rot;
+    if (opts.mirror === true) {
+      dx = -dx;
+      r = mirrorRotation(r);
+      // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
+      const shift = registry.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), r) : { x: 0, y: 0 };
+      dx += shift.x;
+      dy += shift.y;
+    }
+    const d = rotateCell({ x: dx, y: dy }, rot);
+    return { ...p, x: at.x + d.x, y: at.y + d.y, rot: ((r + rot) % 360) as Rotation };
+  });
+}
+
+/**
+ * Places a copy of a stamp's parts with its anchor on `at` (M16: copies carry everything). Each copy has the
+ * original's type, rotation, explicit tags (so it joins the original's groups and a script that drives the group
+ * drives it too), and settings (`auto`, `armed`, `makes`, `size`, and anything else on the part); its id is its new
+ * cell's. Copies are appended in the stamp's order. Nothing else is copied: a binding that named an original by id
+ * still means the original. Refused, with the blueprint untouched, when a copy would cover a part (or another copy),
+ * leave `opts.area`, or cannot be flipped (`mirrorProblem`). An empty stamp gives the same blueprint back.
+ */
+export function placePartStamp(bp: Blueprint, registry: PartRegistry, stamp: PartStamp, at: { x: number; y: number }, opts: StampOptions = {}): CopyResult {
+  if (stamp.parts.length === 0) return { ok: true, blueprint: bp, ids: new Map() };
+  for (const p of stamp.parts) if (!registry.has(p.part)) return { ok: false, error: `${p.id} uses part '${p.part}', which does not exist` };
+  const unmirrored = opts.mirror === true ? mirrorProblem(stamp, registry) : undefined;
+  if (unmirrored !== undefined) return { ok: false, error: unmirrored };
+  const occupied = new Map<string, string>();
+  for (const p of bp.parts) for (const c of cellsOf(p, registry)) occupied.set(`${c.x},${c.y}`, p.id);
+  const taken = new Set(bp.parts.map((p) => p.id));
+  const ids = new Map<string, string>();
+  const area = opts.area;
+  const copies: PlacedPart[] = [];
+  for (const p of stampPlacement(stamp, at, registry, opts)) {
+    for (const c of cellsOf(p, registry)) {
+      if (area && (c.x < area.minX || c.x > area.maxX || c.y < area.minY || c.y > area.maxY)) return { ok: false, error: `a copy of ${p.id} would leave the build area at (${c.x}, ${c.y})` };
+      const key = `${c.x},${c.y}`;
+      const hit = occupied.get(key);
+      if (hit !== undefined) return { ok: false, error: `a copy of ${p.id} would land on ${hit} at (${c.x}, ${c.y})` };
+      occupied.set(key, `the copy of ${p.id}`);
+    }
+    const id = uniqueId(partId(p.part, p.x, p.y), taken);
+    taken.add(id);
+    ids.set(p.id, id);
+    copies.push({ ...p, id, tags: [...p.tags.filter((t, i) => t !== p.id && t !== id && p.tags.indexOf(t) === i), id] });
+  }
+  return { ok: true, blueprint: { ...bp, parts: [...bp.parts, ...copies] }, ids };
+}
+
+/** Copies the given parts (`dx`, `dy`) cells from where they stand: `stampOfParts`, then `placePartStamp`. */
+export function copyParts(bp: Blueprint, registry: PartRegistry, ids: readonly string[], dx: number, dy: number, opts: Pick<StampOptions, 'area'> = {}): CopyResult {
+  if (!Number.isInteger(dx) || !Number.isInteger(dy)) return { ok: false, error: `a copy can only be placed whole cells away, not (${dx}, ${dy})` };
+  const stamp = stampOfParts(bp, ids);
+  const anchor = bp.parts.find((p) => p.id === stamp.parts.find((q) => q.x === 0 && q.y === 0)?.id);
+  if (!anchor) return { ok: true, blueprint: bp, ids: new Map() };
+  return placePartStamp(bp, registry, stamp, { x: anchor.x + dx, y: anchor.y + dy }, opts);
 }
