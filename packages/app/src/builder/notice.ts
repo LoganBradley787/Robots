@@ -116,7 +116,7 @@ export function swapLines(swaps: readonly SwapOutcome[], registry: PartRegistry)
 
   const tags = [...new Set(swaps.flatMap((s) => s.report.kept.tags))];
   const settings = [...new Set(swaps.flatMap((s) => s.report.kept.settings))];
-  const kept = ['place and turn', ...(tags.length > 0 ? [`group${tags.length === 1 ? '' : 's'} ${tags.join(', ')}`] : []), ...settings.map((s) => SETTING[s])];
+  const kept = ['place', 'turn', ...(tags.length > 0 ? [`group${tags.length === 1 ? '' : 's'} ${tags.join(', ')}`] : []), ...settings.map((s) => SETTING[s])];
   lines.push({ text: `Kept: ${listed(kept)}.` });
 
   const dropped = new Map<string, string>();

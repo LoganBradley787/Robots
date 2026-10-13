@@ -95,7 +95,7 @@ export function BoardChips({ store, registry, actions }: { store: Store<AppState
             )}
             {shown.undriven.length > 0 && (
               <span class="key-reach" title="They look like they belong, and the script does not reach them">
-                <i class="sw undriven" />
+                <i class="sw miss" />
                 {shown.undriven.length} not driven
               </span>
             )}

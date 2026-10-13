@@ -247,7 +247,7 @@ button kbd { margin: 0; opacity: 0.75; }
 .key-reach .sw { margin-right: 0; }
 .sw.solid { border: 2px solid var(--reach); background: rgba(63, 193, 212, 0.22); }
 .sw.dashed { border: 2px dashed var(--reach); }
-.sw.undriven { border: 2px dashed var(--warn); }
+.sw.miss { border: 2px dashed var(--warn); }
 
 /* What the last edit affected, with Undo in it. */
 .edit-note {
@@ -301,7 +301,7 @@ button kbd { margin: 0; opacity: 0.75; }
 #ui .irow .d.linkish { display: inline-flex; font-family: var(--mono); font-size: 12px; }
 .honest { font-size: 12px; color: var(--dim); border-left: 3px solid var(--edge-hi); padding: 2px 0 2px 8px; margin: 8px 0 0; line-height: 1.4; }
 .swap-pop { width: 300px; max-width: 300px; }
-.swap-pop .tiles { margin-top: 2px; }
+.swap-pop .tiles { margin-top: 2px; max-height: 252px; overflow-y: auto; }
 .swap-pop .field { margin-bottom: 6px; }
 .acts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .stepper { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 13px; }

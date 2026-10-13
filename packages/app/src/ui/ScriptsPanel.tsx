@@ -140,7 +140,7 @@ function Undriven({ v, registry, draft, actions }: { v: ScriptShow; registry: Pa
   return (
     <div class="wide undriven">
       <div class="uh">
-        <i class="sw undriven" />
+        <i class="sw miss" />
         Not driven
         <span class="dim">of a kind this script drives, in none of its groups</span>
       </div>

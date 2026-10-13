@@ -336,9 +336,14 @@ function SwapTo({ type, count, registry, icons, onPick }: { type: string; count:
   const [q, setQ] = useState('');
   const anchor = useRef<HTMLSpanElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  useLayoutEffect(() => {
-    if (open) input.current?.focus();
-    else setQ('');
+  useEffect(() => {
+    if (!open) {
+      setQ('');
+      return;
+    }
+    // The box is placed, then shown: it can take the keys a frame later.
+    const f = requestAnimationFrame(() => input.current?.focus());
+    return () => cancelAnimationFrame(f);
   }, [open]);
   const words = q.trim().toLowerCase().split(/\s+/).filter((w) => w !== '');
   const found = registry.list().filter((d) => d.id !== type && words.every((w) => `${d.name} ${d.id} ${d.category ?? ''}`.toLowerCase().includes(w)));

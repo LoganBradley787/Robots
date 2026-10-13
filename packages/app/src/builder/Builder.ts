@@ -228,6 +228,8 @@ export class Builder {
       this.inGesture = false;
     }
     if (r.focus) this.partFocus++;
+    // A reason at the cursor is about the last thing done: the next press or key is a new thing.
+    if (this.cursorNote?.text !== undefined && e.type !== 'move' && e.type !== 'up') this.cursorNote = undefined;
     const byKey = e.type === 'nudge' || e.type === 'rotate';
     if (r.refused !== undefined) this.cursorNote = { seq: ++this.seq, ...this.noteSpot(byKey), text: r.refused };
     if (this.step && !this.inGesture) this.closeStep(r.refused === undefined);
