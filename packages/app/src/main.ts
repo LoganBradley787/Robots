@@ -27,6 +27,7 @@ import { HOTBAR_KEY, pushRecent, readHotbar, readRecent, RECENT_KEY, setSlot, sw
 import { cleanKind } from './builder/library';
 import { robotThumbnail } from './render/partDraw';
 import { Builder } from './builder/Builder';
+import { handFull } from './builder/editorState';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
 import type { AppActions } from './ui/App';
@@ -75,7 +76,7 @@ async function boot(): Promise<void> {
   const blank: Blueprint = { ...blankBlueprint('untitled'), kind: 'yours' };
   const store = createStore<AppState>({
     mode: 'builder',
-    builder: { draft: blank, eraser: false, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry), controls: { bindings: [], scripts: [], autoOn: true }, cores: [{ label: 'main core' }], partFocus: 0 },
+    builder: { draft: blank, eraser: false, selection: [], scriptProblems: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry), controls: { bindings: [], scripts: [], autoOn: true }, cores: [{ label: 'main core' }], partFocus: 0 },
     doc: { name: blank.name, dirty: false, files: [] },
     icons: {},
     panel: { tab: 'robot', drawer: 'parts', problemsOpen: true },
@@ -88,6 +89,12 @@ async function boot(): Promise<void> {
   const builder = new Builder(registry, scene, store, blank);
   scene.show(blank, registry, { w: renderer.screenWidth, h: renderer.screenHeight });
   builder.setHotbar(store.get().hotbar);
+  // For driving the builder from a test browser (dev server only): where a cell is on screen, and what the state is.
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>)['__robots'] = { builder, scene, store, pointOf: (x: number, y: number) => scene.pointOf({ x: x - 0.5, y: y - 0.5 }, renderer.screenWidth, renderer.screenHeight) };
+  builder.origin = () => {
+    const r = renderer.app.canvas.getBoundingClientRect();
+    return { x: r.left, y: r.top };
+  };
   builder.onHold = (part) => {
     const recent = pushRecent(store.get().recent, part);
     if (recent === store.get().recent) return;
@@ -218,6 +225,7 @@ async function boot(): Promise<void> {
       if (after.bindings === before.bindings && after.scripts === before.scripts) return bp;
       return withControls(bp, registry, builder.controlsFor, after);
     });
+  let scriptLineSeq = 0;
   const actions: AppActions = {
     worldTogglePause: worldKeys.togglePause,
     worldStep: worldKeys.step,
@@ -333,9 +341,28 @@ async function boot(): Promise<void> {
     },
     eraser: () => builder.dispatch({ type: 'eraser' }),
     putDown: () => {
-      const e = builder.editor;
-      if (e.held || e.eraser || e.stamp) builder.dispatch({ type: 'escape' });
+      if (handFull(builder.editor)) builder.dispatch({ type: 'escape' });
     },
+    duplicate: () => builder.dispatch({ type: 'duplicate' }),
+    swapTo: (ids, type) => builder.swapTo(ids, type),
+    acceptOffer: (offer) => builder.acceptOffer(offer),
+    dismissNote: (seq) => builder.dismissNote(seq),
+    dismissCursorNote: (seq) => builder.dismissCursorNote(seq),
+    showScript: (id) => builder.showScript(id),
+    peekScript: (id) => builder.peekScript(id),
+    revealScript: (core, id) => {
+      if (builder.controlsFor !== core) actions.setControlsFor(core);
+      builder.showScript(id);
+      actions.showTab('behaviors');
+    },
+    openProblem: (problem) => {
+      if (!problem.open) return;
+      if (builder.controlsFor !== problem.open.core) actions.setControlsFor(problem.open.core);
+      scriptLineSeq++;
+      store.set({ scriptEditor: problem.open.id, scriptLine: problem.line !== undefined ? { line: problem.line, seq: scriptLineSeq } : undefined });
+      actions.showTab('behaviors');
+    },
+    fixName: (fix) => builder.fixName(fix),
     toggleMirror: () => builder.dispatch({ type: 'toggleMirror' }),
     undo: () => builder.undo(),
     redo: () => builder.redo(),
@@ -401,8 +428,8 @@ async function boot(): Promise<void> {
       if (store.get().scriptEditor === from && controlsOf(builder.draft, registry, builder.controlsFor).scripts.some((x) => x.id === renamed)) store.set({ scriptEditor: renamed });
     },
     setScriptEnabled: (id, on) => editControls((c) => updateScript(c, id, { enabled: on })),
-    openScript: (id) => store.set({ scriptEditor: id }),
-    closeScript: () => store.set({ scriptEditor: undefined }),
+    openScript: (id) => store.set({ scriptEditor: id, scriptLine: undefined }),
+    closeScript: () => store.set({ scriptEditor: undefined, scriptLine: undefined }),
     setScriptSource: (id, source) => editControls((c) => updateScript(c, id, { source })),
     setScriptParam: (id, name, value) =>
       editControls((c) => {

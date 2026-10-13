@@ -9,6 +9,7 @@ import {
   foldScriptIssues,
   namesAvailable,
   partDrivers,
+  partsBuiltTargetsFit,
   partsReached,
   partsScriptReaches,
   plainStrings,
@@ -497,5 +498,41 @@ describe('scriptNameIssues: the shared check', () => {
   it('says nothing for a script that was not loaded from its file', () => {
     const b = drone({ scripts: [{ id: 's', source: { file: 'x.s.js' } }] });
     expect(issues(b)).toEqual([]);
+  });
+});
+
+describe('names built in code: their fixed ends, and the parts those fit (M16)', () => {
+  it('reads the plain text a built name starts and ends with', () => {
+    const r = readScript("set(name + '.gun', 'fire', 1); get('grip' + k, 'angle'); set(`${n}.rot`, 'turn', 0); set(`arm${i}`, 'turn', 0); set(p.id, 'fire', 1); set(a + b, 'x', 1); set('a' + k + '.b', 'fire', 1);");
+    expect(r.built.map((b) => [b.how, b.prefix, b.suffix])).toEqual([
+      ['concat', undefined, '.gun'],
+      ['concat', 'grip', undefined],
+      ['template', undefined, '.rot'],
+      ['template', 'arm', undefined],
+      ['id', undefined, undefined],
+      ['concat', undefined, undefined],
+      ['concat', 'a', '.b'],
+    ]);
+  });
+
+  it('fits parts whose tag has those ends and that have the input, under the scope the script runs in', () => {
+    const b = bp({
+      grid: ['g1 t1 C t2 g2', 'G  .  . .  x'],
+      legend: {
+        g1: { part: 'gun', tags: ['turret1', 'turret1.gun'] },
+        t1: { part: 'rotator', tags: ['turret1', 'turret1.rot'] },
+        g2: { part: 'gun', tags: ['turret2', 'turret2.gun'] },
+        t2: { part: 'rotator', tags: ['turret2', 'turret2.rot'] },
+        // A frame called like a gun has no fire input, and a tag that is only the ending is no name at all.
+        x: { part: 'frame', tags: ['odd.gun', '.gun'] },
+      },
+    });
+    const r = readScript("function tick() { for (const n of names) { set(n + '.gun', 'fire', 1); set(n + '.rot', 'turn', 0); } }");
+    expect(partsBuiltTargetsFit(r, b, reg)).toEqual(['gun@0,1', 'rotator@1,1', 'rotator@3,1', 'gun@4,1']);
+    // The plain gun (no group) fits nothing; neither does anything for a script that builds no name with a fixed end.
+    expect(partsBuiltTargetsFit(readScript("set(p.id, 'fire', 1)"), b, reg)).toEqual([]);
+    expect(partsBuiltTargetsFit(readScript("set('gun', 'fire', 1)"), b, reg)).toEqual([]);
+    // Under a scope only that scope's members show their tags, without the scope.
+    expect(partsBuiltTargetsFit(readScript("set('r' + k, 'turn', 0)"), b, reg, 'turret1')).toEqual(['rotator@1,1']);
   });
 });

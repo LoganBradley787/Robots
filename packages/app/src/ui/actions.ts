@@ -1,5 +1,7 @@
 import type { Issue } from '@robots/sim-core';
 import type { InspectorTab } from './appState';
+import type { GroupOffer } from '../builder/boardOps';
+import type { NameFix, ScriptProblem } from '../builder/scriptView';
 
 /** What the builder's panels can ask for. `main.ts` wires each to the builder, the document, or the store. */
 export interface BuilderActions {
@@ -30,6 +32,22 @@ export interface BuilderActions {
   /** The top strip's Script button: the code editor when there is one script, else the Behaviors tab. */
   script(): void;
   focusIssue(issue: Issue): void;
+  /** Lights up on the board what a script of the core in the panels reaches; undefined puts the light out. */
+  showScript(id: string | undefined): void;
+  /** The same for as long as the mouse rests on a script's row. */
+  peekScript(id: string | undefined): void;
+  /** Turns the Behaviors tab to a script (of the given core) and lights up what it reaches. */
+  revealScript(core: string | undefined, id: string): void;
+  /** Opens the script a problem is about, at its line. */
+  openProblem(problem: ScriptProblem): void;
+  /** Points a dead name at a real one: only that exact quoted text is rewritten. One undo step. */
+  fixName(fix: NameFix): void;
+  /** Accepts an offer made at the cursor: the parts just placed join the group. */
+  acceptOffer(offer: GroupOffer): void;
+  dismissNote(seq: number): void;
+  dismissCursorNote(seq: number): void;
+  /** A copy of the selection goes into the hand (Cmd+D). */
+  duplicate(): void;
   /** Selects these parts on the board. */
   select(ids: string[]): void;
   showTab(tab: InspectorTab): void;
@@ -53,4 +71,6 @@ export interface PartActions {
   resize(ids: string[], dw: number, dh: number): void;
   rotate(dir: 1 | -1): void;
   deleteSelection(): void;
+  /** Swap to: these parts become another type where they stand, keeping what still applies. */
+  swapTo(ids: string[], type: string): void;
 }

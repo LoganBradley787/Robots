@@ -3,13 +3,14 @@
  * and keys. Square corners, 2 px edges, a top highlight on plates, buttons with a pressed bottom edge.
  * Yellow is the primary action and the selection. Warnings are orange, problems red.
  * The board's own colours (background, grid, selection) are drawn by PixiJS from the constants at the top of
- * `builder/BuilderScene.ts`, which repeat --board, --grid, --grid-major, --sel, --warn and --bad.
+ * `builder/BuilderScene.ts`, which repeat --board, --grid, --grid-major, --sel, --warn, --bad and --reach.
+ * --reach (a cool blue) is what a script drives: never the selection (yellow), never a problem (orange, red).
  */
 :root {
   --board: #1b1e21; --grid: #2a2f34; --grid-major: #3a4047;
   --plate: #2b3036; --plate-2: #353b42; --plate-3: #20242a; --edge: #0e1012; --edge-hi: #4a525b;
   --ink: #e6e2d6; --dim: #8d939a; --accent: #f2b705; --accent-ink: #171200; --sel: #f2b705;
-  --bad: #e5533c; --warn: #e08a2e; --good: #7fbf5a;
+  --bad: #e5533c; --warn: #e08a2e; --good: #7fbf5a; --reach: #3fc1d4;
   --head: "Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
   --body: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
   --mono: "SF Mono", Menlo, Consolas, monospace;
@@ -21,6 +22,7 @@
 #ui { position: absolute; inset: 0; pointer-events: none; font: 13px/1.35 var(--body); color: var(--ink); }
 #ui *, #ui *::before, #ui *::after { box-sizing: border-box; }
 #ui .plate, #ui .panel, #ui button, #ui input, #ui textarea { pointer-events: auto; }
+#ui .cursor-note.refusal { pointer-events: none; }
 .h { font-family: var(--head); text-transform: uppercase; letter-spacing: var(--head-space); font-weight: 700; }
 .mono { font-family: var(--mono); }
 .dim, .muted { color: var(--dim); }
@@ -236,7 +238,36 @@ button kbd { margin: 0; opacity: 0.75; }
 }
 #ui .chipb.on { border-color: var(--sel); }
 #ui .chipb:disabled { opacity: 1; cursor: default; color: var(--dim); }
-.toast { position: absolute; left: 50%; top: 46px; transform: translateX(-50%); padding: 5px 12px; font-size: 12px; z-index: 5; max-width: calc(100% - 20px); border-color: var(--warn); }
+#ui .chipb.lit { border-color: var(--reach); gap: 9px; }
+#ui .chipb.lit .xx { color: var(--dim); font: 12px var(--mono); }
+#ui .chipb.lit:hover .xx { color: var(--ink); }
+.key-reach { display: inline-flex; align-items: center; gap: 4px; font: 11px var(--mono); color: var(--dim); }
+/* The three marks of a lit board, small: driven (solid), likely (dashed), not driven (dashed, orange). */
+.sw { display: inline-block; width: 10px; height: 10px; flex: none; box-sizing: border-box; vertical-align: -1px; margin-right: 5px; }
+.key-reach .sw { margin-right: 0; }
+.sw.solid { border: 2px solid var(--reach); background: rgba(63, 193, 212, 0.22); }
+.sw.dashed { border: 2px dashed var(--reach); }
+.sw.undriven { border: 2px dashed var(--warn); }
+
+/* What the last edit affected, with Undo in it. */
+.edit-note {
+  position: absolute; left: 50%; top: 46px; transform: translateX(-50%); z-index: 6; display: flex; gap: 12px; align-items: flex-start;
+  padding: 8px 8px 8px 12px; width: max-content; max-width: min(560px, calc(100% - 24px)); border-left: 4px solid var(--accent); font-size: 13px;
+}
+.edit-note .lines { min-width: 0; }
+.edit-note p { margin: 0 0 3px; line-height: 1.35; }
+.edit-note p:last-child { margin-bottom: 0; }
+.edit-note p.bad { color: #f0b27a; }
+.edit-note p:first-child { font-weight: 600; }
+.edit-note .acts { display: flex; gap: 4px; align-items: center; margin: 0; flex: none; }
+
+/* At the cursor: why not, or an offer. */
+.cursor-note { position: fixed; z-index: 65; padding: 5px 9px; font-size: 12.5px; line-height: 1.35; max-width: 340px; }
+.cursor-note.refusal { border-color: var(--warn); border-left-width: 4px; }
+.cursor-note.offer { display: flex; align-items: center; gap: 7px; max-width: none; border-color: var(--good); border-left-width: 4px; white-space: nowrap; }
+#ui .linkish { display: inline; cursor: pointer; text-decoration: underline; text-decoration-color: var(--edge-hi); text-underline-offset: 2px; }
+#ui .linkish:hover:not(:disabled) { text-decoration-color: var(--accent); color: #fff; }
+#ui .linkish:disabled { cursor: default; text-decoration: none; opacity: 1; }
 .hotbar { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; z-index: 4; }
 #ui .slot {
   position: relative; width: 48px; height: 48px; display: grid; place-items: center; cursor: pointer; background: var(--plate-3); border: var(--bw) solid var(--edge);
@@ -263,6 +294,15 @@ button kbd { margin: 0; opacity: 0.75; }
 .irow .nm { font-family: var(--mono); font-size: 12.5px; }
 .irow .rg { font-size: 11px; color: var(--dim); }
 .irow .more { font-size: 11px; color: var(--dim); text-align: right; }
+.irow .drv { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; font-size: 12px; min-width: 0; max-width: 170px; }
+.irow .d { display: inline-flex; align-items: center; gap: 5px; text-align: right; }
+.irow .d.auto { color: var(--dim); font-size: 11px; }
+.irow .d .tag { font: 600 10px var(--mono); padding: 0 4px; border: 1px solid var(--edge-hi); text-transform: uppercase; }
+#ui .irow .d.linkish { display: inline-flex; font-family: var(--mono); font-size: 12px; }
+.honest { font-size: 12px; color: var(--dim); border-left: 3px solid var(--edge-hi); padding: 2px 0 2px 8px; margin: 8px 0 0; line-height: 1.4; }
+.swap-pop { width: 300px; max-width: 300px; }
+.swap-pop .tiles { margin-top: 2px; }
+.swap-pop .field { margin-bottom: 6px; }
 .acts { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .stepper { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 13px; }
 .stepper .v { font-family: var(--mono); min-width: 62px; text-align: center; font-size: 12px; }
@@ -287,6 +327,14 @@ button kbd { margin: 0; opacity: 0.75; }
 #ui .issue:hover { background: var(--plate-2); }
 #ui .issue:last-child { margin-bottom: 0; }
 .issue .code { font: 11px var(--mono); color: var(--dim); display: block; }
+#ui .issue.script { cursor: default; }
+#ui .issue.script:hover { background: var(--plate-3); }
+#ui .issue .msg { display: block; text-decoration: none; }
+#ui .issue .msg:hover:not(:disabled) { color: #fff; }
+.issue .fix { margin: 6px 0 4px; display: flex; flex-direction: column; gap: 3px; }
+.issue .fix code { display: block; font: 11px/1.45 var(--mono); padding: 2px 6px; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--board); border-left: 3px solid var(--bad); color: var(--dim); }
+.issue .fix code.now { border-left-color: var(--good); color: var(--ink); }
+.issue .fix .row { margin: 4px 0 0; }
 
 /* ---------- hint line ---------- */
 .hint { grid-area: hint; display: flex; align-items: center; gap: 14px; padding: 0 10px; font-size: 12px; border-width: var(--bw) 0 0 0; white-space: nowrap; z-index: 20; }
@@ -343,6 +391,21 @@ button kbd { margin: 0; opacity: 0.75; }
 .script-row .wide { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; justify-content: space-between; }
 #ui .script-row .wide .check { width: auto; flex: 1; min-width: 0; }
 .script-row .script-file { grid-column: 1 / -1; font: 11px var(--mono); color: var(--dim); overflow-wrap: anywhere; }
+.script-row:hover, .script-row.lit { border-color: var(--reach); }
+.script-row .reach { font-size: 12px; padding-top: 5px; border-top: 1px solid var(--edge); }
+.script-row .reach-more, .script-row .undriven { display: block; }
+.script-row .names { display: flex; flex-wrap: wrap; gap: 4px; }
+.name-chip { display: inline-flex; gap: 5px; align-items: center; padding: 1px 6px; border: 1px solid var(--edge-hi); font: 11.5px var(--mono); background: var(--plate); }
+.name-chip b { color: var(--reach); font-weight: 600; }
+.name-chip.dead { border-color: var(--warn); }
+.name-chip.dead b { color: var(--warn); }
+.name-chip.spare { opacity: 0.6; }
+.name-chip.spare b { color: var(--dim); }
+.script-row .undriven { margin-top: 7px; }
+.undriven .uh { font-size: 12px; margin-bottom: 4px; }
+.undriven .uh .dim { display: block; font-size: 11px; margin-left: 15px; }
+.undriven .urow { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 3px 0; font-size: 12px; flex-wrap: wrap; }
+.undriven > .btn { margin-top: 4px; }
 .script-editor {
   position: absolute; top: var(--top-h); left: var(--drawer-w); right: var(--insp-w); bottom: var(--hint-h); display: flex; flex-direction: column; gap: 8px;
   padding: 8px 10px 10px; z-index: 15; border-width: 0;

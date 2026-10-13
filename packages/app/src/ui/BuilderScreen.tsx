@@ -13,6 +13,7 @@ import { HelpCard, HintLine } from './HintLine';
 import { ScriptEditor } from './ScriptEditor';
 import { Hotbar } from './Hotbar';
 import { Library } from './Library';
+import { CursorNoteView } from './BoardNotes';
 
 /**
  * The builder's panels (M16), laid out as a grid over the canvas: a strip across the top, the parts drawer at the
@@ -54,6 +55,7 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
       <HelpCard store={store} />
       <ScriptEditorHost store={store} actions={actions} />
       {overlay === 'library' && <Library store={store} actions={actions} />}
+      <CursorNoteView store={store} actions={actions} />
     </div>
   );
 }

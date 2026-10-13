@@ -45,6 +45,12 @@ export interface BuiltTarget extends SourceSpot {
   how: 'concat' | 'template' | 'id' | 'code';
   /** The input or output name, when it is a plain string. */
   channel?: string;
+  /**
+   * For a `concat` or a `template`: the plain text the built name surely starts and ends with (`name + '.gun'` ends
+   * with `.gun`; `'grip' + k` starts with `grip`). Empty where that end is code. `partsBuiltTargetsFit` uses them.
+   */
+  prefix?: string;
+  suffix?: string;
 }
 
 export interface ScriptReading {
@@ -282,7 +288,21 @@ export function readScript(source: string): ScriptReading {
       else if (text === '+' && depth === 0) joined = true;
     }
     const how: BuiltTarget['how'] = joined ? 'concat' : first.kind === 'other' && first.text === 'template' && c.target.end === c.target.from + 1 ? 'template' : last.kind === 'word' && last.text === 'id' && is(c.target.end - 2, '.') ? 'id' : 'code';
-    built.push({ fn: c.fn, how, line: first.line, column: first.column, start: first.start, end: last.end, ...(channel ? { channel: channel.text } : {}) });
+    const ends: { prefix?: string; suffix?: string } = {};
+    if (how === 'concat') {
+      // A plain string that opens or closes the sum (with a `+` beside it, at the top level) is a fixed end of the name.
+      if (first.kind === 'string' && is(c.target.from + 1, '+')) ends.prefix = first.text;
+      if (last.kind === 'string' && is(c.target.end - 2, '+')) ends.suffix = last.text;
+    } else if (how === 'template') {
+      const body = source.slice(first.start + 1, first.end - 1);
+      const open = body.indexOf('${');
+      const close = body.lastIndexOf('}');
+      if (open >= 0 && close > open && !body.includes('\\')) {
+        ends.prefix = body.slice(0, open);
+        ends.suffix = body.slice(close + 1);
+      }
+    }
+    built.push({ fn: c.fn, how, line: first.line, column: first.column, start: first.start, end: last.end, ...(channel ? { channel: channel.text } : {}), ...(ends.prefix ? { prefix: ends.prefix } : {}), ...(ends.suffix ? { suffix: ends.suffix } : {}) });
   }
 
   /** Where an equality sign ends when one starts at `k` (`==`, `===`, `!=`, `!==`), else -1. */
@@ -470,6 +490,28 @@ function plainReach(reading: ScriptReading, bp: Blueprint, registry: PartRegistr
 export function partsScriptReaches(reading: ScriptReading, bp: Blueprint, registry: PartRegistry, scope?: string): string[] {
   const ids = new Set(scriptReach(reading, bp, registry, scope).flatMap((r) => r.parts));
   return bp.parts.filter((p) => ids.has(p.id)).map((p) => p.id);
+}
+
+/**
+ * The parts a script may reach through names it builds in code (M16): a part with a tag, as controls under `scope` see
+ * it, that fits the fixed ends of a built target (`name + '.gun'` fits `turret3.gun`) and, when the call names a plain
+ * input or output, that has it. A fit, not a certainty: the part in the middle of the name is the script's to work
+ * out. A built target with no fixed end (`set(p.id, ...)`, a variable) fits nothing here. Ids in blueprint order.
+ */
+export function partsBuiltTargetsFit(reading: ScriptReading, bp: Blueprint, registry: PartRegistry, scope?: string): string[] {
+  const shapes = reading.built.filter((b) => (b.prefix ?? '') !== '' || (b.suffix ?? '') !== '');
+  if (shapes.length === 0) return [];
+  return bp.parts
+    .filter((p) => {
+      const tags = view(p, registry, scope).tags.filter((t) => t !== p.id);
+      return shapes.some((b) => {
+        const prefix = b.prefix ?? '';
+        const suffix = b.suffix ?? '';
+        if (b.channel !== undefined && !channelNames(registry, p.part, b.fn === 'get').includes(b.channel)) return false;
+        return tags.some((t) => t.length > prefix.length + suffix.length && t.startsWith(prefix) && t.endsWith(suffix));
+      });
+    })
+    .map((p) => p.id);
 }
 
 /**

@@ -62,7 +62,9 @@ export function TopStrip({ store, actions }: { store: Store<AppState>; actions: 
   const issues = useStore(store, (s) => s.builder.issues);
   const scriptOpen = useStore(store, (s) => s.scriptEditor !== undefined);
   const kind = useStore(store, (s) => s.builder.draft.kind);
-  const status = statusOf(issues);
+  // A name in a script that reaches nothing is a warning too.
+  const scriptProblems = useStore(store, (s) => s.builder.scriptProblems.length);
+  const status = statusOf([...issues, ...Array.from({ length: scriptProblems }, () => ({ severity: 'warning' as const }))]);
   return (
     <div class="top plate">
       <Name name={doc.name} onRename={actions.rename} />

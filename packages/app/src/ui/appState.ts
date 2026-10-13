@@ -3,14 +3,39 @@ import type { Mode } from '../app/modes';
 import type { BlueprintListing } from '../storage/blueprintApi';
 import type { WorldView } from '../world/WorldScreen';
 import type { ControlsView } from '../builder/coreControls';
+import type { GroupOffer } from '../builder/boardOps';
+import type { NoteLine } from '../builder/notice';
+import type { ScriptProblem, ScriptShow } from '../builder/scriptView';
+
+/** A refusal or an offer shown at the cursor (M16), at a point in window pixels. One of `text` and `offers` is set. */
+export interface CursorNote {
+  seq: number;
+  x: number;
+  y: number;
+  /** Why the last click, drag or key did nothing. */
+  text?: string;
+  /** Groups the blank parts just placed could join: one click each. */
+  offers?: GroupOffer[];
+}
 
 export interface BuilderView {
   draft: Blueprint;
   held?: { part: string; rot: Rotation };
   /** A saved blueprint held to place as a copy (M7). */
   stamp?: { name: string; rot: Rotation; flipped: boolean };
-  /** Why the last edit was refused (a click with the held blueprint, or a turn onto another part). */
-  refused?: string;
+  /** A copy of parts in hand (Alt+click, Cmd+D): their types, and the groups they carry. */
+  copy?: { types: string[]; rot: Rotation; flipped: boolean; groups: string[] };
+  /** The drag going on, if any. */
+  dragging?: 'paint' | 'erase' | 'box' | 'move';
+  /** What the last edit affected, with Undo in it. */
+  note?: { seq: number; lines: NoteLine[]; undo: boolean };
+  cursorNote?: CursorNote;
+  /** The script whose reach is lit on the board. */
+  shown?: ScriptShow;
+  /** The script kept lit (Show), by id. `shown` may be another one for a moment, while the mouse is on its row. */
+  shownPinned?: string;
+  /** Dead names and wrong inputs in the robot's scripts, for Problems. */
+  scriptProblems: ScriptProblem[];
   /** The core the Controls and Scripts panels edit (absent: the main core), its controls, and every core to pick. */
   controlsFor?: string;
   controls: ControlsView;
@@ -89,6 +114,8 @@ export interface AppState {
   world?: WorldView;
   /** The script open in the builder's code editor, by id. */
   scriptEditor?: string;
+  /** A line of that script to show and select (a click on a problem). `seq` goes up on each ask. */
+  scriptLine?: { line: number; seq: number };
   panel: PanelState;
   /** Nine slots on the keys 1 to 9 (M16): a part id, or null for an empty slot. Kept in the browser. */
   hotbar: Array<string | null>;

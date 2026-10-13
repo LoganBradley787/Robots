@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { defaultSize, footprintOf, partCells, partMass, type Blueprint, type PartDef, type PartRegistry, type PlacedPart } from '@robots/sim-core';
 import { autoLabel } from '../builder/bindings';
 import type { Store } from './store';
@@ -10,8 +10,9 @@ import { BindingsPanel } from './BindingsPanel';
 import { ScriptsPanel } from './ScriptsPanel';
 import { Problems } from './Problems';
 import { PartNumbers } from './Drawer';
-import { Button, Check, Select, Sprite, Tabs, type SelectOption, type TabSpec } from './kit';
-import { formatDuration, num } from './format';
+import { Button, Check, KeyCap, Popover, Select, Sprite, Tabs, type SelectOption, type TabSpec } from './kit';
+import { formatDuration, MOD, num } from './format';
+import { partInputs } from '../builder/scriptView';
 
 /**
  * The inspector (M16), at the right. Part: what is selected, built from its definition (it took over everything the
@@ -54,7 +55,7 @@ export function Inspector({ store, registry, actions }: { store: Store<AppState>
           />
         )}
         {tab === 'keys' && <BindingsPanel store={store} registry={registry} actions={actions} />}
-        {tab === 'behaviors' && <ScriptsPanel store={store} actions={actions} />}
+        {tab === 'behaviors' && <ScriptsPanel store={store} registry={registry} actions={actions} />}
       </div>
       <Problems store={store} actions={actions} />
     </div>
@@ -70,7 +71,7 @@ function groupsOf(bp: Blueprint): Array<{ tag: string; ids: string[] }> {
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function PartTab({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: PartActions }) {
+function PartTab({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: PartActions & Pick<AppActions, 'revealScript' | 'duplicate'> }) {
   const draft = useStore(store, (s) => s.builder.draft);
   const selection = useStore(store, (s) => s.builder.selection);
   const icons = useStore(store, (s) => s.icons);
@@ -86,6 +87,10 @@ function PartTab({ store, registry, actions }: { store: Store<AppState>; registr
   };
   const one = parts.length === 1 ? parts[0] : undefined;
   const def = one ? defOf(one) : undefined;
+  // What drives each of its inputs today: keys and scripts, by the name they use for it.
+  const driven = useMemo(() => (one ? partInputs(draft, registry, one.id) : undefined), [draft, one?.id]);
+  // Swap to works on parts of one kind.
+  const sameType = parts.every((p) => p.part === parts[0]?.part) ? parts[0]?.part : undefined;
 
   // The options a definition has: each shows only when a selected part has it, and edits every part that does.
   const autoParts = parts.filter((p) => autoLabel(registry, p) !== undefined);
@@ -175,6 +180,7 @@ function PartTab({ store, registry, actions }: { store: Store<AppState>; registr
           {def.inputs.length === 0 && <p class="dim">Nothing to control on this part.</p>}
           {def.inputs.map((c) => {
             const auto = def.autoControl?.channel === c.name && one.auto !== false && draft.autoControls !== false ? autoLabel(registry, one) : undefined;
+            const by = driven?.inputs.get(c.name) ?? [];
             return (
               <div class="irow" key={c.name}>
                 <div>
@@ -184,10 +190,44 @@ function PartTab({ store, registry, actions }: { store: Store<AppState>; registr
                     {c.default !== 0 ? `, rests at ${num(c.default)}` : ''}
                   </div>
                 </div>
-                {auto !== undefined && <div class="more">auto: {auto}</div>}
+                <div class="drv">
+                  {auto !== undefined && (
+                    <div class="d auto" title="An auto key: the game gave it one because of what the part is. Settings below turns them off.">
+                      <span class="tag">auto</span>
+                      {auto}
+                    </div>
+                  )}
+                  {by.map((d) =>
+                    d.kind === 'key' ? (
+                      <div class="d" key={`k${d.name}`} title={`Your key, bound to "${d.via}" (Keys tab)`}>
+                        <KeyCap small>{d.name.length === 1 ? d.name.toUpperCase() : d.name}</KeyCap>
+                        <span class="dim">your key</span>
+                      </div>
+                    ) : (
+                      <button type="button" class="d linkish" key={`s${d.core ?? ''}${d.name}`} title={`This script writes it, through the name "${d.via}"${d.line !== undefined ? ` (line ${d.line})` : ''}. Click to see everything it drives.`} onClick={() => actions.revealScript(d.core, d.name)}>
+                        <i class="sw solid" />
+                        {d.name}.js
+                      </button>
+                    ),
+                  )}
+                  {auto === undefined && by.length === 0 && <div class="d dim">nothing drives it</div>}
+                </div>
               </div>
             );
           })}
+          {driven && driven.mayDrive.length > 0 && def.inputs.length > 0 && (
+            <p class="honest">
+              {driven.mayDrive.map((m, i) => (
+                <>
+                  {i > 0 ? ', ' : ''}
+                  <button type="button" class="linkish" key={`${m.core ?? ''}${m.id}`} onClick={() => actions.revealScript(m.core, m.id)}>
+                    {m.id}.js
+                  </button>
+                </>
+              ))}{' '}
+              {driven.mayDrive.length === 1 ? 'picks' : 'pick'} parts in {driven.mayDrive.length === 1 ? 'its' : 'their'} own code, so {driven.mayDrive.length === 1 ? 'it' : 'they'} may drive this part too.
+            </p>
+          )}
         </div>
       )}
 
@@ -274,12 +314,69 @@ function PartTab({ store, registry, actions }: { store: Store<AppState>; registr
           <Button onClick={() => actions.rotate(-1)} title="Turn a quarter clockwise (Shift+R)">
             Turn &#8635;
           </Button>
+          {sameType !== undefined && registry.has(sameType) && <SwapTo type={sameType} count={parts.length} registry={registry} icons={icons} onPick={(t) => actions.swapTo(ids, t)} />}
+          <Button onClick={actions.duplicate} title={`A copy in your hand, with its groups and settings (${MOD}+D). Click the board to place it.`}>
+            Duplicate
+          </Button>
           <Button kind="danger" onClick={actions.deleteSelection} title="Remove (Delete)">
             Remove
           </Button>
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * Swap to (M16): pick another part and the selected ones become it where they stand, keeping their place, turn, groups
+ * and the settings that still apply. What happened is said after it, with Undo; nothing is asked first.
+ */
+function SwapTo({ type, count, registry, icons, onPick }: { type: string; count: number; registry: PartRegistry; icons: Record<string, string>; onPick(type: string): void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState('');
+  const anchor = useRef<HTMLSpanElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (open) input.current?.focus();
+    else setQ('');
+  }, [open]);
+  const words = q.trim().toLowerCase().split(/\s+/).filter((w) => w !== '');
+  const found = registry.list().filter((d) => d.id !== type && words.every((w) => `${d.name} ${d.id} ${d.category ?? ''}`.toLowerCase().includes(w)));
+  const pick = (id: string): void => {
+    setOpen(false);
+    onPick(id);
+  };
+  return (
+    <span ref={anchor}>
+      <Button on={open} onClick={() => setOpen((v) => !v)} title={`Turn ${count === 1 ? 'it' : `these ${count}`} into another part, here. It keeps its place, turn, groups and the settings that still apply.`}>
+        Swap to
+      </Button>
+      {open && (
+        <Popover anchor={anchor} onClose={() => setOpen(false)} align="right" class="swap-pop">
+          <input
+            ref={input}
+            class="field"
+            placeholder="Swap to which part?"
+            aria-label="search parts to swap to"
+            spellcheck={false}
+            value={q}
+            onInput={(e) => setQ((e.target as HTMLInputElement).value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && found[0]) pick(found[0].id);
+            }}
+          />
+          <div class="tiles">
+            {found.map((d) => (
+              <button type="button" class="tile" key={d.id} title={d.about ?? d.name} onClick={() => pick(d.id)}>
+                <Sprite src={icons[d.id]} size={34} />
+                <span>{d.name}</span>
+              </button>
+            ))}
+          </div>
+          {found.length === 0 && <p class="empty">No part is called that.</p>}
+        </Popover>
+      )}
+    </span>
   );
 }
 

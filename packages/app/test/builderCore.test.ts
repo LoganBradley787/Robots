@@ -9,12 +9,15 @@ const PARTS = reg.ids();
 function run(events: EditorEvent[], bp: Blueprint = blankBlueprint('t'), editor: EditorState = initialEditor()) {
   let state = { editor, bp };
   const gestures: string[] = [];
+  // Why the last event's edit did not happen, if it did not.
+  let refused: string | undefined;
   for (const e of events) {
     const r = reduce(state.editor, state.bp, e, reg, PARTS);
     state = { editor: r.editor, bp: r.bp };
     if (r.gesture) gestures.push(r.gesture);
+    refused = r.refused;
   }
-  return { ...state, gestures };
+  return { ...state, gestures, refused };
 }
 
 const cellsOf = (bp: Blueprint): string[] => bp.parts.map((p) => `${p.part}@${p.x},${p.y}:${p.rot}`);
@@ -104,7 +107,7 @@ describe('editor reducer', () => {
     expect(run([{ type: 'hold', part: 'frame' }], r.bp, r.editor).editor.eraser).toBeUndefined();
   });
 
-  it('right-click opens the part menu on that part, or on the selection when the part is in it', () => {
+  it('a right-click with an empty hand picks that part to look at, or the selection when the part is in it', () => {
     const painted = run([
       { type: 'pick', index: 1 },
       { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
@@ -112,13 +115,13 @@ describe('editor reducer', () => {
       { type: 'up', cell: { x: 2, y: 0 } },
       { type: 'escape' },
     ]);
-    const one = run([{ type: 'down', cell: { x: 1, y: 0 }, button: 'right', shift: false }], painted.bp, painted.editor);
-    expect(one.editor.menu).toEqual({ ids: ['frame@1,0'] });
+    const one = reduce(painted.editor, painted.bp, { type: 'down', cell: { x: 1, y: 0 }, button: 'right', shift: false }, reg, PARTS);
     expect(one.editor.selection).toEqual(['frame@1,0']);
-    expect(cellsOf(one.bp)).toHaveLength(3);
+    expect(one.focus).toBe(true);
+    expect(one.bp).toBe(painted.bp);
     const boxed = run(
       [
-        { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
+        { type: 'down', cell: { x: 0, y: -1 }, button: 'left', shift: false },
         { type: 'move', cell: { x: 1, y: 0 } },
         { type: 'up', cell: { x: 1, y: 0 } },
         { type: 'down', cell: { x: 0, y: 0 }, button: 'right', shift: false },
@@ -126,24 +129,27 @@ describe('editor reducer', () => {
       painted.bp,
       painted.editor,
     );
-    expect(boxed.editor.menu).toEqual({ ids: ['frame@0,0', 'frame@1,0'] });
+    expect(boxed.editor.selection).toEqual(['frame@0,0', 'frame@1,0']);
     const outside = run([{ type: 'down', cell: { x: 2, y: 0 }, button: 'right', shift: false }], boxed.bp, boxed.editor);
-    expect(outside.editor.menu).toEqual({ ids: ['frame@2,0'] });
-    expect(run([{ type: 'down', cell: { x: 9, y: 9 }, button: 'right', shift: false }], boxed.bp, boxed.editor).editor.menu).toBeUndefined();
-    expect(run([{ type: 'escape' }], boxed.bp, boxed.editor).editor.menu).toBeUndefined();
+    expect(outside.editor.selection).toEqual(['frame@2,0']);
+    // On an empty cell it changes nothing.
+    expect(run([{ type: 'down', cell: { x: 9, y: 9 }, button: 'right', shift: false }], boxed.bp, boxed.editor).editor.selection).toEqual(['frame@0,0', 'frame@1,0']);
   });
 
-  it('Rotate with the menu open turns the parts of the menu, not the held part', () => {
+  it('a right-click with something in hand puts it down and selects nothing', () => {
     const r = run([
       { type: 'pick', index: 4 },
       { type: 'down', cell: { x: 0, y: 0 }, button: 'left', shift: false },
       { type: 'up', cell: { x: 0, y: 0 } },
       { type: 'pick', index: 3 },
       { type: 'down', cell: { x: 0, y: 0 }, button: 'right', shift: false },
-      { type: 'rotate', dir: 1 },
     ]);
-    expect(cellsOf(r.bp)).toEqual(['thruster@0,0:90']);
-    expect(r.editor.held).toEqual({ part: 'wheel', rot: 0 });
+    expect(r.editor.held).toBeUndefined();
+    expect(r.editor.selection).toEqual([]);
+    expect(cellsOf(r.bp)).toEqual(['thruster@0,0:0']);
+    const eraser = run([{ type: 'eraser' }, { type: 'down', cell: { x: 0, y: 0 }, button: 'right', shift: false }], r.bp);
+    expect(eraser.editor.eraser).toBeUndefined();
+    expect(cellsOf(eraser.bp)).toEqual(['thruster@0,0:0']);
   });
 
   it('rotate cycles the held part and escape drops it', () => {
@@ -208,8 +214,9 @@ describe('selection', () => {
       { type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: false },
       { type: 'move', cell: { x: 3, y: 1 } },
       { type: 'up', cell: { x: 3, y: 1 } },
+      // Shift: the core takes the frame's place (a plain click on a taken cell is refused).
       { type: 'pick', index: 0 },
-      { type: 'down', cell: { x: 1, y: 1 }, button: 'left', shift: false },
+      { type: 'down', cell: { x: 1, y: 1 }, button: 'left', shift: true },
       { type: 'up', cell: { x: 1, y: 1 } },
     ]).bp;
 
@@ -232,7 +239,7 @@ describe('selection', () => {
       ],
       car(),
     );
-    expect(r.editor.selection).toEqual(['frame@2,1', 'core@1,1']);
+    expect(r.editor.selection).toEqual(['core@1,1', 'frame@2,1']);
     expect(r.gestures).toEqual([]);
   });
 
@@ -243,14 +250,14 @@ describe('selection', () => {
       run([{ type: 'down', cell: a, button: 'left', shift: false }, { type: 'move', cell: b }, { type: 'up', cell: b }], src).editor.selection;
     expect(box({ x: 1, y: 2 }, { x: 3, y: 2 })).toEqual(['laser@2,1']);
     expect(box({ x: 3, y: 2 }, { x: 4, y: 3 })).toEqual([]);
-    // Each part once, in part order, however many of its cells are in the box.
-    expect(box({ x: 2, y: 2 }, { x: 3, y: 1 })).toEqual(['laser@2,1', 'frame@3,1']);
+    // Each part once, in part order, however many of its cells are in the box. (A box starts on an empty cell.)
+    expect(box({ x: 3, y: 2 }, { x: 2, y: 1 })).toEqual(['laser@2,1', 'frame@3,1']);
   });
 
   it('delete removes the selection in one edit and clears it', () => {
     const bp = car();
     const r = run([{ type: 'down', cell: { x: 0, y: 1 }, button: 'left', shift: false }, { type: 'up', cell: { x: 0, y: 1 } }, { type: 'deleteSelection' }], bp);
-    expect(r.bp.parts.map((p) => p.id)).toEqual(['frame@2,1', 'frame@3,1', 'core@1,1']);
+    expect(r.bp.parts.map((p) => p.id)).toEqual(['core@1,1', 'frame@2,1', 'frame@3,1']);
     expect(r.editor.selection).toEqual([]);
   });
 
@@ -265,14 +272,14 @@ describe('selection', () => {
     const select: EditorEvent[] = [{ type: 'down', cell: { x: 2, y: 2 }, button: 'left', shift: false }, { type: 'up', cell: { x: 2, y: 2 } }];
     const r = run([...select, { type: 'rotate', dir: 1 }], src);
     expect(r.bp).toBe(src);
-    expect(r.editor.refused).toBe('laser@2,1 turned would overlap frame@1,1 at (1, 1)');
+    expect(r.refused).toBe('Blocked: laser@2,1 turned would overlap frame@1,1 at (1, 1). Nothing turned.');
     expect(r.editor.selection).toEqual(['laser@2,1']);
     // What would be saved still has all seven parts.
     expect(expandBlueprint(toFileJson(r.bp, reg)).blueprint?.parts).toHaveLength(7);
     const open = removeParts(src, ['frame@1,1'], reg);
     const ok = run([{ type: 'rotate', dir: 1 }], open, r.editor);
     expect(ok.bp.parts.find((p) => p.id === 'laser@2,1')?.rot).toBe(90);
-    expect(ok.editor.refused).toBeUndefined();
+    expect(ok.refused).toBeUndefined();
   });
 
   it('turning mirror on the first time puts the axis on the core column', () => {

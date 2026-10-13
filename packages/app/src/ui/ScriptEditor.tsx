@@ -32,6 +32,21 @@ export function ScriptEditor({ store, actions }: { store: Store<AppState>; actio
     area.current?.focus();
   }, [id]);
 
+  // A click on a problem asks for a line: scroll to it and select it.
+  const jump = useStore(store, (s) => s.scriptLine);
+  useEffect(() => {
+    const el = area.current;
+    if (!el || !jump || source === undefined) return;
+    const lines = source.split('\n');
+    const n = Math.max(1, Math.min(jump.line, lines.length));
+    let start = 0;
+    for (let i = 0; i < n - 1; i++) start += (lines[i]?.length ?? 0) + 1;
+    el.focus();
+    el.setSelectionRange(start, start + (lines[n - 1]?.length ?? 0));
+    const lineHeight = Number.parseFloat(getComputedStyle(el).lineHeight) || 20;
+    el.scrollTop = Math.max(0, (n - 1) * lineHeight - el.clientHeight / 3);
+  }, [jump?.seq, id]);
+
   useEffect(() => {
     if (source === undefined) return;
     const t = setTimeout(() => setCheck(actions.checkScript(source, name)), 250);

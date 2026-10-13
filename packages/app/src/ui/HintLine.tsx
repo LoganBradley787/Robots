@@ -4,6 +4,8 @@ import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import { Button } from './kit';
+import { handText } from './BoardChips';
+import { MOD } from './format';
 
 const K = ({ children }: { children: ComponentChildren }) => <kbd>{children}</kbd>;
 
@@ -13,38 +15,63 @@ const K = ({ children }: { children: ComponentChildren }) => <kbd>{children}</kb
  */
 export function HintLine({ store, registry }: { store: Store<AppState>; registry: PartRegistry }) {
   const held = useStore(store, (s) => s.builder.held);
+  const copy = useStore(store, (s) => s.builder.copy);
   const eraser = useStore(store, (s) => s.builder.eraser);
   const stamp = useStore(store, (s) => s.builder.stamp);
   const selected = useStore(store, (s) => s.builder.selection.length);
+  const dragging = useStore(store, (s) => s.builder.dragging);
   const mirror = useStore(store, (s) => s.builder.mirror.on);
   const hover = useStore(store, (s) => s.builder.hover);
   const help = useStore(store, (s) => s.panel.overlay === 'help');
-  const name = held && registry.has(held.part) ? registry.get(held.part).name : held?.part;
+  const what = handText({ ...(held ? { held } : {}), ...(copy ? { copy } : {}), ...(stamp ? { stamp } : {}), eraser }, registry);
+  const both = mirror ? ' on both sides' : '';
   return (
     <div class="hint plate">
       <span class="text">
-        {selected > 0 ? (
+        {dragging === 'move' ? (
           <>
-            {selected} selected. <K>R</K> turns, <K>Del</K> removes, <K>Shift</K>+click adds or removes, <K>Esc</K> lets go.
+            Let go to drop {selected === 1 ? 'it' : `the ${selected} parts`} there{mirror ? ', with the mirror image' : ''}. Red outlines: something is in the way and nothing will move. <K>Esc</K> calls it off.
+          </>
+        ) : dragging === 'box' ? (
+          <>
+            Let go to select what the box covers. <K>Esc</K> calls it off.
           </>
         ) : stamp ? (
           <>
-            Click to place a copy of <b>{stamp.name}</b>. <K>R</K> turns it, <K>F</K> flips it, <K>Esc</K> puts it down.
+            Click to place a copy of <b>{stamp.name}</b>
+            {both}. <K>R</K> turns it, <K>F</K> flips it, <K>Esc</K> or right-click puts it down.
           </>
+        ) : copy ? (
+          copy.types.length === 1 ? (
+            <>
+              Click or drag on empty cells to place <b>{what}</b>
+              {both}, with its groups and settings. <K>R</K> turns it, <K>Shift</K> swaps what is there, <K>Esc</K> or right-click puts it down.
+            </>
+          ) : (
+            <>
+              Click to place the <b>{what?.toLowerCase()}</b>
+              {both}, groups and settings and all. <K>R</K> turns it, <K>F</K> flips it, <K>Esc</K> or right-click puts it down.
+            </>
+          )
         ) : eraser ? (
           <>
-            Click or drag over parts to remove them. <K>Esc</K> puts the eraser down.
+            Click or drag over parts to remove them{both}. <K>Esc</K> or right-click puts the eraser down.
           </>
         ) : held ? (
           <>
-            Click or drag to place <b>{name}</b>. <K>R</K> turns it, <K>Esc</K> puts it down. Right-click a part to look at it.
+            Click or drag on empty cells to place <b>{what}</b>
+            {both}. <K>R</K> turns it, <K>Shift</K> swaps what is there, <K>Esc</K> or right-click puts it down.
+          </>
+        ) : selected > 0 ? (
+          <>
+            {selected} selected. Drag to move, arrows nudge, <K>R</K> turns, <K>Del</K> removes, <K>{MOD}</K>+<K>D</K> copies, <K>Shift</K>+click adds or removes, <K>Esc</K> lets go.
           </>
         ) : (
           <>
-            Click a part to select it, or drag a box around several. Take a part from the drawer, or press <K>1</K> to <K>9</K>, to build.
+            Click a part to select it, drag it to move it, drag across empty cells for a box. <K>Alt</K>+click a part for another like it. <K>1</K> to <K>9</K> take a part.
           </>
         )}
-        {mirror && (
+        {mirror && !dragging && (
           <>
             {' '}
             Mirror is on: <K>[</K> and <K>]</K> move its line.
@@ -66,26 +93,38 @@ export function HintLine({ store, registry }: { store: Store<AppState>; registry
 
 const KEYS: ReadonlyArray<{ head: string; rows: ReadonlyArray<[keys: string, what: string]> }> = [
   {
-    head: 'Build',
+    head: 'With something in hand',
     rows: [
       ['1 to 9', 'take a part from the hotbar'],
-      ['Click or drag', 'place the part in hand'],
-      ['R', 'turn what you hold, or the selection (Shift+R the other way)'],
+      ['Click or drag', 'place it on empty cells (a taken cell says why not)'],
+      ['Shift+click', 'swap what is there for it, keeping its groups and settings'],
+      ['R', 'turn it (Shift+R the other way)'],
+      ['F', 'flip a held robot or a held copy left to right'],
       ['E', 'the eraser: click or drag over parts'],
-      ['Esc', 'put down what you hold, let go of the selection'],
-      ['M', 'mirror on and off'],
-      ['[ and ]', 'move the mirror line'],
-      ['F', 'flip a held robot left to right'],
+      ['Esc or Right-click', 'put it down'],
     ],
   },
   {
-    head: 'Select',
+    head: 'With an empty hand',
     rows: [
-      ['Click', 'with an empty hand, select a part'],
+      ['Click', 'select a part'],
       ['Shift+click', 'add or remove one'],
-      ['Drag', 'with an empty hand, select everything in the box'],
-      ['Right-click', 'select a part and show it in the inspector'],
+      ['Drag', 'a selected part: move the selection. Empty cells: a box'],
+      ['Arrows', 'nudge the selection one cell'],
+      ['R', 'turn the selection (Shift+R the other way)'],
       ['Del', 'remove the selection'],
+      [`${MOD}+D`, 'a copy of the selection in the hand, groups and settings and all'],
+      ['Alt+click', 'another like that part, in the hand'],
+      [`${MOD}+A`, 'select everything'],
+      ['Right-click', 'select a part and show it in the inspector'],
+      ['Esc', 'let go of the selection, then put out a script light'],
+    ],
+  },
+  {
+    head: 'Mirror',
+    rows: [
+      ['M', 'mirror on and off: both sides land, or neither'],
+      ['[ and ]', 'move the mirror line'],
     ],
   },
   {
@@ -100,8 +139,8 @@ const KEYS: ReadonlyArray<{ head: string; rows: ReadonlyArray<[keys: string, wha
   {
     head: 'Robot',
     rows: [
-      ['Cmd+S', 'save (with Shift: save as)'],
-      ['Cmd+Z', 'undo (with Shift, or Cmd+Y: redo)'],
+      [`${MOD}+S`, 'save (with Shift: save as)'],
+      [`${MOD}+Z`, `undo (with Shift, or ${MOD}+Y: redo)`],
       ['Tab', 'test in the world, and back'],
     ],
   },

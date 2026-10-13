@@ -10,3 +10,6 @@ export function formatDuration(seconds: number): string {
 export function num(v: number, digits = 2): string {
   return String(Number(v.toFixed(digits)));
 }
+
+/** The name of the key that goes with Z, S and D for undo, save and copy: Cmd on a Mac, Ctrl elsewhere. */
+export const MOD: string = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '') ? 'Cmd' : 'Ctrl';
