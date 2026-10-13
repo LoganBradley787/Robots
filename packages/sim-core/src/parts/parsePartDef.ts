@@ -65,7 +65,7 @@ function join(path: string, key: string): string {
 }
 
 const DEF_KEYS = [
-  'id', 'name', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
+  'id', 'name', 'category', 'about', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
   'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
 ] as const;
 
@@ -133,6 +133,9 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   };
   if (def.powerDraw < 0) r.fail('powerDraw', 'must not be negative');
 
+  // M16: where the builder lists it and what it says about it. Any text; the builder falls back for what it does not know.
+  if (o.category !== undefined) def.category = r.str(o, 'category', '');
+  if (o.about !== undefined) def.about = r.str(o, 'about', '');
   if (o.role !== undefined) {
     if (o.role !== 'core') r.fail('role', 'must be "core" when present');
     def.role = 'core';

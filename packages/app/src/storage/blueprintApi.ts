@@ -3,6 +3,8 @@
 export interface BlueprintListing {
   file: string;
   name: string;
+  /** M16: what kind of robot it is (`kind` in its file). Absent: none set. */
+  kind?: string;
 }
 
 const BASE = '/api/blueprints';
@@ -50,6 +52,11 @@ export async function saveBlueprintFile(file: string, json: unknown): Promise<vo
 
 export async function deleteBlueprintFile(file: string): Promise<void> {
   await check(await fetch(`${BASE}/${file}`, { method: 'DELETE' }));
+}
+
+/** Sets a saved blueprint's kind in its file (null clears it), leaving the rest of the file as it is. */
+export async function setBlueprintKind(file: string, kind: string | null): Promise<void> {
+  await check(await fetch(`${BASE}/${file}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind }) }));
 }
 
 /** Writes a replay into the repo's `replays/` folder. */

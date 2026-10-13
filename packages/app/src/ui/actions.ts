@@ -21,6 +21,10 @@ export interface BuilderActions {
   remove(): void;
   /** Gives the open robot a new name. Its file keeps its name until Save As. */
   rename(name: string): void;
+  /** Sets what kind of robot the open one is; undefined clears it. */
+  setKind(kind: string | undefined): void;
+  /** Sets the kind of a saved robot that is not open, in its file. */
+  setFileKind(file: string, kind: string | undefined): void;
   /** Test (it was Deploy): into the world with this robot in hand. */
   deploy(): void;
   /** The top strip's Script button: the code editor when there is one script, else the Behaviors tab. */
@@ -29,4 +33,9 @@ export interface BuilderActions {
   /** Selects these parts on the board. */
   select(ids: string[]): void;
   showTab(tab: InspectorTab): void;
+  /** Puts a part on a hotbar slot (0 to 8); null empties it. */
+  setHotbarSlot(slot: number, part: string | null): void;
+  swapHotbarSlots(a: number, b: number): void;
+  /** Asks for the pictures and counts of these saved robots (the library and the Assemblies tab). */
+  needMeta(files: string[]): void;
 }

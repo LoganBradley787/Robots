@@ -1,9 +1,9 @@
 import { Container, Graphics, Sprite, type Texture } from 'pixi.js';
-import { footprintOf, mirrorable, mirroredShift, mirrorRotation, partCells, mirrorX, partAt, rotationRadians, type Blueprint, type PartRegistry, type Rotation } from '@robots/sim-core';
+import { mirrorable, mirroredShift, mirrorRotation, partCells, mirrorX, partAt, type Blueprint, type PartRegistry, type Rotation } from '@robots/sim-core';
 import { applyCamera } from '../render/cameraView';
 import { createCamera, screenToWorld, type CameraState } from '../render/camera';
-import { partSprites } from '../render/partSprites';
-import { PIXELS_PER_METER, toScreen, toScreenAngle } from '../render/units';
+import { addPartSprites } from '../render/partDraw';
+import { PIXELS_PER_METER, toScreen } from '../render/units';
 import type { Cell, EditorState } from './editorState';
 import { stampGhost } from './stamp';
 
@@ -73,27 +73,8 @@ export class BuilderScene {
     return g;
   }
 
-  private sprite(name: string, x: number, y: number, rot: Rotation, alpha = 1, t: { x: number; y: number; w: number; h: number; flip?: boolean } = { x: 0, y: 0, w: 1, h: 1 }): Sprite {
-    const s = new Sprite(this.texture(name));
-    s.anchor.set(0.5);
-    // A multi-cell part (M12) spans its footprint's box (or its tiles), turned with it.
-    s.width = PIXELS_PER_METER * t.w;
-    s.height = PIXELS_PER_METER * t.h;
-    if (t.flip) s.scale.x *= -1;
-    const p = toScreen({ x: x + t.x, y: y + t.y });
-    s.position.set(p.x, p.y);
-    s.rotation = toScreenAngle(rotationRadians(rot));
-    s.alpha = alpha;
-    return s;
-  }
-
   private addPart(into: Container, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, alpha = 1, armed = false, size?: [number, number]): void {
-    if (!registry.has(part)) return;
-    const def = registry.get(part);
-    const spec = def.sprite;
-    // A part set to start armed (M10) shows its armed frame.
-    for (const t of partSprites(def, rot, footprintOf(def, size), armed && spec.armedFrame ? spec.armedFrame : spec.frame)) into.addChild(this.sprite(t.frame, x, y, rot, alpha, t));
-    if (spec.mountFrame) into.addChild(this.sprite(spec.mountFrame, x, y, rot, alpha));
+    addPartSprites(into, this.texture, registry, part, x, y, rot, alpha, armed, size);
   }
 
   drawParts(bp: Blueprint, registry: PartRegistry): void {

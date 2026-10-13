@@ -1,6 +1,8 @@
 {
   "id": "gun",
   "name": "Gun",
+  "category": "Tools",
+  "about": "Blasts a stream of small shells. Has a sight scripts can read.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["S"] }],
   "mass": 1,
   "health": 25,

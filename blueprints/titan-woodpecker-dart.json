@@ -1,6 +1,7 @@
 {
  "format": 1,
  "name": "titan-woodpecker-dart",
+ "kind": "yours",
  "autoControls": false,
  "grid": [
   "H",

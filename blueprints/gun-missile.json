@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "gun-missile",
+  "kind": "missile",
   "grid": [
     ".  M^",
     "S^ H",

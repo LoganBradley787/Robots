@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-missilenator-silo",
+  "kind": "enemy",
   "grid": [
     ". . . . s s . . . . . . . . . . s s . . . .",
     ". . . . A = . . . . . . . . . . = A . . . .",

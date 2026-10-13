@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-drone",
+  "kind": "enemy",
   "grid": [
     ".   .   .   a   .   b   .   .   .   c   .   d   .   .   .",
     ".   .   .   e   .   f   .   .   .   g   .   h   .   .   .",

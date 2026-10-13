@@ -1,6 +1,8 @@
 {
   "id": "heavyrotator",
   "name": "Heavy rotator",
+  "category": "Joints",
+  "about": "A stronger, slower hinge for heavy loads.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 6,
   "health": 80,

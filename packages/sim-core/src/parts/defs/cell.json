@@ -1,6 +1,8 @@
 {
   "id": "cell",
   "name": "Cell",
+  "category": "Energy",
+  "about": "A small, light battery. Holds 250 energy.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 0.5,
   "health": 10,

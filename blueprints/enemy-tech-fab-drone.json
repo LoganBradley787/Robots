@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-tech-fab-drone",
+  "kind": "enemy",
   "grid": [
     ". . . . . s . . . s . . . . .",
     ". . . . . = . . . = . . . . .",

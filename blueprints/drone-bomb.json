@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "drone-bomb",
+  "kind": "missile",
   "grid": [
     "L  L  R  R",
     "F  C  O  F",

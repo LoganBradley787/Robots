@@ -11,6 +11,7 @@ import type { Blueprint, ScriptSpec } from './types';
  */
 export function toFileJson(bp: Blueprint, registry: PartRegistry, opts: { inlineScripts?: boolean } = {}): Record<string, unknown> {
   const out: Record<string, unknown> = { format: 1, name: bp.name };
+  if (bp.kind !== undefined) out.kind = bp.kind;
   const g = toGrid(bp, registry);
   if (g) {
     out.grid = g.grid;

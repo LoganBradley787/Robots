@@ -114,7 +114,8 @@ export class DocumentController {
   }
 
   private startBlank(): void {
-    const bp = blankBlueprint('untitled');
+    // A robot started here is one of the player's own (M16: the library groups by kind).
+    const bp: Blueprint = { ...blankBlueprint('untitled'), kind: 'yours' };
     this.deps.setDraft(bp, { keepHistory: false });
     this.state = { name: bp.name };
     this.savedJson = this.serialize(bp);

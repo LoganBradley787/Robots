@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-factory",
+  "kind": "enemy",
   "grid": [
     ". . . So . . . So . . . . . . . . . . . . . . . . . . . So . . . So . . .",
     ". . . A = . = A . . . . . . . . . . . . . . . . . . . A = . = A . . .",

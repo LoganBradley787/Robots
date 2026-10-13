@@ -1,6 +1,8 @@
 {
   "id": "wheel",
   "name": "Wheel",
+  "category": "Movement",
+  "about": "Drives along the ground.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N"] }],
   "mass": 1.5,
   "health": 25,

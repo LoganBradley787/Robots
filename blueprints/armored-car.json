@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "armored car",
+  "kind": "piece",
   "parts": [
     {
       "part": "frame",

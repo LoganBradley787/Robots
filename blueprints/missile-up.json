@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "missile-up",
+  "kind": "missile",
   "grid": [
     "S",
     "H",

@@ -1,6 +1,8 @@
 {
   "id": "seeker",
   "name": "Seeker",
+  "category": "Sensing",
+  "about": "Sees in a cone ahead. Scripts read what it sees as contacts.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["E", "S", "W"] }],
   "mass": 0.3,
   "health": 20,

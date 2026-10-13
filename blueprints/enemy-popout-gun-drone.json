@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-popout-gun-drone",
+  "kind": "enemy",
   "grid": [
     "A gun-turret3g gun-turret3r F . . . . . . . . . F gun-turret4r gun-turret4g A",
     "gun-turret3d . . F c c c . . . e e e F . . gun-turret4d",

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "silo",
+  "kind": "yours",
   "grid": [
     ".   a   .   b   .   .   c   .   d   .   .   e   .   f   .   .   g   .   h   .   .   i   .   j   .   .   k   .   p68 .",
     ".   l   .   m   .   .   n   .   o   .   .   p   .   q   .   .   r   .   s   .   .   t   .   u   .   .   v   .   p69 .",

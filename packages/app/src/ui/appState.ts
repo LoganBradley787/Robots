@@ -62,9 +62,19 @@ export type InspectorTab = 'part' | 'robot' | 'keys' | 'behaviors';
 /** What the builder's panels show (M16): nothing here is saved. */
 export interface PanelState {
   tab: InspectorTab;
+  drawer: 'parts' | 'assemblies';
   problemsOpen: boolean;
   /** The library (Open) or the key list (?), over the board. */
   overlay?: 'library' | 'help';
+}
+
+/** What the library knows of one saved robot: its picture and what is in it. */
+export interface BlueprintMeta {
+  /** A PNG data URL; absent when there is nothing to draw. */
+  thumb?: string;
+  /** -1 when the file could not be read. */
+  parts: number;
+  scripts: number;
 }
 
 /** State shared between the canvas screens and the Preact panels. */
@@ -82,4 +92,10 @@ export interface AppState {
   /** The script open in the builder's code editor, by id. */
   scriptEditor?: string;
   panel: PanelState;
+  /** Nine slots on the keys 1 to 9 (M16): a part id, or null for an empty slot. Kept in the browser. */
+  hotbar: Array<string | null>;
+  /** The parts taken in hand last, newest first (the drawer's recent row). */
+  recent: string[];
+  /** Pictures and counts of saved robots, by file, filled in as the library asks for them. */
+  meta: Record<string, BlueprintMeta>;
 }

@@ -1,6 +1,8 @@
 {
   "id": "laser",
   "name": "Laser",
+  "category": "Tools",
+  "about": "A beam that burns the first thing in its line. Very thirsty.",
   "footprint": [
     { "x": 0, "y": 0, "faces": ["S"] },
     { "x": 0, "y": 1, "faces": [] }

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "longcar",
+  "kind": "piece",
   "grid": [
     "C  F  F  F  B  F",
     "W  .  .  .  .  W"

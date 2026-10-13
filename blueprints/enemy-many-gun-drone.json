@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-many-gun-drone",
+  "kind": "enemy",
   "grid": [
     "g9  t9  F   .   .   .   .   g11 .   .   .   .   F   t10 g10",
     ".   .   F   .   .   .   .   t11 .   .   .   .   F   .   .",

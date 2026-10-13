@@ -1,6 +1,8 @@
 {
   "id": "radar",
   "name": "Radar",
+  "category": "Sensing",
+  "about": "Sees robots all around, far away. Scripts read what it sees as contacts.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
   "health": 40,

@@ -12,8 +12,10 @@ export class Builder {
   readonly history: History;
   editor: EditorState = initialEditor();
   private readonly registry: PartRegistry;
-  /** What the keys 1 to 9 pick, in order: the first nine parts. */
-  private readonly hotbar: string[];
+  /** The hotbar (M16): what the keys 1 to 9 pick, in order. An empty slot is an empty string, which no part has. */
+  private hotbar: string[];
+  /** Told each time a different part is taken in hand (the drawer's recent row). */
+  onHold: ((part: string) => void) | undefined;
   private readonly scene: BuilderScene;
   private readonly store: Store<AppState>;
   private issues: Issue[] = [];
@@ -51,6 +53,11 @@ export class Builder {
     this.refresh(true);
   }
 
+  /** Sets what the keys 1 to 9 pick. */
+  setHotbar(slots: ReadonlyArray<string | null>): void {
+    this.hotbar = slots.map((s) => s ?? '');
+  }
+
   /** Picks the core the Controls and Scripts panels edit. */
   setControlsFor(core: string | undefined): void {
     this.controlsFor = core;
@@ -81,8 +88,11 @@ export class Builder {
 
   dispatch(e: EditorEvent): void {
     const before = this.draft;
+    const held = this.editor.held?.part;
     const r = reduce(this.editor, before, e, this.registry, this.hotbar);
     this.editor = r.editor;
+    const now = r.editor.held?.part;
+    if (now !== undefined && now !== held) this.onHold?.(now);
     if (r.gesture === 'begin') this.history.beginGesture();
     this.history.commit(r.bp);
     if (r.gesture === 'end') this.history.endGesture();
@@ -164,7 +174,7 @@ export class Builder {
     if (mod) return false;
     const digit = /^Digit([1-9])$/.exec(e.code);
     if (digit) {
-      // 1 to 9 pick the first nine parts.
+      // 1 to 9 pick the hotbar's slots (M16). An empty slot picks nothing.
       this.dispatch({ type: 'pick', index: Number(digit[1]) - 1 });
       return true;
     }

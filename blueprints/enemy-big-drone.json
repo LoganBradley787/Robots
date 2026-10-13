@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-big-drone",
+  "kind": "enemy",
   "grid": [
     ".   .   .   a   .   .   .   b   .   .   .   c   .   .   .   d   .   .   .   .",
     ".   .   .   e   e   .   .   f   f   .   .   g   g   .   .   h   h   .   .   .",

@@ -1,6 +1,8 @@
 {
   "id": "heavywarhead",
   "name": "Heavy warhead",
+  "category": "Tools",
+  "about": "A warhead with a bigger blast. Safe until armed.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1.5,
   "health": 20,

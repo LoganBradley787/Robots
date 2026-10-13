@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "missile",
+  "kind": "missile",
   "grid": [
     "M  g  E  C  X"
   ],

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-spotter",
+  "kind": "enemy",
   "grid": [
     "a b c c c G d d d e f",
     "g h F F F C F F F i j",

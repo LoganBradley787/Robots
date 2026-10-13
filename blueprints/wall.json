@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "wall",
+  "kind": "piece",
   "grid": [
     "F  F  F",
     "F  F  F",

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "swarm-fab-drone",
+  "kind": "yours",
   "grid": [
     ". . . . = . . . . . = . . . .",
     ". . . . = . . . . . = . . . .",

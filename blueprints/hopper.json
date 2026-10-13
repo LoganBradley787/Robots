@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "hopper",
+  "kind": "yours",
   "grid": [
     ".  .  G  .  .  .",
     "F  T^ C  B  T^ F",

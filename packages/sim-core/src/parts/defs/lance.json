@@ -1,6 +1,8 @@
 {
   "id": "lance",
   "name": "Lance",
+  "category": "Tools",
+  "about": "Hold to charge, let go for a thin fast bolt that goes through parts.",
   "footprint": [
     { "x": 0, "y": 0, "faces": ["S"] },
     { "x": 0, "y": 1, "faces": [] },

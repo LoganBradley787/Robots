@@ -1,6 +1,8 @@
 {
   "id": "fin",
   "name": "Fin",
+  "category": "Movement",
+  "about": "A small wing that tilts. Steers anything moving fast through the air.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 0.3,
   "health": 10,

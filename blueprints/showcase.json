@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "showcase",
+  "kind": "piece",
   "grid": [
     ".   P   .   Tv  .   P   .",
     ".   F   B   X   D   F   .",

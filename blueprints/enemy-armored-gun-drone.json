@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-armored-gun-drone",
+  "kind": "enemy",
   "grid": [
     "g1 t1 F  c  c  c  F  d  F  e  e  e  F  .  .",
     ".  .  F  F  F  Z  Z  C  Z  Z  F  F  F  .  .",

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "gun-drone",
+  "kind": "yours",
   "grid": [
     ". . F c c c F d F e e e F . .",
     "s r F F F Z Z C Z Z F F F t u",

@@ -1,6 +1,8 @@
 {
   "id": "rotator",
   "name": "Rotator",
+  "category": "Joints",
+  "about": "A powered hinge. What is bolted to it turns with it.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1.5,
   "health": 40,

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "weird-thing",
+  "kind": "yours",
   "parts": [
     {
       "part": "propeller",

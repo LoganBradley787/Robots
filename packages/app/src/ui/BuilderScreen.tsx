@@ -12,7 +12,8 @@ import { BoardChips } from './BoardChips';
 import { HelpCard, HintLine } from './HintLine';
 import { PartMenu } from './PartMenu';
 import { ScriptEditor } from './ScriptEditor';
-import { BlueprintPicker } from './BlueprintPicker';
+import { Hotbar } from './Hotbar';
+import { Library } from './Library';
 
 /**
  * The builder's panels (M16), laid out as a grid over the canvas: a strip across the top, the parts drawer at the
@@ -25,7 +26,8 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (dialog || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'Escape' && overlay !== undefined) {
+      // A menu open over the library closes first (it listens for Esc itself).
+      if (e.key === 'Escape' && overlay !== undefined && !document.querySelector('.pop')) {
         e.stopPropagation();
         store.set((s) => ({ panel: { ...s.panel, overlay: undefined } }));
         return;
@@ -43,16 +45,17 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
   return (
     <div class="builder">
       <TopStrip store={store} actions={actions} />
-      <Drawer store={store} defs={registry.list()} actions={actions} />
+      <Drawer store={store} registry={registry} actions={actions} />
       <div class="board">
         <BoardChips store={store} registry={registry} actions={actions} />
+        <Hotbar store={store} registry={registry} actions={actions} />
       </div>
       <Inspector store={store} registry={registry} actions={actions} />
       <HintLine store={store} registry={registry} />
       <HelpCard store={store} />
       <PartMenu store={store} registry={registry} actions={actions} />
       <ScriptEditorHost store={store} actions={actions} />
-      {overlay === 'library' && <OpenList store={store} actions={actions} />}
+      {overlay === 'library' && <Library store={store} actions={actions} />}
     </div>
   );
 }
@@ -61,23 +64,4 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
 function ScriptEditorHost({ store, actions }: { store: Store<AppState>; actions: AppActions }) {
   const id = useStore(store, (s) => s.scriptEditor);
   return id ? <ScriptEditor key={id} store={store} actions={actions} /> : null;
-}
-
-/** Open: the list of saved robots, until the library replaces it. */
-function OpenList({ store, actions }: { store: Store<AppState>; actions: AppActions }) {
-  const doc = useStore(store, (s) => s.doc);
-  const close = (): void => store.set((s) => ({ panel: { ...s.panel, overlay: undefined } }));
-  return (
-    <div class="over lib" onPointerDown={(e) => e.target === e.currentTarget && close()}>
-      <BlueprintPicker
-        files={doc.files}
-        current={doc.file}
-        onClose={close}
-        onOpen={(f) => {
-          close();
-          actions.open(f);
-        }}
-      />
-    </div>
-  );
 }

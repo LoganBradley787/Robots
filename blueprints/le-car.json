@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "le car",
+  "kind": "piece",
   "parts": [
     {
       "part": "core",

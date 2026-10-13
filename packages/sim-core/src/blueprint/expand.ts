@@ -3,7 +3,7 @@ import type { Rotation } from '../parts/types';
 import { DEFAULT_LEGEND } from './legend';
 import type { Binding, BindingMode, Blueprint, CoreControls, Issue, LegendEntry, PlacedPart, Recipe, ScriptSpec } from './types';
 
-const TOP_KEYS = ['format', 'name', 'grid', 'legend', 'parts', 'bindings', 'scripts', 'primaryCore', 'corePriority', 'autoControls', 'cores', 'recipes'];
+const TOP_KEYS = ['format', 'name', 'kind', 'grid', 'legend', 'parts', 'bindings', 'scripts', 'primaryCore', 'corePriority', 'autoControls', 'cores', 'recipes'];
 const MODES: readonly BindingMode[] = ['hold', 'toggle', 'pulse', 'script'];
 
 type Obj = Record<string, unknown>;
@@ -53,6 +53,7 @@ export function expandBlueprint(raw: unknown): { blueprint?: Blueprint; issues: 
   }
   if (raw.format !== 1) err('BAD_FORMAT', `format must be 1, got ${JSON.stringify(raw.format)}`, { path: 'format' });
   if (!isNonEmptyString(raw.name)) err('BAD_FORMAT', 'name must be a non-empty string', { path: 'name' });
+  if (raw.kind !== undefined && !isNonEmptyString(raw.kind)) err('BAD_FORMAT', 'kind must be a non-empty string like "yours" or "enemy" (leave it out for none)', { path: 'kind' });
   const hasGrid = raw.grid !== undefined;
   const hasParts = raw.parts !== undefined;
   if (hasGrid === hasParts) err('BAD_FORMAT', 'a blueprint needs exactly one of grid or parts');
@@ -79,6 +80,7 @@ export function expandBlueprint(raw: unknown): { blueprint?: Blueprint; issues: 
   if (issues.length > 0) return { issues };
 
   const blueprint: Blueprint = { format: 1, name: raw.name as string, parts, bindings, scripts, continuations };
+  if (raw.kind !== undefined) blueprint.kind = raw.kind as string;
   if (raw.primaryCore !== undefined) blueprint.primaryCore = raw.primaryCore as string;
   if (raw.corePriority !== undefined) blueprint.corePriority = raw.corePriority as string[];
   if (raw.autoControls === false) blueprint.autoControls = false;

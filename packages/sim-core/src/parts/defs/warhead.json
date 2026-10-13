@@ -1,6 +1,8 @@
 {
   "id": "warhead",
   "name": "Warhead",
+  "category": "Tools",
+  "about": "Blasts when it hits something hard, or on command. Safe until armed.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
   "health": 20,

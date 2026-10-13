@@ -94,6 +94,11 @@ export interface CoreControls {
 export interface Blueprint {
   format: 1;
   name: string;
+  /**
+   * M16: what kind of robot this is ("yours", "enemy", "piece", or any word), for the builder's library to group by.
+   * Nothing in the sim reads it. Absent: no kind set.
+   */
+  kind?: string;
   parts: PlacedPart[];
   bindings: Binding[];
   scripts: ScriptSpec[];

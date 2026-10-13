@@ -25,6 +25,7 @@ export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec
 export { FACES, ROTATIONS, faceDir, opposite, rotateFace, rotateCell, rotationRadians, isRotation } from './parts/faces';
 export { parsePartDef, PartDefError } from './parts/parsePartDef';
 export { PartRegistry, defaultRegistry } from './parts/registry';
+export { PART_CATEGORIES, OTHER_CATEGORY, categoryOf } from './parts/category';
 export type { Issue, LegendEntry, PlacedPart, Binding, BindingMode, ScriptSpec, Blueprint, CoreControls, Recipe } from './blueprint/types';
 export { placeBlueprint } from './blueprint/place';
 export type { PlaceOptions, PlaceResult } from './blueprint/place';

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-gun-missile-fab-drone",
+  "kind": "enemy",
   "grid": [
     ". . . . . s . . . s . . . . .",
     ". . . . . = . . . = . . . . .",

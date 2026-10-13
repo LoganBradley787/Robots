@@ -1,6 +1,8 @@
 {
   "id": "flare",
   "name": "Flare",
+  "category": "Sensing",
+  "about": "Burns for a moment. Sensors that see it take it for your robot.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["S"] }],
   "mass": 0.2,
   "health": 5,

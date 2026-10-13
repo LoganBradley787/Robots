@@ -1,6 +1,8 @@
 {
   "id": "piston",
   "name": "Piston",
+  "category": "Joints",
+  "about": "Pushes out and pulls back. What is bolted to it slides with it.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 2,
   "health": 40,

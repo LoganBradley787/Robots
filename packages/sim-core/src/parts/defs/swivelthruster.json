@@ -1,6 +1,8 @@
 {
   "id": "swivelthruster",
   "name": "Swiveling thruster",
+  "category": "Movement",
+  "about": "A strong thruster that can tilt a little to steer.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "W"] }],
   "mass": 1.5,
   "health": 25,

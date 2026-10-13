@@ -1,6 +1,8 @@
 {
   "id": "battery",
   "name": "Battery",
+  "category": "Energy",
+  "about": "Holds 1500 energy.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 3,
   "health": 30,

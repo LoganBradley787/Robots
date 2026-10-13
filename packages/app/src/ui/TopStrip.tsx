@@ -4,6 +4,8 @@ import { useStore } from './store';
 import type { AppState } from './appState';
 import type { BuilderActions } from './actions';
 import { Button, Menu } from './kit';
+import { KindPicker } from './KindPicker';
+import { kindsOf } from '../builder/library';
 
 /** "ready", "2 warnings", "1 problem": what the validator says, in a word. A problem stops Test; a warning does not. */
 export function statusOf(issues: ReadonlyArray<{ severity: 'error' | 'warning' }>): { text: string; level: 'ok' | 'warn' | 'err' } {
@@ -59,10 +61,12 @@ export function TopStrip({ store, actions }: { store: Store<AppState>; actions: 
   const canRedo = useStore(store, (s) => s.builder.canRedo);
   const issues = useStore(store, (s) => s.builder.issues);
   const scriptOpen = useStore(store, (s) => s.scriptEditor !== undefined);
+  const kind = useStore(store, (s) => s.builder.draft.kind);
   const status = statusOf(issues);
   return (
     <div class="top plate">
       <Name name={doc.name} onRename={actions.rename} />
+      <KindPicker kind={kind} kinds={kindsOf(doc.files, kind)} onPick={actions.setKind} />
       <span class="state" title={doc.file === undefined ? 'This robot has no file yet. Save writes one.' : `blueprints/${doc.file}`}>
         {doc.dirty || doc.file === undefined ? (
           <>

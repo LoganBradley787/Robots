@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "tech-fab-drone",
+  "kind": "yours",
   "grid": [
     ". . . . . s . . . s . . . . .",
     ". . . . . = . . . = . . . . .",

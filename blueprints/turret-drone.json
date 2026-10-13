@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "turret-drone",
+  "kind": "piece",
   "grid": [
     "a a a b c c c",
     "F B F C F B F",

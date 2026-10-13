@@ -1,6 +1,8 @@
 {
   "id": "decoupler",
   "name": "Decoupler",
+  "category": "Joints",
+  "about": "Lets a piece go on command, with a small push.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
   "health": 30,

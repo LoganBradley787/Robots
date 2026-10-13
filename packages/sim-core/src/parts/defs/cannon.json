@@ -1,6 +1,8 @@
 {
   "id": "cannon",
   "name": "Cannon",
+  "category": "Tools",
+  "about": "Hold to charge, let go for one huge bolt. Held too long, it backfires.",
   "footprint": [
     { "x": 0, "y": 0, "faces": ["S"] },
     { "x": 1, "y": 0, "faces": ["S"] },

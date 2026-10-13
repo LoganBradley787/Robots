@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-laser-drone",
+  "kind": "enemy",
   "grid": [
     ". . . F a a a F b F c c c F . . .",
     "= t s F F F Z Z C Z Z F F F d e =",

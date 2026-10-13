@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "enemy-truck",
+  "kind": "enemy",
   "grid": [
     ". c . d . . e . f .",
     ". g . h . . i . j .",

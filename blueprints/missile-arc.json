@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "missile-arc",
+  "kind": "missile",
   "grid": [
     "M  g  E  C  H  S>"
   ],

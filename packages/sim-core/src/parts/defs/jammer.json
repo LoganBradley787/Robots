@@ -1,6 +1,8 @@
 {
   "id": "jammer",
   "name": "Jammer pod",
+  "category": "Sensing",
+  "about": "Once lit, blinds the sensors around it for a few seconds.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 0.5,
   "health": 10,

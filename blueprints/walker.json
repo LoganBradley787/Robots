@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "walker",
+  "kind": "yours",
   "grid": [
     ". . . g r F t u . . . . . . . G R F T U . . A . .",
     ". . . . . F . . . . A A A . . . . F . . . . A . .",

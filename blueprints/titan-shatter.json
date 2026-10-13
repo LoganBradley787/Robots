@@ -1,6 +1,7 @@
 {
  "format": 1,
  "name": "titan-shatter",
+ "kind": "yours",
  "autoControls": false,
  "grid": [
   ".    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .",

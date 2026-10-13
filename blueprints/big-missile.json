@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "big-missile",
+  "kind": "missile",
   "grid": [
     "S  .",
     "H  H",

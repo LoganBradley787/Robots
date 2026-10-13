@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "big-launcher",
+  "kind": "yours",
   "grid": [
     ". . . d . . . .",
     ". . . e e . . .",

@@ -1,6 +1,8 @@
 {
   "id": "gyro",
   "name": "Gyro",
+  "category": "Movement",
+  "about": "Turns the robot without touching anything. Can also steady it.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
   "health": 30,

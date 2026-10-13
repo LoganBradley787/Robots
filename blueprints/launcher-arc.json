@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "launcher-arc",
+  "kind": "yours",
   "grid": [
     ".  .  .  B  F  Dv Dv Dv Dv .  .",
     ".  .  .  .  F  a  b  c  d  e  f",

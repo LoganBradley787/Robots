@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "big guy",
+  "kind": "yours",
   "grid": [
     "F F F F F F",
     "F F F F F F",

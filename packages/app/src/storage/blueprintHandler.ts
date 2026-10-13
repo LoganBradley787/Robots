@@ -19,14 +19,64 @@ const FILE_NAME = /^[a-z0-9][a-z0-9-]*\.json$/;
 
 const json = (status: number, value: unknown): ApiResponse => ({ status, body: JSON.stringify(value) });
 
-function nameOf(file: string, text: string | undefined): string {
+/** What the list says of one file: its name (the file stem when it has none) and, M16, its kind when it has one. */
+function listingOf(file: string, text: string | undefined): { file: string; name: string; kind?: string } {
+  const out: { file: string; name: string; kind?: string } = { file, name: file.slice(0, -'.json'.length) };
   try {
     const v: unknown = JSON.parse(text ?? '');
-    if (typeof v === 'object' && v !== null && typeof (v as { name?: unknown }).name === 'string') return (v as { name: string }).name;
+    if (typeof v === 'object' && v !== null) {
+      const o = v as { name?: unknown; kind?: unknown };
+      if (typeof o.name === 'string') out.name = o.name;
+      if (typeof o.kind === 'string' && o.kind !== '') out.kind = o.kind;
+    }
   } catch {
-    // fall through to the file stem
+    // keep the file stem
   }
-  return file.slice(0, -'.json'.length);
+  return out;
+}
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A blueprint file's text with its top-level `kind` set (or taken out, for undefined), touching only that one line so
+ * a hand-laid-out grid stays as it was written (M16). Falls back to rewriting the whole file, indented, when the text
+ * is not laid out one field a line. Undefined when the text is not a JSON object.
+ */
+export function setKindInText(text: string, kind: string | undefined): string | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const { kind: _old, ...rest } = value as Record<string, unknown>;
+  const want: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(rest)) {
+    want[k] = v;
+    if (k === 'name' && kind !== undefined) want.kind = kind;
+  }
+  if (kind !== undefined && !('kind' in want)) want.kind = kind;
+  // The same blueprint with only its kind changed, wherever in the file the kind line sits.
+  const same = (t: string): boolean => {
+    try {
+      const { kind: k, ...others } = JSON.parse(t) as Record<string, unknown>;
+      return k === kind && JSON.stringify(others) === JSON.stringify(rest);
+    } catch {
+      return false;
+    }
+  };
+  // Top-level fields share the indent of the first field.
+  const indent = /^\{\s*?\n([ \t]*)"/.exec(text)?.[1];
+  if (indent !== undefined) {
+    const str = '"(?:[^"\\\\]|\\\\.)*"';
+    const line = new RegExp(`^${escapeRe(indent)}"kind":[ \\t]*${str},[ \\t]*\\r?\\n`, 'm');
+    const name = new RegExp(`^${escapeRe(indent)}"name":[ \\t]*${str},[ \\t]*\\r?\\n`, 'm');
+    const written = kind === undefined ? '' : `${indent}"kind": ${JSON.stringify(kind)},\n`;
+    const edited = line.test(text) ? text.replace(line, () => written) : kind === undefined ? text : text.replace(name, (m) => `${m}${written}`);
+    if (same(edited)) return edited;
+  }
+  return `${JSON.stringify(want, null, 2)}\n`;
 }
 
 /** How one folder of JSON files is served: blueprints (pretty, small) or replays (compact, larger). */
@@ -54,7 +104,7 @@ export function handleBlueprintRequest(method: string, url: string, body: string
     const items = store
       .list()
       .filter((f) => FILE_NAME.test(f))
-      .map((file) => ({ file, name: nameOf(file, store.read(file)) }))
+      .map((file) => listingOf(file, store.read(file)))
       .sort((a, b) => {
         const x = a.name.toLowerCase();
         const y = b.name.toLowerCase();
@@ -85,6 +135,23 @@ export function handleBlueprintRequest(method: string, url: string, body: string
     case 'DELETE': {
       if (store.read(file) === undefined) return json(404, { error: `no ${noun} ${file}` });
       store.remove(file);
+      return json(200, { ok: true });
+    }
+    case 'PATCH': {
+      // M16: `{ "kind": "enemy" }` sets the file's kind, `{ "kind": null }` clears it. Nothing else can be patched.
+      const text = store.read(file);
+      if (text === undefined) return json(404, { error: `no ${noun} ${file}` });
+      let patch: unknown;
+      try {
+        patch = JSON.parse(body);
+      } catch {
+        return json(400, { error: 'body is not JSON' });
+      }
+      const kind = typeof patch === 'object' && patch !== null ? (patch as { kind?: unknown }).kind : undefined;
+      if (kind !== null && (typeof kind !== 'string' || kind.trim() === '' || kind.length > 40)) return json(400, { error: 'a patch is { "kind": "a word" } or { "kind": null }' });
+      const next = setKindInText(text, kind === null ? undefined : kind.trim());
+      if (next === undefined) return json(400, { error: `${file} is not a readable ${noun}` });
+      if (next !== text) store.write(file, next);
       return json(200, { ok: true });
     }
     default:

@@ -182,10 +182,10 @@ button kbd { margin: 0; opacity: 0.75; }
 }
 #ui .top .name:hover { border-color: var(--edge-hi); background: none; }
 #ui .top .name-field { font: 700 16px var(--head); text-transform: uppercase; letter-spacing: var(--head-space); width: 220px; margin-left: -4px; }
-#ui .top .kind {
+#ui .kind {
   height: 20px; padding: 0 6px; font-size: 11px; background: var(--plate-3); border: 1px solid var(--edge-hi); box-shadow: none; color: var(--dim); transform: none;
 }
-#ui .top .kind:hover { color: var(--ink); border-color: var(--ink); background: var(--plate-3); }
+#ui .kind:hover { color: var(--ink); border-color: var(--ink); background: var(--plate-3); }
 .top .state { font-size: 12px; white-space: nowrap; display: inline-flex; align-items: center; color: var(--dim); }
 .top .state i { display: inline-block; width: 7px; height: 7px; background: var(--warn); margin-right: 5px; }
 .top .sep { width: 1px; height: 18px; background: var(--edge); margin: 0 2px; flex: none; }
@@ -239,13 +239,13 @@ button kbd { margin: 0; opacity: 0.75; }
 .toast { position: absolute; left: 50%; top: 46px; transform: translateX(-50%); padding: 5px 12px; font-size: 12px; z-index: 5; max-width: calc(100% - 20px); border-color: var(--warn); }
 .hotbar { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; z-index: 4; }
 #ui .slot {
-  position: relative; width: 46px; height: 46px; display: grid; place-items: center; cursor: pointer; background: var(--plate-3); border: var(--bw) solid var(--edge);
+  position: relative; width: 48px; height: 48px; display: grid; place-items: center; cursor: pointer; background: var(--plate-3); border: var(--bw) solid var(--edge);
 }
 #ui .slot:hover { border-color: var(--edge-hi); }
 #ui .slot.on { border-color: var(--sel); background: var(--plate-2); }
 #ui .slot.over { border-color: var(--ink); border-style: dashed; }
-#ui .slot .key { position: absolute; top: 0; left: 3px; font: 600 11px var(--mono); color: var(--dim); }
-#ui .slot.on .key { color: var(--sel); }
+#ui .slot .key { position: absolute; top: -2px; left: -2px; min-width: 15px; padding: 0 3px; font: 600 11px/14px var(--mono); color: var(--ink); background: var(--edge); text-align: center; z-index: 1; }
+#ui .slot.on .key { background: var(--sel); color: var(--accent-ink); }
 .hotbar .sep { width: 1px; background: var(--edge); margin: 2px 3px; }
 
 /* ---------- inspector ---------- */
@@ -313,9 +313,9 @@ button kbd { margin: 0; opacity: 0.75; }
 .bp .pic { height: 66px; background: var(--board); margin-bottom: 6px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--edge); }
 .bp .pic img { max-width: 100%; max-height: 100%; display: block; }
 .bp .nm { font-family: var(--head); text-transform: uppercase; letter-spacing: var(--head-space); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; line-height: 1.2; }
-.bp .meta { color: var(--dim); font-size: 11px; margin: 2px 0 6px; }
-.bp .row { display: flex; gap: 4px; margin-top: auto; flex-wrap: wrap; align-items: center; }
-.bp .row .kindb { margin-left: auto; }
+.bp .meta { color: var(--dim); font-size: 11px; margin: 3px 0 7px; display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 20px; }
+.bp .row { display: flex; gap: 4px; margin-top: auto; align-items: center; }
+#ui .bp .kind { background: var(--plate); }
 
 .dialog-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.55); display: flex; align-items: center; justify-content: center; z-index: 80; pointer-events: auto; border: 0; box-shadow: none; }
 .dialog { min-width: 340px; max-width: 460px; padding: 16px 18px; background-color: var(--plate); border: var(--bw) solid var(--edge); box-shadow: inset 0 1px 0 var(--edge-hi), 0 20px 60px rgba(0, 0, 0, 0.6); }

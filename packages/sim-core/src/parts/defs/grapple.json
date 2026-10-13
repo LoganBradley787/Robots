@@ -1,6 +1,8 @@
 {
   "id": "grapple",
   "name": "Grapple",
+  "category": "Joints",
+  "about": "Throws a hook on a rope, then reels it in or out.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["S"] }],
   "mass": 1,
   "health": 30,

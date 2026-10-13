@@ -298,6 +298,13 @@ export interface StretchSpec {
 export interface PartDef {
   id: string;
   name: string;
+  /**
+   * M16: the drawer section the builder lists the part under (see `PART_CATEGORIES`). Read only by the builder, like
+   * `sprite`; the sim never looks at it. Absent or unknown: "Other" (`categoryOf`).
+   */
+  category?: string;
+  /** M16: one line in plain words about what the part does, for the builder's hover card and inspector. */
+  about?: string;
   footprint: FootprintCell[];
   mass: number;
   health: number;

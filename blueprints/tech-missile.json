@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "tech-missile",
+  "kind": "missile",
   "grid": [
     ".  M^ .",
     ".  Xd S^",

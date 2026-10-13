@@ -1,6 +1,7 @@
 {
  "format": 1,
  "name": "titan-palisade",
+ "kind": "yours",
  "grid": [
   ". . . fp10 . pap10 pap10 pap10 pap10 pap10 pbp10 pbp10 pbp10 pbp10 . . . .",
   ". . . fp10 zp10 zp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 fp10 . fp10 g3_p10",

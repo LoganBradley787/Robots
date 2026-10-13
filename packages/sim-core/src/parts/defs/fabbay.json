@@ -1,6 +1,8 @@
 {
   "id": "fabbay",
   "name": "Fabricator bay",
+  "category": "Making",
+  "about": "Builds a copy of another robot inside its hollow, out of your energy.",
   "footprint": [
     { "x": 0, "y": 0, "faces": ["S"], "grips": ["N"] },
     { "x": -1, "y": 0, "faces": ["S", "W"] },

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "car",
+  "kind": "piece",
   "grid": [
     "F  F  C  B  F  F",
     "W  .  .  .  .  W"

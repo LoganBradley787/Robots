@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite } from 'pixi.js';
-import { addTagToParts, createQuickJsHost, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
+import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
@@ -23,11 +23,14 @@ import type { AppState } from './ui/appState';
 import { App } from './ui/App';
 import { BuilderScene } from './builder/BuilderScene';
 import { applyLayout, BOARD_OFFSET } from './ui/layout';
+import { HOTBAR_KEY, pushRecent, readHotbar, readRecent, RECENT_KEY, setSlot, swapSlots, type Hotbar } from './builder/hotbar';
+import { cleanKind } from './builder/library';
+import { robotThumbnail } from './render/partDraw';
 import { Builder } from './builder/Builder';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
 import type { AppActions } from './ui/App';
-import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadScriptFile, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile } from './storage/blueprintApi';
+import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadScriptFile, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile, setBlueprintKind } from './storage/blueprintApi';
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');
@@ -54,17 +57,79 @@ async function boot(): Promise<void> {
   const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock);
 
   const registry = defaultRegistry();
-  const blank = blankBlueprint('untitled');
+  // The hotbar and the recent row live in the browser (M16). A browser with storage switched off just forgets them.
+  const remembered = (key: string): string | null => {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  };
+  const remember = (key: string, value: unknown): void => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // not kept: nothing else to do
+    }
+  };
+  const blank: Blueprint = { ...blankBlueprint('untitled'), kind: 'yours' };
   const store = createStore<AppState>({
     mode: 'builder',
     builder: { draft: blank, eraser: false, selection: [], mirror: { on: false, axisHalfCells: 0, axisSet: false }, canUndo: false, canRedo: false, issues: [], stats: staticStats(blank, registry), controls: { bindings: [], scripts: [], autoOn: true }, cores: [{ label: 'main core' }], partFocus: 0 },
     doc: { name: blank.name, dirty: false, files: [] },
     icons: {},
-    panel: { tab: 'robot', problemsOpen: true },
+    panel: { tab: 'robot', drawer: 'parts', problemsOpen: true },
+    hotbar: readHotbar(remembered(HOTBAR_KEY), registry.ids()),
+    recent: readRecent(remembered(RECENT_KEY), registry.ids()),
+    meta: {},
   });
   applyLayout(uiEl);
   const scene = new BuilderScene(renderer.builder, (f) => textures.part(f), BOARD_OFFSET);
   const builder = new Builder(registry, scene, store, blank);
+  builder.setHotbar(store.get().hotbar);
+  builder.onHold = (part) => {
+    const recent = pushRecent(store.get().recent, part);
+    if (recent === store.get().recent) return;
+    store.set({ recent });
+    remember(RECENT_KEY, recent);
+  };
+  const setHotbar = (hotbar: Hotbar): void => {
+    if (hotbar === store.get().hotbar) return;
+    store.set({ hotbar });
+    builder.setHotbar(hotbar);
+    remember(HOTBAR_KEY, hotbar);
+  };
+  // Pictures of saved robots for the library and the Assemblies tab, drawn one at a time as they are asked for.
+  const metaQueue: string[] = [];
+  let metaBusy = false;
+  const pumpMeta = async (): Promise<void> => {
+    if (metaBusy) return;
+    metaBusy = true;
+    try {
+      for (let file = metaQueue.shift(); file !== undefined; file = metaQueue.shift()) {
+        let entry: AppState['meta'][string] = { parts: -1, scripts: 0 };
+        try {
+          const { blueprint } = expandBlueprint(await loadBlueprintFile(file));
+          if (blueprint) {
+            const thumb = await robotThumbnail(renderer.app.renderer, (f) => textures.part(f), blueprint, registry, 232, 124);
+            entry = { parts: blueprint.parts.length, scripts: allScripts(blueprint).length, ...(thumb !== undefined ? { thumb } : {}) };
+          }
+        } catch {
+          // a file that cannot be read keeps its card, with no picture
+        }
+        const done = file;
+        store.set((s) => ({ meta: { ...s.meta, [done]: entry } }));
+      }
+    } finally {
+      metaBusy = false;
+    }
+  };
+  /** A file that was written or removed gets a new picture the next time it is asked for. */
+  const forgetMeta = (file: string | undefined): void => {
+    if (file === undefined || !(file in store.get().meta)) return;
+    const { [file]: _gone, ...meta } = store.get().meta;
+    store.set({ meta });
+  };
 
   const doc = new DocumentController({
     registry,
@@ -129,7 +194,12 @@ async function boot(): Promise<void> {
     if (dirty !== shown.dirty || d.name !== shown.name) store.set({ doc: { ...shown, name: d.name, dirty } });
   });
   const run = (p: Promise<unknown>): void => {
-    p.then(() => syncDoc(true)).catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+    const before = doc.state.file;
+    p.then(() => {
+      forgetMeta(before);
+      forgetMeta(doc.state.file);
+      return syncDoc(true);
+    }).catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
   };
 
   const worldKeys = worldScreen.keyActions();
@@ -270,6 +340,27 @@ async function boot(): Promise<void> {
     undo: () => builder.undo(),
     redo: () => builder.redo(),
     rename: (name) => builder.edit((bp) => (name.trim() === '' || name.trim() === bp.name ? bp : { ...bp, name: name.trim() })),
+    setKind: (kind) => {
+      const k = kind === undefined ? undefined : cleanKind(kind);
+      builder.edit((bp) => {
+        if (bp.kind === k) return bp;
+        const { kind: _old, ...rest } = bp;
+        return k === undefined ? rest : { ...rest, kind: k };
+      });
+    },
+    setFileKind: (file, kind) => {
+      const k = kind === undefined ? undefined : cleanKind(kind);
+      setBlueprintKind(file, k ?? null)
+        .then(() => syncDoc(true))
+        .catch((e: unknown) => notify(store, `Could not change its kind: ${e instanceof Error ? e.message : String(e)}`));
+    },
+    setHotbarSlot: (slot, part) => setHotbar(setSlot(store.get().hotbar, slot, part)),
+    swapHotbarSlots: (a, b) => setHotbar(swapSlots(store.get().hotbar, a, b)),
+    needMeta: (files) => {
+      const have = store.get().meta;
+      for (const f of files) if (!(f in have) && !metaQueue.includes(f)) metaQueue.push(f);
+      void pumpMeta();
+    },
     select: (ids) => builder.select(ids),
     showTab: (tab) => store.set((s) => ({ panel: { ...s.panel, tab } })),
     script: () => {

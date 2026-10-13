@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "missile-drone",
+  "kind": "missile",
   "grid": [
     "a . a . a o b . b . b",
     "F F F F B C B F F F F",

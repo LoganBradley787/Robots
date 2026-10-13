@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "big-drone",
+  "kind": "yours",
   "grid": [
     ".   .   .   a   .   .   .   b   .   .   .   c   .   .   .   d   .   .   .   .",
     ".   .   .   e   e   .   .   f   f   .   .   g   g   .   .   h   h   .   .   .",

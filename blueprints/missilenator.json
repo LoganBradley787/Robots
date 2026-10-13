@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "missilenator",
+  "kind": "missile",
   "grid": [
     "a . b . c . d . e",
     "f . h . i . j . k",

@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "missilenator-silo",
+  "kind": "missile",
   "grid": [
     ". . . . s s . . . . . . . . . . s s . . . .",
     ". . . . A = . . . . . . . . . . = A . . . .",

@@ -1,6 +1,8 @@
 {
   "id": "core",
   "name": "Core",
+  "category": "Structure",
+  "about": "The brain. Every robot needs one. Holds a little energy.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 2,
   "health": 50,

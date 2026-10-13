@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "flare-rack",
+  "kind": "piece",
   "grid": [
     "a  b",
     "c  d",

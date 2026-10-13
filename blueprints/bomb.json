@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "bomb",
+  "kind": "missile",
   "grid": ["X"],
   "legend": { "X": { "part": "warhead", "armed": true } }
 }

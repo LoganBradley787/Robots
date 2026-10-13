@@ -1,6 +1,7 @@
 {
   "format": 1,
   "name": "grapple-drone",
+  "kind": "yours",
   "grid": [
     ". u c c c c c d e e e e e u .",
     ". x A F F Z Z C Z Z F F A y .",

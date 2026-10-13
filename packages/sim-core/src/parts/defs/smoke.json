@@ -1,6 +1,8 @@
 {
   "id": "smoke",
   "name": "Smoke pod",
+  "category": "Sensing",
+  "about": "Lets out a cloud that sensors cannot see through.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 0.4,
   "health": 10,

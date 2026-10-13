@@ -1,6 +1,8 @@
 {
   "id": "radio",
   "name": "Radio",
+  "category": "Sensing",
+  "about": "Shares what your sensors see with your other robots that have a radio.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 1,
   "health": 30,

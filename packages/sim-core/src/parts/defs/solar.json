@@ -1,6 +1,8 @@
 {
   "id": "solar",
   "name": "Solar panel",
+  "category": "Energy",
+  "about": "Makes a trickle of energy while its face points at the sky.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["S"] }],
   "mass": 0.5,
   "health": 8,
