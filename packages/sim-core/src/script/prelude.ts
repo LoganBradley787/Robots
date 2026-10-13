@@ -310,7 +310,8 @@ export const PRELUDE = String.raw`
     v = f[k++]; var mass = ok || v - v === 0 ? v : null;
     v = f[k++]; var stored = ok || v - v === 0 ? v : null;
     v = f[k++]; var capacity = ok || v - v === 0 ? v : null;
-    globalThis.self = { pos: { x: px, y: py }, vel: { x: vx, y: vy }, angle: angle, angVel: angVel, mass: mass, energy: { stored: stored, capacity: capacity } };
+    v = f[k++]; var age = ok || v - v === 0 ? v : null;
+    globalThis.self = { pos: { x: px, y: py }, vel: { x: vx, y: vy }, angle: angle, angVel: angVel, mass: mass, energy: { stored: stored, capacity: capacity }, age: age };
     var list = parse(nulls);
     if (ok) {
       for (var i = 0; i < rows.length; i++) {

@@ -29,8 +29,8 @@ import type { PartRegistry } from '../parts/registry';
  *   that carries something guessed for that slot), `on:<slot>` (carried by something guessed for that slot).
  * - `@needs <block> "<label>"`: the robot must have a part whose definition has that block (`sensor`: something that
  *   fills `contacts`).
- * - `@from <shelf id> <version>`: only in a copy on a robot: the shelf behavior and version it was copied from. This
- *   is the origin mark. It lives in the copy's own text, so it goes wherever the script goes (the `.js` file, a deploy,
+ * - `@from <shelf id> <version> [<sum>]`: only in a copy on a robot: the shelf behavior and version it was copied
+ *   from, and a check sum of the text as copied. This is the origin mark. It lives in the copy's own text, so it goes wherever the script goes (the `.js` file, a deploy,
  *   a replay, Save As) with nothing added to the blueprint format.
  *
  * Everything here is pure: text and blueprints in, text and blueprints out.
@@ -68,8 +68,19 @@ export interface BehaviorHeader {
   slots: BehaviorSlot[];
   needs: BehaviorNeed[];
   notes: string[];
-  /** In a robot's copy: the shelf behavior it came from (the origin mark). Absent in a shelf file. */
-  from?: { id: string; version: number };
+  /**
+   * In a robot's copy: the shelf behavior it came from (the origin mark). Absent in a shelf file. `sum` is the mark's
+   * third word when it has one: a check sum of the text as it was copied (`behaviorEdited`).
+   */
+  from?: BehaviorOrigin;
+}
+
+/** Where a robot's copy came from: its `// @from <shelf id> <version> [<sum>]` line. */
+export interface BehaviorOrigin {
+  id: string;
+  version: number;
+  /** A check sum of the copy's text as it left the shelf (`textSum`), so an edit to the copy can be told later. Absent in a mark written without one. */
+  sum?: string;
 }
 
 export interface BehaviorParse {
@@ -141,7 +152,7 @@ export function parseBehaviorHeader(source: string): BehaviorParse {
   let name: string | undefined;
   let about = '';
   let version: number | undefined;
-  let from: { id: string; version: number } | undefined;
+  let from: BehaviorOrigin | undefined;
   const slots: BehaviorSlot[] = [];
   const needs: BehaviorNeed[] = [];
   const notes: string[] = [];
@@ -175,8 +186,8 @@ export function parseBehaviorHeader(source: string): BehaviorParse {
     } else if (key === 'note') {
       if (rest !== '') notes.push(rest);
     } else if (key === 'from') {
-      const f = /^([a-z0-9][a-z0-9-]*)\s+([1-9][0-9]*)$/.exec(rest);
-      if (f) from = { id: f[1] as string, version: Number(f[2]) };
+      const f = /^([a-z0-9][a-z0-9-]*)\s+([1-9][0-9]*)(?:\s+([0-9a-f]{8}))?$/.exec(rest);
+      if (f) from = { id: f[1] as string, version: Number(f[2]), ...(f[3] !== undefined ? { sum: f[3] } : {}) };
       else problems.push(`${at}: @from is written @from <shelf id> <version>`);
     } else problems.push(`${at}: @${key} is not known (behavior, about, version, slot, needs, note, from)`);
   }
@@ -201,19 +212,54 @@ export function behaviorId(file: string): string {
 }
 
 /** The shelf behavior and version a robot's script was copied from (its `@from` line), if it is such a copy. */
-export function behaviorOrigin(source: string): { id: string; version: number } | undefined {
+export function behaviorOrigin(source: string): BehaviorOrigin | undefined {
   return parseBehaviorHeader(source).header?.from;
+}
+
+/** A behavior's text without its `@from` line (the header's only), line ends as `\n`, and no blank lines at the end. */
+function unmarked(source: string): string {
+  const out: string[] = [];
+  let inHeader = true;
+  for (const line of source.replace(/\r\n/g, '\n').split('\n')) {
+    const t = line.trim();
+    if (inHeader && t !== '' && !t.startsWith('//')) inHeader = false;
+    if (inHeader && /^\/\/\s*@from\b/.test(t)) continue;
+    out.push(line);
+  }
+  return out.join('\n').replace(/\n+$/, '');
+}
+
+/** A short check sum of a text (FNV-1a, 32 bits, eight hex digits). Not for secrets: only to tell "the same text" from "edited". */
+export function textSum(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Whether a robot's copy of a behavior was edited since it left the shelf: its text (without the `@from` line) no
+ * longer has the check sum its mark carries. Undefined when the text is not a copy, or its mark carries no sum (then
+ * nothing can be said).
+ */
+export function behaviorEdited(source: string): boolean | undefined {
+  const from = behaviorOrigin(source);
+  if (!from || from.sum === undefined) return undefined;
+  return textSum(unmarked(source)) !== from.sum;
 }
 
 /**
  * The text a robot gets when a shelf behavior is added to it: the shelf file with the origin mark, `// @from <id>
- * <version>`, on the line after `@version` (replacing a mark the text already had). Text without a behavior header
- * is given back as it is.
+ * <version> <sum>`, on the line after `@version` (replacing a mark the text already had). The sum is of the text as
+ * copied (`textSum`), so the builder can tell later whether the robot's copy was edited (`behaviorEdited`). Text
+ * without a behavior header is given back as it is.
  */
 export function behaviorCopy(shelfId: string, source: string): string {
   const header = parseBehaviorHeader(source).header;
   if (!header) return source;
-  const mark = `// @from ${shelfId} ${header.version}`;
+  const mark = `// @from ${shelfId} ${header.version} ${textSum(unmarked(source))}`;
   const out: string[] = [];
   let placed = false;
   let inHeader = true;

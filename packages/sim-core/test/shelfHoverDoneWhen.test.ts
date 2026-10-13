@@ -44,8 +44,10 @@ interface Flight {
   crashes: number;
 }
 
-async function fly(bp: Blueprint, seconds = 15): Promise<Flight> {
+async function fly(bp: Blueprint, seconds = 15, before = 0): Promise<Flight> {
   const w = await World.create({ seed: 1, scripts: host }, flat);
+  // The world may have been running for a while before the robot is put in it (in the app it always has).
+  for (let t = 0; t < before * 60; t++) w.step();
   const r = w.spawnBlueprint(raw(bp), { x: 0, y: START });
   let off = 0;
   let tilt = 0;
@@ -68,6 +70,13 @@ function expectHolds(f: Flight, name: string): void {
 }
 
 describe('shelf Hover: holds a height and stays level on robots it was never tuned for', () => {
+  it('climbs to its height when deployed into a world that has been running for a while (it goes by self.age, not the world clock)', async () => {
+    const f = await fly(give(shipped('drone', ['hover']), 'hover').blueprint, 15, 20);
+    expect(f.off).toBeLessThan(WITHIN);
+    expect(f.tilt).toBeLessThan(LEVEL);
+    expect(f.crashes).toBe(0);
+  });
+
   it('a small drone: the stock drone with its own hover script taken off', { timeout: 60_000 }, async () => {
     const g = give(shipped('drone', ['hover']), 'hover');
     expect(g.fit.slots.map((s) => [s.slot.group, s.guess.length])).toEqual([

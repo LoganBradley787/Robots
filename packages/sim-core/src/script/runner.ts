@@ -11,6 +11,8 @@ export interface ScriptSlot {
 
 export interface ScriptTickOutput {
   writes: ScriptWrite[];
+  /** Whose `writes` they are (M16, for the trace): each script that ran, in order, with how many of the writes are its own. */
+  writesBy: { script: string; count: number }[];
   /** Marks from this tick (M8), per script; a script that ran with none clears its old ones. */
   marks: { script: string; marks: ScriptMark[] }[];
   /** Whether any script ran (and so saw this tick's input, its inbox included). */
@@ -66,7 +68,7 @@ export class ScriptRunner {
 
   /** Runs every enabled script for this tick. `input` is built only when a script needs it. */
   tick(input: () => ScriptFrame, services?: ScriptServices): ScriptTickOutput {
-    const out: ScriptTickOutput = { writes: [], marks: [], ran: false, logs: [], crashes: this.pending };
+    const out: ScriptTickOutput = { writes: [], writesBy: [], marks: [], ran: false, logs: [], crashes: this.pending };
     this.pending = [];
     let built: ScriptFrame | undefined;
     for (const slot of this.slots) {
@@ -86,6 +88,7 @@ export class ScriptRunner {
       for (const r of results) {
         if (r.ok) {
           out.writes.push(...r.writes);
+          out.writesBy.push({ script: slot.id, count: r.writes.length });
           out.marks.push({ script: slot.id, marks: r.marks });
           out.logs.push(...r.logs.map((text) => ({ script: slot.id, text })));
         } else {

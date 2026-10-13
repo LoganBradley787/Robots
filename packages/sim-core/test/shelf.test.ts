@@ -7,7 +7,7 @@ import { toFileJson } from '../src/blueprint/serialize';
 import { loadBlueprint } from '../src/blueprint/validate';
 import { createQuickJsHost } from '../src/script/quickjs';
 import { scriptNameIssues, scriptRuns } from '../src/script/reading';
-import { attachBehavior, behaviorCopy, behaviorId, behaviorOrigin, fillSlot, fitBehavior, parseBehaviorHeader, type BehaviorHeader } from '../src/script/shelf';
+import { attachBehavior, behaviorCopy, behaviorEdited, behaviorId, behaviorOrigin, textSum, fillSlot, fitBehavior, parseBehaviorHeader, type BehaviorHeader } from '../src/script/shelf';
 import type { ScriptHost } from '../src/script/types';
 import { built, give, raw, registry, shelf, shipped } from './shelfHelp';
 
@@ -91,16 +91,30 @@ describe('parseBehaviorHeader', () => {
 describe('the origin mark of a copy', () => {
   it('behaviorCopy writes @from under @version, once, and behaviorOrigin reads it back', () => {
     const copy = behaviorCopy('hover', GOOD);
-    expect(copy.split('\n').slice(0, 4)).toEqual(['// @behavior Hover', '// @about Holds a height.', '// @version 3', '// @from hover 3']);
-    expect(behaviorOrigin(copy)).toEqual({ id: 'hover', version: 3 });
+    const sum = textSum(GOOD.replace(/\n+$/, ''));
+    expect(copy.split('\n').slice(0, 4)).toEqual(['// @behavior Hover', '// @about Holds a height.', '// @version 3', `// @from hover 3 ${sum}`]);
+    expect(behaviorOrigin(copy)).toEqual({ id: 'hover', version: 3, sum });
     expect(behaviorOrigin(GOOD)).toBeUndefined();
     // The rest of the file is as it was, and a copy of a copy carries one mark, the new one.
-    expect(copy.replace('// @from hover 3\n', '')).toBe(GOOD);
+    expect(copy.replace(`// @from hover 3 ${sum}\n`, '')).toBe(GOOD);
     expect(behaviorCopy('hover-two', copy).match(/@from/g)).toHaveLength(1);
-    expect(behaviorOrigin(behaviorCopy('hover-two', copy))).toEqual({ id: 'hover-two', version: 3 });
+    expect(behaviorOrigin(behaviorCopy('hover-two', copy))).toEqual({ id: 'hover-two', version: 3, sum });
     expect(parseBehaviorHeader(copy).problems).toEqual([]);
     expect(behaviorCopy('x', 'function tick() {}')).toBe('function tick() {}');
     expect(behaviorId('behaviors/aim-and-fire.js')).toBe('aim-and-fire');
+  });
+
+  it('behaviorEdited tells a copy that was changed from one that was not, by the check sum in its mark', () => {
+    const copy = behaviorCopy('hover', GOOD);
+    expect(behaviorEdited(copy)).toBe(false);
+    // Saved with other line ends or a blank line more at the end: still the same text.
+    expect(behaviorEdited(`${copy.replace(/\n/g, '\r\n')}\r\n`)).toBe(false);
+    expect(behaviorEdited(copy.replace('function tick() {}', 'function tick() { log(1); }'))).toBe(true);
+    expect(behaviorEdited(copy.replace('Holds a height.', 'Holds a height'))).toBe(true);
+    // Not a copy, or a mark without a sum (written by hand): nothing can be said.
+    expect(behaviorEdited(GOOD)).toBeUndefined();
+    expect(behaviorEdited(GOOD.replace('// @version 3', '// @version 3\n// @from hover 3'))).toBeUndefined();
+    expect(behaviorOrigin(GOOD.replace('// @version 3', '// @version 3\n// @from hover 3'))).toEqual({ id: 'hover', version: 3 });
   });
 
   it('the mark goes with the script through save and load: the blueprint file holds only a file name', () => {
@@ -111,7 +125,7 @@ describe('the origin mark of a copy', () => {
     const json = toFileJson(saved, registry);
     expect((json.scripts as unknown[])[0]).toEqual({ id: 'hover', source: { file: 'drone-two.hover.js' } });
     const files = new Map(scriptFiles(saved).map((f) => [f.file, f.text]));
-    expect(behaviorOrigin(files.get('drone-two.hover.js') ?? '')).toEqual({ id: 'hover', version: header(shelf('hover')).version });
+    expect(behaviorOrigin(files.get('drone-two.hover.js') ?? '')).toMatchObject({ id: 'hover', version: header(shelf('hover')).version });
     // Load: the same blueprint again, mark and groups and all.
     const loaded = loadBlueprint(resolveScripts(JSON.parse(JSON.stringify(json)), (f) => files.get(f)).raw, registry).blueprint;
     expect(loaded.scripts).toEqual(saved.scripts);

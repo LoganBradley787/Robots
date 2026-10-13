@@ -67,8 +67,8 @@ function entryOf(p: LayoutPart): unknown[] {
 
 /** Slots at the start of the numbers: 1 when every number is finite, then frame, dt, time. */
 export const HEADER = 4;
-/** Then `self`: pos x, y, vel x, y, angle, angVel, mass, energy stored, capacity. */
-export const SELF = 9;
+/** Then `self`: pos x, y, vel x, y, angle, angVel, mass, energy stored, capacity, age (M16). */
+export const SELF = 10;
 /** Then per part: pos x, y, angle, then its `in` values, then its `out` values. */
 export const PART_FIXED = 3;
 
@@ -173,7 +173,7 @@ export function putHead(numbers: Float64Array, input: Pick<ScriptInput, 'frame' 
   ok = put(numbers, 2, input.dt) && ok;
   ok = put(numbers, 3, input.time) && ok;
   let k = HEADER;
-  for (const v of [s.pos.x, s.pos.y, s.vel.x, s.vel.y, s.angle, s.angVel, s.mass, s.energy.stored, s.energy.capacity]) ok = put(numbers, k++, v) && ok;
+  for (const v of [s.pos.x, s.pos.y, s.vel.x, s.vel.y, s.angle, s.angVel, s.mass, s.energy.stored, s.energy.capacity, s.age ?? 0]) ok = put(numbers, k++, v) && ok;
   return ok;
 }
 

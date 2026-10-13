@@ -1,6 +1,6 @@
 import type { Binding } from '../blueprint/types';
 import { matchesTarget } from './target';
-import type { ControlledPart, ControlState } from './types';
+import type { ControlledPart, ControlState, ControlTrace, TraceInput, TraceWrite } from './types';
 
 interface Writer {
   index: number;
@@ -50,6 +50,11 @@ export class Controller {
   private readonly scriptLayer = new Map<string, Map<string, number>>();
   /** The parts each target a script wrote to reaches, in part order: found once, then kept as parts leave. */
   private readonly reached = new Map<string, readonly ControlledPart[]>();
+  /**
+   * The trace (M16, `trace`), only while something asked for it (`setTrace`): every script write of this tick as it
+   * was made, and which script wrote each value now in the script layer. Never read by `values`, never hashed.
+   */
+  private tracing: { writes: TraceWrite[]; by: Map<string, Map<string, string>> } | undefined;
 
   constructor(bindings: readonly Binding[], parts: readonly ControlledPart[]) {
     const keys: string[] = [];
@@ -101,8 +106,11 @@ export class Controller {
     return { down: [...this.held].sort(), pressed: [...this.pressedNow].sort(), released: [...this.releasedNow].sort() };
   }
 
-  /** A script's `set(target, channel, value)` for this tick: every controlled part the target reaches with that channel. */
-  scriptWrite(target: string, channel: string, value: number): void {
+  /**
+   * A script's `set(target, channel, value)` for this tick: every controlled part the target reaches with that channel.
+   * `by` is the script's id, kept only while tracing.
+   */
+  scriptWrite(target: string, channel: string, value: number, by = ''): void {
     let reach = this.reached.get(target);
     if (!reach) {
       // A script that makes up a new target every tick must not fill this for good.
@@ -110,12 +118,78 @@ export class Controller {
       reach = this.parts.filter((p) => matchesTarget(p, target));
       this.reached.set(target, reach);
     }
+    let parts = 0;
     for (const p of reach) {
       if (!p.inputs.some((c) => c.name === channel)) continue;
       let chans = this.scriptLayer.get(p.id);
       if (!chans) this.scriptLayer.set(p.id, (chans = new Map()));
       chans.set(channel, value);
+      parts++;
+      if (this.tracing) {
+        let who = this.tracing.by.get(p.id);
+        if (!who) this.tracing.by.set(p.id, (who = new Map()));
+        who.set(channel, by);
+      }
     }
+    if (this.tracing) this.tracing.writes.push({ script: by, target, channel, value, parts });
+  }
+
+  /** Switches the trace on or off (M16). Off is the default, and costs nothing. */
+  setTrace(on: boolean): void {
+    if (on === (this.tracing !== undefined)) return;
+    this.tracing = on ? { writes: [], by: new Map() } : undefined;
+  }
+
+  get traced(): boolean {
+    return this.tracing !== undefined;
+  }
+
+  /**
+   * This tick so far, for a live readout (M16): every `set()` the scripts made, and for each input that a key is
+   * bound to or a script wrote, its value and who decided it, by the same rule as `values` (a key that is held or
+   * toggled on wins, then a script, then the default). Read it after the scripts ran and before `endTick`. Undefined
+   * unless the trace is on. It reads state and changes none.
+   */
+  trace(): ControlTrace | undefined {
+    const t = this.tracing;
+    if (!t) return undefined;
+    const active = (w: Writer): boolean => (w.mode === 'hold' ? this.held.has(w.key) || this.pressedNow.has(w.key) : w.mode === 'toggle' ? this.toggles.has(w.index) : this.pulses.has(w.index));
+    /** Per part and input: every key bound to it, and whether it writes now. */
+    const bound = new Map<string, Map<string, { key: string; mode: Writer['mode']; value: number; active: boolean }[]>>();
+    for (const w of this.writers) {
+      const on = active(w);
+      for (const id of w.partIds) {
+        let chans = bound.get(id);
+        if (!chans) bound.set(id, (chans = new Map()));
+        let list = chans.get(w.channel);
+        if (!list) chans.set(w.channel, (list = []));
+        list.push({ key: w.key, mode: w.mode, value: w.value, active: on });
+      }
+    }
+    const inputs: TraceInput[] = [];
+    for (const [id, chans] of this.channels) {
+      for (const c of chans) {
+        const keys = bound.get(id)?.get(c.name) ?? [];
+        const scripted = this.scriptLayer.get(id)?.get(c.name);
+        if (keys.length === 0 && scripted === undefined) continue;
+        const held = keys.filter((k) => k.active);
+        const sum = held.length > 0 ? held.reduce((a, k) => a + k.value, 0) : undefined;
+        const v = sum ?? scripted;
+        const input: TraceInput = {
+          part: id,
+          channel: c.name,
+          min: c.min,
+          max: c.max,
+          default: c.default,
+          value: v === undefined ? c.default : Math.min(c.max, Math.max(c.min, v)),
+          source: sum !== undefined ? 'key' : scripted !== undefined ? 'script' : 'default',
+          keys,
+        };
+        if (scripted !== undefined) input.script = { id: t.by.get(id)?.get(c.name) ?? '', value: scripted };
+        inputs.push(input);
+      }
+    }
+    return { writes: t.writes.slice(), inputs };
   }
 
   /**
@@ -176,6 +250,7 @@ export class Controller {
     for (const k of old.releasedNow) this.releasedNow.add(k);
     this.toggledScripts.push(...old.toggledScripts);
     for (const [id, chans] of old.scriptLayer) if (this.channels.has(id)) this.scriptLayer.set(id, new Map(chans));
+    if (old.tracing) this.tracing = { writes: old.tracing.writes.slice(), by: new Map([...old.tracing.by].filter(([id]) => this.channels.has(id)).map(([id, who]) => [id, new Map(who)])) };
     for (const i of old.pulses) {
       const sig = old.writers.find((w) => w.index === i)?.sig;
       const w = this.writers.find((x) => x.sig === sig && x.mode === 'pulse');
@@ -197,6 +272,10 @@ export class Controller {
     this.releasedNow.clear();
     this.pulses.clear();
     this.scriptLayer.clear();
+    if (this.tracing) {
+      this.tracing.writes = [];
+      this.tracing.by.clear();
+    }
   }
 
   isHeld(key: string): boolean {

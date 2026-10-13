@@ -200,6 +200,21 @@ export function plainStrings(source: string): Set<string> {
   return new Set(tokens(source).flatMap((t) => (t.kind === 'string' ? [t.text] : [])));
 }
 
+/** One bare word of a script's code (never one inside a comment, a string, or a template), with what stands around it. */
+export interface CodeWord extends SourceSpot {
+  text: string;
+  /** The token just before it and just after it: a word, or one character (`.`, `(`, `=`); '' at either end of the script. */
+  before: string;
+  after: string;
+}
+
+/** Every bare word of a script's code, in order (M16, for checks that ask "does it use `contacts`", "does it define `tick`"). */
+export function codeWords(source: string): CodeWord[] {
+  const t = tokens(source);
+  const text = (k: number): string => (t[k]?.kind === 'string' ? 'string' : (t[k]?.text ?? ''));
+  return t.flatMap((w, k) => (w.kind === 'word' ? [{ text: w.text, before: text(k - 1), after: text(k + 1), ...spot(w) }] : []));
+}
+
 /** One argument of a call: tokens `from` up to `end` (the comma or closing bracket that ends it). */
 interface Arg {
   from: number;

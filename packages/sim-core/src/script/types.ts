@@ -111,6 +111,11 @@ export interface ScriptInput {
     angVel: number;
     mass: number;
     energy: { stored: number; capacity: number };
+    /**
+     * M16: seconds since this robot was put in the world, or since its piece broke off what carried it. `time` is the
+     * world's clock and says nothing of that. Absent only from input built by hand (it then reads 0).
+     */
+    age?: number;
   };
   /**
    * Every part still attached to the script's core, in world coordinates, with its mass (kg) from its def. `spec`

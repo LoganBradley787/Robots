@@ -34,6 +34,15 @@ describe('scripts in the world', () => {
     w.dispose();
   });
 
+  it('self.age is the time since the robot was put in the world, whatever the world clock says (M16)', async () => {
+    const w = await world();
+    for (let i = 0; i < 90; i++) w.step();
+    const r = w.spawnBlueprint(lifter(`function setup() { log('setup ' + self.age + ' ' + (time > 1)); } function tick() { if (frame === 150) log('age ' + self.age.toFixed(3)); }`), { x: 0, y: 1 });
+    for (let i = 0; i < 61; i++) w.step();
+    expect(w.scriptLogs.filter((l) => l.robot === r.id).map((l) => l.text)).toEqual(['setup 0 true', 'age 1.000']);
+    w.dispose();
+  });
+
   it('a held key overrides the script on that channel, and the script resumes on release', async () => {
     const w = await world();
     const r = w.spawnBlueprint(lifter(`function tick() { set('thruster', 'throttle', 0.25); }`), { x: 0, y: 1 });

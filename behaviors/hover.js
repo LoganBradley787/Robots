@@ -1,6 +1,6 @@
 // @behavior Hover
 // @about Holds a height and stays level, on anything that lifts. W and S move the height, A and D lean it to fly sideways.
-// @version 1
+// @version 2
 // @slot lift throttle "what lifts" required many owns guess up
 // @slot level spin "what levels" optional many
 // @note It reads each lifter's strength, place and direction off the part, and the robot's weight, every tick: add armor or one more lifter and it needs no retuning.
@@ -34,7 +34,8 @@ const ARM = 0.05; // m: a lifter closer to the middle than this is on neither si
 
 function setup() {
   // Just deployed: climb to its height. Switched on in flight: hold where it is.
-  state.target = self.pos.y + (time < 0.5 ? height : 0); // the height it holds; none while W or S is held
+  // `self.age` is how long this robot has been in the world (`time` is the world's clock, which runs before a deploy).
+  state.target = self.pos.y + (self.age < 0.5 ? height : 0); // the height it holds; none while W or S is held
   state.trim = 0; // what the balance misses, learned slowly
   state.said = '';
 }

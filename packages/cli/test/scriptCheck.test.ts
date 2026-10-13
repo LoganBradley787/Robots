@@ -47,6 +47,14 @@ describe('scriptIssues (review T2)', () => {
     expect(await lines("function tick() { set('wheels', 'speed', 1); set('wheel', 'speed', 1); set('wheel@0,0', 'speed', get('core', 'energy') > 0 ? 1 : 0); }")).toEqual([]);
   });
 
+  it('warns when a script reads contacts and nothing on the robot sees (M16)', async () => {
+    expect(await lines("function tick() {\n  if (contacts.length > 0) set('wheels', 'speed', 1);\n}")).toEqual([
+      "warning SCRIPT_SEES: script 'drive' (x.drive.js) line 2: contacts is always empty here. Nothing on this robot sees: add a part that does, such as a radar.",
+    ]);
+    const seeing = { format: 1, name: 'x', grid: ['C  F  Ra', 'W  .  W'], legend: { W: { part: 'wheel', tags: ['wheels'] }, Ra: { part: 'radar' } }, scripts: [{ id: 'drive', source: "function tick() { set('wheels', 'speed', contacts.length); }" }] };
+    expect(await scriptIssues(seeing)).toEqual([]);
+  });
+
   it('reports a syntax error with its line', async () => {
     expect(await lines('function tick() {\n  set(;\n}')).toEqual([expect.stringMatching(/^warning SCRIPT_SYNTAX: script 'drive' \(x\.drive\.js\) does not compile and would stop at t=0: SyntaxError: .* \(line 2\)$/)]);
   });

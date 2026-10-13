@@ -17,7 +17,7 @@ const base = (over: Partial<ScriptInput> = {}): ScriptInput => ({
   frame: 3,
   dt: 1 / 60,
   time: 3 / 60,
-  self: { pos: { x: 1, y: 2 }, vel: { x: 0, y: 0 }, angle: 0, angVel: 0, mass: 10, energy: { stored: 5, capacity: 6 } },
+  self: { pos: { x: 1, y: 2 }, vel: { x: 0, y: 0 }, angle: 0, angVel: 0, mass: 10, energy: { stored: 5, capacity: 6 }, age: 0 },
   parts: [
     { id: 'core@0,0', type: 'core', tags: ['core@0,0'], pos: { x: 1, y: 2 }, angle: 0, mass: 1, in: {}, out: { energy: 5 } },
     { id: 'propeller@0,1', type: 'propeller', tags: ['props', 'propeller@0,1'], pos: { x: 1, y: 3 }, angle: 0.5, mass: 1, in: { throttle: 0.3 }, out: {} },
@@ -57,7 +57,7 @@ describe('script frames (M9)', () => {
       ['core@0,0', 'core', ['core@0,0'], 1, [], ['energy']],
       ['propeller@0,1', 'propeller', ['props', 'propeller@0,1'], 1, ['throttle'], []],
     ]);
-    expect([...f.numbers]).toEqual([1, 3, 1 / 60, 3 / 60, 1, 2, 0, 0, 0, 0, 10, 5, 6, 1, 2, 0, 5, 1, 3, 0.5, 0.3]);
+    expect([...f.numbers]).toEqual([1, 3, 1 / 60, 3 / 60, 1, 2, 0, 0, 0, 0, 10, 5, 6, 0, 1, 2, 0, 5, 1, 3, 0.5, 0.3]);
     expect(f.numbers.length).toBe(HEADER + SELF + 4 + 4);
     expect(f.extras).toBe('');
     expect(extrasJson(base({ keys: { down: ['a'], pressed: [], released: [] } }))).toBe(JSON.stringify([{ down: ['a'], pressed: [], released: [] }, [], []]));

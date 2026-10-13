@@ -81,7 +81,7 @@ const drone = (): ScriptInput => ({
   frame: 1,
   dt: 1 / 60,
   time: 1 / 60,
-  self: { pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, angle: 0, angVel: 0, mass: 10, energy: { stored: 5, capacity: 6 } },
+  self: { pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, angle: 0, angVel: 0, mass: 10, energy: { stored: 5, capacity: 6 }, age: 0 },
   parts: [
     { id: 'core@1,0', type: 'core', tags: ['core@1,0'], pos: { x: 1, y: 0 }, angle: 0, mass: 1, in: {}, out: {}, spec: partSpec(reg.get('core')) },
     { id: 'propeller@0,0', type: 'propeller', tags: ['lift', 'propeller@0,0'], pos: { x: 0, y: 0 }, angle: 0, mass: 1, in: { throttle: 0 }, out: {}, spec: partSpec(reg.get('propeller')) },

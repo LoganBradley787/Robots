@@ -232,7 +232,7 @@ describe('a script handed a patch sees what it would after the whole layout', ()
     const now = [rows[0], { ...(rows[2] as LayoutPart), out: ['x', 'y'] }, rows[3]] as LayoutPart[];
     const r = i.tick(frameOf(2, now, 100, { id: 1, rows }));
     // a and d are the objects it kept, with this tick's numbers; c was made anew; b is gone and keeps its last numbers.
-    expect(r.ok && r.logs).toEqual(['a=120 c!125 d=131.25', 'a:116.25 b:21.25 c:26.25 d:127.5']);
+    expect(r.ok && r.logs).toEqual(['a=121.25 c!126.25 d=132.5', 'a:117.5 b:22.5 c:27.5 d:128.75']);
     i.dispose();
   });
 

@@ -4,7 +4,7 @@ import { Prng } from '../rng/Prng';
 import { StateHasher } from '../replay/StateHasher';
 import { InputLog, type WorldChange } from '../replay/InputLog';
 import { Controller } from '../control/controller';
-import type { ControlledPart, RobotInput } from '../control/types';
+import type { ControlledPart, ControlTrace, RobotInput } from '../control/types';
 import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
 import { allBindings, autoBindings } from '../control/autoControls';
 import { drainContainers, fillContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
@@ -365,6 +365,9 @@ export class World {
   private layouts = 0;
   /** M16: every part type's static numbers as one JSON text (`partSpecsJson`), made on first use and handed with every layout. */
   private partSpecs: string | undefined;
+  /** The robot whose control layer is traced (M16, `setTrace`), and its last tick's trace. Neither is simulation state. */
+  private tracedRobot: number | undefined;
+  private lastTrace: (ControlTrace & { robot: number; tick: number }) | undefined;
   /** Scripts per robot, on robots with a core. */
   private readonly runners = new Map<number, ScriptRunner>();
   /** Recent `log()` lines from scripts, oldest first (at most LOG_KEEP). */
@@ -589,8 +592,13 @@ export class World {
     for (const input of accepted) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
     for (const robot of this.unprimed) this.primeSights(robot);
     this.unprimed.clear();
+    if (this.tracedRobot !== undefined) this.controllers.get(this.tracedRobot)?.setTrace(true);
     this.runScripts();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
+    if (this.tracedRobot !== undefined) {
+      const t = this.controllers.get(this.tracedRobot)?.trace();
+      this.lastTrace = t ? { robot: this.tracedRobot, tick: this.tickCount, ...t } : undefined;
+    }
     this.armParts();
     this.runSolar();
     // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
@@ -1998,7 +2006,14 @@ export class World {
       } else {
         this.scriptMarks.delete(robotId);
       }
-      for (const w of out.writes) controller.scriptWrite(w.target, w.channel, w.value);
+      if (controller.traced) {
+        // The trace wants to know whose each write is (M16); the writes are applied in the same order either way.
+        let k = 0;
+        for (const by of out.writesBy) {
+          for (const w of out.writes.slice(k, k + by.count)) controller.scriptWrite(w.target, w.channel, w.value, by.script);
+          k += by.count;
+        }
+      } else for (const w of out.writes) controller.scriptWrite(w.target, w.channel, w.value);
       for (const c of out.crashes) this.events.push({ tick: this.tickCount, robot: robotId, kind: 'scriptCrashed', script: c.script, error: c.error });
       for (const l of out.logs) this.pushLog(robotId, l.script, l.text);
     }
@@ -2194,6 +2209,7 @@ export class World {
     ok = put(n, k++, feed.mass) && ok;
     ok = put(n, k++, energy.stored) && ok;
     ok = put(n, k++, energy.capacity) && ok;
+    ok = put(n, k++, (this.tickCount - robot.spawnTick) * this.dt) && ok;
     n[0] = ok ? 1 : 0;
     return true;
   }
@@ -2256,6 +2272,7 @@ export class World {
         angVel: s.w,
         mass,
         energy: { stored: energy?.stored ?? 0, capacity: energy?.capacity ?? 0 },
+        age: (this.tickCount - robot.spawnTick) * this.dt,
       },
       parts,
       keys,
@@ -2673,6 +2690,23 @@ export class World {
     const fooled = new Map<number, SeenDecoy>();
     const contacts = this.contactsFor(robot, false, fooled);
     return { sensors: this.workingSensors(robot), contacts: contacts.map((c) => ({ id: c.id, side: c.side, x: c.pos.x, y: c.pos.y, ...(fooled.has(c.id) ? { decoy: true as const } : {}) })) };
+  }
+
+  /**
+   * The trace (M16, for a live readout): asks the world to keep, for one robot, what each of its scripts set on the
+   * last tick and who decided each driven input (`ControlTrace`). Off (undefined) by default and when nobody listens.
+   * It is not simulation state: it is hashed nowhere, logged nowhere, and a run with it on is the same run.
+   */
+  setTrace(robotId: number | undefined): void {
+    if (robotId === this.tracedRobot) return;
+    if (this.tracedRobot !== undefined) this.controllers.get(this.tracedRobot)?.setTrace(false);
+    this.tracedRobot = robotId;
+    this.lastTrace = undefined;
+  }
+
+  /** The traced robot's last tick (`setTrace`), or undefined: no trace was asked for, the robot has not ticked since, or it has no core. */
+  trace(robotId: number): (ControlTrace & { robot: number; tick: number }) | undefined {
+    return this.lastTrace?.robot === robotId ? this.lastTrace : undefined;
   }
 
   /** A robot's scripts and whether each runs or crashed. Read-only. */
