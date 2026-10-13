@@ -60,6 +60,8 @@ export { DEFAULT_LIMITS } from './script/types';
 export { inputToFrame } from './script/frame';
 export type { ScriptFrame, ScriptLayout } from './script/frame';
 export { keysScriptsRead } from './script/keysRead';
+export { readScript, calls, plainStrings, scriptRuns, partsReached, scriptReach, partsScriptReaches, namesAvailable, deadNames, undrivenParts, scriptIdMentions, partDrivers, scriptNameIssues } from './script/reading';
+export type { SourceSpot, NameUse, ScriptName, BuiltTarget, ScriptReading, Call, ScriptRun, NameReach, DeadName, UndrivenPart, IdMention, PartDriver, PartDrivers } from './script/reading';
 export type { ScriptHost, ScriptInstance, ScriptError, ScriptInput, ScriptResult, ScriptWrite, ParamSpec, ScriptLimits, CompileOptions, CompileResult } from './script/types';
 export { GUN_OUTPUTS, SIGHT, type Shell, type GunSight } from './weapons/shells';
 export type { Beam } from './weapons/beams';
