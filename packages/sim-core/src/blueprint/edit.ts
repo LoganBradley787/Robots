@@ -1,4 +1,4 @@
-import { partCells, rootPartId } from '../assembly/assemble';
+import { isCore, partCells, rootPartId } from '../assembly/assemble';
 import { defaultSize } from '../parts/footprint';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
@@ -28,14 +28,32 @@ function uniqueId(base: string, taken: Set<string>): string {
   for (let n = 2; ; n++) if (!taken.has(`${base}#${n}`)) return `${base}#${n}`;
 }
 
-/** Places a part, replacing whatever covers its cells. Placing an identical part is a no-op. */
-export function placePart(bp: Blueprint, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation): Blueprint {
+export interface PlacePartOptions {
+  /**
+   * M16 (Shift while placing): when the new part covers exactly one part, it takes that part's place by the rules of
+   * `replacePartType` instead of wiping it: the old part's tags, the settings that still apply, and everything that
+   * named its id carry over. Covering no part, or several, places as without the option.
+   */
+  swap?: boolean;
+  /** With `swap`: `ReplaceOptions.keepTypeTag`. */
+  keepTypeTag?: boolean;
+}
+
+/**
+ * Places a part, replacing whatever covers its cells. Placing an identical part is a no-op. Without `opts` the new
+ * part is blank (its own id as its only tag), whatever it replaced; `opts.swap` keeps what the replaced part had.
+ */
+export function placePart(bp: Blueprint, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, opts: PlacePartOptions = {}): Blueprint {
   const probe: PlacedPart = { id: '', part, x, y, rot, tags: [] };
   const cells = cellsOf(probe, registry);
   const covered = (p: PlacedPart): boolean => cellsOf(p, registry).some((c) => cells.some((d) => d.x === c.x && d.y === c.y));
   const hit = bp.parts.filter(covered);
   const same = hit[0];
   if (hit.length === 1 && same && same.part === part && same.x === x && same.y === y && same.rot === rot) return bp;
+  if (opts.swap === true && hit.length === 1 && same) {
+    const r = swapPart(bp, registry, same, { part, x, y, rot }, opts);
+    if (r.ok) return r.blueprint;
+  }
   const cleared = removeParts(bp, hit.map((p) => p.id), registry);
   const id = uniqueId(partId(part, x, y), new Set(cleared.parts.map((p) => p.id)));
   return { ...cleared, parts: [...cleared.parts, { id, part, x, y, rot, tags: [id] }] };
@@ -370,4 +388,163 @@ export function movePartsBy(bp: Blueprint, registry: PartRegistry, steps: Readon
 /** Moves the given parts by (`dx`, `dy`) cells: `movePartsBy` with one step for all of them. */
 export function moveParts(bp: Blueprint, registry: PartRegistry, ids: readonly string[], dx: number, dy: number, opts: MoveOptions = {}): MoveResult {
   return movePartsBy(bp, registry, new Map(ids.map((id) => [id, { dx, dy }])), opts);
+}
+
+/** What a blueprint can set on one part besides its place, turn, and tags. */
+export type PartSetting = 'auto' | 'armed' | 'makes' | 'size';
+
+const SETTINGS: readonly PartSetting[] = ['auto', 'armed', 'makes', 'size'];
+
+export interface ReplaceOptions {
+  /**
+   * The new part also gets the old part's type name as a tag (a tag and a type share one namespace, `matchesTarget`),
+   * so a key or a script that drives the old type by name (`set('thruster', ...)`) still reaches it. It does not make
+   * a script's own `p.type === 'thruster'` true: `partDrivers` lists those as `typeTests`.
+   */
+  keepTypeTag?: boolean;
+}
+
+/** What a replaced part kept and lost (M16: the result of a swap is shown, not asked about first). */
+export interface ReplaceReport {
+  /** The old and new part types. */
+  from: string;
+  to: string;
+  oldId: string;
+  newId: string;
+  kept: {
+    rot: Rotation;
+    /** Its explicit tags (groups), without its id. */
+    tags: string[];
+    /** The settings it had off their defaults that the new part has too. */
+    settings: PartSetting[];
+  };
+  /** What did not carry over, each with the reason in plain words. `value` is the tag, the recipe, or the setting's value. */
+  dropped: { what: PartSetting | 'tag' | 'recipe' | 'core'; value?: string; why: string }[];
+  /** The old type's name, when it was added as a tag (`keepTypeTag`). */
+  typeTag?: string;
+}
+
+/** `ids` maps the replaced part's old id to its new one. */
+export type ReplaceResult = { ok: true; blueprint: Blueprint; report: ReplaceReport; ids: Map<string, string> } | { ok: false; error: string };
+
+/**
+ * The part `old` gives way to `next`, which takes over what `old` was (the rules of `replacePartType`), standing at
+ * `next`'s own cell and turn (the same as `old`'s for a swap in place).
+ */
+function swapPart(bp: Blueprint, registry: PartRegistry, old: PlacedPart, next: { part: string; x: number; y: number; rot: Rotation }, opts: ReplaceOptions): ReplaceResult {
+  if (!registry.has(next.part)) return { ok: false, error: `there is no part '${next.part}' (known: ${registry.ids().join(', ')})` };
+  const def = registry.get(next.part);
+  const explicit = old.tags.filter((t) => t !== old.id);
+  const report: ReplaceReport = { from: old.part, to: next.part, oldId: old.id, newId: old.id, kept: { rot: next.rot, tags: [], settings: [] }, dropped: [] };
+  if (old.part === next.part && old.x === next.x && old.y === next.y && old.rot === next.rot) {
+    report.kept.tags = explicit;
+    report.kept.settings = SETTINGS.filter((k) => old[k] !== undefined);
+    return { ok: true, blueprint: bp, report, ids: new Map([[old.id, old.id]]) };
+  }
+
+  // Anything else on the part comes along; the four settings only where the new part has them.
+  const { auto, armed, makes, size, ...rest } = old;
+  const made: PlacedPart = { ...rest, part: next.part, x: next.x, y: next.y, rot: next.rot };
+  const a = `a ${next.part}`;
+  if (auto === false) {
+    if (def.autoControl) made.auto = false;
+    else report.dropped.push({ what: 'auto', value: 'off', why: `${a} has no auto keys to turn off` });
+  }
+  if (armed === true) {
+    if (def.arming === true) made.armed = true;
+    else report.dropped.push({ what: 'armed', value: 'armed', why: `${a} is never armed` });
+  }
+  if (makes !== undefined) {
+    if (def.fabricate) made.makes = makes;
+    else report.dropped.push({ what: 'makes', value: makes, why: `${a} builds nothing` });
+  }
+  if (size !== undefined) {
+    const st = def.stretch;
+    const text = `${size[0]} by ${size[1]}`;
+    if (!st) report.dropped.push({ what: 'size', value: text, why: `${a} has one size` });
+    else if (size[0] < st.min[0] || size[0] > st.max[0] || size[1] < st.min[1] || size[1] > st.max[1]) report.dropped.push({ what: 'size', value: text, why: `${a} is ${st.min[0]} to ${st.max[0]} wide and ${st.min[1]} to ${st.max[1]} tall` });
+    else made.size = size;
+  }
+  report.kept.settings = SETTINGS.filter((k) => made[k] !== undefined);
+
+  const occupied = new Map<string, string>();
+  for (const p of bp.parts) if (p !== old) for (const c of cellsOf(p, registry)) occupied.set(`${c.x},${c.y}`, p.id);
+  for (const c of cellsOf(made, registry)) {
+    const hit = occupied.get(`${c.x},${c.y}`);
+    if (hit !== undefined) return { ok: false, error: `${a} does not fit in place of ${old.id}: it would cover ${hit} at (${c.x}, ${c.y})` };
+  }
+
+  const id = idFromPlace(old) ? uniqueId(partId(next.part, next.x, next.y), new Set(bp.parts.filter((p) => p !== old).map((p) => p.id))) : old.id;
+  report.newId = id;
+  const tags: string[] = [];
+  for (const t of explicit) {
+    // A tag that is the new part's own type name says nothing any more (swapping back undoes `keepTypeTag`).
+    if (t === next.part && t !== old.part) report.dropped.push({ what: 'tag', value: t, why: `${a} answers to '${t}' as its type` });
+    else if (!tags.includes(t)) tags.push(t);
+  }
+  report.kept.tags = [...tags];
+  if (opts.keepTypeTag === true && old.part !== next.part && !tags.includes(old.part)) {
+    tags.push(old.part);
+    report.typeTag = old.part;
+  }
+  made.id = id;
+  made.tags = [...tags.filter((t) => t !== id), id];
+
+  const ids = new Map([[old.id, id]]);
+  let out: Blueprint;
+  if (isCore(old, registry) && def.role !== 'core') {
+    // A core that becomes something else takes its controls with it, as if it had been removed (`removeParts`): the
+    // pilot's seat, its place in the takeover order, and its entry in `cores` cannot belong to a part that is no core.
+    const had = bp.cores?.some((c) => c.core === old.id) === true || bp.primaryCore === old.id || bp.corePriority?.includes(old.id) === true;
+    const cleared = removeParts(bp, [old.id], registry);
+    const parts = [...cleared.parts];
+    parts.splice(bp.parts.indexOf(old), 0, made);
+    // What is left that named it (a binding to its id) follows it to the new part.
+    out = renameIds(cleared, parts, ids);
+    if (had) report.dropped.push({ what: 'core', value: old.id, why: `${a} is not a core: nothing can be controlled from it` });
+  } else {
+    out = renameIds(bp, bp.parts.map((p) => (p === old ? made : p)), ids);
+  }
+  // Recipes no part makes any more are dropped, as when a bay is told to make nothing (`setPartsMakes`).
+  if (makes !== undefined && made.makes === undefined && out.recipes) {
+    const recipes = out.recipes.filter((r) => out.parts.some((p) => p.makes === r.name));
+    for (const r of out.recipes) if (!recipes.includes(r)) report.dropped.push({ what: 'recipe', value: r.name, why: 'no part makes it any more' });
+    if (recipes.length > 0) out.recipes = recipes;
+    else delete out.recipes;
+  }
+  return { ok: true, blueprint: out, report, ids };
+}
+
+/**
+ * Turns one part into another type where it stands (M16, Swap). The new part keeps the old one's cell, rotation,
+ * explicit tags (its groups), its place in part order, and the settings the new definition has too: `auto` off for a
+ * part with auto keys, `armed` for one that arms, `makes` for one that builds, `size` for one that stretches that far.
+ * Its id follows its type (`thruster@3,2` to `booster@3,2`; a hand-written id is kept) and everything that named the old
+ * id follows it (bindings, `cores`, `primaryCore`, `corePriority`). The report says what was kept and what was dropped
+ * and why. Refused, with the blueprint untouched, when there is no such part or type, or the new footprint would
+ * cover another part. Replacing a part with its own type changes nothing.
+ *
+ * A binding or a script that named the old type (`thruster`) no longer reaches the new part unless `keepTypeTag` is
+ * set; `partDrivers` (`script/reading.ts`) tells a caller whether anything does, and which inputs it uses that the new
+ * type lacks. Bindings are never rewritten or removed here: one left writing an input the new part lacks is the
+ * validator's to report.
+ */
+export function replacePartType(bp: Blueprint, registry: PartRegistry, id: string, newType: string, opts: ReplaceOptions = {}): ReplaceResult {
+  const old = bp.parts.find((p) => p.id === id);
+  if (!old) return { ok: false, error: `there is no part '${id}' to replace` };
+  return swapPart(bp, registry, old, { part: newType, x: old.x, y: old.y, rot: old.rot }, opts);
+}
+
+/**
+ * `placePart` with `swap`, with its report: the part held (`part` at `x`, `y`, turned `rot`) takes the place of the one
+ * part it covers. Refused when it covers no part or more than one (a plain `placePart` is the tool for those).
+ */
+export function replacePartAt(bp: Blueprint, registry: PartRegistry, part: string, x: number, y: number, rot: Rotation, opts: ReplaceOptions = {}): ReplaceResult {
+  if (!registry.has(part)) return { ok: false, error: `there is no part '${part}' (known: ${registry.ids().join(', ')})` };
+  const cells = cellsOf({ id: '', part, x, y, rot, tags: [] }, registry);
+  const hit = bp.parts.filter((p) => cellsOf(p, registry).some((c) => cells.some((d) => d.x === c.x && d.y === c.y)));
+  const old = hit[0];
+  if (!old) return { ok: false, error: `there is no part at (${x}, ${y}) to replace` };
+  if (hit.length > 1) return { ok: false, error: `a ${part} at (${x}, ${y}) would cover ${hit.length} parts (${hit.map((p) => p.id).join(', ')}); it can take the place of one` };
+  return swapPart(bp, registry, old, { part, x, y, rot }, opts);
 }
