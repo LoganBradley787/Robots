@@ -79,6 +79,38 @@ describe('scriptIssues (review T2)', () => {
     for (const l of said) expect(l).toMatch(/ \(tags here: wheels; part types here: (core|frame|wheel), (core|frame|wheel), (core|frame|wheel)\)$/);
   });
 
+  it('leaves alone a part type the script drives as one of several, and still says one it drives alone', async () => {
+    // `wheel` is there and takes `speed`: `thruster` with `speed` is the other half of "whichever it has".
+    expect(await lines("function tick() { set('wheel', 'speed', 1); set('thruster', 'speed', 1); }")).toEqual([]);
+    // Another input is another call: nothing on the robot takes `throttle` from this script.
+    expect((await lines("function tick() { set('wheel', 'speed', 1); set('thruster', 'throttle', 1); }")).map((l) => l.replace(/ \(tags here: .*$/, ''))).toEqual([
+      "warning SCRIPT_TARGET: script 'drive' (x.drive.js) line 1: set('thruster', ...) reaches nothing: no part has that tag, part type, or id",
+    ]);
+    // A tag is never one of several: `wheelz` beside a working `wheels` is still a mistake.
+    expect(await lines("function tick() { set('wheels', 'speed', 1); set('wheelz', 'speed', 1); }")).toHaveLength(1);
+  });
+
+  it('says once what copies of one script share, with the count and who runs them', async () => {
+    const guide = "function tick() {\n  set('fins', 'deflect', 0);\n}";
+    const bp = {
+      format: 1,
+      name: 'x',
+      grid: ['K  .  L  .  M', 'D  .  D  .  D', 'F  C  F  F  F'],
+      legend: { K: { part: 'core', tags: ['m1'] }, L: { part: 'core', tags: ['m2'] }, M: { part: 'core', tags: ['m3'] } },
+      primaryCore: 'core@1,0',
+      cores: {
+        'core@0,2': { scope: 'm1', scripts: [{ id: 'guide', source: guide }] },
+        'core@2,2': { scope: 'm2', scripts: [{ id: 'guide', source: guide }] },
+        'core@4,2': { scope: 'm3', scripts: [{ id: 'guide', source: `${guide}\n// its own copy, edited` }] },
+      },
+    };
+    const said = formatIssues(await scriptIssues(bp)).split('\n');
+    expect(said).toHaveLength(2);
+    expect(said[0]).toMatch(/^warning SCRIPT_TARGET: core core@0,2 \(m1\): script 'guide' line 2: set\('fins', \.\.\.\) reaches nothing: .*\); the same in 1 more copy of this script \(core core@2,2 \(m2\)\)$/);
+    // A copy that was edited is its own script.
+    expect(said[1]).toMatch(/^warning SCRIPT_TARGET: core core@4,2 \(m3\): script 'guide' line 2: set\('fins', \.\.\.\) reaches nothing: .*\)$/);
+  });
+
   it('does not guess at a target built in code, nor judge the names in a type or tag test', async () => {
     expect(await lines("function tick() { for (const p of parts) if (p.type === 'gun' || p.tags.includes('turret')) set(p.id, 'fire', 1); set('grip' + 1, 'fire', 1); }")).toEqual([]);
   });
@@ -124,9 +156,11 @@ describe('pnpm sim validate with scripts', () => {
   });
 
   it('finds nothing to say about any stock blueprint but names that reach nothing, and those are the known ones', async () => {
-    // M16: a plain name that reaches nothing is always said, and the stock robots share scripts that reach for part
-    // types and tags only some of them carry (a guide that arms `warhead` and `heavywarhead` alike). The robots are
-    // left as they are; this holds the list of such names still, so a new one is looked at when it appears.
+    // M16: a plain name that reaches nothing is said. A part type a script drives as one of several (a guide that
+    // arms `warhead` and `heavywarhead` alike) is left alone; what is left on the stock robots is tags only some of
+    // them carry (`bay`, `dprop`, `pd`) and a part type a shared script drives alone (`fin`, `swivelthruster`'s
+    // `swivel`, a `thruster`). The robots are left as they are; this holds the list of such names still, so a new
+    // one is looked at when it appears.
     const noisy: string[] = [];
     const dead = new Set<string>();
     for (const name of listBlueprints()) {
@@ -137,6 +171,6 @@ describe('pnpm sim validate with scripts', () => {
       }
     }
     expect(noisy).toEqual([]);
-    expect([...dead].sort()).toEqual(['bay', 'booster', 'charge', 'dprop', 'fin', 'gyro', 'heavywarhead', 'pd', 'swivelthruster', 'thruster', 'warhead']);
+    expect([...dead].sort()).toEqual(['bay', 'dprop', 'fin', 'pd', 'swivelthruster', 'thruster']);
   }, 120_000);
 });

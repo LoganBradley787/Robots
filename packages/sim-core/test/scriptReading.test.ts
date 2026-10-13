@@ -6,6 +6,7 @@ import { defaultRegistry } from '../src/parts/registry';
 import {
   calls,
   deadNames,
+  foldScriptIssues,
   namesAvailable,
   partDrivers,
   partsReached,
@@ -242,6 +243,24 @@ describe('deadNames', () => {
     expect(deadNames(readScript("set('warhead', 'detonate', 1); set('gun', 'fire', 1); get('core', 'energy');"), d, reg).map((x) => x.name)).toEqual(['warhead']);
   });
 
+  it('a part type the script drives as one of several is spare, not dead; alone, or as a tag, it is dead', () => {
+    const d = drone();
+    // The drone has guns and no cannon: firing both is "whichever it has".
+    const both = readScript("set('gun', 'fire', 1); set('cannon', 'fire', 1); if (get('laser', 'sight') < 5 || get('gun', 'sight') < 5) {}");
+    expect(deadNames(both, d, reg)).toEqual([]);
+    expect(scriptReach(both, d, reg).map((r) => [r.name.name, r.name.use, r.spare])).toEqual([['gun', 'set', undefined], ['cannon', 'set', true], ['laser', 'get', true], ['gun', 'get', undefined]]);
+    // Alone, the type is dead; so is one whose twin writes another input, or only reads where this one writes.
+    expect(deadNames(readScript("set('cannon', 'fire', 1);"), d, reg).map((x) => x.name)).toEqual(['cannon']);
+    expect(deadNames(readScript("set('lprop', 'throttle', 1); set('cannon', 'fire', 1);"), d, reg).map((x) => x.name)).toEqual(['cannon']);
+    expect(deadNames(readScript("get('gun', 'fire'); set('cannon', 'fire', 1);"), d, reg).map((x) => x.name)).toEqual(['cannon']);
+    // The twin must reach a part that has the input: `guns` has no `throttle`, so nothing takes this call at all.
+    expect(deadNames(readScript("set('guns', 'throttle', 1); set('thruster', 'throttle', 1);"), d, reg).map((x) => x.name)).toEqual(['thruster']);
+    // A group works as the twin; a dead tag never is spare, whatever sits beside it.
+    expect(deadNames(readScript("set('guns', 'fire', 1); set('cannon', 'fire', 1); set('gunz', 'fire', 1);"), d, reg).map((x) => x.name)).toEqual(['gunz']);
+    // Two absent types do not vouch for each other.
+    expect(deadNames(readScript("set('warhead', 'arm', 1); set('heavywarhead', 'arm', 1);"), d, reg).map((x) => x.name)).toEqual(['warhead', 'heavywarhead']);
+  });
+
   it('offers part ids only for a name that looks like one', () => {
     const d = drone();
     const dead = deadNames(readScript("set('gun@0,3', 'fire', 1)"), d, reg)[0];
@@ -450,6 +469,29 @@ describe('scriptNameIssues: the shared check', () => {
       expect.stringMatching(/^warning SCRIPT_TARGET: core core@0,4 \(missile1\): script 'guide' line 5: set\('rel1', \.\.\.\) reaches nothing.*\(tags here: tip, fins, burn; part types here: /),
       expect.stringMatching(/^warning SCRIPT_TARGET: core core@2,4 \(missile2\): script 'guide' line 1: set\('missile2\.fins', \.\.\.\) reaches nothing/),
     ]);
+  });
+
+  it('gives each issue its script and its text without the script\'s name, and folds what copies share', () => {
+    const b = launcher();
+    const code = "function tick() {\n  set('nothing', 'x', 1);\n}";
+    const cores = (b.cores ?? []).map((c) => ({ ...c, scripts: [{ id: 'guide', enabled: true, params: {}, source: code }] }));
+    const same = { ...b, scripts: [], cores };
+    const all = scriptRuns(same).flatMap((r) => scriptNameIssues(r, reg));
+    expect(all.map((i) => [i.run.core, i.run.scope, i.code])).toEqual([['core@0,4', 'missile1', 'SCRIPT_TARGET'], ['core@2,4', 'missile2', 'SCRIPT_TARGET']]);
+    expect(all[0]?.message).toBe(`core core@0,4 (missile1): script 'guide' ${all[0]?.body}`);
+    expect(all[0]?.body).toBe(all[1]?.body);
+    const folded = foldScriptIssues(all);
+    expect(folded).toHaveLength(1);
+    expect(folded[0]?.runs.map((r) => r.core)).toEqual(['core@0,4', 'core@2,4']);
+    expect(folded[0]?.message).toBe(`${all[0]?.message}; the same in 1 more copy of this script (core core@2,4 (missile2))`);
+    expect(folded[0]).toMatchObject({ severity: 'warning', code: 'SCRIPT_TARGET', body: all[0]?.body });
+    // Different code, or a different problem, is not folded; one issue alone is left as it is.
+    const other = { ...same, cores: cores.map((c, i) => (i === 1 ? { ...c, scripts: [{ ...c.scripts[0], id: 'guide', enabled: true, params: {}, source: `${code}\n` }] } : c)) };
+    const apart = foldScriptIssues(scriptRuns(other).flatMap((r) => scriptNameIssues(r, reg)));
+    expect(apart.map((f) => [f.runs.length, f.message.includes('the same in')])).toEqual([[1, false], [1, false]]);
+    // More than three other copies are counted, not all named.
+    const many = Array.from({ length: 6 }, (_, i) => ({ ...(all[0] as (typeof all)[number]), run: { ...(all[0] as (typeof all)[number]).run, label: `core c${i}: `, core: `c${i}` } }));
+    expect(foldScriptIssues(many)[0]?.message).toMatch(/; the same in 5 more copies of this script \(core c1, core c2, core c3, and 2 more\)$/);
   });
 
   it('says nothing for a script that was not loaded from its file', () => {

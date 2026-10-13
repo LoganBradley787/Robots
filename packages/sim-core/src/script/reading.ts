@@ -433,10 +433,27 @@ export interface NameReach {
    * input for `set`; an input or an output for `get`). Undefined otherwise.
    */
   channelFound?: boolean;
+  /**
+   * The name reaches nothing, but it is a part type the script drives as one of several: the same script makes the
+   * same call (`set` or `get`, the same input or output) on another plain name that does reach a part with it. A
+   * guide that arms `warhead` and `heavywarhead` alike means "whichever this robot has", so the one it lacks is spare,
+   * not dead (`deadNames` leaves it out). Only a registry part type can be spare: a tag that reaches nothing is dead.
+   */
+  spare?: true;
 }
 
 /** What each of a script's names reaches on the blueprint, for controls running under `scope`. */
 export function scriptReach(reading: ScriptReading, bp: Blueprint, registry: PartRegistry, scope?: string): NameReach[] {
+  const reach = plainReach(reading, bp, registry, scope);
+  for (const r of reach) {
+    const n = r.name;
+    if (r.parts.length > 0 || r.atRunTime || (n.use !== 'set' && n.use !== 'get') || n.channel === undefined || !registry.has(n.name)) continue;
+    if (reach.some((o) => o !== r && o.name.use === n.use && o.name.channel === n.channel && o.name.name !== n.name && o.channelFound === true)) r.spare = true;
+  }
+  return reach;
+}
+
+function plainReach(reading: ScriptReading, bp: Blueprint, registry: PartRegistry, scope?: string): NameReach[] {
   return reading.names.map((name) => {
     const parts = partsReached(bp, registry, name.name, scope);
     const out: NameReach = { name, parts: parts.map((p) => p.id), atRunTime: parts.length === 0 && reachesAtRunTime(bp, registry, name.name) };
@@ -497,14 +514,16 @@ export interface DeadName extends ScriptName {
  * The plain names of a script that reach nothing on the blueprint: no part has that tag, part type, or id for
  * controls under `scope`, and nothing a bay builds would answer to it. By default only the targets of `set()` and
  * `get()` are judged; `uses` can add `tag` (a `tags.includes('x')` no part satisfies). Type and id tests are never
- * judged: they may be about a robot the script is looking at. Targets built in code are not guessed at.
+ * judged: they may be about a robot the script is looking at. Targets built in code are not guessed at. A part type
+ * the robot lacks that the script drives as one of several is spare, not dead (`NameReach.spare`); a part type used
+ * alone, and any tag, is dead.
  */
 export function deadNames(reading: ScriptReading, bp: Blueprint, registry: PartRegistry, scope?: string, uses: readonly NameUse[] = ['set', 'get']): DeadName[] {
   const out: DeadName[] = [];
   let known: { types: string[]; tags: string[] } | undefined;
   for (const r of scriptReach(reading, bp, registry, scope)) {
     const n = r.name;
-    if (r.parts.length > 0 || r.atRunTime || !uses.includes(n.use) || n.use === 'type' || n.use === 'id') continue;
+    if (r.parts.length > 0 || r.atRunTime || r.spare === true || !uses.includes(n.use) || n.use === 'type' || n.use === 'id') continue;
     known ??= namesAvailable(bp, registry, scope);
     const all = [...known.tags, ...known.types, ...(n.name.includes('@') ? bp.parts.map((p) => p.id) : [])];
     const nearest = all.find((a) => scopedTwin(a, n.name)) ?? nearestNames(n.name, all)[0];
@@ -688,20 +707,82 @@ function listed(names: readonly string[]): string {
   return names.length > MAX_LISTED ? `${shown}, and ${names.length - MAX_LISTED} more` : shown;
 }
 
+/** An issue about one script, with the script it is about. `message` is `scriptWho(run)`, a space, then `body`. */
+export interface ScriptIssue extends Issue {
+  run: ScriptRun;
+  /** The message without the script's name: the same text for every copy of a script that has the same problem. */
+  body: string;
+}
+
+/** How messages name a script: `core core@2,1 (missile1): script 'guide' (x.missile1.guide.js)`. */
+export function scriptWho(run: ScriptRun): string {
+  return `${run.label}script '${run.script.id}'${run.script.file !== undefined ? ` (${run.script.file})` : ''}`;
+}
+
+/** A `ScriptIssue` from its parts. */
+export function scriptIssue(run: ScriptRun, code: string, body: string): ScriptIssue {
+  return { severity: 'warning', code, message: `${scriptWho(run)} ${body}`, run, body };
+}
+
+/** One issue that several copies of a script share: the first copy's issue, and every script it is about. */
+export interface FoldedScriptIssue extends Issue {
+  /** Every script the issue is about, the first one (the one `message` names) first. */
+  runs: ScriptRun[];
+  body: string;
+}
+
+const MAX_COPIES_LISTED = 3;
+
+/**
+ * Folds issues that are the same thing said of copies of one script (M16): a robot with twelve placed missiles runs
+ * twelve copies of one guide, and a name that reaches nothing in one reaches nothing in all. Issues fold when their
+ * code, their text after the script's name, and the script's code are all the same; the folded issue keeps the first
+ * one's message and adds how many more copies it holds for and who runs the first few
+ * (`; the same in 11 more copies of this script (core core@5,5 (missile-up2), ..., and 8 more)`). `runs` lists every
+ * script, so a builder can still show each. Order is that of each issue's first appearance.
+ */
+export function foldScriptIssues(issues: readonly ScriptIssue[]): FoldedScriptIssue[] {
+  const out: FoldedScriptIssue[] = [];
+  const byKey = new Map<string, FoldedScriptIssue>();
+  for (const i of issues) {
+    const source = i.run.script.source;
+    const key = `${i.severity}\0${i.code}\0${i.body}\0${typeof source === 'string' ? source : `file:${source.file}`}`;
+    const held = byKey.get(key);
+    if (held) {
+      held.runs.push(i.run);
+      continue;
+    }
+    const { run, ...rest } = i;
+    const folded: FoldedScriptIssue = { ...rest, runs: [run] };
+    byKey.set(key, folded);
+    out.push(folded);
+  }
+  for (const f of out) {
+    const more = f.runs.slice(1);
+    if (more.length === 0) continue;
+    const who = (r: ScriptRun): string => r.label.replace(/: $/, '') || "the robot's own";
+    const shown = more.slice(0, MAX_COPIES_LISTED).map(who).join(', ');
+    f.message += `; the same in ${more.length} more ${more.length === 1 ? 'copy' : 'copies'} of this script (${shown}${more.length > MAX_COPIES_LISTED ? `, and ${more.length - MAX_COPIES_LISTED} more` : ''})`;
+  }
+  return out;
+}
+
 /**
  * What is surely wrong with the names one script uses, as warnings (a robot with a script that reaches nothing still
- * spawns): `SCRIPT_TARGET` for a plain `set()` or `get()` target that reaches nothing on the robot (M16: a part type
- * the robot lacks included), with the line and the real names, nearest first; `SCRIPT_CHANNEL` for an input or output
- * none of the reached parts has, or, when the target is built in code, that no part type at all has. Targets built in
- * code are never guessed at. Each message starts with the script's name (`script 'hover' (drone.hover.js)`).
+ * spawns): `SCRIPT_TARGET` for a plain `set()` or `get()` target that reaches nothing on the robot, with the line and
+ * the real names, nearest first; `SCRIPT_CHANNEL` for an input or output none of the reached parts has, or, when the
+ * target is built in code, that no part type at all has. Targets built in code are never guessed at. A tag that
+ * reaches nothing always warns. A part type the robot lacks warns when the script uses it alone, and is left alone
+ * when the same script makes the same call on another name that does reach a part with that input (`NameReach.spare`:
+ * a guide that drives `warhead` and `heavywarhead` alike). Each message starts with the script's name
+ * (`script 'hover' (drone.hover.js)`); `foldScriptIssues` folds what copies of one script share.
  */
-export function scriptNameIssues(run: ScriptRun, registry: PartRegistry): Issue[] {
+export function scriptNameIssues(run: ScriptRun, registry: PartRegistry): ScriptIssue[] {
   const source = run.script.source;
   if (typeof source !== 'string') return [];
-  const issues: (Issue & { at: number })[] = [];
-  const who = `${run.label}script '${run.script.id}'${run.script.file !== undefined ? ` (${run.script.file})` : ''}`;
+  const issues: (ScriptIssue & { at: number })[] = [];
   const warn = (code: string, at: SourceSpot, message: string): void => {
-    issues.push({ severity: 'warning', code, message: `${who} line ${at.line}: ${message}`, at: at.start });
+    issues.push({ ...scriptIssue(run, code, `line ${at.line}: ${message}`), at: at.start });
   };
   const hint = (word: string, among: readonly string[]): string => {
     const near = nearestNames(word, among)[0];
@@ -731,7 +812,7 @@ export function scriptNameIssues(run: ScriptRun, registry: PartRegistry): Issue[
       warn('SCRIPT_TARGET', n, `${n.use}('${n.name}', ...) reaches nothing: no part has that tag, part type, or id${mean} (tags here: ${listed(order(known.tags)) || 'none'}; part types here: ${listed(order(known.types)) || 'none'})`);
       continue;
     }
-    if (n.channel === undefined || r.channelFound !== false) continue;
+    if (n.channel === undefined || r.channelFound !== false || r.spare === true) continue;
     const reads = n.use === 'get';
     const channel = n.channel;
     const reached = bp.parts.filter((p) => r.parts.includes(p.id));
