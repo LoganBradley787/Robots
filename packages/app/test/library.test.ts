@@ -11,7 +11,7 @@ describe('part categories', () => {
       expect(PART_CATEGORIES, d.id).toContain(d.category);
       expect(d.category, d.id).not.toBe(OTHER_CATEGORY);
       expect((d.about ?? '').length, d.id).toBeGreaterThan(10);
-      expect(d.about, d.id).not.toMatch(/—/);
+      expect(d.about, d.id).not.toContain(String.fromCharCode(0x2014));
     }
   });
 

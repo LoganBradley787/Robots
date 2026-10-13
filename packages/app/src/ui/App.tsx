@@ -3,9 +3,8 @@ import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import { Dialog } from './Dialog';
-import type { BuilderActions } from './actions';
+import type { BuilderActions, PartActions } from './actions';
 import { BuilderScreen } from './BuilderScreen';
-import type { PartMenuActions } from './PartMenu';
 import type { BindingActions } from './BindingsPanel';
 import { WorldToolbar, type WorldActions } from './WorldToolbar';
 import { KeysBar, type KeysBarActions } from './KeysBar';
@@ -13,7 +12,7 @@ import type { ScriptActions } from './ScriptsPanel';
 import { ScriptLog } from './ScriptLog';
 import type { ScriptEditorActions } from './ScriptEditor';
 
-export type AppActions = BuilderActions & PartMenuActions & BindingActions & WorldActions & KeysBarActions & ScriptActions & ScriptEditorActions;
+export type AppActions = BuilderActions & PartActions & BindingActions & WorldActions & KeysBarActions & ScriptActions & ScriptEditorActions;
 
 export function App({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
   const mode = useStore(store, (s) => s.mode);

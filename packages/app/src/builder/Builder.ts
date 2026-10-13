@@ -20,14 +20,14 @@ export class Builder {
   private readonly store: Store<AppState>;
   private issues: Issue[] = [];
   private panning: { id: number; x: number; y: number } | null = null;
-  /** Where the part menu opened, in page pixels. It stays put while you pan. */
-  private menuAt = { x: 0, y: 0 };
   /** Counts right-clicks on a part, so the inspector can turn to its Part tab on each one. */
   private partFocus = 0;
   /** Worked out from the draft once per change, not on every move of the mouse. */
   private stats: StaticStats;
   private controls: { bp: Blueprint; core: string | undefined; view: ControlsView; cores: { core?: string; label: string }[] } | undefined;
   private spaceDown = false;
+  /** The canvas size as of the last frame drawn. */
+  private screen = { w: 1440, h: 900 };
   /** The core whose controls the panels edit (M7); undefined is the main core. */
   controlsFor: string | undefined;
 
@@ -50,6 +50,8 @@ export class Builder {
     this.history.reset(bp);
     this.editor = initialEditor();
     this.controlsFor = undefined;
+    // A robot just opened sits in the middle of the board, all of it in view.
+    this.scene.show(bp, this.registry, this.screen);
     this.refresh(true);
   }
 
@@ -126,7 +128,6 @@ export class Builder {
       return;
     }
     if (e.button !== 0 && e.button !== 2) return;
-    if (e.button === 2) this.menuAt = { x: e.clientX, y: e.clientY };
     // A right-click on a part selects it and shows it in the inspector.
     if (e.button === 2 && partAt(this.draft, this.registry, cell.x, cell.y)) this.partFocus++;
     this.dispatch({ type: 'down', cell, button: e.button === 2 ? 'right' : 'left', shift: e.shiftKey });
@@ -214,6 +215,7 @@ export class Builder {
   }
 
   frame(w: number, h: number): void {
+    this.screen = { w, h };
     this.scene.frame(w, h);
   }
 
@@ -266,7 +268,6 @@ export class Builder {
         cores,
         eraser: e.eraser === true,
         selection: e.selection,
-        ...(e.menu ? { menu: { ids: e.menu.ids.filter((id) => bp.parts.some((p) => p.id === id)), ...this.menuAt } } : {}),
         ...(e.hover ? { hover: e.hover } : {}),
         partFocus: this.partFocus,
         mirror: e.mirror,

@@ -23,7 +23,11 @@ export function HintLine({ store, registry }: { store: Store<AppState>; registry
   return (
     <div class="hint plate">
       <span class="text">
-        {stamp ? (
+        {selected > 0 ? (
+          <>
+            {selected} selected. <K>R</K> turns, <K>Del</K> removes, <K>Shift</K>+click adds or removes, <K>Esc</K> lets go.
+          </>
+        ) : stamp ? (
           <>
             Click to place a copy of <b>{stamp.name}</b>. <K>R</K> turns it, <K>F</K> flips it, <K>Esc</K> puts it down.
           </>
@@ -34,10 +38,6 @@ export function HintLine({ store, registry }: { store: Store<AppState>; registry
         ) : held ? (
           <>
             Click or drag to place <b>{name}</b>. <K>R</K> turns it, <K>Esc</K> puts it down. Right-click a part to look at it.
-          </>
-        ) : selected > 0 ? (
-          <>
-            {selected} selected. <K>R</K> turns, <K>Del</K> removes, <K>Shift</K>+click adds or removes, <K>Esc</K> lets go.
           </>
         ) : (
           <>

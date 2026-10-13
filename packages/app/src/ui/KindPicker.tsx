@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { cleanKind, NO_KIND } from '../builder/library';
 import { Popover } from './kit';
 
@@ -10,7 +10,7 @@ export function KindPicker({ kind, kinds, onPick, class: cls = 'kind' }: { kind:
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) input.current?.focus();
   }, [open]);
   const pick = (k: string | undefined): void => {

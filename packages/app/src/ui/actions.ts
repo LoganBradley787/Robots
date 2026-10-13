@@ -39,3 +39,18 @@ export interface BuilderActions {
   /** Asks for the pictures and counts of these saved robots (the library and the Assemblies tab). */
   needMeta(files: string[]): void;
 }
+
+/** What the inspector's Part tab can do to the selected parts (it was the floating part menu). */
+export interface PartActions {
+  addTag(ids: string[], tag: string): void;
+  removeTag(ids: string[], tag: string): void;
+  setAuto(ids: string[], on: boolean): void;
+  /** M10: start these parts (ones that need arming) armed or not. */
+  setArmed(ids: string[], on: boolean): void;
+  /** M12: what these fabricators build: a saved blueprint's file, a recipe the blueprint has, or nothing. */
+  setMakes(ids: string[], choice: { file: string } | { recipe: string } | undefined): void;
+  /** M12: grow or shrink these stretchy parts' hollows, each from its own size. */
+  resize(ids: string[], dw: number, dh: number): void;
+  rotate(dir: 1 | -1): void;
+  deleteSelection(): void;
+}

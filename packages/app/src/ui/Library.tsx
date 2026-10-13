@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { groupByKind, kindsOf } from '../builder/library';
 import type { Store } from './store';
 import { useStore } from './store';
@@ -19,7 +19,7 @@ export function Library({ store, actions }: { store: Store<AppState>; actions: B
   const [query, setQuery] = useState('');
   const search = useRef<HTMLInputElement>(null);
   const close = (): void => store.set((s) => ({ panel: { ...s.panel, overlay: undefined } }));
-  useEffect(() => search.current?.focus(), []);
+  useLayoutEffect(() => search.current?.focus(), []);
   useEffect(() => actions.needMeta(doc.files.map((f) => f.file)), [doc.files]);
   // The open robot shows the kind it has on screen, saved or not.
   const files = doc.files.map((f) => (f.file === doc.file ? { file: f.file, name: f.name, ...(draftKind !== undefined ? { kind: draftKind } : {}) } : f));

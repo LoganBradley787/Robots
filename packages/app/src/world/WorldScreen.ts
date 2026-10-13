@@ -541,7 +541,7 @@ export class WorldScreen {
         ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name} (${this.world.robots.indexOf(focus) + 1}/${this.world.robots.length})   ${s.speed.toFixed(1)} m/s   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
         : this.world.robots.length > 0
           ? 'following no robot: click one, or press , for the next'
-          : 'no robots yet: build one and press Deploy';
+          : 'no robots yet: build one and press Test';
     const p = this.placing;
     const placingLines = p
       ? [

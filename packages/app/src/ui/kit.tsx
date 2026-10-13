@@ -258,7 +258,7 @@ export function Select({ value, options, onChange, placeholder, title, label }: 
   const search = useRef<HTMLInputElement>(null);
   const current = options.find((o) => o.value === value);
   const long = options.length > 9;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) search.current?.focus();
     else setQuery('');
   }, [open]);

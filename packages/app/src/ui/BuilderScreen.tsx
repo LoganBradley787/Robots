@@ -10,7 +10,6 @@ import { Drawer } from './Drawer';
 import { Inspector } from './Inspector';
 import { BoardChips } from './BoardChips';
 import { HelpCard, HintLine } from './HintLine';
-import { PartMenu } from './PartMenu';
 import { ScriptEditor } from './ScriptEditor';
 import { Hotbar } from './Hotbar';
 import { Library } from './Library';
@@ -53,7 +52,6 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
       <Inspector store={store} registry={registry} actions={actions} />
       <HintLine store={store} registry={registry} />
       <HelpCard store={store} />
-      <PartMenu store={store} registry={registry} actions={actions} />
       <ScriptEditorHost store={store} actions={actions} />
       {overlay === 'library' && <Library store={store} actions={actions} />}
     </div>

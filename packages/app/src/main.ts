@@ -22,7 +22,7 @@ import { createStore } from './ui/store';
 import type { AppState } from './ui/appState';
 import { App } from './ui/App';
 import { BuilderScene } from './builder/BuilderScene';
-import { applyLayout, BOARD_OFFSET } from './ui/layout';
+import { applyLayout, BOARD_INSETS } from './ui/layout';
 import { HOTBAR_KEY, pushRecent, readHotbar, readRecent, RECENT_KEY, setSlot, swapSlots, type Hotbar } from './builder/hotbar';
 import { cleanKind } from './builder/library';
 import { robotThumbnail } from './render/partDraw';
@@ -84,8 +84,9 @@ async function boot(): Promise<void> {
     meta: {},
   });
   applyLayout(uiEl);
-  const scene = new BuilderScene(renderer.builder, (f) => textures.part(f), BOARD_OFFSET);
+  const scene = new BuilderScene(renderer.builder, (f) => textures.part(f), BOARD_INSETS);
   const builder = new Builder(registry, scene, store, blank);
+  scene.show(blank, registry, { w: renderer.screenWidth, h: renderer.screenHeight });
   builder.setHotbar(store.get().hotbar);
   builder.onHold = (part) => {
     const recent = pushRecent(store.get().recent, part);
@@ -330,7 +331,6 @@ async function boot(): Promise<void> {
         })
         .catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
     },
-    closeMenu: () => builder.dispatch({ type: 'closeMenu' }),
     eraser: () => builder.dispatch({ type: 'eraser' }),
     putDown: () => {
       const e = builder.editor;

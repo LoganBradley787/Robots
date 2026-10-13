@@ -40,12 +40,15 @@ export class BuilderScene {
   private readonly overlay = new Graphics();
   private readonly texture: (name: string) => Texture;
   private bgSize = { w: 0, h: 0 };
-  /** Where the middle of the board the player sees is, from the middle of the canvas, in pixels: the panels cover its edges. */
+  /** What the panels cover of the canvas, from each edge, in pixels: the board the player sees is what is left. */
+  private readonly insets: { left: number; right: number; top: number; bottom: number };
+  /** Where the middle of that board is, from the middle of the canvas. */
   private readonly offset: { x: number; y: number };
 
-  constructor(root: Container, frame: (name: string) => Texture, offset: { x: number; y: number } = { x: 0, y: 0 }) {
+  constructor(root: Container, frame: (name: string) => Texture, insets: { left: number; right: number; top: number; bottom: number } = { left: 0, right: 0, top: 0, bottom: 0 }) {
     this.texture = frame;
-    this.offset = offset;
+    this.insets = insets;
+    this.offset = { x: (insets.left - insets.right) / 2, y: (insets.top - insets.bottom) / 2 };
     this.content.addChild(this.buildGrid(), this.parts, this.overlay, this.ghost);
     root.addChild(this.bg, this.content);
   }
@@ -167,6 +170,26 @@ export class BuilderScene {
       g.moveTo(c.x - r, c.y).lineTo(c.x + r, c.y).moveTo(c.x, c.y - r).lineTo(c.x, c.y + r).stroke({ color: BUILDER_BG, width: 2 });
     }
     void registry;
+  }
+
+  /**
+   * Puts a robot in the middle of the board, zoomed out as far as it takes to see all of it (never closer than the
+   * usual zoom). `screen` is the canvas size. An empty robot puts cell (0, 0) in the middle.
+   */
+  show(bp: Blueprint, registry: PartRegistry, screen: { w: number; h: number }): void {
+    const cells = bp.parts.flatMap((p) => (registry.has(p.part) ? partCells(p, registry).map((c) => c.cell) : [{ x: p.x, y: p.y }]));
+    if (cells.length === 0) {
+      this.cam = { ...this.cam, x: 0, y: 0, zoom: 2 };
+      return;
+    }
+    const xs = cells.map((c) => c.x);
+    const ys = cells.map((c) => c.y);
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    // Room around it for the chips at the top and the hotbar at the bottom.
+    const w = Math.max(200, screen.w - this.insets.left - this.insets.right - 80);
+    const h = Math.max(200, screen.h - this.insets.top - this.insets.bottom - 170);
+    const fit = Math.min(w / ((x1 - x0 + 1) * PIXELS_PER_METER), h / ((y1 - y0 + 1) * PIXELS_PER_METER));
+    this.cam = { ...this.cam, x: (x0 + x1) / 2, y: (y0 + y1) / 2, zoom: Math.max(0.25, Math.min(2, fit)) };
   }
 
   /** Called every frame while the builder is visible. */

@@ -17,8 +17,6 @@ export interface BuilderView {
   cores: { core?: string; label: string }[];
   eraser: boolean;
   selection: string[];
-  /** The part menu: which parts it edits and where it opened (page pixels). */
-  menu?: { ids: string[]; x: number; y: number };
   /** The cell under the cursor. */
   hover?: { x: number; y: number };
   /** Goes up by one on each right-click on a part: the inspector turns to its Part tab. */
