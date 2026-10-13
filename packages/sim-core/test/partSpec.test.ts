@@ -59,7 +59,7 @@ describe('partSpec: a definition\'s static numbers (M16)', () => {
       // `acts` (M16) is the one number at the top besides those: the face the part acts along, in degrees.
       expect(spec.acts).toBe(def.acts === undefined ? undefined : { E: 0, N: 90, W: 180, S: 270 }[def.acts]);
       for (const key of Object.keys(spec).slice(4)) {
-        if (key === 'acts') continue;
+        if (key === 'acts' || key === 'tip') continue;
         const block = spec[key] as Record<string, unknown>;
         const from = (def as unknown as Record<string, Record<string, unknown>>)[key];
         expect(Object.keys(block).length).toBeGreaterThan(0);

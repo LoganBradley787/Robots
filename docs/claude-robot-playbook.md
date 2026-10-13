@@ -93,7 +93,8 @@ function tick() {
 }
 ```
 - `self`: `{ pos: {x, y}, vel: {x, y}, angle, angVel, mass, energy: { stored, capacity } }` of the script's core and its piece. Angles in radians, counterclockwise positive, 0 as built.
-- `parts`: `[{ id, type, tags, pos, angle, mass, in, out, spec }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `mass` in kg, `in` the input channels, `out` the outputs like a decoupler's `armed`.
+- `parts`: `[{ id, type, tags, pos, angle, mass, in, out, rot, on, spec }]` for every part in the piece still attached: `pos` and `angle` in world coordinates, `mass` in kg, `in` the input channels, `out` the outputs like a decoupler's `armed`.
+- `part.rot`, `part.on`, `spec.acts`, `spec.tip` (M16): `angle` is the angle of the body the part is on, not the part's own turn. `rot` is how it was built turned (degrees counterclockwise, as in the blueprint) and `spec.acts` the way that kind of part acts when unturned (degrees, 90 is up), so a part pushes, fires, or looks along `p.angle + (p.rot + p.spec.acts) * Math.PI / 180`. `spec.tip` is where its acting end is (a barrel's end) from `pos`, built unturned, in meters: turn it by `angle + rot`. `on` is the id of the joint part that carries it (`''` for none; a joint's own `on` is the joint under it), which is how a script finds the hinge that aims a gun without knowing any names.
 - `part.spec` (M16): the part definition's static numbers, the same frozen object for every part of a type. `spec.in.<input>` is `{ min, max, default }`; `spec.config` is the behavior's numbers (`maxForce` of a thruster, propeller, or booster in N; `maxTorque` of a gyro in N m; a rotator's `range` and `turnSpeed`; a wheel's `maxSpeed`); `spec.powerDraw` and `spec.maxHealth`; and any other block of numbers the definition has, under its own name (`spec.gun.speed`, `spec.gun.range`, `spec.sensor.range`, `spec.resource.capacity`, `spec.joint.maxTorque`). It says what the definition says, not what the part is doing right now.
 - `set(target, channel, value)`, `get(target, channel)`: target is a tag, a part type, or an id. `get` is a lookup (the parts are kept by type and tag), so it costs the same on a 40 part robot and a 4000 part one.
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
@@ -115,6 +116,27 @@ For a robot Logan may edit by hand in the builder (add a gun, swap a thruster, t
 - **No hardcoded counts or orders.** Not `COUNT = 4` or `ORDER = [1, 4, 2, 3]`: count the group (`parts.filter((p) => p.tags.includes('rack'))`) and sort it by position or tag.
 - **Plain names where you can.** `set('guns', ...)` is read by the builder and by `validate`; a target built in code (`'grip' + k`, `set(p.id, ...)`) works the same in the world but cannot be checked or shown.
 - **A part type in `set()` reaches only that type.** `set('thruster', ...)` does not reach a `swivelthruster` swapped in for it (the builder's Swap leaves the old type's name on the new part as a tag for exactly this), and a script's own `p.type === 'thruster'` never matches the new part. A group has neither problem.
+
+### Shared behaviors: the shelf (M16)
+`behaviors/` at the repo root holds scripts written to work on any robot: `hover.js`, `aim-and-fire.js`, `guide.js`. Logan adds one to a robot in the builder, which copies the file as that robot's own script and tags the parts he picks. The format and the rules are in `docs/design/04-control-and-scripting.md`, Shared behaviors. Before writing a hover or a turret script for a robot, check whether the shelf one does the job.
+
+To add a behavior to the shelf:
+1. **One file**, `behaviors/<id>.js`, lowercase with dashes. It is an ordinary script with a header of line comments at the very top:
+   ```js
+   // @behavior Hold still
+   // @about One line a person reads in the builder.
+   // @version 1
+   // @slot lift throttle "what lifts" required many owns guess up
+   // @slot level spin "what levels" optional many
+   // @needs sensor "something that sees, such as a radar"
+   // @note Anything worth telling whoever adds it.
+   ```
+   A slot is `@slot <group> <input> "<label>"`, then `required` or `optional`, `one` or `many`, `owns` (it drives these parts every tick, so the builder takes them off their auto keys), and `guess` with hints for the builder's first guess: `up`, `has:<output>`, `carries:<slot>`, `on:<slot>`. Several inputs are written `spin|swivel|deflect`.
+2. **Slots are typed by input, never by part type.** The script finds its parts with `p.tags.includes('<group>')`, checks the input is there (`p.in.throttle !== undefined`), and drives each by id (`set(p.id, 'throttle', v)`). No `p.type`, no part name in quotes: a test fails the file otherwise.
+3. **No numbers typed in by hand.** Strength from `p.spec`, place from `p.pos`, direction from `p.angle`, `p.rot` and `p.spec.acts`, the joint that carries a part from `p.on`, weight from `self.mass`, all read every tick, so adding armor or one more engine needs no retuning. `param()` only for what a person would want to set, always with `min` and `max`.
+4. **Say what is wrong, once, in plain words** with `log()`: an empty group, too little lift, nothing that can turn it. Start the line with the behavior's name.
+5. **Bump `@version`** when you change a shelf file that robots may already carry a copy of. Copies are never changed for you: each carries `// @from <id> <version>` and the builder offers the update.
+6. **Test it headless on at least three different robots** before it ships, in `packages/sim-core/test/` like `shelfHoverDoneWhen.test.ts`: robots get the behavior through `give()` in `test/shelfHelp.ts` (which calls `attachBehavior`, `fitBehavior`, `fillSlot`, as the builder does), never by editing files in `blueprints/`. Include the same robot with a part added and with one removed. Write the tolerance and what you measured at the top of the test. `shelf.test.ts` checks every file in `behaviors/` by itself: the header, that it compiles, that every param has a range, and rule 2.
 
 ## Numbers that matter
 Run `pnpm sim parts` for the full table. g is 9.81.
