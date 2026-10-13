@@ -1,10 +1,11 @@
 // @behavior Hover
-// @about Holds a height and stays level, on anything that lifts. W and S move the height, A and D lean it to fly sideways.
-// @version 2
-// @slot lift throttle "what lifts" required many owns guess up
+// @about Holds a height and stays level, on anything that lifts. W and S move the height, A and D fly it sideways: it leans, and runs whatever pushes that way.
+// @version 3
+// @slot lift throttle "what lifts" required many owns
 // @slot level spin "what levels" optional many
 // @note It reads each lifter's strength, place and direction off the part, and the robot's weight, every tick: add armor or one more lifter and it needs no retuning.
 // @note Lifters in the group that point down are used to push down when cutting the lift is not enough.
+// @note Ones that point sideways push it along with A and D and brake its sideways speed when the keys are let go, as hard as it can still stay level and keep its height.
 // @note Without anything in "what levels" it levels by running the lifters on one side harder, which needs lifters on both sides of the middle.
 //
 // How it works (the hover of the fab drones, with nothing typed in by hand):
@@ -16,6 +17,9 @@
 //   `level`, each with `spec.config.maxTorque`) and how heavy it is to turn (from every part's mass and place), throws
 //   itself toward the lean it wants and brakes at the last moment it still can. Weight off center is balanced from
 //   the parts, so it does not tilt when one side is heavier or loses a lifter.
+// - Sideways: the lifters that push across the robot run at full the way A or D asks, and against its sideways
+//   speed with the keys let go. What they add upward and how they turn it is handed to the height and the leveling as
+//   a known push, and they are held back to what the leveling can still cancel and the lift can still carry.
 // - Plates in the air (parts with `spec.config.area`: fins, also those of a missile it carries) are worked out and
 //   cancelled, so they do not tip it over at speed.
 
@@ -31,6 +35,8 @@ const MARGIN = 0.7; // share of its full turning or climbing power it plans its 
 const BRAKE = 0.04; // radians of lean against each m/s of sideways speed, with A and D let go
 const SPARE = 1; // m/s^2 of climb it keeps in hand while leaning, so leaning never costs it height
 const ARM = 0.05; // m: a lifter closer to the middle than this is on neither side
+const SLOW = 3; // 1/s: how hard the sideways lifters brake its sideways speed, with A and D let go
+const SHARE = 0.25; // share of its turning power the sideways lifters may use up by being off center
 
 function setup() {
   // Just deployed: climb to its height. Switched on in flight: hold where it is.
@@ -87,11 +93,12 @@ function body() {
 
 /**
  * The lifters: every part in the group `lift` that has a throttle and a push. `up` are the ones that push up (as the
- * robot stands now), `down` the ones that push down; one that pushes sideways is left alone.
+ * robot stands now), `down` the ones that push down, `side` the ones that push across it.
  */
 function lifters(b) {
   const up = [];
   const down = [];
+  const side = [];
   const c = Math.cos(self.angle);
   const s = Math.sin(self.angle);
   for (const p of parts) {
@@ -106,16 +113,17 @@ function lifters(b) {
     const rx = p.pos.x - b.cx;
     const ry = p.pos.y - b.cy;
     const arm = rx * uy - ry * ux; // its turn on the robot per newton, counterclockwise positive
-    const l = { id: p.id, force, uy, arm, side: arm > ARM ? 1 : arm < -ARM ? -1 : 0 };
+    const l = { id: p.id, force, ux, uy, arm, side: arm > ARM ? 1 : arm < -ARM ? -1 : 0 };
     if (along > 0.5) up[up.length] = l;
     else if (along < -0.5) down[down.length] = l;
+    else side[side.length] = l;
   }
-  return { up, down };
+  return { up, down, side };
 }
 
 function tick() {
   const b = body();
-  const { up, down } = lifters(b);
+  const { up, down, side } = lifters(b);
   if (up.length === 0) {
     say('Hover: nothing in the group "lift" pushes up. Put the parts that lift in that group.');
     return;
@@ -173,7 +181,7 @@ function tick() {
     climbing = Math.sign(err) * Math.min(Math.sqrt(2 * MARGIN * stop * Math.abs(err)), 3 * hold * Math.abs(err), climb);
   }
   const upward = clamp(5 * hold * (climbing - self.vel.y), -G - push / self.mass, rise);
-  const need = self.mass * (G + upward) - b.airUp; // N upward it wants from its lifters
+  let need = self.mass * (G + upward) - b.airUp; // N upward it wants from its lifters
 
   // The lean it wants: A and D, else leaning against its sideways speed to stop. It never leans further than its
   // lifters at full still hold its weight with some left to climb on.
@@ -199,14 +207,39 @@ function tick() {
   // Torque to reach that spin within a few ticks: this is full torque almost all the way, then full braking.
   const torque = clamp((b.inertia * (spin - self.angVel)) / (4 * dt), -cwMax, ccwMax);
 
+  // Sideways: A and D run the lifters that push that way at full; let go, they push against its sideways speed.
+  let across = -SLOW * self.mass * self.vel.x; // N to the right it wants from them
+  if (fly > 0.5 && keys.down('a')) across = -Infinity;
+  if (fly > 0.5 && keys.down('d')) across = Infinity;
+  const way = Math.sign(across);
+  let reach = 0; // N that way with every one that pushes that way at full
+  for (const l of side) if (l.ux * way > 0.3) reach += l.force * l.ux * way;
+  let run = reach > 0 ? Math.min(1, Math.abs(across) / reach) : 0;
+  let sideUp = 0; // N upward and N m they add at that throttle
+  let sideTurn = 0;
+  for (const l of side) {
+    if (!(l.ux * way > 0.3)) continue;
+    sideUp += l.force * l.uy;
+    sideTurn += l.force * l.arm;
+  }
+  // Held back to what the leveling can still cancel, and (leaning, they push down too) to what the lift can carry.
+  const spare = SHARE * Math.min(ccwMax, cwMax);
+  if (Math.abs(sideTurn) * run > spare) run = spare / Math.abs(sideTurn);
+  const load = 0.9 * lift - need;
+  if (sideUp < 0 && -sideUp * run > load) run = Math.max(0, load) / -sideUp;
+  sideUp *= run;
+  sideTurn *= run;
+  need -= sideUp;
+  for (const l of side) set(l.id, 'throttle', l.ux * way > 0.3 ? run : 0);
+
   // Share the torque: what levels takes what it can, the lifters the rest, on top of the split that cancels the weight
   // being off center. Turning comes first: the height gets the throttle that leaves room for the whole split, and the
   // split is worked out against the throttle actually used (a few rounds settle it).
-  const gyro = clamp(torque, -torqueMax, torqueMax);
+  const gyro = clamp(torque - sideTurn, -torqueMax, torqueMax);
   let base = clamp(need / Math.max(lift, 1e-9), 0, 1);
   let split = 0;
   for (let i = 0; i < 4; i++) {
-    split = turnSplit > 1e-6 ? clamp((torque - gyro - b.airTurn - base * turnAll) / turnSplit + state.trim, -room, room) : 0;
+    split = turnSplit > 1e-6 ? clamp((torque - gyro - b.airTurn - sideTurn - base * turnAll) / turnSplit + state.trim, -room, room) : 0;
     const d = Math.abs(split);
     base = d >= room ? 1 - room : clamp((need - split * liftSplit) / Math.max(lift, 1e-9), d, 1 - d);
   }

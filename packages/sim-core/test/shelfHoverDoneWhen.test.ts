@@ -23,6 +23,10 @@ import { built, coreState, give, raw, registry, shipped } from './shelfHelp';
  * - 3 propellers off center, no gyro:                8.08, 7.99, 8.00, 0.0 degrees
  * - the drone with one propeller gone (3 left):      8.12, 7.99, 8.00, 0.1 degrees
  * - the drone with one propeller more (5):           8.03, 8.00, 8.00, 0.0 degrees
+ *
+ * Lifters that push sideways (2 thrusters up, one pointing each way, a gyro), D held from 5 s to 8 s, against the
+ * same robot with the sideways ones left out of the group: 59.6 m/s at 8 s against 25.0, and under 0.1 m/s 3.9 s
+ * after the key is let go against 12 s. Height within 0.26 m against 0.14 m, most tilt 54 degrees against 47.
  */
 const flat = parseWorldFile(flatJson);
 let host: ScriptHost;
@@ -114,6 +118,62 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     if (!copy.ok) throw new Error(copy.error);
     expect(copy.blueprint.parts.filter((p) => p.tags.includes('lift'))).toHaveLength(5);
     expectHolds(await fly(copy.blueprint), 'one propeller more');
+  });
+
+  it('lifters that push sideways: it holds as before, flies faster with D, and stops sooner when the key is let go', { timeout: 60_000 }, async () => {
+    const grid = ['.  .  G  .  .', 'T> F  C  F  T<', '.  T^ B  T^ .'];
+    const all = give(built({ format: 1, name: 'side', grid }), 'hover');
+    expect(all.fit.slots[0]?.guess).toEqual(['thruster@0,1', 'thruster@4,1', 'thruster@1,0', 'thruster@3,0']);
+    expectHolds(await fly(all.blueprint), 'sideways lifters');
+    // The same robot with the sideways ones left alone: neither in the group nor on their own keys.
+    const upOnly = give(built({ format: 1, name: 'side', grid, legend: { 'T>': { part: 'thruster', rot: 270, auto: false }, 'T<': { part: 'thruster', rot: 90, auto: false } } }), 'hover', { fill: { lift: ['thruster@1,0', 'thruster@3,0'] } });
+    const dash = async (bp: Blueprint): Promise<{ speed: number; stopped: number; sink: number; crashes: number }> => {
+      const w = await World.create({ seed: 1, scripts: host }, flat);
+      const r = w.spawnBlueprint(raw(bp), { x: -200, y: 20 });
+      let speed = 0;
+      let stopped = Infinity;
+      let sink = 0;
+      for (let t = 0; t < 20 * 60; t++) {
+        w.step(t === 300 ? [{ robot: r.id, pressed: ['d'], released: [] }] : t === 480 ? [{ robot: r.id, pressed: [], released: ['d'] }] : []);
+        const s = coreState(w, r);
+        if (t === 480) speed = s.vx;
+        if (t > 480 && stopped === Infinity && Math.abs(s.vx) < 0.1) stopped = (t - 480) / 60;
+        if (t >= 300) sink = Math.max(sink, Math.abs(s.y - 25));
+      }
+      const crashes = w.events.filter((e) => e.kind === 'scriptCrashed').length;
+      w.dispose();
+      return { speed, stopped, sink, crashes };
+    };
+    const fast = await dash(all.blueprint);
+    const slow = await dash(upOnly.blueprint);
+    expect(fast.crashes).toBe(0);
+    expect(fast.speed).toBeGreaterThan(1.5 * slow.speed);
+    expect(fast.stopped).toBeLessThan(0.5 * slow.stopped);
+    expect(fast.sink).toBeLessThan(1);
+  });
+
+  it('sideways lifters set above its weight, and with no gyro: they are held back to what it can still level', { timeout: 60_000 }, async () => {
+    for (const grid of [
+      ['T> F  G  F  T<', '.  F  C  F  .', '.  T^ B  T^ .'],
+      ['T> F  C  F  T<', '.  P  B  P  .'],
+    ]) {
+      const g = give(built({ format: 1, name: 'side', grid }), 'hover');
+      expectHolds(await fly(g.blueprint), grid[0] as string);
+      const w = await World.create({ seed: 1, scripts: host }, flat);
+      const r = w.spawnBlueprint(raw(g.blueprint), { x: -200, y: 20 });
+      let tilt = 0;
+      let sink = 0;
+      for (let t = 0; t < 15 * 60; t++) {
+        w.step(t === 300 ? [{ robot: r.id, pressed: ['d'], released: [] }] : t === 480 ? [{ robot: r.id, pressed: [], released: ['d'] }] : []);
+        const s = coreState(w, r);
+        tilt = Math.max(tilt, Math.abs((s.angle * 180) / Math.PI));
+        if (t >= 300) sink = Math.max(sink, Math.abs(s.y - 25));
+      }
+      expect(tilt, grid[0]).toBeLessThan(65);
+      expect(sink, grid[0]).toBeLessThan(1);
+      expect(Math.abs(coreState(w, r).vx), grid[0]).toBeLessThan(0.1);
+      w.dispose();
+    }
   });
 
   it('too heavy to lift: it says so in plain words and stays down', { timeout: 60_000 }, async () => {

@@ -174,13 +174,15 @@ describe('fitBehavior: what could fill a slot, and the first guess', () => {
   const hover = header(shelf('hover'));
   const aim = header(shelf('aim-and-fire'));
 
-  it('Hover guesses the lifters that push up, not the ones that push down or sideways, and any gyro levels', () => {
+  it('Hover guesses everything with a throttle, whichever way it points (it works out the way of each), and any gyro levels; the hint up keeps only the ones that push up', () => {
     const bp = built({ format: 1, name: 'd', grid: ['P  G  P  T>', 'F  C  F  F', 'Pv B  .  .'] });
     const fit = fitBehavior(bp, registry, hover);
     expect(fit.ok).toBe(true);
     const lift = fit.slots.find((s) => s.slot.group === 'lift');
     expect(lift?.could).toEqual(['propeller@0,2', 'propeller@2,2', 'thruster@3,2', 'propeller@0,0']);
-    expect(lift?.guess).toEqual(['propeller@0,2', 'propeller@2,2']);
+    expect(lift?.guess).toEqual(lift?.could);
+    const upOnly = header('// @behavior Up\n// @slot lift throttle "what lifts" guess up\n');
+    expect(fitBehavior(bp, registry, upOnly).slots[0]?.guess).toEqual(['propeller@0,2', 'propeller@2,2']);
     expect(lift?.tag).toBe('lift');
     expect(fit.slots.find((s) => s.slot.group === 'level')?.guess).toEqual(['gyro@1,2']);
   });
