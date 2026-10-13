@@ -42,7 +42,8 @@ export { sampleRobot, partWorldPose, DriveTracker } from './metrics/robotMetrics
 export type { RobotSample, DriveMetrics } from './metrics/robotMetrics';
 export { parseKeyTimeline, timelineInputs, TimelineError } from './control/timeline';
 export type { KeyPress } from './control/timeline';
-export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setPartRotations, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls } from './blueprint/edit';
+export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setPartRotations, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls, moveParts, movePartsBy } from './blueprint/edit';
+export type { CellArea, MoveOptions, MoveResult } from './blueprint/edit';
 export { mirrorRotation, mirrorX, mirrorBlueprint, mirrorProblem } from './blueprint/mirror';
 export { footprintBox, footprintOf, mirrorable, mirroredShift, partMass, defaultSize, cupFootprint } from './parts/footprint';
 export { hollowCells, hollowAt, recipePlacement, recipeStats, buildSeconds, scopeBase } from './fabricate/recipe';

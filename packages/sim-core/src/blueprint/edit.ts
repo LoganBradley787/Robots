@@ -255,3 +255,119 @@ export function setPartsSize(bp: Blueprint, ids: readonly string[], resize: (siz
     }),
   };
 }
+
+/** Whether a part's id is the one its cell gives it (`type@x,y`). Any other id was written by hand and is kept as it is. */
+function idFromPlace(p: PlacedPart): boolean {
+  return p.id === partId(p.part, p.x, p.y);
+}
+
+/**
+ * `bp` with `parts` as its parts and every name of a part id followed from old to new (`ids`), all at once, so two
+ * parts may trade ids: binding targets (the robot's and each core's), each core's entry, `primaryCore`, and
+ * `corePriority`. A part's own id tag is its own business (`withId`). Script code is not rewritten: a script that
+ * names a part by id is found by `scriptIdMentions` (`script/reading.ts`).
+ */
+function renameIds(bp: Blueprint, parts: PlacedPart[], ids: ReadonlyMap<string, string>): Blueprint {
+  const rename = (id: string): string => ids.get(id) ?? id;
+  const changed = [...ids].some(([from, to]) => from !== to);
+  if (!changed) return { ...bp, parts };
+  const renameBindings = (bs: readonly Binding[]): Binding[] => bs.map((b) => (b.target !== undefined && ids.has(b.target) ? { ...b, target: rename(b.target) } : b));
+  const out: Blueprint = { ...bp, parts, bindings: renameBindings(bp.bindings) };
+  if (bp.primaryCore !== undefined) out.primaryCore = rename(bp.primaryCore);
+  if (bp.corePriority !== undefined) out.corePriority = bp.corePriority.map(rename);
+  if (bp.cores !== undefined) out.cores = bp.cores.map((c) => ({ ...c, core: rename(c.core), bindings: renameBindings(c.bindings) }));
+  return out;
+}
+
+/** The part under another id: its own id tag follows, where it stood among its tags (last, when it had none). */
+function withId(p: PlacedPart, id: string): PlacedPart {
+  if (id === p.id) return p;
+  const tags = p.tags.includes(p.id) ? p.tags.map((t) => (t === p.id ? id : t)) : [...p.tags, id];
+  return { ...p, id, tags: tags.filter((t, i) => tags.indexOf(t) === i) };
+}
+
+/** Cells a part may be in: every whole cell from (`minX`, `minY`) to (`maxX`, `maxY`), both included. */
+export interface CellArea {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+export interface MoveOptions {
+  /** The cells parts may land on. Absent: anywhere (a blueprint has no edge of its own). */
+  area?: CellArea;
+}
+
+/** `ids` maps every moved part's old id to its new one (the same id for a part that keeps a hand-written id). */
+export type MoveResult = { ok: true; blueprint: Blueprint; ids: Map<string, string> } | { ok: false; error: string };
+
+/**
+ * Moves parts by whole cells, each by its own step, all at once or not at all (M16). A moved part stays the part it
+ * was: its tags, its settings (`auto`, `armed`, `makes`, `size`, and anything else on it), its rotation, and its place
+ * in part order. Refused, with the blueprint untouched, when a moved part would land on a part that is not itself
+ * moving, on another moved part, or outside `opts.area`. Parts that move together are checked where they end up, so
+ * two may trade places and a row may shift along itself.
+ *
+ * Ids follow position: a part whose id is its cell's (`thruster@3,2`) gets its new cell's, and everything in the
+ * blueprint that named the old id follows in the same step (`renameIds`): its own id tag, bindings, a core's entry in
+ * `cores`, `primaryCore`, `corePriority`. A hand-written id (`left-gun`) is kept. Tags, scopes, and recipes name no
+ * ids, so they need nothing. Ids not in the blueprint and steps of nothing are skipped; with nothing left to move the
+ * same blueprint comes back.
+ *
+ * One step per part is what mirror mode needs: the left half moves by (dx, dy) and the right half by (-dx, dy) in one
+ * call, and both halves land or neither does.
+ */
+export function movePartsBy(bp: Blueprint, registry: PartRegistry, steps: ReadonlyMap<string, { dx: number; dy: number }>, opts: MoveOptions = {}): MoveResult {
+  for (const [id, s] of steps) if (!Number.isInteger(s.dx) || !Number.isInteger(s.dy)) return { ok: false, error: `${id} can only move by whole cells, not by (${s.dx}, ${s.dy})` };
+  const stepOf = (p: PlacedPart): { dx: number; dy: number } | undefined => {
+    const s = steps.get(p.id);
+    return s !== undefined && (s.dx !== 0 || s.dy !== 0) ? s : undefined;
+  };
+  if (!bp.parts.some((p) => stepOf(p) !== undefined)) return { ok: true, blueprint: bp, ids: new Map() };
+
+  const occupied = new Map<string, string>();
+  for (const p of bp.parts) if (stepOf(p) === undefined) for (const c of cellsOf(p, registry)) occupied.set(`${c.x},${c.y}`, p.id);
+  const taken = new Set(bp.parts.filter((p) => stepOf(p) === undefined || !idFromPlace(p)).map((p) => p.id));
+  const ids = new Map<string, string>();
+  const area = opts.area;
+  const parts: PlacedPart[] = [];
+  for (const p of bp.parts) {
+    const s = stepOf(p);
+    if (s === undefined) {
+      parts.push(p);
+      continue;
+    }
+    const at: PlacedPart = { ...p, x: p.x + s.dx, y: p.y + s.dy };
+    for (const c of cellsOf(at, registry)) {
+      if (area && (c.x < area.minX || c.x > area.maxX || c.y < area.minY || c.y > area.maxY)) return { ok: false, error: `${p.id} would leave the build area at (${c.x}, ${c.y})` };
+      const key = `${c.x},${c.y}`;
+      const hit = occupied.get(key);
+      if (hit !== undefined) return { ok: false, error: `${p.id} would land on ${hit} at (${c.x}, ${c.y})` };
+      occupied.set(key, p.id);
+    }
+    const id = idFromPlace(p) ? uniqueId(partId(p.part, at.x, at.y), taken) : p.id;
+    taken.add(id);
+    ids.set(p.id, id);
+    parts.push({ ...withId(p, id), x: at.x, y: at.y });
+  }
+  const out = renameIds(bp, parts, ids);
+  // A grid's `=` cells under a moved part go with it, so the blueprint still reads as the file would.
+  if (bp.continuations.length > 0) {
+    const stepAt = new Map<string, { dx: number; dy: number }>();
+    for (const p of bp.parts) {
+      const s = stepOf(p);
+      if (s !== undefined) for (const c of cellsOf(p, registry)) stepAt.set(`${c.x},${c.y}`, s);
+    }
+    out.continuations = bp.continuations.map((c) => {
+      const s = stepAt.get(`${c.x},${c.y}`);
+      return s === undefined ? c : { x: c.x + s.dx, y: c.y + s.dy };
+    });
+  }
+  return { ok: true, blueprint: out, ids };
+}
+
+/** Moves the given parts by (`dx`, `dy`) cells: `movePartsBy` with one step for all of them. */
+export function moveParts(bp: Blueprint, registry: PartRegistry, ids: readonly string[], dx: number, dy: number, opts: MoveOptions = {}): MoveResult {
+  return movePartsBy(bp, registry, new Map(ids.map((id) => [id, { dx, dy }])), opts);
+}
