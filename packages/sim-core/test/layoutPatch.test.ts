@@ -131,25 +131,25 @@ describe('layoutPatch: the new layout as a patch on the old', () => {
   it('a part with other values present stands where it stood; new parts after the rest keep the order', () => {
     const now = rows('a', 'b', 'c', 'n');
     (now[1] as LayoutPart).out = ['x', 'y'];
-    expect(layoutPatch(rows('a', 'b', 'c'), now)).toBe('[4,1,[[0,1],["b","frame",["b"],1,[],["x","y"],1],[2,3],["n","frame",["n"],1,[],["x"]]]]');
+    expect(layoutPatch(rows('a', 'b', 'c'), now)).toBe('[4,1,[[0,1],["b","frame",["b"],1,[],["x","y"],null,null,1],[2,3],["n","frame",["n"],1,[],["x"],null,null]]]');
   });
 
   it('a new part before a kept one, or a part that moved, says the order is not kept', () => {
-    expect(layoutPatch(rows('a', 'b'), rows('a', 'n', 'b'))).toBe('[3,0,[[0,1],["n","frame",["n"],1,[],["x"]],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), rows('a', 'n', 'b'))).toBe('[3,0,[[0,1],["n","frame",["n"],1,[],["x"],null,null],[1,2]]]');
     // b moved in front of a: a is found first, so b is behind the walk and made anew.
-    expect(layoutPatch(rows('a', 'b', 'c'), rows('b', 'a', 'c'))).toBe('[3,0,[[1,2],["a","frame",["a"],1,[],["x"]],[2,3]]]');
+    expect(layoutPatch(rows('a', 'b', 'c'), rows('b', 'a', 'c'))).toBe('[3,0,[[1,2],["a","frame",["a"],1,[],["x"],null,null],[2,3]]]');
   });
 
   it('a part with another mass stands where it stood too; one with another type or other tags is a new part', () => {
     const heavier = rows('a', 'b');
     (heavier[0] as LayoutPart).mass = 2;
-    expect(layoutPatch(rows('a', 'b'), heavier)).toBe('[2,1,[["a","frame",["a"],2,[],["x"],0],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), heavier)).toBe('[2,1,[["a","frame",["a"],2,[],["x"],null,null,0],[1,2]]]');
     const tagged = rows('a', 'b');
     (tagged[0] as LayoutPart).tags = ['a', 'left'];
-    expect(layoutPatch(rows('a', 'b'), tagged)).toBe('[2,0,[["a","frame",["a","left"],1,[],["x"]],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), tagged)).toBe('[2,0,[["a","frame",["a","left"],1,[],["x"],null,null],[1,2]]]');
     const typed = rows('a', 'b');
     (typed[0] as LayoutPart).type = 'gun';
-    expect(layoutPatch(rows('a', 'b'), typed)).toBe('[2,0,[["a","gun",["a"],1,[],["x"]],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), typed)).toBe('[2,0,[["a","gun",["a"],1,[],["x"],null,null],[1,2]]]');
   });
 
   it('nothing kept: no patch', () => {

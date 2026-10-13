@@ -1,4 +1,4 @@
-import type { PartDef } from '../parts/types';
+import type { Face, PartDef } from '../parts/types';
 import type { PartRegistry } from '../parts/registry';
 
 /**
@@ -9,6 +9,9 @@ import type { PartRegistry } from '../parts/registry';
  * - `config`: the numbers of the definition's `behaviorConfig` (a thruster's `maxForce`, a gyro's `maxTorque`, a
  *   rotator's `range` and `turnSpeed`); empty for a part without one;
  * - `powerDraw` (J/s at full use) and `maxHealth`;
+ * - `acts`, for a part that acts along one of its faces (it pushes, fires, or looks that way): that way when the part
+ *   is built unturned, in degrees counterclockwise from its body's x axis (90: up the grid). With the part's own `rot`
+ *   and `angle`, the way it acts in the world is `angle + (rot + spec.acts) * Math.PI / 180`;
  * - then every other block of the definition that holds numbers, under its own name, with only its numbers
  *   (`gun.speed`, `sensor.range`, `resource.capacity`, `joint.maxTorque`). Text, lists, and blocks inside blocks are
  *   left out.
@@ -19,12 +22,17 @@ export interface ScriptPartSpec {
   config: Record<string, number>;
   powerDraw: number;
   maxHealth: number;
+  /** The way the part acts when built unturned, in degrees counterclockwise from its body's x axis. Absent when it acts along no face. */
+  acts?: number;
   /** Any other block of the definition that holds numbers (`gun`, `sensor`, `joint`, ...): an object of numbers. */
   [block: string]: unknown;
 }
 
 /** The names `partSpec` writes itself: a definition's block of the same name is left out. */
-const OWN = ['in', 'config', 'powerDraw', 'maxHealth'];
+const OWN = ['in', 'config', 'powerDraw', 'maxHealth', 'acts'];
+
+/** A face as degrees counterclockwise from the x axis. */
+const FACE_DEGREES: Readonly<Record<Face, number>> = { E: 0, N: 90, W: 180, S: 270 };
 
 function numbers(o: object): Record<string, number> {
   const out: Record<string, number> = {};
@@ -37,6 +45,7 @@ export function partSpec(def: PartDef): ScriptPartSpec {
   const inputs: ScriptPartSpec['in'] = {};
   for (const c of def.inputs) inputs[c.name] = { min: c.min, max: c.max, default: c.default };
   const spec: ScriptPartSpec = { in: inputs, config: numbers(def.behaviorConfig ?? {}), powerDraw: def.powerDraw, maxHealth: def.health };
+  if (def.acts !== undefined) spec.acts = FACE_DEGREES[def.acts];
   for (const [key, value] of Object.entries(def)) {
     if (key === 'behaviorConfig' || OWN.includes(key) || typeof value !== 'object' || value === null || Array.isArray(value)) continue;
     const block = numbers(value);
