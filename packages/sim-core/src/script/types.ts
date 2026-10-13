@@ -115,9 +115,11 @@ export interface ScriptInput {
   /**
    * Every part still attached to the script's core, in world coordinates, with its mass (kg) from its def. `spec`
    * (M16) is its definition's static numbers, the same object for every part of a type (`partSpec.ts`); absent only
-   * from input built by hand without it.
+   * from input built by hand without it. `rot` and `on` (M16, `frame.ts`, `LayoutPart`): how the part was built turned,
+   * in degrees counterclockwise, and the id of the joint part that carries it ('' for none). `angle` is its body's
+   * angle, so the way it acts is `angle` plus `rot + spec.acts` degrees. Absent only from input built by hand.
    */
-  parts: { id: string; type: string; tags: string[]; pos: { x: number; y: number }; angle: number; mass: number; in: Record<string, number>; out: Record<string, number>; spec?: ScriptPartSpec }[];
+  parts: { id: string; type: string; tags: string[]; pos: { x: number; y: number }; angle: number; mass: number; in: Record<string, number>; out: Record<string, number>; rot?: number; on?: string; spec?: ScriptPartSpec }[];
   keys: { down: string[]; pressed: string[]; released: string[] };
   /** M8: robots this robot's sensors see, nearest first. Empty without sensors. */
   contacts: ScriptContact[];

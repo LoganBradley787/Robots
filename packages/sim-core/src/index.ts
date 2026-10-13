@@ -63,6 +63,8 @@ export { partSpec, partSpecsJson } from './script/partSpec';
 export type { ScriptPartSpec } from './script/partSpec';
 export type { ScriptFrame, ScriptLayout } from './script/frame';
 export { keysScriptsRead } from './script/keysRead';
+export { parseBehaviorHeader, behaviorId, behaviorOrigin, behaviorCopy, fitBehavior, fillSlot, attachBehavior } from './script/shelf';
+export type { SlotHint, BehaviorSlot, BehaviorNeed, BehaviorHeader, BehaviorParse, SlotFit, BehaviorFit, FitOptions, AttachOptions, AttachResult } from './script/shelf';
 export { readScript, calls, plainStrings, scriptRuns, partsReached, scriptReach, partsScriptReaches, partsBuiltTargetsFit, namesAvailable, deadNames, undrivenParts, scriptIdMentions, partDrivers, scriptNameIssues, scriptIssue, scriptWho, foldScriptIssues } from './script/reading';
 export type { SourceSpot, NameUse, ScriptName, BuiltTarget, ScriptReading, Call, ScriptRun, NameReach, DeadName, UndrivenPart, IdMention, PartDriver, PartDrivers, ScriptIssue, FoldedScriptIssue } from './script/reading';
 export type { ScriptHost, ScriptInstance, ScriptError, ScriptInput, ScriptResult, ScriptWrite, ParamSpec, ScriptLimits, CompileOptions, CompileResult } from './script/types';

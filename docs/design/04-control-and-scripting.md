@@ -94,10 +94,18 @@ for (const p of parts) if (p.tags.includes('lift')) lift += p.spec.config.maxFor
 set('lift', 'throttle', clamp(self.mass * 9.81 / lift, 0, 1));
 ```
 
-- It is the same frozen object for every part of a type, the last key of a part (`id, type, tags, pos, angle, mass, in, out, spec`), and read-only like the rest: a write to it is ignored.
+- It is the same frozen object for every part of a type, the last key of a part (`id, type, tags, pos, angle, mass, in, out, rot, on, spec`), and read-only like the rest: a write to it is ignored.
 - It never changes, so it is not in the numbers sent every tick. The world hands every layout one JSON text for all part types (`ScriptLayout.specs`), and a script is sent it once, before its first layout; a part gets its type's object when it is made. A tick costs what it did.
 - Existing scripts are unaffected and no golden hash changed. The one thing a script written before M16 can notice is the new key itself (`Object.keys(part)`, `JSON.stringify(part)`); no stock script lists a part's keys. The parity test now compares the spec too, on every part of every script call.
 - The numbers are what the definition says, not what the part is doing: a damaged or unpowered thruster still reads its full `maxForce`.
+
+As built (M16, which way a part acts and what carries it): three more things a script could not work out from positions, added for the shared behaviors below. They are sent with the layout like a part's tags, never per tick, and no golden hash changed.
+
+- `part.rot`: how the part was built turned, in degrees counterclockwise (0, 90, 180, 270), as in its blueprint. `part.angle` is the angle of the body the part is on and says nothing of the part's own turn.
+- `part.spec.acts`: for a part that acts along one of its faces (it pushes, fires, looks that way), that way when built unturned, in degrees counterclockwise from its body's x axis (90: up the grid). So the way a part acts in the world is `p.angle + (p.rot + p.spec.acts) * Math.PI / 180`: which way a propeller pushes, on any robot. Absent for a part that acts along no face.
+- `part.spec.tip`: with `acts`, where the end it acts from is (a barrel's end), from the part's own position when built unturned: `{ x, y }` in meters. In the world: `pos` plus `tip` turned by `angle + rot` degrees. It is worked out as the world places a barrel's end (half a cell out of the middle of the cells farthest along `acts`), so a script no longer carries "the cannon's barrel is 3.5 m long and half a cell to the right" as params. From the definition's footprint: a stretchy part placed at another size still reads its default.
+- `part.on`: the id of the joint part that carries the part, `''` for none: the joint whose turning or sliding side it is bolted to, through any number of welded parts. For a joint part itself it is the joint that carries what it is mounted on, so a chain (a gun on a hinge on a hinge) is walked one `on` at a time. This is how a script pairs each gun with the hinge that aims it, however the turret was built and whatever it is called. A joint that is locked, or lost its base, carries nothing. One rule for every joint part (`carriedBy` in `World.ts`), worked out again whenever the robot is rebuilt.
+- `rot` and `on` come after `out` and before `spec`. Like `spec`, they are read-only, and the one thing an older script can notice is the new keys themselves. A layout built by hand without them (tests) gives parts without the keys. The parity test compares them on every part of every script call.
 
 Injected globals inside the sandbox. Everything is plain data; no host objects leak in.
 
@@ -131,6 +139,47 @@ Available inside `tick()`:
 - `clamp`, `lerp`, `sign`, and the normal `Math` functions except `Math.random`.
 
 Unavailable: `Date`, `setTimeout`, `fetch`, `globalThis`, any DOM.
+
+## Shared behaviors (M16)
+
+A shared behavior is an ordinary script kept on a shelf: one `.js` file per behavior in `behaviors/` at the repo root (`hover.js`, `aim-and-fire.js`, `guide.js`). Adding one to a robot copies the file into the blueprint as that robot's own script. It must work on any robot with the right kind of parts, with no numbers typed in by hand, and keep working when the owner adds or removes a part. The pure functions are in `sim-core/src/script/shelf.ts`.
+
+**The header.** Line comments at the top of the file; the header ends at the first line that is not blank or a `//` comment.
+
+```js
+// @behavior Hover
+// @about Holds a height and stays level, on anything that lifts.
+// @version 1
+// @slot lift throttle "what lifts" required many owns guess up
+// @slot level spin "what levels" optional many
+// @needs sensor "something that sees, such as a radar"
+// @note Anything worth telling whoever adds it.
+```
+
+- `@behavior <name>`, `@about <one line>`, `@version <whole number from 1>`, any number of `@note <text>`.
+- `@slot <group> <input>[|<input>...] "<label>" [required|optional] [one|many] [owns] [guess <hint>...]`. Defaults: required, many.
+  - A slot is a group (a tag) the builder puts on the parts the owner picked. It is typed by input, never by part type: any part with one of the inputs may fill it, so a behavior works on parts that did not exist when it was written.
+  - `owns`: the behavior drives these parts every tick, so filling the slot takes them off their auto keys (a key held on an input beats a script, `Arbitration` above).
+  - `guess` hints narrow the first guess the builder shows, never what may fill the slot: `up` (the part acts upward as built), `has:<output>` (it reports that output), `carries:<slot>` (a joint part that carries something guessed for that slot), `on:<slot>` (carried by something guessed for that slot). A turret is "a part with a fire input and a sight, on a joint with a turn input", said as `turn ... guess carries:fire` and `fire ... guess has:sightSide`.
+- `@needs <block> "<label>"`: the robot must have a part whose definition has that block (`sensor`: something that fills `contacts`).
+- `@from <shelf id> <version>`: only in a copy on a robot. See the copy and mark rule.
+- `parseBehaviorHeader(source)` gives the name, the line about it, the version, the slots, the needs and the notes, and a list of problems in plain words with line numbers. Text with no `@behavior` line is an ordinary script: no header, no problems. Unknown `@` lines are reported and skipped.
+
+**Slots on a robot.** `fitBehavior(blueprint, registry, header)` says for each slot which parts could fill it (they have one of its inputs), a first guess of which should, which are in the group already, and whether the behavior can work here at all, with the reason in words that follow its name ("needs something with a throttle input"). It reads inputs, outputs, how parts were built turned, and what carries what; never a part's type name. Parts of a placed copy that has its own core (a missile on a rail) are left out of the main robot's guess. `fillSlot(blueprint, registry, slot, ids)` makes the group exactly those parts. For a placed copy's own core, both work inside that core's scope (the tag is `missile1.push`).
+
+**The copy and mark rule.** `attachBehavior(blueprint, shelfId, source)` adds a script entry whose code is the robot's own copy of the shelf file. The copy carries one more header line, `// @from hover 1`: the shelf behavior and version it came from. The mark lives in the script's own text, not in the blueprint format, so it goes wherever the script goes (its `.js` file, a deploy, a replay, Save As) and `ScriptSpec` and the file format are unchanged. The copy has no file until the next save, which writes it next to the blueprint under the robot's name (`drone.hover.js`). Editing one robot's copy never changes the shelf or another robot. `behaviorOrigin(source)` reads the mark back; the shelf has a newer version when its `@version` is higher.
+
+**What a behavior's code may do.** Anything a script may. To live up to "any robot, no numbers by hand" the first three follow these rules:
+- Find parts by group, `p.tags.includes('lift')`, and check the input is there (`p.in.throttle !== undefined`). Drive each part by its id, `set(p.id, 'throttle', v)`.
+- Read strengths from `p.spec`, places from `p.pos`, directions from `p.angle + p.rot + p.spec.acts`, the joint that carries a part from `p.on`, the robot's weight from `self.mass`. Work the rest out every tick, so an edit to the robot needs no retuning.
+- Tell kinds of part apart by what they report and what their definition says (a `charged` output means charge and release; a `speed` in the block that says how its shot flies means lead the target), never by `p.type`.
+- `param()` only for what a person would want to set. Every param has a `min` and a `max`, so the builder can draw a slider.
+- When a slot is empty or the robot cannot do the job, say so once in the log in plain words ("Hover: the lifters hold 73 kg and this robot weighs 117 kg. It needs more lift.").
+
+**The first shelf.**
+- **Hover**: slots `lift` (throttle, required, owns, guess up) and `level` (spin, optional). Params `height` (m it climbs when deployed, then holds), `hold` (how firmly), `climb` (m/s with W and S), `lean` (degrees with A and D), `keys` (0 switches W A S D off). Lifters in the group that point down push down when cutting the lift is not enough. With nothing that levels it runs one side harder.
+- **Aim and fire**: slots `turn` (turn, optional, owns, guess carries:fire) and `fire` (fire, required, guess has:sightSide); needs a sensor. Params `auto` (1 fires by itself, 0 fires only while F is held; aiming is always automatic) and `range` (m). Each firing part is aimed by the nearest joint up its `on` chain that is in `turn`; one on no joint fires when an enemy crosses its own sight. Shells and bolts are led by the `speed` of the part's own shot and raised by their drop; a part with no `speed` is a beam and fires only while its sight shows an enemy; a part with a `charged` output is held until it is full and let go on target. It never fires with its own robot or a friend first on a part's sight. It aims at the target's core; the stock turret scripts' choice of the best part to hit is not carried over.
+- **Guide**: slots `push` (throttle, required, owns), `steer` (spin, swivel, or deflect; required, owns), `blast` (detonate, optional); needs a sensor. Params `fuse`, `clear`, `clearDist`, `proximity`. The arc over the top of the stock seeker guide is not carried over. It has one flight test (`shelfGuideDoneWhen.test.ts`): on three stock missiles it gets as near a block as each missile's own guide does, and the seeker missile reaches it. It has not been tried from a launcher's handoff, on a drone, or with swivels and fins, so it is the least proven of the three.
 
 ## ScriptHost interface
 The runtime backend is swappable. Backends are compared in `docs/research/script-sandbox.md`; the choice (QuickJS via `quickjs-emscripten`) is recorded in `08-tech-stack.md`.

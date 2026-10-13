@@ -2090,9 +2090,11 @@ export class World {
         outs.push(o.name);
       }
       const old = was >= 0 ? last?.rows[was] : undefined;
-      const kept = old !== undefined && sameNames(old.in, ins) && sameNames(old.out, outs);
+      // The joint that carries it (M16) is worked out again: a rebuild may have locked or lost that joint.
+      const on = carriedBy(robot, p);
+      const kept = old !== undefined && old.on === on && sameNames(old.in, ins) && sameNames(old.out, outs);
       parts.push(kept ? (lastParts?.[was] as ScriptFeed['parts'][number]) : { id, part: p, in: ins, out: outs });
-      layout.push(kept ? old : { id, type: p.def.id, tags: old ? old.tags : [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: old ? old.mass : partMass(p.def, p.footprint), in: ins, out: outs });
+      layout.push(kept ? old : { id, type: p.def.id, tags: old ? old.tags : [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: old ? old.mass : partMass(p.def, p.footprint), in: ins, out: outs, rot: p.rot, on });
     }
     // The robot's mass only changes when it is rebuilt, which makes a new layout.
     let mass = 0;
@@ -2241,7 +2243,7 @@ export class World {
         const v = referenceOutput(robot, p, id, o.name);
         if (v !== undefined) out[o.name] = v;
       }
-      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out, spec: partSpec(p.def) });
+      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out, rot: p.rot, on: carriedBy(robot, p), spec: partSpec(p.def) });
     }
     return {
       frame: this.tickCount,
@@ -3072,6 +3074,19 @@ function controllerFor(robot: Robot, registry: PartRegistry): Controller | undef
  * `energy` and `partOutput` as they were before M9, kept verbatim for the parity test's reference input
  * (`scriptInput`), so a mistake in the faster versions cannot hide on both sides of the comparison.
  */
+/**
+ * The id of the joint part that carries a part, as scripts read it in `part.on` (M16, `script/frame.ts`): the joint
+ * its body hangs from, and for that joint part itself the joint that carries what it is mounted on (so a chain of
+ * joints is walked one step at a time). '' when no joint carries it: it is on the robot's main body, or its joint is
+ * locked or lost its base. One rule for every joint part, whatever it is.
+ */
+function carriedBy(robot: Robot, part: PartInstance): string {
+  const joint = robot.groups[part.group]?.joint;
+  if (!joint) return '';
+  if (joint.partId !== part.id) return joint.partId;
+  return robot.groups[joint.parentGroup]?.joint?.partId ?? '';
+}
+
 function referenceChunkIndex(robot: Robot, partId: string): number {
   return Math.max(0, robot.chunks.findIndex((c) => c.partIds.includes(partId)));
 }

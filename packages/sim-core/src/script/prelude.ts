@@ -171,17 +171,28 @@ export const PRELUDE = String.raw`
   function nullsFor(n) {
     return n === 0 ? '[]' : '[' + repeat('null,', n - 1) + 'null]';
   }
-  /** One part from its layout entry: [id, type, tags, mass, in names, out names]. */
+  /** One part from its layout entry: [id, type, tags, mass, in names, out names], then (M16) rot and on when it has them. */
   function makeRow(l) {
     var inO = parse(zeros(l[4]));
     var outO = parse(zeros(l[5]));
     var pos = { x: 0, y: 0 };
     var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
-    // Its type's spec (M16) comes last, and only when the host sent one: without, a part is as it was before M16.
+    // How it was built turned and the joint that carries it (M16) come after out, and its type's spec last; each
+    // only when the host sent it: without them a part is as it was before M16. Always a literal, never a property
+    // added later, so a setter a script puts on Object.prototype never sees the part being made.
     var sp = specOf(r.type);
-    var o = sp === undefined
-      ? { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO }
-      : { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, spec: sp };
+    var o;
+    if (l.length > 7 && l[6] !== null && l[7] !== null) {
+      o = sp === undefined
+        ? { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, rot: l[6], on: l[7] }
+        : { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, rot: l[6], on: l[7], spec: sp };
+      defineProperty(o, 'rot', lock);
+      defineProperty(o, 'on', lock);
+    } else {
+      o = sp === undefined
+        ? { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO }
+        : { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, spec: sp };
+    }
     if (sp !== undefined) defineProperty(o, 'spec', lock);
     // Only the numbers change from tick to tick: nothing can be replaced, added, or deleted, so the refill always
     // reaches what the script sees and a script's own writes last one tick at most.
@@ -264,11 +275,11 @@ export const PRELUDE = String.raw`
       } else {
         var r = makeRow(op);
         if (live) {
-          if (op.length > 6) {
-            // The old part op[6] with other values present: the new one stands where it stood.
-            for (var j = seen; j < op[6]; j++) reindex(rows[j], null);
-            reindex(rows[op[6]], r.o);
-            seen = op[6] + 1;
+          if (op.length > 8) {
+            // The old part op[8] with other values present: the new one stands where it stood.
+            for (var j = seen; j < op[8]; j++) reindex(rows[j], null);
+            reindex(rows[op[8]], r.o);
+            seen = op[8] + 1;
           } else {
             addIndex(r);
           }
