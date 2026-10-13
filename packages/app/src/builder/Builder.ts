@@ -50,6 +50,8 @@ export class Builder {
   private shownId: string | undefined;
   /** The same, for as long as the mouse rests on a script's row: it wins over `shownId` and leaves it alone. */
   private peekId: string | undefined;
+  /** Parts lit for the keys UI (M16 step 6): what a key would drive. While set it shows in place of a script's reach. */
+  private litParts: readonly string[] | undefined;
   private shown: { bp: Blueprint; core: string | undefined; id: string; view: ScriptShow | undefined } | undefined;
   /** The core whose controls the panels edit (M7); undefined is the main core. */
   controlsFor: string | undefined;
@@ -133,6 +135,14 @@ export class Builder {
   peekScript(id: string | undefined): void {
     if (id === this.peekId) return;
     this.peekId = id;
+    this.refresh(false);
+  }
+
+  /** Lights up these parts on the board (what a key drives, or would); undefined puts that light out. */
+  lightParts(ids: readonly string[] | undefined): void {
+    const same = ids === undefined ? this.litParts === undefined : this.litParts !== undefined && ids.length === this.litParts.length && ids.every((id, i) => id === this.litParts?.[i]);
+    if (same) return;
+    this.litParts = ids;
     this.refresh(false);
   }
 
@@ -441,7 +451,7 @@ export class Builder {
       ...(stats.massKg > 0 ? { com: { x: stats.comX, y: stats.comY } } : {}),
       selection: this.editor.selection,
       ...(g?.kind === 'box' && (g.start.x !== g.last.x || g.start.y !== g.last.y) ? { box: { a: g.start, b: g.last } } : {}),
-      ...(shown ? { reach: { reached: shown.reached, fits: shown.fits, undriven: shown.undriven.map((u) => u.part) } } : {}),
+      ...(this.litParts ? { reach: { reached: this.litParts, fits: [], undriven: [] } } : shown ? { reach: { reached: shown.reached, fits: shown.fits, undriven: shown.undriven.map((u) => u.part) } } : {}),
       swap: this.shift,
     };
   }

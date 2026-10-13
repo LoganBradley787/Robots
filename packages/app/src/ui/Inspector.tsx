@@ -6,11 +6,12 @@ import { useStore } from './store';
 import type { AppState, InspectorTab } from './appState';
 import type { AppActions } from './App';
 import type { PartActions } from './actions';
-import { BindingsPanel } from './BindingsPanel';
+import { BindingsPanel, type BindingActions } from './BindingsPanel';
+import { InputRows } from './InputRows';
 import { ScriptsPanel } from './ScriptsPanel';
 import { Problems } from './Problems';
 import { PartNumbers } from './Drawer';
-import { Button, Check, KeyCap, Popover, Select, Sprite, Tabs, type SelectOption, type TabSpec } from './kit';
+import { Button, Check, Popover, Select, Sprite, Tabs, type SelectOption, type TabSpec } from './kit';
 import { formatDuration, MOD, num } from './format';
 import { partInputs } from '../builder/scriptView';
 
@@ -57,7 +58,7 @@ export function Inspector({ store, registry, actions }: { store: Store<AppState>
         {tab === 'keys' && <BindingsPanel store={store} registry={registry} actions={actions} />}
         {tab === 'behaviors' && <ScriptsPanel store={store} registry={registry} actions={actions} />}
       </div>
-      <Problems store={store} actions={actions} />
+      <Problems store={store} registry={registry} actions={actions} />
     </div>
   );
 }
@@ -71,8 +72,10 @@ function groupsOf(bp: Blueprint): Array<{ tag: string; ids: string[] }> {
 
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function PartTab({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: PartActions & Pick<AppActions, 'revealScript' | 'duplicate'> }) {
+function PartTab({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: PartActions & BindingActions & Pick<AppActions, 'revealScript' | 'duplicate' | 'showTab'> }) {
   const draft = useStore(store, (s) => s.builder.draft);
+  const controls = useStore(store, (s) => s.builder.controls);
+  const cores = useStore(store, (s) => s.builder.cores.length);
   const selection = useStore(store, (s) => s.builder.selection);
   const icons = useStore(store, (s) => s.icons);
   const files = useStore(store, (s) => s.doc.files);
@@ -172,62 +175,20 @@ function PartTab({ store, registry, actions }: { store: Store<AppState>; registr
         )}
       </div>
 
-      {one && def && (
+      {one && def && <InputRows draft={draft} registry={registry} part={one} def={def} controls={controls} cores={cores} driven={driven} actions={actions} />}
+      {one && def && driven && driven.mayDrive.length > 0 && def.inputs.length > 0 && (
         <div class="sec">
-          <div class="h">
-            Inputs <span>what a key or a script can drive</span>
-          </div>
-          {def.inputs.length === 0 && <p class="dim">Nothing to control on this part.</p>}
-          {def.inputs.map((c) => {
-            const auto = def.autoControl?.channel === c.name && one.auto !== false && draft.autoControls !== false ? autoLabel(registry, one) : undefined;
-            const by = driven?.inputs.get(c.name) ?? [];
-            return (
-              <div class="irow" key={c.name}>
-                <div>
-                  <div class="nm">{c.name}</div>
-                  <div class="rg">
-                    {num(c.min)} to {num(c.max)}
-                    {c.default !== 0 ? `, rests at ${num(c.default)}` : ''}
-                  </div>
-                </div>
-                <div class="drv">
-                  {auto !== undefined && (
-                    <div class="d auto" title="An auto key: the game gave it one because of what the part is. Settings below turns them off.">
-                      <span class="tag">auto</span>
-                      {auto}
-                    </div>
-                  )}
-                  {by.map((d) =>
-                    d.kind === 'key' ? (
-                      <div class="d" key={`k${d.name}`} title={`Your key, bound to "${d.via}" (Keys tab)`}>
-                        <KeyCap small>{d.name.length === 1 ? d.name.toUpperCase() : d.name}</KeyCap>
-                        <span class="dim">your key</span>
-                      </div>
-                    ) : (
-                      <button type="button" class="d linkish" key={`s${d.core ?? ''}${d.name}`} title={`This script writes it, through the name "${d.via}"${d.line !== undefined ? ` (line ${d.line})` : ''}. Click to see everything it drives.`} onClick={() => actions.revealScript(d.core, d.name)}>
-                        <i class="sw solid" />
-                        {d.name}.js
-                      </button>
-                    ),
-                  )}
-                  {auto === undefined && by.length === 0 && <div class="d dim">nothing drives it</div>}
-                </div>
-              </div>
-            );
-          })}
-          {driven && driven.mayDrive.length > 0 && def.inputs.length > 0 && (
-            <p class="honest">
-              {driven.mayDrive.map((m, i) => (
-                <>
-                  {i > 0 ? ', ' : ''}
-                  <button type="button" class="linkish" key={`${m.core ?? ''}${m.id}`} onClick={() => actions.revealScript(m.core, m.id)}>
-                    {m.id}.js
-                  </button>
-                </>
-              ))}{' '}
-              {driven.mayDrive.length === 1 ? 'picks' : 'pick'} parts in {driven.mayDrive.length === 1 ? 'its' : 'their'} own code, so {driven.mayDrive.length === 1 ? 'it' : 'they'} may drive this part too.
-            </p>
-          )}
+          <p class="honest">
+            {driven.mayDrive.map((m, i) => (
+              <>
+                {i > 0 ? ', ' : ''}
+                <button type="button" class="linkish" key={`${m.core ?? ''}${m.id}`} onClick={() => actions.revealScript(m.core, m.id)}>
+                  {m.id}.js
+                </button>
+              </>
+            ))}{' '}
+            {driven.mayDrive.length === 1 ? 'picks' : 'pick'} parts in {driven.mayDrive.length === 1 ? 'its' : 'their'} own code, so {driven.mayDrive.length === 1 ? 'it' : 'they'} may drive this part too.
+          </p>
         </div>
       )}
 

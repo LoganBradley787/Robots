@@ -10,7 +10,8 @@ export function ControlsFor({ store, actions }: { store: Store<AppState>; action
   const current = useStore(store, (s) => s.builder.controlsFor);
   if (cores.length < 2) return null;
   return (
-    <div class="row" title="a placed robot's core runs its own keys and scripts when its piece breaks off">
+    <div class="cores-for" title="A placed robot's core runs its own keys and scripts when its piece breaks off. This picks whose you edit.">
+      <span class="lbl">for</span>
       <Segmented options={cores.map((c) => ({ value: c.core ?? '', label: c.label }))} value={current ?? ''} onChange={(v) => actions.setControlsFor(v === '' ? undefined : v)} />
     </div>
   );
