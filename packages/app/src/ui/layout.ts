@@ -18,3 +18,13 @@ export function applyLayout(el: HTMLElement): void {
   el.style.setProperty('--drawer-w', `${LAYOUT.drawer}px`);
   el.style.setProperty('--insp-w', `${LAYOUT.inspector}px`);
 }
+
+/**
+ * How wide the script view is for a window (M16): it lies over the drawer and the left of the board, and leaves a
+ * strip of board beside the inspector, wide enough to see the robot and click a part (at 1366 wide: 316 px of board).
+ */
+export function scriptViewWidth(windowWidth: number): number {
+  const avail = Math.max(0, windowWidth - LAYOUT.inspector);
+  const board = Math.max(280, Math.min(460, Math.round(avail * 0.3)));
+  return Math.max(520, avail - board);
+}

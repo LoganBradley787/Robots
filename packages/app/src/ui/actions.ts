@@ -27,15 +27,15 @@ export interface BuilderActions {
   setKind(kind: string | undefined): void;
   /** Sets the kind of a saved robot that is not open, in its file. */
   setFileKind(file: string, kind: string | undefined): void;
-  /** Test (it was Deploy): into the world with this robot in hand. */
+  /** Test (it was Deploy): into the world with this robot in hand. With unsaved changes it opens the box at the button first. */
   deploy(): void;
+  /** A choice made in the Test box: save and test, test anyway, or cancel. */
+  testChoice(choice: 'save' | 'anyway' | 'cancel'): void;
   /** The top strip's Script button: the code editor when there is one script, else the Behaviors tab. */
   script(): void;
   focusIssue(issue: Issue): void;
   /** Lights up on the board what a script of the core in the panels reaches; undefined puts the light out. */
   showScript(id: string | undefined): void;
-  /** The same for as long as the mouse rests on a script's row. */
-  peekScript(id: string | undefined): void;
   /** Turns the Behaviors tab to a script (of the given core) and lights up what it reaches. */
   revealScript(core: string | undefined, id: string): void;
   /** Opens the script a problem is about, at its line. */

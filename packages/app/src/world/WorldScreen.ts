@@ -32,6 +32,7 @@ import type { ScriptClock } from '../app/timedHost';
 import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
+import { buildReadout, type ReadoutView } from './readout';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the toolbar below)';
 
@@ -69,7 +70,15 @@ export interface WorldView {
     logs: string[];
   };
   unlimitedEnergy: boolean;
+  /**
+   * M16, the live readout of the robot you control or watch: its scripts and, while the readout is open, what they
+   * set and who drives each input. Absent when no robot is followed.
+   */
+  readout?: ReadoutView;
+  readoutOpen: boolean;
 }
+
+const READOUT_KEY = 'robots.readout';
 
 /** Interpolated world position of the robot's core (or root part), for the camera. */
 function anchorPosition(world: World, robot: Robot, alpha: number): { x: number; y: number } {
@@ -117,6 +126,10 @@ export class WorldScreen {
   /** How many world events have been shown. */
   private eventCursor = 0;
   private lastView = '';
+  /** M16: whether the live readout is open. Only then does the world keep a trace. Kept in the browser. */
+  private readoutOpen = false;
+  /** The readout as last worked out, and for which tick of which robot: it is made a few times a second, not every frame. */
+  private readoutAt: { robot: number; tick: number; open: boolean; view: ReadoutView } | undefined;
   /** Keys each script source reads, cached by source (it only changes when the robot is redeployed). */
   private readonly readCache = new Map<string, Set<string>>();
   /** A blueprint waiting to be dropped, following the cursor. */
@@ -153,6 +166,7 @@ export class WorldScreen {
     this.settingsStore = browserStorage();
     this.deploy = loadDeploySettings(this.settingsStore);
     this.sound = new SoundScene(this.settingsStore);
+    this.readoutOpen = this.settingsStore?.getItem(READOUT_KEY) === 'open';
     this.cam = createCamera(file.spawn.x, file.spawn.y - 3);
     this.stepper = new FixedStepper(1000 * world.dt);
     this.lastHash = world.hash();
@@ -287,6 +301,46 @@ export class WorldScreen {
   toggleUnlimitedEnergy(): void {
     this.unlimitedWanted = !this.world.unlimitedEnergy;
     this.world.setUnlimitedEnergy(this.unlimitedWanted);
+  }
+
+  /** Opens or folds the live readout (M16). Folded, the world is asked for no trace. */
+  setReadout(open: boolean): void {
+    this.readoutOpen = open;
+    this.readoutAt = undefined;
+    try {
+      this.settingsStore?.setItem(READOUT_KEY, open ? 'open' : 'folded');
+    } catch {
+      // not kept: nothing else to do
+    }
+  }
+
+  /**
+   * The readout of the followed robot. The trace is asked for only while the readout is open and only for that robot;
+   * the text is made again every sixth tick (and at once on a step while paused), so it can be read.
+   */
+  private readout(focus: Robot | undefined, controlled: boolean, stepped: boolean): ReadoutView | undefined {
+    this.world.setTrace(this.readoutOpen && focus ? focus.id : undefined);
+    if (!focus) {
+      this.readoutAt = undefined;
+      return undefined;
+    }
+    const tick = this.world.tick;
+    const had = this.readoutAt;
+    const due = !had || had.robot !== focus.id || had.open !== this.readoutOpen || (had.tick !== tick && (tick - had.tick >= 6 || (stepped && this.time.paused)));
+    if (had && !due) return had.view;
+    const trace = this.readoutOpen ? this.world.trace(focus.id) : undefined;
+    const registry = this.world.registry;
+    const view = buildReadout({
+      robot: focus.name,
+      watching: !controlled,
+      scripts: this.world.scripts(focus.id),
+      logs: this.readoutOpen ? this.world.scriptLogs.filter((l) => l.robot === focus.id) : [],
+      ...(trace ? { trace } : {}),
+      typeOf: (id) => focus.parts.get(id)?.def.id,
+      typeName: (type) => (registry.has(type) ? registry.get(type).name.toLowerCase() : type),
+    });
+    this.readoutAt = { robot: focus.id, tick, open: this.readoutOpen, view };
+    return view;
   }
 
   get controlledId(): number | undefined {
@@ -558,7 +612,10 @@ export class WorldScreen {
       deployTeam: this.deploy.team,
       sound: { ...this.sound.settings, awake: this.sound.awake },
       unlimitedEnergy: this.world.unlimitedEnergy,
+      readoutOpen: this.readoutOpen,
     };
+    const readout = this.readout(focus, focus !== undefined && focus.id === controlled?.id, ticks > 0);
+    if (readout) view.readout = readout;
     for (; this.eventCursor < this.world.events.length; this.eventCursor++) {
       const ev = this.world.events[this.eventCursor];
       const who = this.world.robots.find((r) => r.id === ev?.robot);

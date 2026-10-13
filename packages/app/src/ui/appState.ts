@@ -6,6 +6,7 @@ import type { ControlsView } from '../builder/coreControls';
 import type { GroupOffer } from '../builder/boardOps';
 import type { NoteLine } from '../builder/notice';
 import type { ScriptProblem, ScriptShow } from '../builder/scriptView';
+import type { ShelfEntry } from '../builder/shelf';
 
 /** A refusal or an offer shown at the cursor (M16), at a point in window pixels. One of `text` and `offers` is set. */
 export interface CursorNote {
@@ -18,8 +19,29 @@ export interface CursorNote {
   offers?: GroupOffer[];
 }
 
+/** A behavior's slot being filled on the board (M16): what the banner over the board says and offers. */
+export interface FillView {
+  /** The behavior's name. */
+  name: string;
+  mode: 'add' | 'change';
+  /** "What lifts? These 4 parts look right." */
+  sentence: string;
+  /** What a click does, in a few words. */
+  help: string;
+  /** The slot being filled, from 1, of how many. */
+  step: number;
+  steps: number;
+  /** The slot may be skipped. */
+  optional: boolean;
+  /** There is a slot before this one to go back to. */
+  canBack: boolean;
+  picked: number;
+}
+
 export interface BuilderView {
   draft: Blueprint;
+  /** A behavior's slot being filled: the board takes clicks for it and nothing else until it is done or called off. */
+  fill?: FillView;
   held?: { part: string; rot: Rotation };
   /** A saved blueprint held to place as a copy (M7). */
   stamp?: { name: string; rot: Rotation; flipped: boolean };
@@ -32,7 +54,7 @@ export interface BuilderView {
   cursorNote?: CursorNote;
   /** The script whose reach is lit on the board. */
   shown?: ScriptShow;
-  /** The script kept lit (Show), by id. `shown` may be another one for a moment, while the mouse is on its row. */
+  /** The script kept lit (its card's Show switch), by id. */
   shownPinned?: string;
   /** Dead names and wrong inputs in the robot's scripts, for Problems. */
   scriptProblems: ScriptProblem[];
@@ -112,6 +134,14 @@ export interface AppState {
   icons: Record<string, string>;
   /** What the world toolbar shows; absent until the world has drawn a frame. */
   world?: WorldView;
+  /** The shelf of shared behaviors (M16), as last read from `behaviors/`. */
+  shelf: { entries: ShelfEntry[]; loaded: boolean; error?: string };
+  /** The script whose update from the shelf is being shown, by id. */
+  behaviorUpdate?: string;
+  /** Test was pressed with unsaved changes (M16): the small box at the button is open. */
+  testBox?: boolean;
+  /** Text for the script view to put in at the caret (a part clicked on the board). `seq` goes up on each ask. */
+  scriptInsert?: { text: string; seq: number };
   /** The script open in the builder's code editor, by id. */
   scriptEditor?: string;
   /** A line of that script to show and select (a click on a problem). `seq` goes up on each ask. */

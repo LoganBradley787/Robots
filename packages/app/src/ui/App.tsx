@@ -9,10 +9,10 @@ import type { BindingActions } from './BindingsPanel';
 import { WorldToolbar, type WorldActions } from './WorldToolbar';
 import { KeysBar, type KeysBarActions } from './KeysBar';
 import type { ScriptActions } from './ScriptsPanel';
-import { ScriptLog } from './ScriptLog';
+import { Readout, type ReadoutActions } from './Readout';
 import type { ScriptEditorActions } from './ScriptEditor';
 
-export type AppActions = BuilderActions & PartActions & BindingActions & WorldActions & KeysBarActions & ScriptActions & ScriptEditorActions;
+export type AppActions = BuilderActions & PartActions & BindingActions & WorldActions & KeysBarActions & ScriptActions & ScriptEditorActions & ReadoutActions;
 
 export function App({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
   const mode = useStore(store, (s) => s.mode);
@@ -24,7 +24,7 @@ export function App({ store, registry, actions }: { store: Store<AppState>; regi
         <BuilderScreen store={store} registry={registry} actions={actions} />
       ) : (
         <>
-          <ScriptLog store={store} />
+          <Readout store={store} actions={actions} />
           <KeysBar store={store} actions={actions} />
           <WorldToolbar store={store} actions={actions} />
         </>

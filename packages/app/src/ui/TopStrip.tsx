@@ -3,7 +3,9 @@ import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import type { BuilderActions } from './actions';
-import { Button, Menu } from './kit';
+import { Button, Menu, Popover } from './kit';
+import { TEST_BOX, testBoxKey, type TestChoice } from '../builder/deployFlow';
+import { useEffect } from 'preact/hooks';
 import { KindPicker } from './KindPicker';
 import { kindsOf } from '../builder/library';
 
@@ -55,7 +57,57 @@ function Name({ name, onRename }: { name: string; onRename(name: string): void }
  * The strip across the top (M16): the robot's name and file state at the left, then the file buttons, Undo and Redo;
  * at the right what the validator says, Script, and the one yellow button, Test.
  */
+/**
+ * The small box at the Test button (M16), when the robot has unsaved changes: "Not saved." and three choices. Enter
+ * means Test anyway and never saves, whichever button has the focus; Esc and a click elsewhere mean Cancel.
+ */
+function TestBox({ anchor, onChoose }: { anchor: { current: HTMLSpanElement | null }; onChoose(choice: TestChoice): void }) {
+  const first = useRef<HTMLDivElement>(null);
+  // The box is placed and shown a frame after it is made, and the click that opened it lets go of the Test button
+  // after that: only then can the focus go where Enter is headed.
+  useEffect(() => {
+    const t = setTimeout(() => first.current?.querySelector<HTMLButtonElement>('button[data-choice="anyway"]')?.focus(), 30);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    // Before anything else hears the key: the builder's own keys, and a focused button's own Enter.
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.metaKey || e.ctrlKey) return;
+      e.stopPropagation();
+      // Tab still walks the three buttons.
+      if (e.key === 'Tab') return;
+      const choice = testBoxKey(e.key);
+      // Space presses the button that has the focus, as on any button.
+      if (choice === undefined && e.key === ' ' && (e.target as HTMLElement | null)?.closest('.test-box')) return;
+      e.preventDefault();
+      if (choice !== undefined) onChoose(choice);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+  return (
+    <Popover anchor={anchor} onClose={() => onChoose('cancel')} align="right" class="test-box">
+      <div ref={first} role="dialog" aria-label="This robot is not saved">
+        <p class="said">
+          <i />
+          {TEST_BOX.text}
+        </p>
+        <div class="choices">
+          {TEST_BOX.choices.map((c) => (
+            <button type="button" key={c.value} data-choice={c.value} class={`btn${c.value === 'anyway' ? ' go' : c.value === 'cancel' ? ' ghost' : ''}`} title={c.title} onClick={() => onChoose(c.value)}>
+              {c.label}
+              {c.value === 'anyway' && <kbd>Enter</kbd>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </Popover>
+  );
+}
+
 export function TopStrip({ store, actions }: { store: Store<AppState>; actions: BuilderActions }) {
+  const testBox = useStore(store, (s) => s.testBox === true);
+  const testAnchor = useRef<HTMLSpanElement>(null);
   const doc = useStore(store, (s) => s.doc);
   const canUndo = useStore(store, (s) => s.builder.canUndo);
   const canRedo = useStore(store, (s) => s.builder.canRedo);
@@ -115,9 +167,12 @@ export function TopStrip({ store, actions }: { store: Store<AppState>; actions: 
       <Button on={scriptOpen} onClick={actions.script} title="This robot's scripts">
         Script
       </Button>
-      <Button kind="go" onClick={actions.deploy} title="Try it in the world (Tab switches back and forth)">
-        Test &#9654;
-      </Button>
+      <span ref={testAnchor} style={{ display: 'inline-flex' }}>
+        <Button kind="go" onClick={actions.deploy} on={testBox} title="Try it in the world (Tab switches back and forth)">
+          Test &#9654;
+        </Button>
+      </span>
+      {testBox && <TestBox anchor={testAnchor} onChoose={actions.testChoice} />}
     </div>
   );
 }

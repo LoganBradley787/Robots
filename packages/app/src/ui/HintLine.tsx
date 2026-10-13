@@ -23,12 +23,22 @@ export function HintLine({ store, registry }: { store: Store<AppState>; registry
   const mirror = useStore(store, (s) => s.builder.mirror.on);
   const hover = useStore(store, (s) => s.builder.hover);
   const help = useStore(store, (s) => s.panel.overlay === 'help');
+  const fill = useStore(store, (s) => s.builder.fill);
+  const scriptOpen = useStore(store, (s) => s.scriptEditor !== undefined);
   const what = handText({ ...(held ? { held } : {}), ...(copy ? { copy } : {}), ...(stamp ? { stamp } : {}), eraser }, registry);
   const both = mirror ? ' on both sides' : '';
   return (
     <div class="hint plate">
       <span class="text">
-        {dragging === 'move' ? (
+        {fill ? (
+          <>
+            {fill.mode === 'add' ? 'Adding' : 'Changing'} <b>{fill.name}</b>: click a part to put it in or take it out. <K>Enter</K> accepts, <K>Esc</K> calls it all off with nothing changed.
+          </>
+        ) : scriptOpen && !held && !copy && !stamp && !eraser ? (
+          <>
+            The script view is open: click a part on the board to put its name in the code. <K>Ctrl</K>+<K>Space</K> offers names, <K>{MOD}</K>+<K>F</K> finds, Done closes it.
+          </>
+        ) : dragging === 'move' ? (
           <>
             Let go to drop {selected === 1 ? 'it' : `the ${selected} parts`} there{mirror ? ', with the mirror image' : ''}. Red outlines: something is in the way and nothing will move. <K>Esc</K> calls it off.
           </>
@@ -71,7 +81,7 @@ export function HintLine({ store, registry }: { store: Store<AppState>; registry
             Click a part to select it, drag it to move it, drag across empty cells for a box. <K>Alt</K>+click a part for another like it. <K>1</K> to <K>9</K> take a part.
           </>
         )}
-        {mirror && !dragging && (
+        {mirror && !dragging && !fill && (
           <>
             {' '}
             Mirror is on: <K>[</K> and <K>]</K> move its line.

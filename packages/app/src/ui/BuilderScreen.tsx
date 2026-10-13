@@ -14,6 +14,8 @@ import { ScriptEditor } from './ScriptEditor';
 import { Hotbar } from './Hotbar';
 import { Library } from './Library';
 import { CursorNoteView } from './BoardNotes';
+import { FillBanner } from './FillBanner';
+import { UpdateWindow } from './UpdateWindow';
 
 /**
  * The builder's panels (M16), laid out as a grid over the canvas: a strip across the top, the parts drawer at the
@@ -22,6 +24,8 @@ import { CursorNoteView } from './BoardNotes';
 export function BuilderScreen({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
   const overlay = useStore(store, (s) => s.panel.overlay);
   const dialog = useStore(store, (s) => s.dialog !== undefined);
+  const scriptOpen = useStore(store, (s) => s.scriptEditor !== undefined);
+  const update = useStore(store, (s) => s.behaviorUpdate !== undefined);
   // `?` opens the key list from anywhere on the builder; Esc closes whatever is over the board.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -30,6 +34,12 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
       if (e.key === 'Escape' && overlay !== undefined && !document.querySelector('.pop')) {
         e.stopPropagation();
         store.set((s) => ({ panel: { ...s.panel, overlay: undefined } }));
+        return;
+      }
+      // What a behavior's update would change is over the board too.
+      if (e.key === 'Escape' && update) {
+        e.stopPropagation();
+        actions.showBehaviorUpdate(undefined);
         return;
       }
       if (isTypingTarget(e.target)) return;
@@ -41,19 +51,21 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [overlay, dialog]);
+  }, [overlay, dialog, update]);
   return (
-    <div class="builder">
+    <div class={`builder${scriptOpen ? ' with-script' : ''}`}>
       <TopStrip store={store} actions={actions} />
       <Drawer store={store} registry={registry} actions={actions} />
       <div class="board">
         <BoardChips store={store} registry={registry} actions={actions} />
+        <FillBanner store={store} actions={actions} />
         <Hotbar store={store} registry={registry} actions={actions} />
       </div>
       <Inspector store={store} registry={registry} actions={actions} />
       <HintLine store={store} registry={registry} />
       <HelpCard store={store} />
-      <ScriptEditorHost store={store} actions={actions} />
+      <ScriptEditorHost store={store} registry={registry} actions={actions} />
+      <UpdateWindow store={store} actions={actions} />
       {overlay === 'library' && <Library store={store} actions={actions} />}
       <CursorNoteView store={store} actions={actions} />
     </div>
@@ -61,7 +73,8 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
 }
 
 /** Remounts the editor per script, so a check or params from the last script never show on the next. */
-function ScriptEditorHost({ store, actions }: { store: Store<AppState>; actions: AppActions }) {
+function ScriptEditorHost({ store, registry, actions }: { store: Store<AppState>; registry: PartRegistry; actions: AppActions }) {
   const id = useStore(store, (s) => s.scriptEditor);
-  return id ? <ScriptEditor key={id} store={store} actions={actions} /> : null;
+  const core = useStore(store, (s) => s.builder.controlsFor);
+  return id ? <ScriptEditor key={`${core ?? ''}/${id}`} store={store} registry={registry} actions={actions} /> : null;
 }

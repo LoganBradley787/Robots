@@ -3,7 +3,7 @@ import { Sprite } from 'pixi.js';
 import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
-import { addScript, cleanScriptId, removeScript, renameScript, updateScript } from './builder/scripts';
+import { addScript, cleanScriptId, renameScript, updateScript } from './builder/scripts';
 import { controlsOf, withControls } from './builder/coreControls';
 import flatJson from '../../../worlds/flat.json';
 import arenaJson from '../../../worlds/arena.json';
@@ -13,7 +13,9 @@ import { Hud } from './app/Hud';
 import { bindKeys, codeOf, isTypingTarget, worldKeyLabel } from './app/keys';
 import { keyName } from './builder/bindings';
 import { enterWorld, toggleMode, type ModeState } from './app/modes';
-import { deployDecision } from './builder/deployFlow';
+import { deployDecision, testChoice } from './builder/deployFlow';
+import { applyUpdate, behaviorCards, clearableGroups, readShelf, removeBehavior, setScriptKey, startChange, startFill } from './builder/shelf';
+import type { CameraState } from './render/camera';
 import { WorldScreen } from './world/WorldScreen';
 import { mountSoundboard } from './audio/Soundboard';
 import { BATTLE_GRID, HOVER_GRID } from './world/stress';
@@ -22,7 +24,7 @@ import { createStore } from './ui/store';
 import type { AppState } from './ui/appState';
 import { App } from './ui/App';
 import { BuilderScene } from './builder/BuilderScene';
-import { applyLayout, BOARD_INSETS } from './ui/layout';
+import { applyLayout, BOARD_INSETS, scriptViewWidth } from './ui/layout';
 import { HOTBAR_KEY, pushRecent, readHotbar, readRecent, RECENT_KEY, setSlot, swapSlots, type Hotbar } from './builder/hotbar';
 import { cleanKind } from './builder/library';
 import { robotThumbnail } from './render/partDraw';
@@ -31,7 +33,7 @@ import { handFull } from './builder/editorState';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
 import type { AppActions } from './ui/App';
-import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadScriptFile, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile, setBlueprintKind } from './storage/blueprintApi';
+import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadScriptFile, loadShelfFiles, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile, setBlueprintKind } from './storage/blueprintApi';
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');
@@ -83,6 +85,7 @@ async function boot(): Promise<void> {
     hotbar: readHotbar(remembered(HOTBAR_KEY), registry.ids()),
     recent: readRecent(remembered(RECENT_KEY), registry.ids()),
     meta: {},
+    shelf: { entries: [], loaded: false },
   });
   applyLayout(uiEl);
   const scene = new BuilderScene(renderer.builder, (f) => textures.part(f), BOARD_INSETS);
@@ -143,7 +146,12 @@ async function boot(): Promise<void> {
     registry,
     api: { list: listBlueprints, load: loadBlueprintFile, save: saveBlueprintFile, remove: deleteBlueprintFile, loadText: loadScriptFile, saveText: saveScriptFile },
     getDraft: () => builder.draft,
-    setDraft: (bp: Blueprint, opts) => (opts?.keepHistory ? builder.edit(() => bp) : builder.load(bp)),
+    setDraft: (bp: Blueprint, opts) => {
+      if (opts?.keepHistory) return builder.edit(() => bp);
+      // Another robot: the script view was about the last one. It closes first, so the board is whole when the robot is shown.
+      store.set({ scriptEditor: undefined, scriptLine: undefined, behaviorUpdate: undefined, testBox: undefined });
+      builder.load(bp);
+    },
     renameHistory: (name) => builder.renameHistory(name),
     askUnsaved: async () => {
       const a = await ask(store, {
@@ -208,6 +216,70 @@ async function boot(): Promise<void> {
       forgetMeta(doc.state.file);
       return syncDoc(true);
     }).catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+  };
+
+  /**
+   * The script view (M16) lies over the drawer and the left of the board. While it is open the board that is left is
+   * the strip beside the inspector: the robot is shown whole in it, and Done puts the view back where it was.
+   */
+  let viewBefore: CameraState | undefined;
+  let scriptViewOpen = false;
+  const layoutScriptView = (): void => {
+    const open = store.get().scriptEditor !== undefined;
+    const w = scriptViewWidth(window.innerWidth);
+    uiEl.style.setProperty('--sv-w', `${w}px`);
+    if (open) {
+      if (!scriptViewOpen) viewBefore = { ...scene.cam };
+      builder.setBoardInsets({ ...BOARD_INSETS, left: w }, !scriptViewOpen);
+    } else if (scriptViewOpen) {
+      scene.setInsets(BOARD_INSETS);
+      if (viewBefore) scene.cam = viewBefore;
+      viewBefore = undefined;
+      builder.setBoardInsets(BOARD_INSETS, false);
+    }
+    scriptViewOpen = open;
+  };
+  let lastEditor = store.get().scriptEditor;
+  store.subscribe(() => {
+    const now = store.get().scriptEditor;
+    if (now === lastEditor) return;
+    const was = lastEditor;
+    lastEditor = now;
+    if ((now === undefined) !== (was === undefined)) layoutScriptView();
+  });
+  window.addEventListener('resize', () => {
+    if (scriptViewOpen) layoutScriptView();
+  });
+  // A part clicked on the board while the script view is open: its name goes into the code.
+  let insertSeq = 0;
+  builder.onPartClick = (id) => {
+    if (store.get().scriptEditor === undefined) return false;
+    store.set({ scriptInsert: { text: id, seq: ++insertSeq } });
+    return true;
+  };
+  builder.onFilled = () => store.set((s) => ({ panel: { ...s.panel, tab: 'behaviors' } }));
+  let shelfBusy = false;
+  const loadShelf = (): void => {
+    if (shelfBusy) return;
+    shelfBusy = true;
+    loadShelfFiles()
+      .then((files) => {
+        const entries = readShelf(files);
+        // The same shelf again changes nothing (the panels compare it by identity).
+        const had = store.get().shelf;
+        if (had.loaded && had.error === undefined && JSON.stringify(had.entries.map((e) => e.source)) === JSON.stringify(entries.map((e) => e.source))) return;
+        store.set({ shelf: { entries, loaded: true } });
+      })
+      .catch((e: unknown) => store.set((st) => ({ shelf: { entries: st.shelf.entries, loaded: st.shelf.loaded, error: e instanceof Error ? e.message : String(e) } })))
+      .finally(() => {
+        shelfBusy = false;
+      });
+  };
+  /** Into the world with the robot as it is on screen in hand. Deploy carries script code inline, so the spawn log and replays never depend on files. */
+  const startTest = async (): Promise<void> => {
+    await syncDoc(true);
+    setMode(enterWorld({ ...modes, paused: worldScreen.time.paused }));
+    worldScreen.startPlacing(toFileJson(builder.draft, registry, { inlineScripts: true }), registry);
   };
 
   const worldKeys = worldScreen.keyActions();
@@ -349,7 +421,6 @@ async function boot(): Promise<void> {
     dismissNote: (seq) => builder.dismissNote(seq),
     dismissCursorNote: (seq) => builder.dismissCursorNote(seq),
     showScript: (id) => builder.showScript(id),
-    peekScript: (id) => builder.peekScript(id),
     revealScript: (core, id) => {
       if (builder.controlsFor !== core) actions.setControlsFor(core);
       builder.showScript(id);
@@ -408,20 +479,55 @@ async function boot(): Promise<void> {
       store.set({ scriptEditor: id });
     },
     removeScript: (id) => {
+      const core = builder.controlsFor;
+      const card = behaviorCards(builder.draft, registry, [], core).find((c) => c.id === id);
+      const groups = clearableGroups(builder.draft, registry, core, id);
+      const name = card?.header?.name ?? `"${id}"`;
+      const filled = groups.map((g) => `"${g.tag}"`).join(' and ');
       void ask(store, {
-        title: 'Remove script?',
-        message: `Removes "${id}" and the keys that toggle it from this blueprint. Its file stays in blueprints/ until you delete it.`,
+        title: `Remove ${name}?`,
+        message:
+          groups.length > 0
+            ? `Removes it from this robot, with the key that switches it. Its slots put parts in the group${groups.length === 1 ? '' : 's'} ${filled}: clearing ${groups.length === 1 ? 'that' : 'those'} too gives the parts it drove their own keys back. Undo brings all of it back.`
+            : `Removes it from this robot, with the key that switches it.${card?.file !== undefined ? ` Its file stays in blueprints/ until you delete it.` : ''} Undo brings it back.`,
         buttons: [
           { label: 'Cancel', value: 'no' },
-          { label: 'Remove', value: 'yes', kind: 'danger' },
+          ...(groups.length > 0 ? [{ label: 'Remove, keep groups', value: 'keep' }, { label: 'Remove and clear groups', value: 'clear', kind: 'danger' as const }] : [{ label: 'Remove', value: 'keep', kind: 'danger' as const }]),
         ],
         cancelValue: 'no',
       }).then((a) => {
-        if (a.value !== 'yes') return;
-        editControls((c) => removeScript(c, id));
+        if (a.value === 'no') return;
+        builder.editAndSay((bp) => removeBehavior(bp, registry, core, id, a.value === 'clear'));
         if (store.get().scriptEditor === id) store.set({ scriptEditor: undefined });
       });
     },
+    loadShelf,
+    addBehavior: (shelfId) => {
+      const entry = store.get().shelf.entries.find((e) => e.id === shelfId);
+      if (!entry) return notify(store, `The shelf has no behavior called ${shelfId}.`);
+      const state = startFill(builder.draft, registry, entry, builder.controlsFor);
+      if ('error' in state) return notify(store, state.error);
+      builder.startFill(state);
+    },
+    changeSlot: (scriptId, group) => {
+      const state = startChange(builder.draft, registry, builder.controlsFor, scriptId, group);
+      if ('error' in state) return notify(store, state.error);
+      builder.startFill(state);
+    },
+    fillAccept: () => builder.fillAccept(),
+    fillSkip: () => builder.fillSkip(),
+    fillBack: () => builder.fillBack(),
+    fillCancel: () => builder.fillCancel(),
+    showBehaviorUpdate: (scriptId) => {
+      if (scriptId !== undefined) loadShelf();
+      store.set({ behaviorUpdate: scriptId });
+    },
+    applyBehaviorUpdate: (scriptId) => {
+      builder.editAndSay((bp) => applyUpdate(bp, registry, store.get().shelf.entries, builder.controlsFor, scriptId));
+      store.set({ behaviorUpdate: undefined });
+    },
+    setScriptKey: (scriptId, key) => builder.edit((bp) => setScriptKey(bp, registry, builder.controlsFor, scriptId, key)),
+    setReadout: (open) => worldScreen.setReadout(open),
     renameScript: (from, to) => {
       editControls((c) => renameScript(c, from, to));
       const renamed = cleanScriptId(to);
@@ -460,20 +566,24 @@ async function boot(): Promise<void> {
     saveAs: () => run(doc.saveAs()),
     remove: () => run(doc.remove()),
     deploy: () => {
-      const go = async (): Promise<void> => {
-        const d = deployDecision(store.get().builder.issues, doc.isDirty());
-        if (d.step === 'blocked') {
-          notify(store, `Fix ${d.errors} problem${d.errors === 1 ? '' : 's'} before testing. The list is at the bottom right.`);
-          store.set((s) => ({ panel: { ...s.panel, problemsOpen: true } }));
-          return;
-        }
-        if (d.step === 'confirm-unsaved' && !(await doc.confirmLeave())) return;
-        await syncDoc(true);
-        setMode(enterWorld({ ...modes, paused: worldScreen.time.paused }));
-        // Deploy carries script code inline, so the spawn log and replays never depend on files.
-        worldScreen.startPlacing(toFileJson(builder.draft, registry, { inlineScripts: true }), registry);
-      };
-      go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+      // A slot half filled is called off: Test tries the robot as it is.
+      builder.fillCancel();
+      const d = deployDecision(store.get().builder.issues, doc.isDirty());
+      if (d.step === 'blocked') {
+        notify(store, `Fix ${d.errors} problem${d.errors === 1 ? '' : 's'} before testing. The list is at the bottom right.`);
+        store.set((s) => ({ panel: { ...s.panel, problemsOpen: true } }));
+        return;
+      }
+      // Unsaved changes: the small box at the button (M16). With nothing unsaved, straight through.
+      if (d.step === 'confirm-unsaved') {
+        store.set({ testBox: true });
+        return;
+      }
+      startTest().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+    },
+    testChoice: (choice) => {
+      store.set({ testBox: undefined });
+      run(testChoice(choice, { save: () => doc.save(), test: startTest }));
     },
     focusIssue: (issue) => {
       const part = issue.partId ? builder.draft.parts.find((p) => p.id === issue.partId) : undefined;
