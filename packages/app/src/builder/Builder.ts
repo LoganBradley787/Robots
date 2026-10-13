@@ -49,6 +49,8 @@ export class Builder {
   private seq = 0;
   /** The script whose reach is lit on the board, by id, among the scripts of the core the panels are on. */
   private shownId: string | undefined;
+  /** Parts lit for the keys UI (M16 step 6): what a key would drive. While set it shows in place of a script's reach. */
+  private litParts: readonly string[] | undefined;
   private shown: { bp: Blueprint; core: string | undefined; id: string; view: ScriptShow | undefined } | undefined;
   /** The core whose controls the panels edit (M7); undefined is the main core. */
   controlsFor: string | undefined;
@@ -232,6 +234,14 @@ export class Builder {
   showScript(id: string | undefined): void {
     if (id === this.shownId) return;
     this.shownId = id;
+    this.refresh(false);
+  }
+
+  /** Lights up these parts on the board (what a key drives, or would); undefined puts that light out. */
+  lightParts(ids: readonly string[] | undefined): void {
+    const same = ids === undefined ? this.litParts === undefined : this.litParts !== undefined && ids.length === this.litParts.length && ids.every((id, i) => id === this.litParts?.[i]);
+    if (same) return;
+    this.litParts = ids;
     this.refresh(false);
   }
 
@@ -555,7 +565,7 @@ export class Builder {
       ...(stats.massKg > 0 ? { com: { x: stats.comX, y: stats.comY } } : {}),
       selection: this.editor.selection,
       ...(g?.kind === 'box' && (g.start.x !== g.last.x || g.start.y !== g.last.y) ? { box: { a: g.start, b: g.last } } : {}),
-      ...(shown ? { reach: { reached: shown.reached, fits: shown.fits, undriven: shown.undriven.map((u) => u.part) } } : {}),
+      ...(this.litParts ? { reach: { reached: this.litParts, fits: [], undriven: [] } } : shown ? { reach: { reached: shown.reached, fits: shown.fits, undriven: shown.undriven.map((u) => u.part) } } : {}),
       ...(this.fillSlotNow() ? { pick: { chosen: this.fillSlotNow()?.chosen ?? [], could: this.fillSlotNow()?.could ?? [] } } : {}),
       swap: this.shift,
     };

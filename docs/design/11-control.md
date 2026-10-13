@@ -51,6 +51,14 @@ Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), 
 - The buttons act as the keys: press and hold the button to hold the key, click to tap it. A toggle flips on the click.
 - Editing controls stays in the builder.
 
+## The world bar (M16, as built)
+- A small transport in the middle of the bottom edge: Builder (Tab), Play or Pause (Space), Step (.), slower ([), the speed, faster (]). Then two menus.
+- **View**: follow or next robot (,), home, grid (`), debug overlay (\), sound, volume, far sounds arrive late.
+- **Sandbox**: deploy as (yours or enemy), unlimited energy, stress test (hovering drones 10, 25, 50, 100; a battle of 6 against 6), clear debris, save replay, reset world (it asks first).
+- Every menu row shows its state now and its key. A row that only flips something leaves the menu open, so the new state shows. Esc or a press anywhere else closes a menu. Every world key works as before; the key caps on the bar are read from the world key table (`app/keys.ts`).
+- The top left shows one small line: the clock, the speed, "paused", and the robot you control or watch. While a robot is held for dropping, a second line says how to place it. The raw text (tick, hash, fps, timing, hints) shows only with Debug on.
+- The keys bar (below) sits just above the transport: energy as a bar, then the keys as key caps.
+
 ## Replays
 - Every run in the world can be saved as a replay file: the world, every spawn, and every key press and release, by tick. `pnpm sim replay <file>` reruns it headless and checks it ends in the same state. This is how Logan can hand Claude a bug ("it flips when I do this").
 - (M8) Each spawn carries its team; a replay saved before M8 plays as all team 0.
@@ -63,13 +71,38 @@ Binding every wheel by hand (Logan's `le-car`) is tedious, so robots control the
 - **Thrusters and propellers:** the key for the direction the part pushes. Up W, down S, right D, left A. So S fires down-facing propellers and top thrusters, and D fires right-pushing thrusters together with the wheels.
 - Parts are data: which channel a part's auto control drives, and whether it is an axis (wheels) or follows the push direction (thrust), is in the part def (`autoControl`). The engine never names a part.
 - Custom bindings sit on top (K for a warhead). Auto and custom writers on the same channel sum and clamp, like any two bindings.
-- The builder's controls panel lists the auto controls as read-only lines, grouped by key, so it is visible what every key does.
+- The builder shows every auto key where it acts: as a greyed row on the part's input, and as an outlined key on the drawn keyboard (see "Keys in the builder"). A click makes it yours.
+
+## Keys in the builder (M16, as built)
+Two places edit the same binding list. The file format (`key`, `mode`, `target`, `channel`, `value`, or `script`) and how bindings are arbitrated did not change. Every edit is one undo step; a slider drag is one step.
+
+**Words.** The builder says "while held", "on and off" and "tap once". The file keeps `hold`, `toggle` and `pulse`. A value shows as a percent, with a sign only where the input goes both ways.
+
+**Bind from the part (the Part tab).** Every input of the selected part is a row: its name, its range in plain words, a `+ key` cap, then everything that drives it today.
+- Click `+ key`, press a key: a binding is made for this one part, while held, at the input's full value. Esc, or a click on the waiting cap, calls the wait off. A key the world keeps is refused with the reason and the wait goes on.
+- A key of yours is a line with its cap (click it to change the key), what it does in a few words, and **who it drives** as a segmented control: this part, all parts of this kind, or one of the part's groups. While the pointer is on a choice, the parts it would reach light up on the board (the same blue as what a script drives).
+- "more" on the line gives the mode, the value as a slider over the input's range, and remove.
+- An auto key is a greyed line marked auto. A click makes it yours: auto goes off for that part and the keys the game gave it are written as plain bindings, so the robot drives exactly as before. One undo step.
+- A script that writes the input is a line too; a click shows it in the Behaviors tab.
+- A robot with several cores: the rows edit the keys of the core the Keys tab is on, and say so.
+
+**The Keys tab.** A drawn keyboard: digits, letters, Space and the arrows, laid out like a keyboard, with the world's keys drawn where they sit.
+- Keys are lit by owner: yours (solid yellow), auto (yellow outline), switches a script on and off (blue, with a bar under it), the world's (hatched, cannot be bound). A key bound in the file that is not drawn (`Semicolon`) is listed after the keyboard.
+- A key that does two unrelated things has an orange corner. That is shown, never refused. Two things are unrelated when they are different inputs, or a script switch beside anything else. Keys only the game chose never count (D driving the wheels and a sideways thruster is how auto keys are meant to work).
+- With no key picked, "Everything bound" lists every key and what it does. Resting the pointer on one lights up its parts.
+- Click a lit key to see everything it does, one sentence a row ("F, tap once: all Launchers, fire 100%"). "more" on a row of yours changes who it drives (a group, a kind, a single part), which input, the mode and the value, or removes it. The cap moves it to another key. An auto row has "make them mine", which claims those parts (one binding for the whole kind when every part of the kind is claimed alike).
+- Click a free key to add to it: pick what it drives (it takes that target's first input, while held, at full), or pick a script for the key to switch on and off.
+- The whole-robot Auto keys switch is at the top with one line saying what the auto keys do.
+- Several cores: a segmented control at the top picks whose keys you edit.
+
+The logic is in `packages/app/src/builder/keys.ts` (pure, tested in `packages/app/test/keysUi.test.ts`); the rows are `ui/InputRows.tsx`, the tab is `ui/BindingsPanel.tsx`.
 
 ## Group tags
 - Every part carries an implicit tag for its type (`wheel`, `thruster`, `propeller`), so "all wheels" is a binding target without tagging anything. User tags remain for finer groups.
 - Channel values show as percent in the builder: `speed +100%` is full forward, `-100%` full reverse.
 
 ## Builder: part menu and eraser (Logan, 2026-09-23; changes `10`)
+(M16: the floating part menu is gone; its contents are the inspector's Part tab, see `10`.)
 - **Right-click a part** opens a small menu next to it, in the spirit of Kerbal Space Program's part menu. It edits the selection when the clicked part is selected (box-select 5 wheels, right-click one, all 5 change), else just that part. Contents: tags (add, remove, pick an existing group), auto controls on or off, rotation, delete. It replaces the side selection panel.
 - **Erasing** is a tool: press `E` (or click the eraser in the palette) and left-click or left-drag to erase. Right-click no longer erases. Delete still removes the selection.
 

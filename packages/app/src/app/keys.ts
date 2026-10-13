@@ -36,6 +36,15 @@ export function worldKeyAction(code: string): WorldAction | undefined {
   return WORLD_KEYS[code]?.action;
 }
 
+/** How each world key reads on a key cap. */
+const CODE_CAP: Readonly<Record<string, string>> = { Space: 'Space', Period: '.', BracketLeft: '[', BracketRight: ']', Backslash: '\\', Backquote: '`', Comma: ',' };
+
+/** The key that does a world action, as it reads on a key cap: read from the table, so the bar and its menus never say a key that is not the one. */
+export function worldKeyCap(action: WorldAction): string {
+  const code = Object.keys(WORLD_KEYS).find((c) => WORLD_KEYS[c]?.action === action) ?? '';
+  return CODE_CAP[code] ?? code;
+}
+
 /** Why a key cannot be a robot binding, or undefined when it can. */
 export function worldKeyLabel(code: string): string | undefined {
   const label = WORLD_KEYS[code]?.label ?? RESERVED[code];

@@ -92,12 +92,24 @@ export interface SegOption<T extends string> {
   title?: string;
 }
 
-/** One of a few, all visible. */
-export function Segmented<T extends string>({ options, value, onChange }: { options: ReadonlyArray<SegOption<T>>; value: T; onChange(value: T): void }) {
+/**
+ * One of a few, all visible. `onHover` hears which option the pointer rests on, and undefined when it
+ * leaves: a panel can show what a choice would do before it is made.
+ */
+export function Segmented<T extends string>({ options, value, onChange, onHover, label }: { options: ReadonlyArray<SegOption<T>>; value: T | undefined; onChange(value: T): void; onHover?(value: T | undefined): void; label?: string }) {
   return (
-    <div class="seg" role="radiogroup">
+    <div class="seg" role="radiogroup" aria-label={label} onPointerLeave={onHover ? () => onHover(undefined) : undefined}>
       {options.map((o) => (
-        <button type="button" key={o.value} role="radio" aria-checked={o.value === value} class={cx(o.value === value && 'on')} title={o.title} onClick={() => onChange(o.value)}>
+        <button
+          type="button"
+          key={o.value}
+          role="radio"
+          aria-checked={o.value === value}
+          class={cx(o.value === value && 'on')}
+          title={o.title}
+          onClick={() => onChange(o.value)}
+          onPointerEnter={onHover ? () => onHover(o.value) : undefined}
+        >
           {o.label}
         </button>
       ))}
@@ -105,7 +117,8 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
   );
 }
 
-export function Slider({ value, min, max, step, onChange, disabled, label, title }: { value: number; min: number; max: number; step?: number; onChange(value: number): void; disabled?: boolean; label?: string; title?: string }) {
+/** `onDrag` hears a drag start (true) and end (false), so a panel can make the whole drag one undo step. */
+export function Slider({ value, min, max, step, onChange, onDrag, disabled, label, title }: { value: number; min: number; max: number; step?: number; onChange(value: number): void; onDrag?(on: boolean): void; disabled?: boolean; label?: string; title?: string }) {
   return (
     <input
       class="slider"
@@ -118,8 +131,13 @@ export function Slider({ value, min, max, step, onChange, disabled, label, title
       aria-label={label}
       title={title}
       onInput={(e) => onChange(Number((e.target as HTMLInputElement).value))}
+      onPointerDown={onDrag ? () => onDrag(true) : undefined}
+      onPointerCancel={onDrag ? () => onDrag(false) : undefined}
       // Let go of focus, so the arrow keys and letters go back to the game.
-      onPointerUp={(e) => (e.target as HTMLInputElement).blur()}
+      onPointerUp={(e) => {
+        onDrag?.(false);
+        (e.target as HTMLInputElement).blur();
+      }}
     />
   );
 }

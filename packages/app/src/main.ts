@@ -10,6 +10,7 @@ import arenaJson from '../../../worlds/arena.json';
 import { Renderer } from './render/Renderer';
 import { loadTextures } from './render/assets';
 import { Hud } from './app/Hud';
+import { claimAuto } from './builder/keys';
 import { bindKeys, codeOf, isTypingTarget, worldKeyLabel } from './app/keys';
 import { keyName } from './builder/bindings';
 import { enterWorld, toggleMode, type ModeState } from './app/modes';
@@ -366,6 +367,9 @@ async function boot(): Promise<void> {
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
     },
     setBindings: (bindings) => editControls((c) => ({ ...c, bindings })),
+    claimAuto: (ids, byKind) => builder.edit((bp) => claimAuto(bp, registry, builder.controlsFor, ids, { byKind })),
+    lightParts: (ids) => builder.lightParts(ids),
+    dragValue: (on) => (on ? builder.beginTextEdit() : builder.endTextEdit()),
     addTag: (ids, tag) => builder.edit((bp) => addTagToParts(bp, ids, tag)),
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
     setAuto: (ids, on) => builder.edit((bp) => setPartsAuto(bp, ids, on)),
