@@ -394,26 +394,10 @@ export class WorldScreen {
     g.stroke({ color: 0xffa040, width: 2.5 * px, alpha: 1, cap: 'round' });
   }
 
-  /** Views follow the robots: new pieces get one, rebuilt robots get a fresh one, removed robots lose theirs. */
+  /** Views follow the robots (M16: a rebuilt robot keeps the drawings of the parts it still has, `RobotView.syncAll`). */
   private syncViews(): void {
-    const live = new Set(this.world.robots.map((r) => r.id));
-    for (const [id, v] of this.views) {
-      if (live.has(id)) continue;
-      v.root.destroy({ children: true });
-      this.views.delete(id);
-    }
-    for (const robot of this.world.robots) {
-      const old = this.views.get(robot.id);
-      if (old && old.version === robot.version) continue;
-      const view = new RobotView(robot, (f) => this.textures.part(f), (name) => this.textures.fx.animations[name] ?? [], this.world.registry);
-      if (old) {
-        this.renderer.bodies.addChildAt(view.root, this.renderer.bodies.getChildIndex(old.root));
-        old.root.destroy({ children: true });
-      } else {
-        this.renderer.bodies.addChild(view.root);
-      }
-      this.views.set(robot.id, view);
-    }
+    const drawing = { frame: (f: string) => this.textures.part(f), animations: (name: string) => this.textures.fx.animations[name] ?? [], registry: this.world.registry };
+    RobotView.syncAll(this.views, this.world.robots, drawing, this.renderer.bodies);
   }
 
   /**

@@ -1,4 +1,4 @@
-import { faceDir, rotateFace, rotationRadians, type BodyId, type Robot } from '@robots/sim-core';
+import { faceDir, rotateFace, rotationRadians, type BodyGroup, type BodyId, type PartInstance, type Robot } from '@robots/sim-core';
 import { partSprites, type PartSprite } from './partSprites';
 
 export interface SpriteLayout {
@@ -40,31 +40,48 @@ export function layoutRobot(robot: Robot): BodyLayout[] {
     if (!body) continue;
     for (const id of g.partIds) {
       const p = robot.parts.get(id);
-      if (!p) continue;
-      // A multi-cell part spans its footprint's box, turned with the part; a stretchy cup is tiles, one per cell (M12).
-      const tiles = partSprites(p.def, p.rot, p.footprint ?? p.def.footprint);
-      for (const t of tiles.slice(0, -1)) {
-        body.sprites.push({ kind: 'part', partId: id, frame: t.frame, x: p.localX + t.x, y: p.localY + t.y, rotation: rotationRadians(p.rot), w: t.w, h: t.h, ...(t.flip ? { flip: true } : {}) });
-      }
-      const last = tiles[tiles.length - 1] as PartSprite;
-      const sprite: SpriteLayout = { kind: 'part', partId: id, frame: last.frame, x: p.localX + last.x, y: p.localY + last.y, rotation: rotationRadians(p.rot), w: last.w, h: last.h, ...(last.flip ? { flip: true } : {}) };
-      const channel = p.def.inputs[0]?.name;
-      if (channel !== undefined && (p.def.sprite.animation !== undefined || p.def.sprite.overlay !== undefined)) sprite.channel = channel;
-      if (p.def.sprite.animation !== undefined) sprite.animation = p.def.sprite.animation;
-      if (p.def.sprite.overlay !== undefined) {
-        const acts = faceDir(rotateFace(p.def.acts ?? 'N', p.rot));
-        sprite.overlay = { name: p.def.sprite.overlay, x: p.localX - 0.5 * acts.x, y: p.localY - 0.5 * acts.y };
-      }
-      body.sprites.push(sprite);
+      if (p) body.sprites.push(...partLayout(p));
     }
   }
   for (const g of robot.groups) {
-    const j = g.joint;
-    const p = j ? robot.parts.get(j.partId) : undefined;
-    const parent = j ? bodies[j.parentGroup] : undefined;
-    if (!j || !p || !parent || p.def.sprite.mountFrame === undefined) continue;
-    parent.sprites.push({ kind: 'mount', partId: p.id, frame: p.def.sprite.mountFrame, x: j.anchorParentX, y: j.anchorParentY, rotation: rotationRadians(p.rot), w: 1, h: 1 });
+    const m = mountLayout(robot, g);
+    if (m) bodies[m.parentGroup]?.sprites.push(m.sprite);
   }
-  const jointFirst = (b: BodyLayout): number => (robot.groups[b.group]?.joint ? 0 : 1);
-  return [...bodies].sort((a, b) => jointFirst(a) - jointFirst(b) || a.group - b.group);
+  return [...bodies].sort(bodyOrder(robot));
+}
+
+/** Draw order of a robot's bodies: joint bodies first (wheels, turrets), so the body they hang from draws over them. */
+export function bodyOrder(robot: Robot): (a: { group: number }, b: { group: number }) => number {
+  const jointFirst = (b: { group: number }): number => (robot.groups[b.group]?.joint ? 0 : 1);
+  return (a, b) => jointFirst(a) - jointFirst(b) || a.group - b.group;
+}
+
+/** One part's sprites in its body's frame, the last one its own (it carries the part's animation, overlay and channel). */
+export function partLayout(p: PartInstance): SpriteLayout[] {
+  const out: SpriteLayout[] = [];
+  const id = p.id;
+  // A multi-cell part spans its footprint's box, turned with the part; a stretchy cup is tiles, one per cell (M12).
+  const tiles = partSprites(p.def, p.rot, p.footprint ?? p.def.footprint);
+  for (const t of tiles.slice(0, -1)) {
+    out.push({ kind: 'part', partId: id, frame: t.frame, x: p.localX + t.x, y: p.localY + t.y, rotation: rotationRadians(p.rot), w: t.w, h: t.h, ...(t.flip ? { flip: true } : {}) });
+  }
+  const last = tiles[tiles.length - 1] as PartSprite;
+  const sprite: SpriteLayout = { kind: 'part', partId: id, frame: last.frame, x: p.localX + last.x, y: p.localY + last.y, rotation: rotationRadians(p.rot), w: last.w, h: last.h, ...(last.flip ? { flip: true } : {}) };
+  const channel = p.def.inputs[0]?.name;
+  if (channel !== undefined && (p.def.sprite.animation !== undefined || p.def.sprite.overlay !== undefined)) sprite.channel = channel;
+  if (p.def.sprite.animation !== undefined) sprite.animation = p.def.sprite.animation;
+  if (p.def.sprite.overlay !== undefined) {
+    const acts = faceDir(rotateFace(p.def.acts ?? 'N', p.rot));
+    sprite.overlay = { name: p.def.sprite.overlay, x: p.localX - 0.5 * acts.x, y: p.localY - 0.5 * acts.y };
+  }
+  out.push(sprite);
+  return out;
+}
+
+/** The mount of a joint group's part (a wheel's axle bracket), drawn on the body it hangs from, if it has one. */
+export function mountLayout(robot: Robot, g: BodyGroup): { parentGroup: number; sprite: SpriteLayout } | undefined {
+  const j = g.joint;
+  const p = j ? robot.parts.get(j.partId) : undefined;
+  if (!j || !p || p.def.sprite.mountFrame === undefined) return undefined;
+  return { parentGroup: j.parentGroup, sprite: { kind: 'mount', partId: p.id, frame: p.def.sprite.mountFrame, x: j.anchorParentX, y: j.anchorParentY, rotation: rotationRadians(p.rot), w: 1, h: 1 } };
 }
