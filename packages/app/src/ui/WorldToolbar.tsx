@@ -5,6 +5,7 @@ import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import { teamName } from '../world/deploySettings';
+import { FAR_DISTANCES, robotsText } from '../world/removal';
 import { Button, Popover, Slider } from './kit';
 
 export interface WorldActions {
@@ -18,6 +19,13 @@ export interface WorldActions {
   worldToggleGrid(): void;
   worldReset(): void;
   clearDebris(): void;
+  /** M16: arms or disarms the remove cursor (a click removes the robot under it). */
+  toggleRemoving(): void;
+  /** M16: removes every robot past Remove far away's distance, and picks that distance (meters). */
+  removeFar(): void;
+  setFarDistance(meters: number): void;
+  /** M16: removes every robot of a team, with the pieces that broke off them. */
+  removeTeam(team: number): void;
   saveReplay(): void;
   toggleUnlimitedEnergy(): void;
   toggleDeployTeam(): void;
@@ -35,7 +43,7 @@ const HOVER_COUNTS = [10, 25, 50, 100];
 /**
  * The world bar (M16 step 7): a small bar in the middle of the bottom edge (back to the builder, and the team the next
  * robot joins) and two menus. View holds what changes how you see and hear the world; Sandbox holds what changes the
- * world. Every row says its state and its key, and every world key works as it always did: the menus are only another
+ * world. M16: Remove arms a cursor that takes robots out of the world one click at a time. Every row says its state and its key, and every world key works as it always did: the menus are only another
  * way to press them. Play, Step and the speed are in the time panel at the top left (`TimePanel.tsx`).
  */
 export function WorldToolbar({ store, actions }: { store: Store<AppState>; actions: WorldActions }) {
@@ -51,6 +59,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
       <span class="sep" />
       <Button class={`team${v.deployTeam !== 0 ? ' enemy' : ''}`} onClick={actions.toggleDeployTeam} title="Which side the next robot you deploy joins: click to switch. You only control your own; enemies run their scripts.">
         <span class="lb">Team</span> {teamName(v.deployTeam)}
+      </Button>
+      <Button class="remove" on={v.removing} disabled={none && !v.removing} onClick={actions.toggleRemoving} title="Click robots to take them out of the world, one by one. Esc, a right click or this button again stops.">
+        Remove
       </Button>
       <BarMenu label="View" title="Camera, grid, debug and sound">
         {() => (
@@ -129,6 +140,42 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
               }}
               title="Removes every robot nobody can control: debris, robots that lost their core, spent pieces"
             />
+            <div class="wrow farrow" title="Removes every robot farther than this from the middle of the world: a missile that flew off, a drone that wandered away">
+              <button
+                type="button"
+                class="mi danger far-go"
+                disabled={v.far.count === 0}
+                onClick={() => {
+                  close();
+                  actions.removeFar();
+                }}
+              >
+                Remove far away
+              </button>
+              <span class="seg" role="radiogroup" aria-label="how far">
+                {FAR_DISTANCES.map((d) => (
+                  <button type="button" key={d} class={d === v.far.distance ? 'on' : ''} role="radio" aria-checked={d === v.far.distance} onClick={() => actions.setFarDistance(d)}>
+                    {d === FAR_DISTANCES[FAR_DISTANCES.length - 1] ? `${d} m` : d}
+                  </button>
+                ))}
+              </span>
+              <span class="st">{v.far.count === 0 ? 'none' : v.far.count}</span>
+            </div>
+            {v.teams
+              .filter((t) => t.team <= 2)
+              .map((t) => (
+                <Row
+                  key={t.team}
+                  label={`Remove all ${t.team === 0 ? 'yours' : teamName(t.team)}`}
+                  state={robotsText(t.count)}
+                  danger
+                  onPick={() => {
+                    close();
+                    actions.removeTeam(t.team);
+                  }}
+                  title={`Removes every robot of ${t.team === 0 ? 'yours' : `the ${teamName(t.team)} team`}, the pieces that broke off them included`}
+                />
+              ))}
             <Row
               label="Save replay"
               state=""

@@ -20,6 +20,8 @@ import type { CameraState } from './render/camera';
 import { WorldScreen } from './world/WorldScreen';
 import { mountSoundboard } from './audio/Soundboard';
 import { BATTLE_GRID, HOVER_GRID } from './world/stress';
+import { robotsText } from './world/removal';
+import { teamName } from './world/deploySettings';
 import { timedHost } from './app/timedHost';
 import { createStore } from './ui/store';
 import type { AppState } from './ui/appState';
@@ -357,6 +359,16 @@ async function boot(): Promise<void> {
       go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
     },
     clearDebris: () => worldScreen.clearDebris(),
+    toggleRemoving: () => worldScreen.toggleRemoving(),
+    removeFar: () => {
+      const n = worldScreen.removeFar();
+      notify(store, n === 0 ? 'Nothing is that far away.' : `Removed ${robotsText(n)} far away.`);
+    },
+    setFarDistance: (meters) => worldScreen.setFarDistance(meters),
+    removeTeam: (team) => {
+      const n = worldScreen.removeTeam(team);
+      notify(store, `Removed ${robotsText(n)}: all ${team === 0 ? 'yours' : teamName(team)}.`);
+    },
     saveReplay: () => {
       const { replay, robot } = worldScreen.replay();
       const file = replayFileName(new Date(), robot);
@@ -366,6 +378,7 @@ async function boot(): Promise<void> {
     },
     toBuilder: () => {
       worldScreen.cancelPlacing();
+      worldScreen.stopRemoving();
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
     },
     setBindings: (bindings) => editControls((c) => ({ ...c, bindings })),
@@ -735,12 +748,17 @@ async function boot(): Promise<void> {
     if (e.code === 'Tab') {
       e.preventDefault();
       worldScreen.cancelPlacing();
+      worldScreen.stopRemoving();
       builder.endGesture();
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
       return;
     }
     if (modes.mode === 'world' && e.code === 'Escape' && worldScreen.isPlacing) {
       worldScreen.cancelPlacing();
+      return;
+    }
+    if (modes.mode === 'world' && e.code === 'Escape' && worldScreen.isRemoving) {
+      worldScreen.stopRemoving();
       return;
     }
     // While a robot is held for deploying, F flips it and R turns it (M8), like the builder's stamp; they do not reach

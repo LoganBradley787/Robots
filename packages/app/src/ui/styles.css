@@ -663,6 +663,8 @@ button kbd { margin: 0; opacity: 0.75; }
 .transport .btn.team { min-width: 112px; justify-content: flex-start; gap: 7px; }
 .transport .btn.team .lb { color: var(--dim); font-size: 11px; }
 .transport .btn.team.enemy { color: #ff8a80; }
+.transport .btn.remove { color: var(--warn); }
+.transport .btn.remove.on { background: var(--warn); color: var(--accent-ink); outline-color: var(--warn); }
 /*
  * The time panel (after Kerbal Space Program's): the clock, PAUSED, the speed when not 1x, and who the camera is on.
  * Hovering it or the keyboard's focus drops it down to play, Step and the speed arrows, lit up to the speed it runs at.
@@ -702,6 +704,10 @@ button kbd { margin: 0; opacity: 0.75; }
 .wmenu:not(:has(kbd)) .kc { display: none; }
 #ui .mi.wrow:hover:not(:disabled) .st, #ui .mi.wrow:hover:not(:disabled) kbd { color: var(--accent-ink); border-color: var(--accent-ink); }
 .wrow.slide { grid-template-columns: auto minmax(0, 1fr) 44px; }
+/* M16: Remove far away, with its distance picked in the row. */
+#ui .wmenu .wrow.farrow:not(.slide) { grid-template-columns: auto auto minmax(0, 1fr); gap: 6px; padding: 0 8px 0 0; }
+#ui .farrow .far-go { padding: 5px 8px; white-space: nowrap; }
+#ui .farrow .seg > button { padding: 1px 5px; font-size: 11px; }
 .wrow.slide.off { opacity: 0.5; }
 .wblock { padding: 4px 8px 5px; font-size: 13px; }
 .wblock .wb-head { margin-bottom: 4px; }

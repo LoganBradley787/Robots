@@ -52,10 +52,15 @@ Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), 
 - Editing controls stays in the builder.
 
 ## The world bar (M16, as built)
-- A small bar in the middle of the bottom edge: Builder (Tab), the **Team** button, then two menus.
+- A small bar in the middle of the bottom edge: Builder (Tab), the **Team** button, **Remove**, then two menus.
 - **Team** shows which side the next robot you deploy joins: "Yours" in plain text; a click makes it "Enemy" in the enemy's tint (#ff8a80), a click again makes it Yours. Only these two. It sticks across deploys and reloads (`world/deploySettings.ts`). It has no key.
+- **Remove** (orange, as everything that takes something away) arms a remove cursor, like holding a robot to drop. Pointing at a robot outlines all of it in orange (every body of it, its turrets and wheels too; a piece that broke off is a robot of its own); a click removes it, and the cursor stays armed for the next. Esc, a right click, or Remove again puts it away; so do Tab and picking a robot to drop. Any robot can go, one you control included: control is dropped, as when its core is lost. While armed, the line under the time panel says so and names the robot under the cursor.
 - **View**: follow or next robot (,), home, grid (`), debug overlay (\), sound, volume, far sounds arrive late.
-- **Sandbox**: unlimited energy, stress test (hovering drones 10, 25, 50, 100; a battle of 6 against 6), clear debris, save replay, reset world (it asks first).
+- **Sandbox**: unlimited energy, stress test (hovering drones 10, 25, 50, 100; a battle of 6 against 6), clear debris, remove far away, remove all of a team, save replay, reset world (it asks first).
+  - **Clear debris** removes every robot nobody can control: debris, robots that lost their core, bombs let go. A piece whose own core woke (a missile) has a controller and stays.
+  - **Remove far away** removes every robot whose core (or, for a piece with none, its middle) is farther than 250, 500 or 1000 m from the middle of the world (x 0 on the ground, so straight up counts too). The distance is picked in the row (500 at first) and kept in the browser; the row says how many are past it now. A notice says how many went.
+  - **Remove all yours**, **Remove all Enemy**, **Remove all Blue** (`teamName`), each shown only while that team has robots, with the count. A piece keeps the team of what it broke off, so a team's debris and its missiles go with it. A notice says how many went.
+  - Every removal goes through the world's input log (`World.removeRobots`, logged as `world.remove` with the ids that went, at the start of the next tick), so a replay removes the same robots. The screen picks the ids; the engine never names a team or a distance. The removed robots disappear from the screen at once, so a removal while paused shows.
 - Every menu row shows its state now and its key. A row that only flips something leaves the menu open, so the new state shows. Esc or a press anywhere else closes a menu. Every world key works as before; the key caps on the bar are read from the world key table (`app/keys.ts`).
 - **The time panel** (top left, after Kerbal Space Program's time warp; `ui/TimePanel.tsx`) always shows the clock, PAUSED while paused, the speed when it is not x1 (x1/4, x1/2, x2, x4), and who you control or watch ("controlling drone", "watching blue enemy-drone"). Hovering it, or the keyboard's focus in it, drops it down to Play or Pause (Space), Step (.), and five arrows, one per speed (1/4, 1/2, 1, 2, 4), lit up to the speed it runs at; a click on an arrow goes straight to that speed (`TimeControls.setScale`). `[` and `]` still step the speed down and up. A click on its buttons leaves no focus on them, so the panel folds when the mouse leaves and Space stays the world's key. The clock reaches the panel apart from the rest of the world's view, so only the panel redraws as it ticks.
 - Under the panel: while a robot is held for dropping, a line says how to place it; with Debug on, the raw text (tick, hash, fps, timing, hints).
@@ -65,6 +70,7 @@ Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), 
 ## Replays
 - Every run in the world can be saved as a replay file: the world, every spawn, and every key press and release, by tick. `pnpm sim replay <file>` reruns it headless and checks it ends in the same state. This is how Logan can hand Claude a bug ("it flips when I do this").
 - (M8) Each spawn carries its team; a replay saved before M8 plays as all team 0.
+- (M16) Robots removed by hand are in the input log too (`world.remove: [ids]` on the tick they went); a replay without any reads exactly as before.
 
 ## Auto controls (Logan, 2026-09-23)
 Binding every wheel by hand (Logan's `le-car`) is tedious, so robots control themselves by default:

@@ -1,6 +1,6 @@
 import { clockText } from '../app/Hud';
-import type { Graphics, Ticker } from 'pixi.js';
-import { World, activeControls, keysScriptsRead, orientRaw, partWorldPose, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
+import { Graphics, type Ticker } from 'pixi.js';
+import { World, activeControls, keysScriptsRead, orientRaw, partWorldPose, rotateCell, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
 import { drawSensors, type SensorOverlay } from '../render/SensorDraw';
@@ -21,7 +21,7 @@ import { createCamera, followTarget, panByPixels, screenToWorld, setFollow, zoom
 import { SpawnGhost } from './SpawnGhost';
 import { snapDrop } from '../builder/deployFlow';
 import { applyCamera } from '../render/cameraView';
-import { PIXELS_PER_METER } from '../render/units';
+import { PIXELS_PER_METER, toScreen } from '../render/units';
 import { FixedStepper } from '../app/FixedStepper';
 import { runWithin, SIM_BUDGET_MS } from '../app/tickBudget';
 import { TimeControls } from '../app/TimeControls';
@@ -34,6 +34,7 @@ import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 import { buildReadout, type ReadoutView } from './readout';
+import { farIds, loadFarDistance, outlineEdges, saveFarDistance, teamCounts, teamIds, type Edge, type RobotSpot } from './removal';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it   (time controls in the panel above, the rest on the bar below)';
 
@@ -73,6 +74,12 @@ export interface WorldView {
     logs: string[];
   };
   unlimitedEnergy: boolean;
+  /** M16: whether a click removes the robot under it (the bar's Remove button). */
+  removing: boolean;
+  /** M16: robots per team, for the Sandbox menu's Remove all rows; teams with none are left out. */
+  teams: { team: number; count: number }[];
+  /** M16: Remove far away's distance (meters from the middle of the world), and how many robots are past it now. */
+  far: { distance: number; count: number };
   /**
    * M16, the live readout of the robot you control or watch: its scripts and, while the readout is open, what they
    * set and who drives each input. Absent when no robot is followed.
@@ -143,6 +150,13 @@ export class WorldScreen {
   /** Team, flip, and turn for the next deploy (M8). They stick, saved in the browser. */
   private deploy: DeploySettings;
   private readonly settingsStore: SettingsStore | undefined;
+  /** M16: the remove cursor is armed, the robot under it (outlined in orange), and Remove far away's distance. */
+  private removeArmed = false;
+  private hoverId: number | undefined;
+  private farDistance: number;
+  /** The orange outline over the robot a click would remove, with its edges per body, made again when the robot is. */
+  private readonly outline = new Graphics();
+  private outlineOf: { id: number; version: number; bodies: Edge[][] } | undefined;
 
   private readonly renderer: Renderer;
   private readonly textures: GameTextures;
@@ -171,6 +185,7 @@ export class WorldScreen {
     this.world = world;
     this.settingsStore = browserStorage();
     this.deploy = loadDeploySettings(this.settingsStore);
+    this.farDistance = loadFarDistance(this.settingsStore);
     this.sound = new SoundScene(this.settingsStore);
     this.readoutOpen = this.settingsStore?.getItem(READOUT_KEY) === 'open';
     this.cam = createCamera(file.spawn.x, file.spawn.y - 3);
@@ -184,6 +199,7 @@ export class WorldScreen {
     // Beams glow over smoke and ropes.
     renderer.world.addChildAt(this.beams.root, renderer.world.getChildIndex(this.smoke.root) + 1);
     renderer.world.addChildAt(this.bolts.root, renderer.world.getChildIndex(this.beams.root) + 1);
+    renderer.world.addChildAt(this.outline, renderer.world.getChildIndex(this.bolts.root) + 1);
     renderer.backdrop.addChild(
       this.grid,
       buildTerrainView(file, {
@@ -234,6 +250,8 @@ export class WorldScreen {
     this.sound.clear();
     this.keys.clear();
     this.focusId = undefined;
+    this.hoverId = undefined;
+    this.outlineOf = undefined;
     this.eventCursor = 0;
     next.setUnlimitedEnergy(this.unlimitedWanted);
     this.home();
@@ -253,6 +271,127 @@ export class WorldScreen {
   /** Clears debris (M6): every robot nobody can control goes on the next tick. */
   clearDebris(): void {
     this.world.clearDebris();
+  }
+
+  /**
+   * M16: removes robots by id on the next tick (the world logs it for replays). Their views hide at once, so a removal
+   * while paused shows; one you control lets go of your keys now. Returns how many were not already going.
+   */
+  removeRobots(ids: readonly number[]): number {
+    const fresh = ids.filter((id) => this.world.robotById(id) !== undefined && !this.world.removing(id));
+    if (fresh.length === 0) return 0;
+    this.world.removeRobots(fresh);
+    const gone = new Set(fresh);
+    if (this.keys.robot !== undefined && gone.has(this.keys.robot)) this.keys.setControlled(undefined);
+    if (this.focusId !== undefined && gone.has(this.focusId)) {
+      this.focusId = undefined;
+      this.cam = setFollow(this.cam, false);
+    }
+    for (const id of fresh) {
+      const v = this.views.get(id);
+      if (v) v.root.visible = false;
+    }
+    return fresh.length;
+  }
+
+  /** Robots still in the world: not waiting to be removed. */
+  private present(): Robot[] {
+    return this.world.robots.filter((r) => !this.world.removing(r.id));
+  }
+
+  /** Where a robot is for Remove far away: its core, or the middle of a piece with none. */
+  private spot(robot: Robot): RobotSpot {
+    const s = sampleRobot(this.world, robot);
+    return robot.primaryCoreId !== undefined ? { id: robot.id, x: s.coreX, y: s.coreY } : { id: robot.id, x: s.comX, y: s.comY };
+  }
+
+  /** How many robots are past Remove far away's distance, for its row: worked out again every quarter second, not every frame. */
+  private farCount(present: readonly Robot[], stepped: boolean): number {
+    const had = this.farAt;
+    const tick = this.world.tick;
+    if (had && had.distance === this.farDistance && had.robots === present.length && (!stepped || tick - had.tick < 15)) return had.count;
+    const count = farIds(present.map((r) => this.spot(r)), this.farDistance).length;
+    this.farAt = { tick, robots: present.length, distance: this.farDistance, count };
+    return count;
+  }
+
+  private farAt: { tick: number; robots: number; distance: number; count: number } | undefined;
+
+  /** M16, the Sandbox menu: every robot farther than the chosen distance from the middle of the world. */
+  removeFar(): number {
+    return this.removeRobots(farIds(this.present().map((r) => this.spot(r)), this.farDistance));
+  }
+
+  setFarDistance(distance: number): void {
+    this.farDistance = distance;
+    saveFarDistance(this.settingsStore, distance);
+  }
+
+  /** M16, the Sandbox menu: every robot of a team, the pieces that broke off them included. */
+  removeTeam(team: number): number {
+    return this.removeRobots(teamIds(this.present(), team));
+  }
+
+  get isRemoving(): boolean {
+    return this.removeArmed;
+  }
+
+  /** M16: arms the remove cursor (the bar's Remove button), or disarms it. Arming it puts a held robot away. */
+  toggleRemoving(): void {
+    if (this.removeArmed) {
+      this.stopRemoving();
+      return;
+    }
+    this.cancelPlacing();
+    this.removeArmed = true;
+  }
+
+  stopRemoving(): void {
+    this.removeArmed = false;
+    this.hoverId = undefined;
+  }
+
+  /** The robot whose body is under a screen point, if any. */
+  private robotAt(sx: number, sy: number): Robot | undefined {
+    const p = screenToWorld(this.cam, sx, sy, this.renderer.screenWidth, this.renderer.screenHeight);
+    const body = this.world.physics.dynamicBodyAt(p.x, p.y);
+    if (body === undefined) return undefined;
+    return this.world.robots.find((r) => !this.world.removing(r.id) && r.groups.some((g) => g.bodyId === body));
+  }
+
+  /** The orange outline of the robot under the remove cursor: every body of it, edge by edge where no cell is beyond. */
+  private drawOutline(alpha: number): void {
+    const g = this.outline;
+    g.clear();
+    const robot = this.removeArmed && this.hoverId !== undefined && !this.world.removing(this.hoverId) ? this.world.robotById(this.hoverId) : undefined;
+    if (!robot) return;
+    let o = this.outlineOf;
+    if (!o || o.id !== robot.id || o.version !== robot.version) {
+      const cells: { x: number; y: number }[][] = robot.groups.map(() => []);
+      for (const part of robot.parts.values()) {
+        for (const fc of part.footprint ?? part.def.footprint) {
+          const c = rotateCell(fc, part.rot);
+          cells[part.group]?.push({ x: part.localX + c.x, y: part.localY + c.y });
+        }
+      }
+      o = { id: robot.id, version: robot.version, bodies: cells.map(outlineEdges) };
+      this.outlineOf = o;
+    }
+    const px = 1 / this.cam.zoom;
+    robot.groups.forEach((group, i) => {
+      const s = interpolateState(this.world.physics.prevState(group.bodyId), this.world.physics.state(group.bodyId), alpha);
+      const c = Math.cos(s.angle);
+      const n = Math.sin(s.angle);
+      const at = (x: number, y: number) => toScreen({ x: s.x + c * x - n * y, y: s.y + n * x + c * y });
+      for (const e of o.bodies[i] ?? []) {
+        const a = at(e.x1, e.y1);
+        const b = at(e.x2, e.y2);
+        g.moveTo(a.x, a.y).lineTo(b.x, b.y);
+      }
+    });
+    // A wide soft band under a thin bright line, a few screen pixels at any zoom.
+    g.stroke({ color: 0xe08a2e, width: 7 * px, alpha: 0.35, cap: 'round' });
+    g.stroke({ color: 0xffa040, width: 2.5 * px, alpha: 1, cap: 'round' });
   }
 
   /** Views follow the robots: new pieces get one, rebuilt robots get a fresh one, removed robots lose theirs. */
@@ -366,6 +505,7 @@ export class WorldScreen {
   /** Shows a ghost of the blueprint on the cursor until a click drops it or Esc cancels. */
   startPlacing(raw: unknown, registry: PartRegistry): void {
     this.cancelPlacing();
+    this.stopRemoving();
     this.placing = { ghost: this.makeGhost(raw, registry), source: raw, registry, ok: false };
     this.cam = setFollow(this.cam, false);
   }
@@ -476,6 +616,11 @@ export class WorldScreen {
   }
 
   onPointerDown(e: PointerEvent, sx: number, sy: number): void {
+    // M16: a right click puts the remove cursor away.
+    if (this.removeArmed && e.button === 2) {
+      this.stopRemoving();
+      return;
+    }
     if (this.placing && e.button === 0) {
       this.updateGhost(sx, sy);
       const p = this.placing;
@@ -490,20 +635,25 @@ export class WorldScreen {
 
   onPointerMove(e: PointerEvent, sx: number, sy: number): void {
     if (this.placing) this.updateGhost(sx, sy);
+    if (this.removeArmed) this.hoverId = this.robotAt(sx, sy)?.id;
     if (!this.dragging || e.pointerId !== this.dragging.id) return;
     this.cam = panByPixels(this.cam, e.clientX - this.dragging.x, e.clientY - this.dragging.y);
     this.dragging = { ...this.dragging, x: e.clientX, y: e.clientY };
   }
 
-  /** A click (not a drag) on a robot takes control of it. */
+  /** A click (not a drag) on a robot takes control of it, or with the remove cursor armed removes it (M16). */
   onPointerUp(e: PointerEvent, sx: number, sy: number): void {
     const d = this.dragging;
     if (!d || e.pointerId !== d.id) return;
     this.dragging = null;
     if (e.button !== 0 || !isClick({ x: d.startX, y: d.startY }, { x: e.clientX, y: e.clientY })) return;
-    const p = screenToWorld(this.cam, sx, sy, this.renderer.screenWidth, this.renderer.screenHeight);
-    const body = this.world.physics.dynamicBodyAt(p.x, p.y);
-    const robot = body === undefined ? undefined : this.world.robots.find((r) => r.groups.some((g) => g.bodyId === body));
+    const robot = this.robotAt(sx, sy);
+    if (robot && this.removeArmed) {
+      // It stays armed for the next one.
+      this.removeRobots([robot.id]);
+      this.hoverId = undefined;
+      return;
+    }
     if (robot) {
       // A click drags the camera by a pixel or two; undo that so the robot does not jump.
       this.cam = panByPixels(this.cam, d.startX - e.clientX, d.startY - e.clientY);
@@ -572,6 +722,10 @@ export class WorldScreen {
     if (this.keys.robot !== undefined && !this.world.canControl(this.keys.robot)) this.keys.setControlled(undefined);
     const alpha = time.paused ? 1 : this.stepper.alpha;
     for (const [id, v] of this.views) {
+      if (this.world.removing(id)) {
+        v.root.visible = false;
+        continue;
+      }
       // A part that needs energy only looks busy (flame, spinning blades) while its robot has some to give.
       const powered = this.world.unlimitedEnergy || (this.world.energy(id)?.stored ?? 0) > 0;
       const robot = this.world.robotById(id);
@@ -586,6 +740,7 @@ export class WorldScreen {
     this.bolts.draw(this.world, alpha, simDt, this.cam.zoom);
     this.smoke.draw(this.world.smokeClouds());
     this.ropes.draw(this.world.liveRopes());
+    this.drawOutline(alpha);
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
@@ -615,11 +770,15 @@ export class WorldScreen {
           ? 'following no robot: click one'
           : 'no robots yet';
     const p = this.placing;
+    const hovered = this.removeArmed && this.hoverId !== undefined ? this.world.robotById(this.hoverId) : undefined;
     const placingLines = p
       ? [
           `PLACING ${p.ghost.name} as ${teamName(this.deploy.team)}${this.deploy.flip ? ', flipped' : ''}${this.deploy.rot !== 0 ? `, turned ${this.deploy.rot}` : ''}: click to drop   F flips   R turns   Esc cancels   ${p.ok ? 'fits here' : `blocked: ${p.reason ?? 'move the cursor into the world'}`}`,
         ]
-      : [];
+      : this.removeArmed
+        ? [`REMOVING: click a robot to take it out of the world   Esc or right click stops   ${hovered ? `${hovered.name} (${teamName(hovered.team)}${hovered.brokeFrom !== undefined ? ', a piece' : ''})` : 'point at a robot'}`]
+        : [];
+    const present = this.present();
     const view: WorldView = {
       paused: time.paused,
       timeScale: time.timeScale,
@@ -627,10 +786,13 @@ export class WorldScreen {
       debug: this.debugVisible,
       grid: this.grid.visible,
       follow: this.cam.follow,
-      robots: this.world.robots.length,
+      robots: present.length,
       deployTeam: this.deploy.team,
       sound: { ...this.sound.settings, awake: this.sound.awake },
       unlimitedEnergy: this.world.unlimitedEnergy,
+      removing: this.removeArmed,
+      teams: teamCounts(present),
+      far: { distance: this.farDistance, count: this.farCount(present, ticks > 0) },
       readoutOpen: this.readoutOpen,
     };
     const readout = this.readout(focus, focus !== undefined && focus.id === controlled?.id, ticks > 0);
