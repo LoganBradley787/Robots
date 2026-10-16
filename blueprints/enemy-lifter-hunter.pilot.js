@@ -30,6 +30,8 @@
 //   the ground) and the barrel is on the part.
 // - It stops burning a target that has lost the lift to hold itself up and is falling, and goes after another if it
 //   sees one (it saves the energy; it starts again if the target stops falling).
+// - Something light coming at it fast (under `threat` kg: a missile, a drone bomb) is burnt first: a beam is there at
+//   once and a missile breaks in a tenth of a second.
 // - Energy: a laser burns 2400 J a second. Under `reserve` of its energy it stops burning, flies off to the side away
 //   from the target, and lands.
 // - Let go from a bay: straight up `clearDist` meters at the tilt it was let go at, before anything else.
@@ -43,11 +45,12 @@ const floor = param('floor', 15, { min: 2, max: 200 }); // m over the ground it 
 const ceiling = param('ceiling', 230, { min: 20, max: 1000 }); // m over the ground it never flies above
 const reserve = param('reserve', 0.08, { min: 0, max: 1 }); // share of its energy it keeps to fly away and land on
 const fear = param('fear', 1, { min: 0, max: 10 }); // how much a spot in reach of the target's guns counts against it
-const travel = param('travel', 0.3, { min: 0, max: 5 }); // health each meter of flight to a spot is worth
+const travel = param('travel', 1, { min: 0, max: 5 }); // health each meter of flight to a spot is worth (a meter of flight costs about the energy of a point of beam)
 const clearDist = param('clearDist', 12, { min: 0, max: 50 }); // m it climbs straight up when let go, before it hunts
 const minMass = param('minMass', 10, { min: 0, max: 100000 }); // kg: lighter robots (missiles, drone bombs) are not hunted
 const lean = (param('lean', 75, { min: 10, max: 85 }) * Math.PI) / 180; // degrees it leans at most
 const accel = param('accel', 30, { min: 1, max: 60 }); // m/s^2 it speeds up or slows down at most
+const threatMass = param('threat', 20, { min: 0, max: 1000 }); // kg: lighter things of the other side coming at it are burnt first
 const say = param('say', 1, { min: 0, max: 1 }); // 1: logs each new pick and why
 
 const G = 9.81;
@@ -90,7 +93,7 @@ function wrap(a) {
 
 /** A fresh record of a target: what it knows of its parts and from where it looked. */
 function fresh(c) {
-  return { id: c.id, known: {}, weapons: {}, view: 0, looked: 0, round: 0, radius: 5, pick: undefined, spot: undefined, picked: -Infinity, lostLift: false, said: '' };
+  return { id: c.id, known: {}, weapons: {}, bad: {}, view: 0, looked: 0, round: 0, radius: 5, pick: undefined, spot: undefined, picked: -Infinity, lostLift: false, said: '' };
 }
 
 /** The 8 directions it looks from, around the target's center, `standoff` plus its size out. */
@@ -305,7 +308,7 @@ function choose(t, c) {
     const hp = Math.max(1, q.hp);
     for (let k = 0; k < VIEWS; k++) {
       const cv = q.cover[k];
-      if (!cv || t.round - cv.round > 1) continue;
+      if (!cv || t.round - cv.round > 1 || t.bad[q.id + '/' + k]) continue;
       const v = spots[k];
       // The spot (spotFrom, without making an object for each of a titan's thousands of pairs).
       let d = standoff;
@@ -344,8 +347,10 @@ function explain(t, c, b) {
   else {
     const s = t.sums;
     const side = b.x < -0.3 ? 'left' : b.x > 0.3 ? 'right' : 'middle';
+    // The side that tips it is the one with less turn about its weight (push times distance), not less push.
+    const weak = s.A < s.B ? 'left' : s.B < s.A ? 'right' : 'neither';
     text =
-      'lift L ' + Math.round(s.FL) + ' N (' + s.goneL + '/' + s.nL + ' gone) R ' + Math.round(s.FR) + ' N (' + s.goneR + '/' + s.nR + ' gone), holds ' +
+      'lift L ' + Math.round(s.FL) + ' N (' + s.goneL + '/' + s.nL + ' gone) R ' + Math.round(s.FR) + ' N (' + s.goneR + '/' + s.nR + ' gone), turn L ' + Math.round(s.A) + ' R ' + Math.round(s.B) + ' N m (' + weak + ' weaker), holds ' +
       Math.round(t.level / G) + ' of ' + Math.round(c.mass) + ' kg: burning ' + side + ' ' + b.id + ' (costs it ' + Math.round(b.value) + ' N, cover ' + Math.round(b.cover) + ') from ' + fromWords(b.spot.ux, b.spot.uy);
   }
   const key = b.id + b.k;
@@ -408,6 +413,9 @@ function fly(vx, vy, hold) {
   if (ty > most) ty = most;
   const side = Math.sqrt(Math.max(0, most * most - ty * ty));
   tx = clamp(tx, -side, side);
+  // Never more sideways push than the most lean leaves with the height it wants: asked to drop and to speed up
+  // sideways at once, pushing hard sideways held it up (and climbing on) instead of dropping.
+  tx = clamp(tx, -Math.max(1, ty) * Math.tan(lean), Math.max(1, ty) * Math.tan(lean));
   let want = hold !== undefined ? hold : clamp(Math.atan2(-tx, Math.max(1, ty)), -lean, lean);
   // Pushing along its own up: how much of the wanted push it gives at the tilt it has now.
   const along = -Math.sin(self.angle) * tx + Math.cos(self.angle) * ty;
@@ -430,14 +438,19 @@ function fly(vx, vy, hold) {
   for (const id of b.gyros) set(id, 'spin', clamp(-g / b.gyro, -1, 1)); // a gyro's spin is clockwise positive
 }
 
-/** A velocity to a point, matching `vel`, braking in time. */
+/**
+ * A velocity to a point, matching `vel`, braking in time: sideways at `brake`, a climb at what gravity stops it with
+ * (it cannot push down), a descent at `brake`.
+ */
 function toward(goalPos, vel, brake) {
   const dx = goalPos.x - self.pos.x;
   const dy = goalPos.y - self.pos.y;
-  const d = Math.hypot(dx, dy);
-  if (d < 0.01) return { x: vel.x, y: vel.y };
-  const v = Math.min(speed, Math.sqrt(2 * brake * d), 0.8 * d);
-  return { x: vel.x + (dx / d) * v, y: vel.y + (dy / d) * v };
+  const vx = Math.sign(dx) * Math.min(speed, Math.sqrt(2 * brake * Math.abs(dx)), 0.8 * Math.abs(dx));
+  const up = dy > 0 ? 0.6 * G : brake;
+  const vy = Math.sign(dy) * Math.min(speed, Math.sqrt(2 * up * Math.abs(dy)), 0.8 * Math.abs(dy));
+  const v = Math.hypot(vx, vy);
+  const k = v > speed ? speed / v : 1;
+  return { x: vel.x + vx * k, y: vel.y + vy * k };
 }
 
 /** Around the target, never through it: a point beside it when the straight way passes too close. */
@@ -525,7 +538,10 @@ function aimAt(all, pos, vel, allowed) {
     if (l.hinge) set(l.hinge.id, 'turn', clamp((moving - self.angVel + 6 * err) / Math.max(0.1, l.hinge.spec.config.turnSpeed || 2), -1, 1));
     const side = l.p.out.sightSide;
     const within = Math.max(0.004, Math.atan2(0.6, dist)) * (state.firing ? 2 : 1);
-    burning = allowed && side === SIGHT.enemy && l.p.out.sight <= l.reach && Math.abs(err) < within;
+    // A wreck (nobody's) just in front of the part is burnt through too (a piece burnt off it, hanging on the line).
+    const wreck = side === SIGHT.none && l.p.out.sight < dist + 2 && l.p.out.sight > dist - 15;
+    state.onAim = allowed && Math.abs(err) < within && dist <= l.reach;
+    burning = state.onAim && (side === SIGHT.enemy || wreck) && l.p.out.sight <= l.reach;
     set(l.p.id, 'fire', burning ? 1 : 0);
   }
   state.firing = burning;
@@ -546,7 +562,8 @@ function rest(all) {
 function pickTarget() {
   let best;
   for (const c of contacts) {
-    if (c.side !== 'enemy' || !c.core || c.mass < minMass) continue;
+    // Light robots are not taken up, but one it is already hunting is kept as it loses parts.
+    if (c.side !== 'enemy' || !c.core || (c.mass < minMass && c.id !== state.id)) continue;
     let d = c.distance;
     if (c.id === state.want) d -= 100000;
     if (c.id === state.id) d *= 0.7;
@@ -647,31 +664,75 @@ function tick() {
   ring = Math.max(r, Math.min(ring, Math.hypot(goalPos.x - c.center.x, goalPos.y - c.center.y) - 5));
   const way = around(goalPos, c.center, ring);
   const v = toward(way, c.vel, 0.6 * accel);
-  // Far inside the target's size: straight out.
+  // Inside that ring (the target came at it, or it is still on its way round): straight out, harder the deeper it is.
   const dc = Math.hypot(self.pos.x - c.center.x, self.pos.y - c.center.y);
-  if (dc < r) {
-    v.x += ((self.pos.x - c.center.x) / Math.max(1, dc)) * 20;
-    v.y += ((self.pos.y - c.center.y) / Math.max(1, dc)) * 20;
+  if (dc < ring) {
+    const out = Math.min(speed, 20 + 2 * (ring - dc));
+    v.x += ((self.pos.x - c.center.x) / Math.max(1, dc)) * out;
+    v.y += ((self.pos.y - c.center.y) / Math.max(1, dc)) * out;
   }
   dodge(v, c, r);
   guard(v, floor);
   fly(v.x, v.y);
 
-  if (aimPos) {
+  // Something light coming at it (a missile, a drone bomb): burn that first, a beam is there at once.
+  const th = threat();
+  if (th) {
+    if (state.aiming !== th.id) state.want = undefined;
+    state.aiming = th.id;
+    aimAt(all, th.pos, th.vel, true);
+    mark(th.pos.x, th.pos.y, 'threat');
+  } else if (aimPos) {
+    if (state.aiming !== c.id) state.want = undefined;
+    state.aiming = c.id;
     // It cannot hold itself up any more and is coming down: save the energy for the next one.
     const falling = t.lostLift && c.vel.y < -2;
     // Not yet where it planned to fire from and the line from here has more in front: wait until it gets there (a
     // beam from the wrong side burns its energy on armor).
-    const worse = t.pick.cover !== undefined && t.pick.plan !== undefined && t.pick.cover > 1.5 * t.pick.plan + 40;
+    // At its spot it takes some more than it planned (the target moves); on the way, hardly any (a beam swept across
+    // the near side's lifters on its way to a far one, and tipped the target the other way).
+    const there = t.pick.spot !== undefined && Math.hypot(self.pos.x - goalPos.x, self.pos.y - goalPos.y) < 25;
+    const worse = t.pick.cover !== undefined && t.pick.plan !== undefined && t.pick.cover > (there ? 1.5 * t.pick.plan + 40 : t.pick.plan + 10);
     const burning = aimAt(all, aimPos, c.vel, !falling && !worse);
     if (burning) mark(aimPos.x, aimPos.y, 'burn');
+    // On the part but something not the target's is in the way (another robot, a wreck, the ground): after a while it
+    // gives up that part from that side and chooses again.
+    state.stuck = state.onAim && !burning ? (state.stuck || 0) + dt : 0;
+    if (state.stuck > 1.5 && t.pick) {
+      t.bad[t.pick.id + '/' + t.pick.k] = true;
+      t.pick = undefined;
+      state.stuck = 0;
+    }
   } else rest(all);
   if (t.pick && t.pick.spot) mark(t.pick.spot.x, t.pick.spot.y, 'spot');
 }
 
 /**
- * Out of the way of a target coming at it: where the target's middle passes closest in the next 3 s, at its speed
- * against ours; nearer than its size, it moves away across that line (up rather than down when straight on).
+ * Something light (under `threat` kg: a missile, a drone bomb) of the other side coming at it: closing faster than
+ * 15 m/s, within 280 m, passing within 25 m in the next 4 s. The soonest, or undefined.
+ */
+function threat() {
+  let best;
+  for (const o of contacts) {
+    if (o.side !== 'enemy' || o.mass >= threatMass || o.distance > 280) continue;
+    const rx = o.pos.x - self.pos.x;
+    const ry = o.pos.y - self.pos.y;
+    const vx = o.vel.x - self.vel.x;
+    const vy = o.vel.y - self.vel.y;
+    const v2 = vx * vx + vy * vy;
+    const closing = -(rx * vx + ry * vy) / Math.max(0.1, o.distance);
+    if (closing < 15 || v2 < 1) continue;
+    const t = -(rx * vx + ry * vy) / v2;
+    if (t > 4 || Math.hypot(rx + vx * t, ry + vy * t) > 25) continue;
+    if (!best || t < best.t) best = { o, t };
+  }
+  return best && best.o;
+}
+
+/**
+ * Out of the way of a target coming at it (at 5 m/s or more toward the hunter): where the target's middle passes
+ * closest in the next 3 s, at its speed against ours; nearer than its size, it moves away across that line (up
+ * rather than down when straight on).
  */
 function dodge(v, c, r) {
   const rx = self.pos.x - c.center.x;
@@ -680,6 +741,8 @@ function dodge(v, c, r) {
   const vy = c.vel.y - self.vel.y;
   const v2 = vx * vx + vy * vy;
   if (v2 < 25) return;
+  // Only when the target itself comes at it (flying in, the hunter closing on it is no threat).
+  if (c.vel.x * rx + c.vel.y * ry < 5 * Math.hypot(rx, ry)) return;
   const t = clamp((rx * vx + ry * vy) / v2, 0, 3);
   if (t <= 0) return;
   const mx = rx - vx * t;

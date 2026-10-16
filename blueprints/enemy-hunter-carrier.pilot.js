@@ -1,3 +1,6 @@
+// Pilot for the hunter carrier (M16): the enemy fab drones' pilot below with one change, `back`: it stays back and
+// lets what its bay makes go at whatever it tracks, never closing in (its lifter hunters fly the rest of the way).
+//
 // Pilot for the enemy fab drones (`enemy-fab-drone`, `enemy-bomb-fab-drone`): the enemy drone's pilot
 // (`enemy-drone.pilot.js`) with a fabricator bay in place of its four missiles. No keys, it runs from deploy.
 // - Track, dodge, and fly: as the enemy drone (a spot `standoff` meters beside and `above` meters over the nearest
@@ -56,6 +59,7 @@ const reserve = param('reserve', 0.65, { min: 0.2, max: 1 }); // share of full l
 const floor = param('floor', 8, { min: 0, max: 200 }); // m: its lowest part never asked to go below this height (y 0 is the ground; the many-gun drone hangs 7 m of guns under its core and scraped it)
 const cross = param('cross', 25, { min: 5, max: 200 }); // m under or over what it tracks while crossing to its other side
 const dodgeSpeed = param('dodgeSpeed', 14, { min: 1, max: 40 }); // m/s up or down it dodges at
+const back = param('back', 1, { min: 0, max: 1 }); // 1: never closes on what it tracks, backs off inside `standoff` (the hunter carrier); 0: flies beside it like the fab drones
 
 function setup() {
   state.home = { x: self.pos.x, y: self.pos.y };
@@ -99,7 +103,11 @@ const own = (p) => p.type === 'propeller' && (p.tags.includes('lprop') || p.tags
 function body() {
   const c = Math.cos(self.angle);
   const s = Math.sin(self.angle);
-  const along = (p) => (p.pos.x - self.pos.x) * c + (p.pos.y - self.pos.y) * s;
+  // A fabricator bay's `pos` is its first hollow cell, not its middle; the carrier's bay is centred over its core,
+  // so its weight is counted there (counted at its first cell, the 10 wide bay read as 90 kg m off centre and the
+  // carrier leaned and drifted sideways for ever). A part that reports `built` is a bay.
+  const bay = (p) => p.out.built !== undefined;
+  const along = (p) => (bay(p) ? 0 : (p.pos.x - self.pos.x) * c + (p.pos.y - self.pos.y) * s);
   const across = (p) => -(p.pos.x - self.pos.x) * s + (p.pos.y - self.pos.y) * c;
   let mass = 0;
   let mu = 0;
@@ -154,7 +162,11 @@ function fly(vx, height, vy) {
   const stopping = off >= 0 ? cw : ccw;
   const spinUp = (margin * stopping) / Math.max(1, b.inertia);
   const spin = Math.sign(off) * Math.min(Math.sqrt(2 * spinUp * Math.abs(off)), 6 * Math.abs(off));
-  const torque = clamp((b.inertia * (spin - self.angVel)) / (4 * dt), -cw, ccw);
+  // What the balance misses (a bay's weight is not quite where it is counted), learned slowly from the tilt it keeps
+  // not reaching.
+  const most2 = 0.1 * lift * Math.abs(b.split);
+  state.trim = clamp((state.trim || 0) + 10 * b.inertia * off * dt, -most2, most2);
+  const torque = clamp((b.inertia * (spin - self.angVel)) / (4 * dt) + state.trim, -cw, ccw);
   const gyro = clamp(torque, -gyroTorque, gyroTorque);
   let base = throttle;
   let diff = 0;
@@ -283,7 +295,13 @@ function tick() {
   // Where it wants to be: beside and over what it tracks, or home.
   let goal = state.home;
   let crossing = false;
-  if (target) {
+  if (target && back > 0.5) {
+    // The hunter carrier stays back: it never closes on what it tracks (its hunters do the work). It holds where it is,
+    // and backs off sideways while it is nearer than `standoff`.
+    const dx = self.pos.x - target.pos.x;
+    if (Math.hypot(dx, self.pos.y - target.pos.y) < standoff) state.home = { x: self.pos.x + (dx >= 0 ? 1 : -1) * 40, y: state.home.y };
+    goal = state.home;
+  } else if (target) {
     const guns = gunSide();
     const here = self.pos.x >= target.pos.x ? 1 : -1;
     const side = guns !== 0 ? guns : here;

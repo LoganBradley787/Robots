@@ -8,9 +8,10 @@
     ". . = . . . . . . . . . . = .",
     ". . = . . . . . . . . . . = .",
     ". . = q = = = = = = = = = = .",
-    "a b F c c c F d F e e e F f g",
+    "a b Z c c c F d F e e e F f g",
     "h i Z Z Z Z Z C Z Z Z Z Z j k",
-    "l m F c c c c n e e e e F o p"
+    "l m F c c c c n e e e e F o p",
+    ". . Z Z Z Z Z Z Z Z Z Z Z . ."
   ],
   "legend": {
     "a": {
@@ -163,13 +164,14 @@
         "file": "enemy-hunter-carrier.pilot.js"
       },
       "params": {
-        "level": 15,
+        "level": 60,
         "settle": 0,
         "jitter": 0,
         "minRange": 0,
         "maxRange": 1000,
         "standoff": 300,
-        "above": 25
+        "above": 25,
+        "maxSpeed": 80
       }
     },
     {
