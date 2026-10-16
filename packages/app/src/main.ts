@@ -519,6 +519,7 @@ async function boot(): Promise<void> {
       builder.startFill(state);
     },
     fillAccept: () => builder.fillAccept(),
+    fillPick: (all) => builder.fillPick(all),
     fillSkip: () => builder.fillSkip(),
     fillBack: () => builder.fillBack(),
     fillCancel: () => builder.fillCancel(),

@@ -178,6 +178,7 @@ export function fillSentence(state: FillState): string {
   if (n === 0) return `${ask} Click ${s.slot.many ? 'the parts' : 'the part'} on the board: ${s.could.length === 1 ? '1 part could' : `${s.could.length} parts could`}.`;
   if (state.mode === 'add' && sameSet(s.chosen, s.guess)) return `${ask} ${these(n)} ${n === 1 ? 'looks' : 'look'} right.`;
   if (state.mode === 'change' && sameSet(s.chosen, s.before)) return `${ask} ${these(n)} now.`;
+  if (n > 1 && sameSet(s.chosen, s.could)) return `${ask} All ${n} parts picked.`;
   return `${ask} ${n === 1 ? '1 part' : `${n} parts`} picked.`;
 }
 
@@ -203,6 +204,23 @@ export function fillToggle(state: FillState, bp: Blueprint, registry: PartRegist
   }
   const chosen = s.chosen.includes(partId) ? s.chosen.filter((id) => id !== partId) : s.slot.many ? s.could.filter((id) => id === partId || s.chosen.includes(id)) : [partId];
   return { state: { ...state, slots: state.slots.map((x, i) => (i === state.index ? { ...x, chosen, skipped: false } : x)) } };
+}
+
+/**
+ * Select all and Clear on the banner, for a slot that takes many parts: every part that could fill it, or none. The
+ * first guess is not changed by this: it still leaves out what is better left out (the parts of a placed copy with a
+ * core of its own), and Select all is how the player says otherwise.
+ */
+export function fillAll(state: FillState): FillState {
+  const s = fillCurrent(state);
+  if (!s || !s.slot.many || sameSet(s.chosen, s.could)) return state;
+  return { ...state, slots: state.slots.map((x, i) => (i === state.index ? { ...x, chosen: [...s.could], skipped: false } : x)) };
+}
+
+export function fillNone(state: FillState): FillState {
+  const s = fillCurrent(state);
+  if (!s || s.chosen.length === 0) return state;
+  return { ...state, slots: state.slots.map((x, i) => (i === state.index ? { ...x, chosen: [], skipped: false } : x)) };
 }
 
 /** Accept: the slot is as picked, on to the next. A required slot with nothing picked is refused. */

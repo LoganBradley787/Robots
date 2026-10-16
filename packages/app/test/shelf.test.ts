@@ -10,6 +10,8 @@ import {
   fillAccept,
   fillCurrent,
   fillDone,
+  fillAll,
+  fillNone,
   fillSentence,
   fillSkip,
   fillToggle,
@@ -149,6 +151,52 @@ describe('filling slots', () => {
     const no = fillToggle(s, flyer, registry, 'frame@1,0');
     expect(no.refused).toBe('A frame has no throttle input, so it cannot be "what lifts".');
     expect(no.state).toBe(s);
+  });
+
+  it('Select all picks every part that could fill the slot, Clear picks none, and the first guess stays as it was', () => {
+    // The flyer with a placed copy beside it that has its own core: its propeller could lift, but is not guessed.
+    const withCopy = bp({
+      parts: [
+        ...flyer.parts.map((p) => ({ part: p.part, x: p.x, y: p.y })),
+        { part: 'frame', x: 0, y: 1, tags: ['m1'] },
+        { part: 'core', x: 0, y: 2, tags: ['m1'] },
+        { part: 'propeller', x: 1, y: 2, tags: ['m1'] },
+      ],
+      cores: { 'core@0,2': { scope: 'm1', bindings: [], scripts: [] } },
+    });
+    const s = done(startFill(withCopy, registry, entry('hover')));
+    expect(fillCurrent(s)?.could).toEqual(['propeller@-2,0', 'propeller@2,0', 'propeller@1,2']);
+    expect(fillCurrent(s)?.guess).toEqual(['propeller@-2,0', 'propeller@2,0']);
+    expect(fillSentence(s)).toBe('What lifts? These 2 parts look right.');
+    const all = fillAll(s);
+    expect(fillCurrent(all)?.chosen).toEqual(['propeller@-2,0', 'propeller@2,0', 'propeller@1,2']);
+    expect(fillSentence(all)).toBe('What lifts? All 3 parts picked.');
+    // Again changes nothing.
+    expect(fillAll(all)).toBe(all);
+    const none = fillNone(all);
+    expect(fillCurrent(none)?.chosen).toEqual([]);
+    expect(fillSentence(none)).toBe('What lifts? Click the parts on the board: 3 parts could.');
+    expect(fillNone(none)).toBe(none);
+    // A click after Clear picks just that one.
+    expect(fillCurrent(fillToggle(none, withCopy, registry, 'propeller@1,2').state)?.chosen).toEqual(['propeller@1,2']);
+    // Accepting Select all writes the group on all three.
+    let t = fillAccept(all).state;
+    while (!fillDone(t)) t = fillAccept(t).state;
+    const r = finishFill(withCopy, registry, t);
+    expect(r.ok && r.bp.parts.filter((p) => p.tags.includes('lift')).map((p) => p.id)).toEqual(['propeller@-2,0', 'propeller@2,0', 'propeller@1,2']);
+  });
+
+  it('the banner offers Select all only while some part is left out, and Clear only while some are picked', () => {
+    const scene = { cam: { x: 0, y: 0, zoom: 2, follow: false }, show() {}, drawParts() {}, drawGhost() {}, drawOverlay() {}, frame() {}, setInsets() {}, pointOf: () => ({ x: 0, y: 0 }) } as unknown as BuilderScene;
+    const store = createStore<AppState>({ builder: { draft: flyer, stats: staticStats(flyer, registry) } } as unknown as AppState);
+    const builder = new Builder(registry, scene, store, flyer);
+    builder.startFill(done(startFill(builder.draft, registry, entry('hover'))));
+    expect(store.get().builder.fill).toMatchObject({ many: true, could: 2, picked: 2 });
+    builder.fillPick(false);
+    expect(store.get().builder.fill).toMatchObject({ picked: 0, sentence: 'What lifts? Click the parts on the board: 2 parts could.' });
+    builder.fillPick(true);
+    expect(store.get().builder.fill).toMatchObject({ picked: 2, sentence: 'What lifts? These 2 parts look right.' });
+    expect(builder.draft).toBe(flyer);
   });
 
   it('a required slot cannot be accepted empty or skipped; an optional one can be skipped and is left as it was', () => {

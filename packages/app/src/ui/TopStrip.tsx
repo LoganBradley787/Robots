@@ -3,7 +3,7 @@ import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
 import type { BuilderActions } from './actions';
-import { Button, Menu, Popover } from './kit';
+import { Button, Popover } from './kit';
 import { TEST_BOX, testBoxKey, type TestChoice } from '../builder/deployFlow';
 import { useEffect } from 'preact/hooks';
 import { KindPicker } from './KindPicker';
@@ -54,9 +54,6 @@ function Name({ name, onRename }: { name: string; onRename(name: string): void }
 }
 
 /**
- * The strip across the top (M16): the robot's name and file state at the left, then the file buttons, Undo and Redo;
- * at the right what the validator says, Script, and the one yellow button, Test.
- */
 /**
  * The small box at the Test button (M16), when the robot has unsaved changes: "Not saved." and three choices. Enter
  * means Test anyway and never saves, whichever button has the focus; Esc and a click elsewhere mean Cancel.
@@ -105,6 +102,10 @@ function TestBox({ anchor, onChoose }: { anchor: { current: HTMLSpanElement | nu
   );
 }
 
+/**
+ * The strip across the top (M16): the robot's name and file state at the left, then the file buttons (New, Open,
+ * Save, Save as, Delete), Undo and Redo; at the right what the validator says, Script, and the one yellow button, Test.
+ */
 export function TopStrip({ store, actions }: { store: Store<AppState>; actions: BuilderActions }) {
   const testBox = useStore(store, (s) => s.testBox === true);
   const testAnchor = useRef<HTMLSpanElement>(null);
@@ -131,21 +132,20 @@ export function TopStrip({ store, actions }: { store: Store<AppState>; actions: 
           'saved'
         )}
       </span>
-      <Menu
-        label="..."
-        title="New, Save As, Delete file"
-        items={[
-          { label: 'New robot', onPick: actions.newBlank },
-          { label: 'Save As...', hint: 'Cmd+Shift+S', onPick: actions.saveAs },
-          'sep',
-          { label: 'Delete file', onPick: actions.remove, disabled: doc.file === undefined, danger: true, title: 'Removes the file. What is on screen stays.' },
-        ]}
-      />
+      <Button onClick={actions.newBlank} title="Start a new robot. Unsaved changes are asked about first.">
+        New
+      </Button>
       <Button onClick={() => store.set((s) => ({ panel: { ...s.panel, overlay: 'library' } }))} title="Open a saved robot">
         Open
       </Button>
       <Button onClick={actions.save} title="Save (Cmd+S)">
         Save
+      </Button>
+      <Button onClick={actions.saveAs} title="Save as a new file; the open one stays as it was (Cmd+Shift+S)">
+        Save as
+      </Button>
+      <Button kind="danger" onClick={actions.remove} disabled={doc.file === undefined} title={doc.file === undefined ? 'This robot has no file to delete' : 'Removes the file. It asks first. What is on screen stays.'}>
+        Delete
       </Button>
       <span class="sep" />
       <Button kind="ghost" onClick={actions.undo} disabled={!canUndo} title="Undo (Cmd+Z)">

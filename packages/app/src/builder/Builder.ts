@@ -9,7 +9,7 @@ import type { BuilderScene, Overlay } from './BuilderScene';
 import { controlCores, controlsOf, type ControlsView } from './coreControls';
 import { editNote, swapLines, type NoteLine } from './notice';
 import { applyNameFix, scriptProblems, showScript, type NameFix, type ScriptProblem, type ScriptShow } from './scriptView';
-import { fillAccept, fillBack, fillCurrent, fillDone, fillHelp, fillSentence, fillSkip, fillToggle, finishFill, type FillState } from './shelf';
+import { fillAccept, fillAll, fillBack, fillCurrent, fillDone, fillHelp, fillNone, fillSentence, fillSkip, fillToggle, finishFill, type FillState } from './shelf';
 
 /** The builder screen's controller: input goes through the pure reducer and history, output goes to the scene and store. */
 export class Builder {
@@ -138,6 +138,14 @@ export class Builder {
   fillBack(): void {
     if (!this.fill) return;
     this.fill = fillBack(this.fill);
+    this.cursorNote = undefined;
+    this.refresh(false);
+  }
+
+  /** Select all and Clear on the banner: every part that could fill the slot, or none. */
+  fillPick(all: boolean): void {
+    if (!this.fill) return;
+    this.fill = all ? fillAll(this.fill) : fillNone(this.fill);
     this.cursorNote = undefined;
     this.refresh(false);
   }
@@ -606,7 +614,7 @@ export class Builder {
       builder: {
         draft: bp,
         ...(fill && slot
-          ? { fill: { name: fill.name, mode: fill.mode, sentence: fillSentence(fill), help: fillHelp(fill), step: fill.index + 1, steps: fill.slots.length, optional: !slot.slot.required, canBack: fill.index > 0, picked: slot.chosen.length } }
+          ? { fill: { name: fill.name, mode: fill.mode, sentence: fillSentence(fill), help: fillHelp(fill), step: fill.index + 1, steps: fill.slots.length, optional: !slot.slot.required, canBack: fill.index > 0, picked: slot.chosen.length, many: slot.slot.many, could: slot.could.length } }
           : {}),
         ...(e.held ? { held: e.held } : {}),
         ...(e.stamp ? { stamp: { name: e.stamp.name, rot: e.stamp.rot, flipped: e.stamp.flipped } } : {}),

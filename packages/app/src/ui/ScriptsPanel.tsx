@@ -29,6 +29,8 @@ export interface ScriptActions {
   /** Reopens slot filling for one slot of a behavior on the robot. */
   changeSlot(scriptId: string, group: string): void;
   fillAccept(): void;
+  /** Select all (true) or Clear (false) on the banner of a slot that takes many parts. */
+  fillPick(all: boolean): void;
   fillSkip(): void;
   fillBack(): void;
   fillCancel(): void;

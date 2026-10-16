@@ -271,7 +271,7 @@ button kbd { margin: 0; opacity: 0.75; }
 #ui .linkish:disabled { cursor: default; text-decoration: none; opacity: 1; }
 .hotbar { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 4px; padding: 5px; z-index: 4; }
 #ui .slot {
-  position: relative; width: 48px; height: 48px; display: grid; place-items: center; cursor: pointer; background: var(--plate-3); border: var(--bw) solid var(--edge);
+  position: relative; width: 48px; height: 48px; display: grid; place-items: center; place-content: center; cursor: pointer; background: var(--plate-3); border: var(--bw) solid var(--edge);
 }
 #ui .slot:hover { border-color: var(--edge-hi); }
 #ui .slot.on { border-color: var(--sel); background: var(--plate-2); }

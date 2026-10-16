@@ -36,6 +36,9 @@ export interface FillView {
   /** There is a slot before this one to go back to. */
   canBack: boolean;
   picked: number;
+  /** The slot takes many parts (Select all and Clear are offered), and how many could fill it. */
+  many: boolean;
+  could: number;
 }
 
 export interface BuilderView {
