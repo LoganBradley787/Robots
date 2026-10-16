@@ -14,6 +14,7 @@ const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts lea
 const bayGap = param('bayGap', 4, { min: 1, max: 120 }); // ticks between two bays letting go
 const minMass = param('minMass', 120, { min: 0, max: 100000 }); // kg: lighter robots are not the titan
 const rescan = param('rescan', 180, { min: 30, max: 6000 }); // ticks between two looks at the target's size
+const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole, only its extremes
 const memory = param('memory', 15, { min: 0, max: 240 }); // s a last sighting is flown at before the start point is
 const anchors = param('anchors', 0, { min: 0, max: 200 }); // how many anchors the floor holds (the generator sets it)
 const anchorAt = param('anchorAt', 40, { min: 2, max: 600 }); // tick of the first cast
@@ -59,10 +60,24 @@ function pick() {
   return best;
 }
 
+/**
+ * A huge robot's (more than `huge` parts) leftmost, rightmost, lowest, and highest parts: the parts nearest points far
+ * off each way, four scans of one part instead of thousands of parts handed over. Null when it is not seen.
+ */
+function extremes(t) {
+  const out = [];
+  for (const [dx, dy] of [[-1e6, 0], [1e6, 0], [0, -1e6], [0, 1e6]]) {
+    const one = scan(t.id, { near: { x: t.pos.x + dx, y: t.pos.y + dy }, most: 1 });
+    if (!one) return null;
+    for (const p of one) out.push(p);
+  }
+  return out;
+}
+
 function measure(t) {
   if (frame - state.boxAt < rescan) return;
   state.boxAt = frame;
-  const ps = scan(t.id);
+  const ps = t.parts > huge ? extremes(t) : scan(t.id);
   if (!ps || ps.length === 0) return;
   let l = 0;
   let r = 0;

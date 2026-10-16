@@ -13,6 +13,9 @@
 // - Which part: a light target (under `heavy` kg: a missile, a drone bomb) is aimed at its middle. On anything heavier
 //   it scans the parts and picks the best hit per shell, as the gun turrets do (what the part is worth over the shells
 //   it and whatever is in front of it take), every `repick` seconds.
+// - A robot of more than `huge` parts (a titan) is never scanned whole (thousands of parts handed over every tick cost
+//   more than the rest of the battle): its height range comes from its lowest and highest parts (the parts nearest
+//   points far under and over it), a pick from the `most` parts nearest the gun, and the part picked is asked for by id.
 // - A swarm shares one line: every gun drone comes in on the same side, so a friend on the barrel's line blocks the
 //   sight. The gun's sight says so: blocked for `hold` seconds, it takes the next row (0, +1, -1, +2, -2 ... times
 //   `rows` meters) of the target's height, so the swarm fans out over the target; and friends within `space` meters
@@ -54,6 +57,8 @@ const tight = param('tight', 0.012, { min: 0.001, max: 0.5 }); // radians: on ta
 const hold = param('hold', 0.6, { min: 0, max: 10 }); // s a friend blocks the sight before it takes the next row
 const rows = param('rows', 3, { min: 0.5, max: 10 }); // m between the rows it takes over the target's height
 const vgain = param('vgain', 2, { min: 0.1, max: 10 }); // m/s of climb per meter its barrel line is off the aim point
+const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole
+const most = param('most', 150, { min: 10, max: 2000 }); // parts of a huge robot nearest the gun it picks from
 
 const g = 9.81;
 // What breaking each kind of part is worth, and the share of a shell's damage each takes (see gun-turret.turrets.js).
@@ -172,9 +177,19 @@ function scanned(id) {
   return state.scans[id];
 }
 
-/** The part of `target` worth the most per shell from `from` (the gun turrets' scoring); undefined when it cannot be scanned. */
+/** A huge robot's lowest and highest parts (those nearest points far under and over it), or null when it is not seen. */
+function extremes(t) {
+  const low = scan(t.id, { near: { x: t.pos.x, y: t.pos.y - 1e6 }, most: 1 });
+  const high = scan(t.id, { near: { x: t.pos.x, y: t.pos.y + 1e6 }, most: 1 });
+  return low && high ? low.concat(high) : null;
+}
+
+/**
+ * The part of `target` worth the most per shell from `from` (the gun turrets' scoring); undefined when it cannot be
+ * scanned, else the part as scanned. Of a huge robot only the `most` parts nearest the gun are weighed.
+ */
 function bestPart(target, from, floorY) {
-  const list = scanned(target.id);
+  const list = target.parts > huge ? scan(target.id, { near: from, most }) : scanned(target.id);
   if (!list || list.length === 0) return undefined;
   const shells = (p) => Math.ceil(p.health / (damage * (SHELL[p.type] ?? 1)));
   const order = list.map((p) => ({ p, bound: (WORTH[p.type] ?? 1) / shells(p) }));
@@ -200,9 +215,9 @@ function bestPart(target, from, floorY) {
       if (Math.abs(qx * uy - qy * ux) < 0.6) cost += shells(q);
     }
     const score = worth / cost;
-    if (!best || score > best.score) best = { id: p.id, score };
+    if (!best || score > best.score) best = { p, score };
   }
-  return best && best.id;
+  return best && best.p;
 }
 
 /** Where to point to hit a point at `pos` moving at `vel` from `from`: led by the shell's flight time, raised by its fall. */
@@ -271,7 +286,8 @@ function tick() {
   const from = { x: gun.pos.x + 0.5 * Math.cos(aim), y: gun.pos.y + 0.5 * Math.sin(aim) };
 
   // Scanned close enough: the target's parts give its height range, its lowest part, and the part to aim at.
-  const list = target.distance < track ? scanned(target.id) : null;
+  const big = target.parts > huge;
+  const list = target.distance < track ? (big ? extremes(target) : scanned(target.id)) : null;
   let minY = target.pos.y;
   let maxY = target.pos.y;
   for (const p of list || []) {
@@ -280,11 +296,15 @@ function tick() {
   }
   let point = { x: target.center.x, y: target.center.y };
   if (list && target.mass >= heavy) {
+    let p;
     if (time - state.picked >= repick || state.part === undefined) {
-      state.part = bestPart(target, from, minY + low - 0.5);
+      p = bestPart(target, from, minY + low - 0.5);
+      state.part = p && p.id;
       state.picked = time;
+    } else if (state.part !== undefined) {
+      const found = big ? scan(target.id, { of: [state.part] }) : list;
+      p = found && found.find((x) => x.id === state.part);
     }
-    const p = state.part === undefined ? undefined : list.find((x) => x.id === state.part);
     if (p) point = { x: p.pos.x, y: p.pos.y };
     else state.part = undefined;
   }

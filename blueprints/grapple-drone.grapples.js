@@ -31,6 +31,8 @@ const carryUp = param('carryUp', 40, { min: 0, max: 200 }); // m it climbs carry
 const carryMax = param('carryMax', 25, { min: 1, max: 120 }); // s it carries at most (AI)
 const stray = param('stray', 14, { min: 1, max: 60 }); // m: a hook further than this from what it lined up on is let go (AI)
 const rescan = param('rescan', 0.2, { min: 0.05, max: 10 }); // s between looks at a robot's parts
+const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole
+const most = param('most', 400, { min: 10, max: 2000 }); // parts of a huge robot nearest it that it looks at
 const retry = param('retry', 0.4, { min: 0.05, max: 5 }); // s between shots of one hook
 const spare = param('spare', 8, { min: 0, max: 60 }); // s a robot it let go is left alone (AI)
 const DIRS = { hookl: Math.PI, hookr: 0, hookd: -Math.PI / 2 };
@@ -64,7 +66,8 @@ function partsOf(c) {
   }
   if (state.scans >= 3) return memo ? memo.list : undefined;
   state.scans++;
-  const list = scan(c.id);
+  // A huge robot is never scanned whole: the `most` parts nearest this one are what its hooks can reach first.
+  const list = c.parts > huge ? scan(c.id, { near: self.pos, most }) : scan(c.id);
   // Kept as offsets from the core, so they follow the robot between looks.
   const kept = list ? list.map((p) => ({ x: p.pos.x - c.pos.x, y: p.pos.y - c.pos.y })) : undefined;
   state.parts[c.id] = { at: time, list: kept };

@@ -16,6 +16,8 @@
 //   touching the target with any other part for `stuck` seconds (it keeps pushing its warhead in meanwhile). Every
 //   warhead is told to go off; armed ones caught in the blast go off too. With nothing tracked it waits where it
 //   cleared, or where it last had a target.
+// - A robot of more than `huge` parts (a titan) is never scanned whole (thousands of parts handed over every tick
+//   cost more than the rest of the battle): it asks for the `most` parts nearest itself, and the lowest one.
 // - Swarms: it keeps `space` meters from friendly robots (other drone bombs let go with it), steering away from them,
 //   so they come in from different sides and one blast does not set off the rest.
 // Flying is the enemy drone's hover (time-optimal leaning, balance from its parts), asked for a velocity instead of
@@ -46,6 +48,8 @@ const clearDist = param('clearDist', 15, { min: 0, max: 50 }); // m it climbs st
 const space = param('space', 7, { min: 0, max: 30 }); // m it keeps from friendly robots (other drone bombs in a swarm), so one blast does not set off the rest
 const spread = param('spread', 12, { min: 0, max: 40 }); // m/s it steers away from a friend right next to it (less further out)
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (missiles) are not worth chasing
+const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole
+const most = param('most', 100, { min: 10, max: 2000 }); // parts of a huge robot nearest it that it asks for
 
 function setup() {
   // A carrier may name the robot to go after (a message with its `id`), so a swarm spreads over several targets.
@@ -150,13 +154,27 @@ function nose(x, y) {
 }
 
 /**
+ * A huge robot's `most` parts nearest this one, and its lowest part's height (the part nearest a point far under it),
+ * scanned once a tick.
+ */
+function nearOf(t) {
+  if (!state.near || state.near.frame !== frame || state.near.id !== t.id) {
+    const list = scan(t.id, { near: self.pos, most });
+    const lowest = scan(t.id, { near: { x: t.pos.x, y: t.pos.y - 1e6 }, most: 1 });
+    state.near = { frame, id: t.id, list, low: lowest && lowest.length > 0 ? Math.min(t.pos.y, lowest[0].pos.y) : t.pos.y };
+  }
+  return state.near.list;
+}
+
+/**
  * The target's part closest to the warhead (when scanned), else its core, with the distance from the warhead; its
  * lowest part seen (its core when not scanned); and whether any of its own parts touches any part of the target.
  */
 function aimPoint(t, from) {
-  const seen = t.distance < 40 ? scan(t.id) : null;
+  const big = t.parts > huge;
+  const seen = t.distance < 40 ? (big ? nearOf(t) : scan(t.id)) : null;
   let best = { x: t.pos.x, y: t.pos.y, d: Math.hypot(t.pos.x - from.x, t.pos.y - from.y), touching: false, bottom: t.pos.y };
-  let bottom = t.pos.y;
+  let bottom = big && seen ? state.near.low : t.pos.y;
   for (const p of seen || []) {
     bottom = Math.min(bottom, p.pos.y);
     const d = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);

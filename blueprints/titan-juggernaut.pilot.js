@@ -42,6 +42,7 @@ const stall = param('stall', 2.5, { min: 0.5, max: 60 }); // s pushing without m
 const park = param('park', 955, { min: 20, max: 990 }); // where it stands back to from what a run could not move: the far corner, m from the middle
 const tiltMax = param('tiltMax', 10, { min: 1, max: 90 }); // degrees: tilted more than this (riding up on something), it stops pushing
 const low = param('low', 0.1, { min: 0, max: 1 }); // under this share of its energy it stops driving
+const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole, only its extremes
 
 let guns = []; // guns[b]: the live gun parts of group b
 
@@ -74,6 +75,20 @@ function survey() {
     hi = b;
   }
   if (lo >= 0 && hi > lo) state.dir = guns[hi][0].pos.x > guns[lo][0].pos.x ? 1 : -1;
+}
+
+/**
+ * A huge robot's (more than `huge` parts) leftmost, rightmost, lowest, and highest parts: the parts nearest points far
+ * off each way, four scans of one part instead of thousands of parts handed over. Null when it is not seen.
+ */
+function extremes(t) {
+  const out = [];
+  for (const [dx, dy] of [[-1e6, 0], [1e6, 0], [0, -1e6], [0, 1e6]]) {
+    const one = scan(t.id, { near: { x: t.pos.x + dx, y: t.pos.y + dy }, most: 1 });
+    if (!one) return null;
+    for (const p of one) out.push(p);
+  }
+  return out;
 }
 
 function setup() {
@@ -137,7 +152,7 @@ function tick() {
   }
   if (T) {
     if (T.id !== state.tid || frame - state.scanAt >= 30) {
-      const s = scan(T.id);
+      const s = T.parts > huge ? extremes(T) : scan(T.id);
       if (s && s.length) {
         let lx = 1e9, hx = -1e9, ly = 1e9, hy = -1e9;
         for (const p of s) {

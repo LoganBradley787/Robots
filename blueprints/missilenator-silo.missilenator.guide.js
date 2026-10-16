@@ -51,6 +51,7 @@ const columnRate = param('columnRate', 0, { min: 0, max: 60 }); // most a column
 const aimMiddle = param('aimMiddle', 0, { min: 0, max: 1 }); // 1: aims at the middle of the robot's parts, not its core
 const aimLift = param('aimLift', 0, { min: 0, max: 20 }); // m: and never lower than this over its lowest part, on the ground
 const aimGround = param('aimGround', 2, { min: 0, max: 20 }); // m: a robot whose lowest part is under this is on the ground
+const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole
 const boosterPush = param('boosterPush', 400, { min: 1, max: 5000 }); // N, one booster's full push (the booster part)
 const SIGHT_ENEMY = 3; // a gun's sightSide when an enemy is on its line
 
@@ -184,6 +185,13 @@ function columns() {
  */
 function middleOf(c) {
   if (aimMiddle < 0.5) return { x: c.pos.x, y: c.pos.y };
+  if (c.parts > huge) {
+    // A huge robot is never scanned whole: its center of mass stands in for the middle of its parts, and only its
+    // lowest part (the one nearest a point far under it) is asked for.
+    const lowest = scan(c.id, { near: { x: c.center.x, y: c.center.y - 1e6 }, most: 1 });
+    const low = lowest && lowest.length > 0 ? lowest[0].pos.y : c.pos.y;
+    return { x: c.center.x, y: low < aimGround ? Math.max(c.center.y, low + aimLift) : c.center.y };
+  }
   const list = scan(c.id);
   if (!list || list.length === 0) return { x: c.pos.x, y: c.pos.y };
   let sx = 0;
