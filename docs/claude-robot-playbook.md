@@ -101,7 +101,21 @@ function tick() {
 - `keys.down(k)`, `keys.pressed(k)` (this tick only), `keys.released(k)`.
 - `state` (kept between ticks), `dt`, `time`, `frame`, `param()`, `log(...)` (up to 20 lines per second per robot; the run report shows them), `random()`, `clamp`, `lerp`, `sign`, `Math`.
 - `contacts` (M8): every robot this robot's sensor parts see this tick, nearest first: `{ id, side, core, pos, vel, center, mass, parts, distance, by }`. `side` is `enemy` (another team), `friend`, or `none` (debris, or a robot whose core is gone); `core` is whether it has a live core; `pos` is its core's (its center of mass's without one) and `vel` the velocity of the body its core is on; `by` lists the sensor parts that see it. Empty with no seeker or radar.
-- `scan(id)`: a seen robot's parts `[{ id, type, pos, angle, health, maxHealth }]`, or null if it is not seen this tick. At most 4 calls per script per tick.
+- `scan(id)`: a seen robot's parts `[{ id, type, pos, angle, health, maxHealth }]` in blueprint order, or null if it is not seen this tick. At most 4 calls per script per tick.
+- `scan(id, opts)` (M16): **ask only for the parts you need.** A titan has 3000 parts; handing them all to a script costs about 9 ms every call (a whole frame is 16.7 ms), and six drones doing it every tick made the game crawl. The options are worked out by the engine, so the script receives only what it asked for, still in blueprint order (a robot smaller than `most` scans exactly as plain `scan(id)` does):
+  - `near: { x, y }` and `most: n`: only the n parts nearest that point (ties in blueprint order). `near` defaults to `from`.
+  - `of: names`: only parts whose id, type, or one of whose tags is in the list (a single name works too). The same rule as a `set()` target. Use part ids to follow parts you picked earlier: `scan(id, { of: state.picked })`.
+  - `has: names`: only parts that have one of these inputs or outputs: `has: 'throttle'` is everything that lifts or pushes (thrusters, swivel thrusters, propellers, boosters). Check `pnpm sim parts` for who has what: `fire`, for one, is a gun's and a decoupler's.
+  - `from: { x, y }` (and `wide`, default 0.5 m): each returned part also gets `cover` (the summed health of the robot's other parts whose middle is within `wide` of the straight line from that point to the part's middle, between the point and the part and at least 0.3 m nearer along the line, so its neighbours at the same depth do not count) and `coverParts` (how many). Counted over the whole robot, not only the parts returned, so "their thrusters, with how much is in front of each from my gun" is one cheap call.
+  - Both `of` and `has` must hold when both are given; `most` is applied after them.
+  - Extremes cheaply: the lowest part is the one nearest a point far under the robot, `scan(c.id, { near: { x: c.pos.x, y: c.pos.y - 1e6 }, most: 1 })` (and the same far left, right, or up).
+  - A wrong option (a misspelt name, `most` without `near` or `from`, a point that is not `{ x, y }` numbers) returns null and logs the reason once; options count toward the 4 calls. A robot seen at a burning flare scans as the flare alone, options or not (its `cover` is 0).
+  - The rule of thumb: a target with more parts than you can use (`c.parts > 600`) gets options; under that, plain `scan(id)` is fine. Example, the stock turrets against a titan:
+
+    ```js
+    const list = c.parts > huge ? scan(c.id, { near: from, most: 150, from, wide: 0.6 }) : scan(c.id);
+    // each p.cover is the health a beam from `from` burns through before p
+    ```
 - `send(to, data)`: a message for a core still attached to this robot, named by its scope (`missile1`), a tag, or its part id. `data` is anything JSON, up to 1 KB; up to 32 calls per script per tick and 64 per robot. It arrives next tick.
 - `inbox`: messages that arrived, `[{ from, tick, data }]`, shown once. A placed core that is still attached keeps its messages until it wakes, so its `setup()` reads what the launcher sent just before letting go.
 - `mark(x, y, label)`: a point drawn in the app's debug overlay and the run report's side view (up to 4 per tick). For showing where a script is aiming.
