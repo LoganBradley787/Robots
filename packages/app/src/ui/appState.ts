@@ -137,6 +137,8 @@ export interface AppState {
   icons: Record<string, string>;
   /** What the world toolbar shows; absent until the world has drawn a frame. */
   world?: WorldView;
+  /** The world's clock for the time panel (M16), apart from `world` so only the panel redraws as it ticks. */
+  clock?: string;
   /** The shelf of shared behaviors (M16), as last read from `behaviors/`. */
   shelf: { entries: ShelfEntry[]; loaded: boolean; error?: string };
   /** The script whose update from the shelf is being shown, by id. */

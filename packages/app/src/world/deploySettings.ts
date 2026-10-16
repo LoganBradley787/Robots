@@ -31,8 +31,12 @@ export function turned(s: DeploySettings): DeploySettings {
   return { ...s, rot: ((s.rot + 90) % 360) as Rotation };
 }
 
+/**
+ * A team as the UI says it. Team 2 is only made by the debug battle (red against blue, neither side yours), and is
+ * named for its tint (`render/teamTint.ts`).
+ */
 export function teamName(team: number): string {
-  return team === 0 ? 'Yours' : team === 1 ? 'Enemy' : `Team ${team}`;
+  return team === 0 ? 'Yours' : team === 1 ? 'Enemy' : team === 2 ? 'Blue' : `Team ${team}`;
 }
 
 /** The part of `Storage` this needs, so tests pass a plain object. */

@@ -10,8 +10,8 @@ import { Button, Popover, Slider } from './kit';
 export interface WorldActions {
   worldTogglePause(): void;
   worldStep(): void;
-  worldSlower(): void;
-  worldFaster(): void;
+  /** Straight to one speed of `TIME_SCALES` (the time panel's arrows). */
+  worldSetSpeed(index: number): void;
   worldCamera(): void;
   worldHome(): void;
   worldToggleDebug(): void;
@@ -33,10 +33,10 @@ export interface WorldActions {
 const HOVER_COUNTS = [10, 25, 50, 100];
 
 /**
- * The world bar (M16 step 7): a small transport in the middle of the bottom edge (back to the builder, play or pause,
- * step, speed) and two menus. View holds what changes how you see and hear the world; Sandbox holds what changes the
+ * The world bar (M16 step 7): a small bar in the middle of the bottom edge (back to the builder, and the team the next
+ * robot joins) and two menus. View holds what changes how you see and hear the world; Sandbox holds what changes the
  * world. Every row says its state and its key, and every world key works as it always did: the menus are only another
- * way to press them. It was one row of nineteen controls, wider than the page.
+ * way to press them. Play, Step and the speed are in the time panel at the top left (`TimePanel.tsx`).
  */
 export function WorldToolbar({ store, actions }: { store: Store<AppState>; actions: WorldActions }) {
   const v = useStore(store, (s) => s.world);
@@ -49,23 +49,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
         &#9664; Builder <kbd>Tab</kbd>
       </Button>
       <span class="sep" />
-      <Button class="pp" kind={v.paused ? 'go' : undefined} onClick={actions.worldTogglePause} title={v.paused ? 'Play (Space)' : 'Pause (Space)'}>
-        {v.paused ? 'Play' : 'Pause'} <kbd>{worldKeyCap('togglePause')}</kbd>
+      <Button class={`team${v.deployTeam !== 0 ? ' enemy' : ''}`} onClick={actions.toggleDeployTeam} title="Which side the next robot you deploy joins: click to switch. You only control your own; enemies run their scripts.">
+        <span class="lb">Team</span> {teamName(v.deployTeam)}
       </Button>
-      <Button onClick={actions.worldStep} title="One tick forward, then paused (.)">
-        Step <kbd>{worldKeyCap('step')}</kbd>
-      </Button>
-      <span class="sep" />
-      <Button icon kind="ghost" onClick={actions.worldSlower} label="slower" title={`Slower (${worldKeyCap('slower')})`}>
-        &minus;
-      </Button>
-      <span class="speed" title={`Speed. ${worldKeyCap('slower')} slower, ${worldKeyCap('faster')} faster`}>
-        x{v.timeScale}
-      </span>
-      <Button icon kind="ghost" onClick={actions.worldFaster} label="faster" title={`Faster (${worldKeyCap('faster')})`}>
-        +
-      </Button>
-      <span class="sep" />
       <BarMenu label="View" title="Camera, grid, debug and sound">
         {() => (
           <>
@@ -97,17 +83,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
           </>
         )}
       </BarMenu>
-      <BarMenu label="Sandbox" title="Deploy side, energy, stress test, clearing up, replays" align="right">
+      <BarMenu label="Sandbox" title="Energy, stress test, clearing up, replays" align="right">
         {(close) => (
           <>
-            <Row
-              label="Deploy as"
-              state={teamName(v.deployTeam).toLowerCase()}
-              on={v.deployTeam !== 0}
-              enemy={v.deployTeam !== 0}
-              onPick={actions.toggleDeployTeam}
-              title="Which side the next robot you deploy joins. You only control your own; enemies run their scripts. While placing, F flips and R turns."
-            />
             <Row label="Unlimited energy" state={onOff(v.unlimitedEnergy)} on={v.unlimitedEnergy} onPick={actions.toggleUnlimitedEnergy} title="Every part gets all the energy it asks for, and nothing drains" />
             <div class="mi-sep" />
             <div class="wblock" title="Drops a crowd of scripted robots around the middle of the screen, to see how the sim copes. Turn on Debug for the numbers, and Unlimited energy so the drones do not run dry and fall.">
@@ -199,11 +177,11 @@ function BarMenu({ label, title, align, children }: { label: string; title: stri
 }
 
 /** One menu row: what it is, its state now, and its key when it has one. */
-function Row({ label, state, on, enemy, cap, onPick, disabled, danger, title }: { label: string; state: string; on?: boolean; enemy?: boolean; cap?: string; onPick(): void; disabled?: boolean; danger?: boolean; title?: string }) {
+function Row({ label, state, on, cap, onPick, disabled, danger, title }: { label: string; state: string; on?: boolean; cap?: string; onPick(): void; disabled?: boolean; danger?: boolean; title?: string }) {
   return (
     <button type="button" class={`mi wrow${danger ? ' danger' : ''}`} disabled={disabled} title={title} onClick={onPick} role={on !== undefined ? 'menuitemcheckbox' : 'menuitem'} aria-checked={on}>
       <span class="lb">{label}</span>
-      <span class={`st${on ? ' lit' : ''}${enemy ? ' enemy' : ''}`}>{state}</span>
+      <span class={`st${on ? ' lit' : ''}`}>{state}</span>
       <span class="kc">{cap !== undefined && <kbd>{cap}</kbd>}</span>
     </button>
   );

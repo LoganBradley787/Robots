@@ -22,6 +22,8 @@ describe('deploy settings (M8)', () => {
   it('names teams', () => {
     expect(teamName(0)).toBe('Yours');
     expect(teamName(1)).toBe('Enemy');
+    // Only the debug battle makes team 2: red against blue, neither side yours.
+    expect(teamName(2)).toBe('Blue');
     expect(teamName(3)).toBe('Team 3');
   });
 

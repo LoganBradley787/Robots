@@ -16,6 +16,22 @@ describe('TimeControls', () => {
     expect(t.timeScale).toBe(TIME_SCALES[0]);
   });
 
+  it('jumps straight to one speed of the table, clamped', () => {
+    const t = new TimeControls();
+    expect(t.scaleIndex).toBe(2);
+    t.setScale(4);
+    expect(t.timeScale).toBe(4);
+    expect(t.scaleIndex).toBe(4);
+    t.setScale(0);
+    expect(t.timeScale).toBe(0.25);
+    t.setScale(9);
+    expect(t.timeScale).toBe(4);
+    t.setScale(-3);
+    expect(t.timeScale).toBe(0.25);
+    t.faster();
+    expect(t.timeScale).toBe(0.5);
+  });
+
   it('requestStep pauses and queues exactly one tick', () => {
     const t = new TimeControls();
     t.requestStep();

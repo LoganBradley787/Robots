@@ -654,22 +654,47 @@ button kbd { margin: 0; opacity: 0.75; }
 .readout .rin .says { display: block; }
 /* ---------- M16 step 8 (end) ---------- */
 
-/* ---------- world screen (M16 step 7): a small transport, two menus, the keys bar above it ---------- */
+/* ---------- world screen (M16 step 7): a small bar, two menus, the keys bar above it, the time panel top left ---------- */
 /* Centered with margins, not a transform: a transform would make the menus (fixed boxes) place themselves by the bar, not the window. */
 .transport { position: absolute; bottom: 12px; left: 0; right: 0; margin: 0 auto; width: fit-content; white-space: nowrap; display: flex; align-items: center; gap: 6px; padding: 6px 8px; max-width: calc(100% - 24px); }
 .transport .sep { width: 1px; align-self: stretch; background: var(--edge); margin: 0 2px; flex: none; }
-.transport .speed { min-width: 40px; text-align: center; font: 600 13px var(--mono); }
-.transport .btn.pp { min-width: 104px; }
-.transport .btn.go { height: 26px; padding: 0 10px; font-size: 12px; }
-.transport .btn.icon { font: 700 15px var(--mono); }
 .transport .caret { font-size: 11px; opacity: 0.7; }
+/* The team the next robot joins: the enemy in the enemy's tint. Wide enough for either, so the bar does not jump. */
+.transport .btn.team { min-width: 112px; justify-content: flex-start; gap: 7px; }
+.transport .btn.team .lb { color: var(--dim); font-size: 11px; }
+.transport .btn.team.enemy { color: #ff8a80; }
+/*
+ * The time panel (after Kerbal Space Program's): the clock, PAUSED, the speed when not 1x, and who the camera is on.
+ * Hovering it or the keyboard's focus drops it down to play, Step and the speed arrows, lit up to the speed it runs at.
+ */
+.time-panel { position: absolute; top: 10px; left: 12px; z-index: 30; width: 236px; padding: 6px 10px 7px; outline: none; }
+.time-panel:focus-visible { border-color: var(--ink); }
+.tp-line { display: flex; align-items: baseline; gap: 9px; }
+.tp-clock { font: 600 17px var(--mono); letter-spacing: 0.02em; }
+.tp-paused { font-size: 12px; color: var(--accent); }
+.tp-speed { font: 600 13px var(--mono); color: var(--accent); margin-left: auto; }
+.tp-who { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.tp-drop { display: none; border-top: 1px solid var(--edge); margin-top: 7px; padding-top: 8px; }
+.time-panel:hover .tp-drop, .time-panel:focus-within .tp-drop { display: block; }
+.tp-row { display: flex; gap: 6px; }
+.tp-row .btn.pp { flex: 1; }
+.tp-warp { display: flex; gap: 3px; margin-top: 8px; }
+#ui .tp-warp .warp {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 0 3px; cursor: pointer; background: var(--plate-3);
+  border: 1px solid var(--edge); color: var(--dim); font: 600 11px var(--mono); justify-content: center; text-align: center;
+}
+#ui .tp-warp .warp:hover { border-color: var(--edge-hi); color: var(--ink); }
+.tp-warp .warp i { display: block; flex: none; width: 15px; height: 13px; background: var(--edge-hi); clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.tp-warp .warp.lit i { background: var(--accent); }
+#ui .tp-warp .warp.at { color: var(--ink); border-color: var(--accent); }
+.tp-keys { margin-top: 7px; font-size: 11px; color: var(--dim); }
+.tp-keys kbd { font-size: 10px; }
 /* A menu over the bar: each row is its name, its state now, and its key. */
 .pop.wmenu { width: 292px; max-width: calc(100vw - 12px); padding: 6px; }
 .wm-head { font-size: 11px; color: var(--dim); padding: 3px 8px 5px; }
 #ui .wrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; align-items: center; gap: 10px; width: 100%; padding: 5px 8px; font-size: 13px; }
 .wrow .st { font: 12px var(--mono); color: var(--dim); text-align: right; white-space: nowrap; }
 .wrow .st.lit { color: var(--accent); }
-.wrow .st.enemy { color: #ff9a8a; }
 .wrow .kc { text-align: right; }
 .wrow kbd { display: inline-block; min-width: 22px; margin: 0; padding: 1px 5px; text-align: center; font-size: 12px; color: var(--ink); }
 /* A menu where no row has a key gives that column back. */

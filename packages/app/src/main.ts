@@ -285,6 +285,7 @@ async function boot(): Promise<void> {
 
   const worldKeys = worldScreen.keyActions();
   worldScreen.onView = (world) => store.set({ world });
+  worldScreen.onClock = (clock) => store.set({ clock });
   worldScreen.onNotice = (message) => notify(store, message);
   /**
    * An edit to the controls of the core the panels are on (M7: the main core's are the blueprint's top level, another
@@ -302,8 +303,7 @@ async function boot(): Promise<void> {
   const actions: AppActions = {
     worldTogglePause: worldKeys.togglePause,
     worldStep: worldKeys.step,
-    worldSlower: worldKeys.slower,
-    worldFaster: worldKeys.faster,
+    worldSetSpeed: (index) => worldScreen.setSpeed(index),
     worldCamera: worldKeys.camera,
     worldHome: worldKeys.home,
     worldToggleDebug: worldKeys.toggleDebug,
@@ -350,7 +350,9 @@ async function boot(): Promise<void> {
           placed = worldScreen.stress(left, 1, BATTLE_GRID(n), -75) + worldScreen.stress(right, 2, BATTLE_GRID(n), 75);
           n *= 2;
         }
-        if (placed < n) notify(store, `Stress: placed ${placed} of ${n}; the rest had no room around the middle of the screen`);
+        const short = placed < n ? ` Placed ${placed} of ${n}: the rest had no room around the middle of the screen.` : '';
+        if (kind === 'battle') notify(store, `A battle: Red against Blue. Neither side is yours, so you only watch.${short}`);
+        else if (short !== '') notify(store, `Stress:${short}`);
       };
       go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
     },

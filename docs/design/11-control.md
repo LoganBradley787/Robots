@@ -52,12 +52,15 @@ Wheel: `maxTorque` 20 N m, `motorFactor` 0.6 (full torque up to about 7.5 m/s), 
 - Editing controls stays in the builder.
 
 ## The world bar (M16, as built)
-- A small transport in the middle of the bottom edge: Builder (Tab), Play or Pause (Space), Step (.), slower ([), the speed, faster (]). Then two menus.
+- A small bar in the middle of the bottom edge: Builder (Tab), the **Team** button, then two menus.
+- **Team** shows which side the next robot you deploy joins: "Yours" in plain text; a click makes it "Enemy" in the enemy's tint (#ff8a80), a click again makes it Yours. Only these two. It sticks across deploys and reloads (`world/deploySettings.ts`). It has no key.
 - **View**: follow or next robot (,), home, grid (`), debug overlay (\), sound, volume, far sounds arrive late.
-- **Sandbox**: deploy as (yours or enemy), unlimited energy, stress test (hovering drones 10, 25, 50, 100; a battle of 6 against 6), clear debris, save replay, reset world (it asks first).
+- **Sandbox**: unlimited energy, stress test (hovering drones 10, 25, 50, 100; a battle of 6 against 6), clear debris, save replay, reset world (it asks first).
 - Every menu row shows its state now and its key. A row that only flips something leaves the menu open, so the new state shows. Esc or a press anywhere else closes a menu. Every world key works as before; the key caps on the bar are read from the world key table (`app/keys.ts`).
-- The top left shows one small line: the clock, the speed, "paused", and the robot you control or watch. While a robot is held for dropping, a second line says how to place it. The raw text (tick, hash, fps, timing, hints) shows only with Debug on.
-- The keys bar (below) sits just above the transport: energy as a bar, then the keys as key caps.
+- **The time panel** (top left, after Kerbal Space Program's time warp; `ui/TimePanel.tsx`) always shows the clock, PAUSED while paused, the speed when it is not x1 (x1/4, x1/2, x2, x4), and who you control or watch ("controlling drone", "watching blue enemy-drone"). Hovering it, or the keyboard's focus in it, drops it down to Play or Pause (Space), Step (.), and five arrows, one per speed (1/4, 1/2, 1, 2, 4), lit up to the speed it runs at; a click on an arrow goes straight to that speed (`TimeControls.setScale`). `[` and `]` still step the speed down and up. A click on its buttons leaves no focus on them, so the panel folds when the mouse leaves and Space stays the world's key. The clock reaches the panel apart from the rest of the world's view, so only the panel redraws as it ticks.
+- Under the panel: while a robot is held for dropping, a line says how to place it; with Debug on, the raw text (tick, hash, fps, timing, hints).
+- **The 6 against 6 battle** puts team 1 (red, called Enemy) against team 2 (blue, called Blue). Neither side is yours, and a notice says so as it starts: "A battle: Red against Blue. Neither side is yours, so you only watch."
+- The keys bar (below) sits just above the bottom bar: energy as a bar, then the keys as key caps.
 
 ## Replays
 - Every run in the world can be saved as a replay file: the world, every spawn, and every key press and release, by tick. `pnpm sim replay <file>` reruns it headless and checks it ends in the same state. This is how Logan can hand Claude a bug ("it flips when I do this").

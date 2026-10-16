@@ -7,6 +7,7 @@ import type { BuilderActions, PartActions } from './actions';
 import { BuilderScreen } from './BuilderScreen';
 import type { BindingActions } from './BindingsPanel';
 import { WorldToolbar, type WorldActions } from './WorldToolbar';
+import { TimePanel } from './TimePanel';
 import { KeysBar, type KeysBarActions } from './KeysBar';
 import type { ScriptActions } from './ScriptsPanel';
 import { Readout, type ReadoutActions } from './Readout';
@@ -26,6 +27,7 @@ export function App({ store, registry, actions }: { store: Store<AppState>; regi
         <>
           <Readout store={store} actions={actions} />
           <KeysBar store={store} actions={actions} />
+          <TimePanel store={store} actions={actions} />
           <WorldToolbar store={store} actions={actions} />
         </>
       )}

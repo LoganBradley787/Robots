@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { codeOf, WORLD_KEYS, worldKeyAction, worldKeyCap, worldKeyLabel } from '../src/app/keys';
-import { statusLine } from '../src/app/Hud';
+import { clockText, speedText } from '../src/app/Hud';
 import { WORLD_KEY_CODES } from '@robots/sim-core';
 
 describe('codeOf', () => {
@@ -64,9 +64,11 @@ describe('the world bar', () => {
     for (const k of Object.values(WORLD_KEYS)) expect(worldKeyCap(k.action)).not.toMatch(/^(Key|Digit|Bracket|Back|Period|Comma)/);
   });
 
-  it('says the time, the speed and who the camera is on, in one line', () => {
-    expect(statusLine(4.2, 1, false, 'controlling Car')).toBe('0:04.2   x1   controlling Car');
-    expect(statusLine(75.04, 0.5, true, 'watching enemy Drone')).toBe('1:15.0   x0.5   paused   watching enemy Drone');
-    expect(statusLine(0, 2, false, 'no robots yet: build one and press Test')).toBe('0:00.0   x2   no robots yet: build one and press Test');
+  it('says the clock in minutes, seconds and tenths, and each speed as the time panel does', () => {
+    expect(clockText(4.2)).toBe('0:04.2');
+    expect(clockText(75.04)).toBe('1:15.0');
+    expect(clockText(59.96)).toBe('1:00.0');
+    expect(clockText(0)).toBe('0:00.0');
+    expect([0.25, 0.5, 1, 2, 4].map(speedText)).toEqual(['x1/4', 'x1/2', 'x1', 'x2', 'x4']);
   });
 });

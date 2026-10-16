@@ -1,4 +1,4 @@
-import { statusLine } from '../app/Hud';
+import { clockText } from '../app/Hud';
 import type { Graphics, Ticker } from 'pixi.js';
 import { World, activeControls, keysScriptsRead, orientRaw, partWorldPose, sampleRobot, type PartRegistry, type Robot, type ScriptSpec, type WorldFile } from '@robots/sim-core';
 import type { Renderer } from '../render/Renderer';
@@ -35,7 +35,7 @@ import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, tu
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 import { buildReadout, type ReadoutView } from './readout';
 
-const HELP = 'wheel zoom   drag pan   click a robot to control it   (world controls are on the bar below)';
+const HELP = 'wheel zoom   drag pan   click a robot to control it   (time controls in the panel above, the rest on the bar below)';
 
 /** One key of the controlled robot, for the keys bar. */
 export interface KeyView {
@@ -50,6 +50,8 @@ export interface KeyView {
 export interface WorldView {
   paused: boolean;
   timeScale: number;
+  /** M16, the time panel: who you control or watch, in a few words ("controlling Car", "watching enemy Drone"). */
+  who: string;
   debug: boolean;
   grid: boolean;
   follow: boolean;
@@ -120,6 +122,9 @@ export class WorldScreen {
   private dragging: { id: number; x: number; y: number; startX: number; startY: number } | null = null;
   /** Called when anything the toolbar shows changes. */
   onView?: (v: WorldView) => void;
+  /** The time panel's clock ("1:15.0"), called only when the text changes, so only the panel redraws ten times a second. */
+  onClock?: (text: string) => void;
+  private lastClock = '';
   /** Called with a short message when something worth telling happens (a robot runs out of energy). */
   onNotice?: (message: string) => void;
   /** Called after every simulated tick (the duel view judges the match here). */
@@ -383,6 +388,11 @@ export class WorldScreen {
     this.setDeploy(turned(this.deploy));
   }
 
+  /** Straight to one speed of `TIME_SCALES` (the time panel's arrows). */
+  setSpeed(index: number): void {
+    this.time.setScale(index);
+  }
+
   /** Switches the side the next deploy joins. Sticks. */
   toggleDeployTeam(): void {
     this.setDeploy(nextTeam(this.deploy));
@@ -597,6 +607,13 @@ export class WorldScreen {
         : this.world.robots.length > 0
           ? 'following no robot: click one, or press , for the next'
           : 'no robots yet: build one and press Test';
+    // M16: who the camera is on, for the time panel at the top left.
+    const who =
+      focus !== undefined
+        ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name}`
+        : this.world.robots.length > 0
+          ? 'following no robot: click one'
+          : 'no robots yet';
     const p = this.placing;
     const placingLines = p
       ? [
@@ -606,6 +623,7 @@ export class WorldScreen {
     const view: WorldView = {
       paused: time.paused,
       timeScale: time.timeScale,
+      who,
       debug: this.debugVisible,
       grid: this.grid.visible,
       follow: this.cam.follow,
@@ -714,14 +732,13 @@ export class WorldScreen {
         true,
       );
     } else {
-      // M16: one small line (time, speed, and the robot you control or watch). The raw text is behind Debug.
-      const who =
-        focus !== undefined
-          ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name}`
-          : this.world.robots.length > 0
-            ? 'following no robot: click one'
-            : 'no robots yet: build one and press Test';
-      this.hud.set([statusLine(this.world.time, time.timeScale, time.paused, who), ...placingLines]);
+      // M16: the clock, the speed and who you control or watch are in the time panel; the raw text is behind Debug.
+      this.hud.set(placingLines);
+    }
+    const clock = clockText(this.world.time);
+    if (clock !== this.lastClock) {
+      this.lastClock = clock;
+      this.onClock?.(clock);
     }
     this.perf.add({ frameMs: ticker.deltaMS, ticks, simMs, scriptMs: scripts.ms, scriptCalls: scripts.calls, viewMs: performance.now() - viewStart });
   }
