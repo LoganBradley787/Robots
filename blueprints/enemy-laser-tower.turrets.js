@@ -92,15 +92,37 @@ function scanned(id) {
   return state.scans[id];
 }
 
+/** The parts the turrets aim at on a huge robot, scanned by id once per tick for all of them. */
+function aimedParts(id) {
+  if (state.aimTick !== frame) {
+    state.aimTick = frame;
+    state.aimed = {};
+  }
+  if (!(id in state.aimed)) {
+    const ids = [];
+    for (const name in state.turrets) {
+      const st = state.turrets[name];
+      if (st.id === id && st.part !== undefined && !ids.includes(st.part)) ids.push(st.part);
+    }
+    state.aimed[id] = ids.length > 0 ? scan(id, { of: ids }) : [];
+  }
+  return state.aimed[id];
+}
+
 /**
  * The part of `target` worth the most per second of beam from `from`: its worth over its health plus the health of
- * everything of that robot within half a cell of the line in front of it. Undefined when it cannot be scanned.
+ * everything of that robot within half a cell of the line in front of it. Undefined when it cannot be scanned;
+ * otherwise the part as scanned.
  */
 function bestPart(target, from) {
-  let list = scanned(target.id);
+  // A huge robot is never scanned whole (thousands of parts handed over every tick cost more than the rest of the
+  // battle): the radar hands over only the parts nearest this turret, with the health in front of each (`cover`,
+  // counted over the whole robot).
+  const big = target.parts > huge;
+  let list = big ? scan(target.id, { near: from, most, from, wide: 0.6 }) : scanned(target.id);
   if (!list || list.length === 0) return undefined;
   // A huge robot: only the parts within `band` m of its part nearest this turret, `most` of them at most.
-  if (list.length > huge) {
+  if (list.length > huge || big) {
     let near = Infinity;
     for (const p of list) {
       const d = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);
@@ -127,7 +149,8 @@ function bestPart(target, from) {
     const ux = rx / d;
     const uy = ry / d;
     let cost = Math.max(1, p.health);
-    for (const q of list) {
+    if (big) cost += p.cover;
+    else for (const q of list) {
       if (q === p) continue;
       const qx = q.pos.x - from.x;
       const qy = q.pos.y - from.y;
@@ -136,9 +159,9 @@ function bestPart(target, from) {
       if (Math.abs(qx * uy - qy * ux) < 0.6) cost += q.health;
     }
     const score = (WORTH[p.type] ?? 1) / cost;
-    if (!best || score > best.score) best = { id: p.id, score };
+    if (!best || score > best.score) best = { p, score };
   }
-  return best && best.id;
+  return best && best.p;
 }
 
 /** Where to point to burn a point at `pos` moving at `vel` from `from`: a tick ahead of how it moves against us. */
@@ -193,13 +216,16 @@ function aimTurret(name, charged) {
   // A heavy target: aim at the part chosen, if it is still there.
   let l = best.l;
   if (best.c.mass >= light) {
+    let p;
     if ((time - st.picked >= repick || st.part === undefined) && state.pickFrame !== frame) {
       state.pickFrame = frame;
-      st.part = bestPart(best.c, from);
+      p = bestPart(best.c, from);
+      st.part = p && p.id;
       st.picked = time;
+    } else if (st.part !== undefined) {
+      const list = best.c.parts > huge ? aimedParts(best.c.id) : scanned(best.c.id);
+      p = list && list.find((x) => x.id === st.part);
     }
-    const list = st.part === undefined ? undefined : scanned(best.c.id);
-    const p = list && list.find((x) => x.id === st.part);
     if (p) l = point(p.pos, best.c.vel, from);
     else st.part = undefined;
     // A new part is a jump in the aim point, not its motion: do not turn at that jump's rate.

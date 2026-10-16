@@ -12,6 +12,10 @@
 //   robot and picks what is worth the most that one bolt can still reach (its main core first: the one the contact
 //   is reported at; a missile's core on a rack is worth little): a bolt takes the health of each part in
 //   front off its `damage` (armor in full), so a part behind more health than that is out of reach this shot.
+// - A robot of more than `huge` parts (a titan) is never scanned whole: thousands of parts handed to the script every
+//   tick cost more than the rest of the battle. To choose, it asks the radar for the `most` parts nearest the barrel,
+//   each with the health in front of it on the line (`cover`, counted over the whole robot); after that only for the
+//   parts its turrets aim at, by id.
 // - Aim: at where that part will be when the bolt gets there (`speed` m/s), raised by the bolt's drop.
 // - Fire: once full it lets go when the barrel is within `size` meters of the aim point and the target is within
 //   `reach`. The sight is straight and the barrel points above the target by the drop, so the sight is not asked to
@@ -107,15 +111,34 @@ function scanned(id) {
   return state.scans[id];
 }
 
+/** The parts the turrets aim at on a huge robot, scanned by id once per tick for all of them. */
+function aimedParts(id) {
+  if (state.aimTick !== frame) {
+    state.aimTick = frame;
+    state.aimed = {};
+  }
+  if (!(id in state.aimed)) {
+    const ids = [];
+    for (const name in state.turrets) {
+      const st = state.turrets[name];
+      if (st.id === id && st.part !== undefined && !ids.includes(st.part)) ids.push(st.part);
+    }
+    state.aimed[id] = ids.length > 0 ? scan(id, { of: ids }) : [];
+  }
+  return state.aimed[id];
+}
+
 /**
  * The part of `target` worth the most to one bolt from `from`: its worth, scaled down when the health of everything
  * of that robot in front of it on the line (and its own) is more than a bolt carries. Undefined when it cannot be
- * scanned.
+ * scanned; otherwise the part as scanned.
  */
 function bestPart(target, from) {
-  let list = scanned(target.id);
+  // A huge robot: the radar hands over only the parts nearest the barrel, with what covers each.
+  const big = target.parts > huge;
+  let list = big ? scan(target.id, { near: from, most, from, wide }) : scanned(target.id);
   if (!list || list.length === 0) return undefined;
-  if (list.length > huge) {
+  if (list.length > huge || big) {
     let near = Infinity;
     for (const p of list) {
       const d = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);
@@ -145,7 +168,8 @@ function bestPart(target, from) {
     const ux = rx / d;
     const uy = ry / d;
     let cost = Math.max(1, p.health);
-    for (const q of list) {
+    if (big) cost += p.cover;
+    else for (const q of list) {
       if (q === p) continue;
       const qx = q.pos.x - from.x;
       const qy = q.pos.y - from.y;
@@ -155,9 +179,9 @@ function bestPart(target, from) {
     }
     // Out of one bolt's reach: still worth its share, since the next bolt down the same line finishes the job.
     const score = cost <= damage ? bound : (bound * damage) / cost;
-    if (!best || score > best.score) best = { id: p.id, score };
+    if (!best || score > best.score) best = { p, score };
   }
-  return best && best.id;
+  return best && best.p;
 }
 
 /** Where to point so a bolt from `from` meets a point at `pos` moving at `vel`: led by its flight time, raised by its drop. */
@@ -218,13 +242,16 @@ function aimTurret(name, powered) {
     st.picked = -Infinity;
   }
   let l = best.l;
+  let p;
   if ((time - st.picked >= repick || st.part === undefined) && state.pickFrame !== frame) {
     state.pickFrame = frame;
-    st.part = bestPart(best.c, from);
+    p = bestPart(best.c, from);
+    st.part = p && p.id;
     st.picked = time;
+  } else if (st.part !== undefined) {
+    const list = best.c.parts > huge ? aimedParts(best.c.id) : scanned(best.c.id);
+    p = list && list.find((x) => x.id === st.part);
   }
-  const list = st.part === undefined ? undefined : scanned(best.c.id);
-  const p = list && list.find((x) => x.id === st.part);
   if (p) l = lead(p.pos, best.c.vel, from);
   else st.part = undefined;
   // A new part is a jump in the aim point, not its motion: do not turn at that jump's rate.

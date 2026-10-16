@@ -116,17 +116,38 @@ function scanned(id) {
   return state.scans[id];
 }
 
+/** The parts the turrets aim at on a huge robot, scanned by id once per tick for all of them. */
+function aimedParts(id) {
+  if (state.aimTick !== frame) {
+    state.aimTick = frame;
+    state.aimed = {};
+  }
+  if (!(id in state.aimed)) {
+    const ids = [];
+    for (const name in state.turrets) {
+      const st = state.turrets[name];
+      if (st.id === id && st.part !== undefined && !ids.includes(st.part)) ids.push(st.part);
+    }
+    state.aimed[id] = ids.length > 0 ? scan(id, { of: ids }) : [];
+  }
+  return state.aimed[id];
+}
+
 /**
  * The part of `target` worth the most per shell from `from`: its worth over the shells to break it plus everything of
- * that robot within half a cell of the line in front of it. Undefined when it cannot be scanned.
+ * that robot within half a cell of the line in front of it. Undefined when it cannot be scanned; otherwise the part
+ * as scanned.
  */
 function bestPart(target, from) {
-  let list = scanned(target.id);
+  // A huge robot is never scanned whole (thousands of parts handed over every tick cost more than the rest of the
+  // battle): the radar hands over only the parts nearest this turret.
+  const big = target.parts > huge;
+  let list = big ? scan(target.id, { near: from, most }) : scanned(target.id);
   if (!list || list.length === 0) return undefined;
   // A huge robot (a titan of thousands of parts; weighing every part against every other ran over the script's
   // budget and the turrets stopped for good): only the parts within `band` m of its part nearest this turret are
   // weighed, `most` of them at most. Whatever is in front of one of those is nearer still, so it is in the set too.
-  if (list.length > huge) {
+  if (list.length > huge || big) {
     let near = Infinity;
     for (const p of list) {
       const d = Math.hypot(p.pos.x - from.x, p.pos.y - from.y);
@@ -164,9 +185,9 @@ function bestPart(target, from) {
       if (Math.abs(qx * uy - qy * ux) < 0.6) cost += shells(q);
     }
     const score = worth / cost;
-    if (!best || score > best.score) best = { id: p.id, score };
+    if (!best || score > best.score) best = { p, score };
   }
-  return best && best.id;
+  return best && best.p;
 }
 
 /**
@@ -226,13 +247,16 @@ function aimTurret(name) {
   // A heavy target: aim at the part chosen, if it is still there.
   let l = best.l;
   if (best.c.mass >= heavy) {
+    let p;
     if ((time - st.picked >= repick || st.part === undefined) && state.pickFrame !== frame) {
       state.pickFrame = frame;
-      st.part = bestPart(best.c, from);
+      p = bestPart(best.c, from);
+      st.part = p && p.id;
       st.picked = time;
+    } else if (st.part !== undefined) {
+      const list = best.c.parts > huge ? aimedParts(best.c.id) : scanned(best.c.id);
+      p = list && list.find((x) => x.id === st.part);
     }
-    const list = st.part === undefined ? undefined : scanned(best.c.id);
-    const p = list && list.find((x) => x.id === st.part);
     if (p) l = lead(p.pos, best.c.vel, from);
     else st.part = undefined;
   }
@@ -280,8 +304,10 @@ function doors() {
     if (!why && state.fightAt !== undefined && time - state.fightAt >= wait) why = 'fought ' + wait + ' s';
     if (!why && foe && time - state.checked >= 0.25) {
       state.checked = time;
-      const list = scanned(foe.id);
-      if (list && list.length > 0) {
+      // A huge robot: only its guns are asked for (still told apart by type: `of` also matches tags).
+      const big = foe.parts > huge;
+      const list = big ? scan(foe.id, { of: 'gun' }) : scanned(foe.id);
+      if (list && (big || list.length > 0)) {
         const n = list.filter((p) => p.type === 'gun').length;
         if (n > (state.gunsSeen[foe.id] || 0)) state.gunsSeen[foe.id] = n;
         if (n === 0 && (state.gunsSeen[foe.id] || 0) > 0) why = 'target has no guns left';
