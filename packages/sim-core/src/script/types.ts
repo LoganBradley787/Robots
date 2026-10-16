@@ -69,6 +69,11 @@ export interface ScannedPart {
    */
   cover?: number;
   coverParts?: number;
+  /**
+   * M16, only when scanned with `acts: true` and only for a part that acts along one of its faces: the way it pushes,
+   * fires, or looks in the world, radians counterclockwise.
+   */
+  acts?: number;
 }
 
 /** A message another core sent this one (M8), as its scripts see it in `inbox`. */

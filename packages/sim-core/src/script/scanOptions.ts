@@ -1,3 +1,4 @@
+import type { Face } from '../parts/types';
 import type { ScannedPart } from './types';
 
 /**
@@ -18,6 +19,12 @@ export interface ScanOptions {
   from?: { x: number; y: number };
   /** Meters either side of that line a part in front must be within (default 0.5, half a cell). */
   wide?: number;
+  /**
+   * Adds `acts` to each part that acts along one of its faces (it pushes, fires, or looks that way): the way it does
+   * in the world, radians counterclockwise, as `angle + (rot + spec.acts) * Math.PI / 180` of a script's own part.
+   * Tells a lifter from a thruster that pushes sideways or down, and which way a fixed gun points.
+   */
+  acts?: boolean;
 }
 
 /** What a part must be to count as in front of another: this much nearer along the line (its neighbours at the same depth do not count). */
@@ -25,7 +32,9 @@ export const COVER_GAP = 0.3;
 /** The default half-width of the line `cover` looks along: half a cell. */
 export const COVER_WIDE = 0.5;
 const NAMES_MAX = 64;
-const KNOWN = ['near', 'most', 'of', 'has', 'from', 'wide'];
+const KNOWN = ['near', 'most', 'of', 'has', 'from', 'wide', 'acts'];
+/** A face as radians counterclockwise from the x axis. */
+const FACE_RAD: Readonly<Record<Face, number>> = { E: 0, N: Math.PI / 2, W: Math.PI, S: (3 * Math.PI) / 2 };
 
 /**
  * Reads a script's options (plain JSON from the sandbox) into `ScanOptions`, or says what is wrong with them in a line
@@ -59,25 +68,32 @@ export function readScanOptions(raw: unknown): ScanOptions | string {
     if (typeof o.wide !== 'number' || !Number.isFinite(o.wide) || o.wide <= 0) return 'scan(): wide must be a number of meters above 0';
     out.wide = o.wide;
   }
+  if (o.acts !== undefined) {
+    if (typeof o.acts !== 'boolean') return 'scan(): acts must be true or false';
+    if (o.acts) out.acts = true;
+  }
   return out;
 }
 
 /** Whether `opts` asks for anything: `{}` is a plain scan. */
 export function scanAsks(opts: ScanOptions | undefined): opts is ScanOptions {
-  return opts !== undefined && (opts.most !== undefined || opts.of !== undefined || opts.has !== undefined || opts.from !== undefined);
+  return opts !== undefined && (opts.most !== undefined || opts.of !== undefined || opts.has !== undefined || opts.from !== undefined || opts.acts === true);
 }
 
-/** What `of` and `has` read of a scanned part, besides its id and type. */
+/** What `of`, `has` and `acts` read of a scanned part, besides its id and type. */
 export interface ScanPartInfo {
   tags: readonly string[];
-  def: { inputs: readonly { name: string }[]; outputs: readonly { name: string }[] };
+  /** How it was built turned, degrees counterclockwise (for `acts`). */
+  rot?: number;
+  def: { inputs: readonly { name: string }[]; outputs: readonly { name: string }[]; acts?: Face };
 }
 
 /**
  * The parts `opts` picks out of `parts` (everything the scan sees, in blueprint order), still in blueprint order:
  * those `of` and `has` let through, then the `most` nearest `near`. With `from`, each comes back as a copy with
- * `cover` and `coverParts`, worked out over all of `parts`, not only those returned. `info(i)` is part i's tags and
- * definition; it is only asked when `of` or `has` is given. Pure and deterministic: no clocks, a fixed order.
+ * `cover` and `coverParts`, worked out over all of `parts`, not only those returned; with `acts`, each that acts along a
+ * face comes back as a copy with `acts`. `info(i)` is part i's tags, turn and definition; it is only asked when `of`,
+ * `has` or `acts` is given. Pure and deterministic: no clocks, a fixed order.
  */
 export function selectScanned(parts: readonly ScannedPart[], info: (i: number) => ScanPartInfo | undefined, opts: ScanOptions): ScannedPart[] {
   let sel: number[] = [];
@@ -108,9 +124,16 @@ export function selectScanned(parts: readonly ScannedPart[], info: (i: number) =
       .slice(0, opts.most)
       .sort((a, b) => a - b);
   }
-  if (!opts.from) return sel.map((i) => parts[i] as ScannedPart);
+  const way = (i: number, p: ScannedPart): ScannedPart => {
+    if (!opts.acts) return p;
+    const about = info(i);
+    const face = about?.def.acts;
+    if (!about || face === undefined) return p;
+    return { ...p, acts: p.angle + ((about.rot ?? 0) * Math.PI) / 180 + FACE_RAD[face] };
+  };
+  if (!opts.from) return sel.map((i) => way(i, parts[i] as ScannedPart));
   const cover = coverAlong(parts, sel, opts.from, opts.wide ?? COVER_WIDE);
-  return sel.map((i, k) => ({ ...(parts[i] as ScannedPart), cover: cover.health[k] as number, coverParts: cover.count[k] as number }));
+  return sel.map((i, k) => ({ ...way(i, parts[i] as ScannedPart), cover: cover.health[k] as number, coverParts: cover.count[k] as number }));
 }
 
 /**

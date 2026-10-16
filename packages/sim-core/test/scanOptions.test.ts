@@ -40,6 +40,9 @@ describe('scan options, read (M16)', () => {
     expect(readScanOptions({ of: [1] })).toMatch(/of must be a name/);
     expect(readScanOptions({ from: { x: 0, y: 0 }, wide: 0 })).toMatch(/wide must be/);
     expect(readScanOptions([1])).toMatch(/must be an object/);
+    expect(readScanOptions({ acts: true })).toEqual({ acts: true });
+    expect(readScanOptions({ acts: false })).toEqual({});
+    expect(readScanOptions({ acts: 1 })).toMatch(/acts must be true or false/);
   });
 });
 
@@ -78,6 +81,20 @@ describe('scan options, pick (M16)', () => {
     // Wider takes the frame 0.6 off the line too; the copy is new, the scan's own list untouched.
     expect(selectScanned(row, () => NONE, { of: ['far'], from: { x: 0, y: 0 }, wide: 0.7 })[0]?.cover).toBe(150);
     expect(row[0]?.cover).toBeUndefined();
+  });
+
+  it('acts adds the way each part that acts along a face pushes or fires, in the world', () => {
+    const tilted = [part('up', 'thruster', 0, 0), part('left', 'thruster', 1, 0), part('frame', 'frame', 2, 0)];
+    (tilted[1] as ScannedPart).angle = 0.25;
+    const about = (i: number): ScanPartInfo => (i === 0 ? { tags: [], rot: 0, def: { inputs: [], outputs: [], acts: 'N' } } : i === 1 ? { tags: [], rot: 90, def: { inputs: [], outputs: [], acts: 'N' } } : { tags: [], rot: 0, def: { inputs: [], outputs: [] } });
+    const out = selectScanned(tilted, about, { acts: true });
+    expect(out.map((p) => p.acts)).toEqual([Math.PI / 2, 0.25 + Math.PI / 2 + Math.PI / 2, undefined]);
+    // Copies: the scan's own list is untouched, and a part without a way is the very object.
+    expect(tilted[0]?.acts).toBeUndefined();
+    expect(out[2]).toBe(tilted[2]);
+    // With from, the copy carries both.
+    const both = selectScanned(tilted, about, { of: ['left'], from: { x: -10, y: 0 }, acts: true })[0];
+    expect([both?.acts, both?.cover]).toEqual([0.25 + Math.PI, 10]);
   });
 
   it('cover is the same whether found by sorting angles or by trying every part', () => {
@@ -136,6 +153,18 @@ describe('scan(id, opts) in a script (M16)', () => {
         log(cov.map(function (p) { return p.type + ':' + p.cover + '/' + p.coverParts; }).join(' '));
       }`);
     expect(logs).toEqual(['core@3,0 thruster@4,0', 'thruster', 'frame frame', 'battery:0/0 frame:30/1 frame:90/2 core:150/3 thruster:200/4']);
+  });
+
+  it('acts says which way a seen robot\'s parts push, from how they were built turned', async () => {
+    const logs = await look(`
+      function tick() {
+        if (frame !== 2) return;
+        var c = contacts[0];
+        var ps = scan(c.id, { has: 'throttle', acts: true });
+        log(ps.map(function (p) { return p.type + ':' + Math.round((p.acts * 180) / Math.PI); }).join(' '));
+        log(scan(c.id, { of: 'core', acts: true })[0].acts === undefined);
+      }`);
+    expect(logs).toEqual(['thruster:90', 'true']);
   });
 
   it('options count toward the 4 scans a tick; a bad option returns null and is logged once', async () => {
