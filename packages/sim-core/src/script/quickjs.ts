@@ -2,6 +2,7 @@ import { DefaultIntrinsics, newQuickJSWASMModuleFromVariant, type QuickJSContext
 import { Prng } from '../rng/Prng';
 import type { ScriptFrame } from './frame';
 import { PRELUDE } from './prelude';
+import { readScanOptions, type ScanOptions } from './scanOptions';
 import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInstance, type ScriptLimits, type ScriptMark, type ScriptResult, type ScriptServices, type ScriptWrite } from './types';
 
 /** Global code (the user's top level, and `param()` calls) gets a few ticks' worth of budget. */
@@ -36,11 +37,15 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         const seed = new Prng(opts.seed >>> 0).state();
         // Host calls (M8): the prelude takes them and deletes the global, so only its capped wrappers reach them.
         const services: { current?: ScriptServices } = {};
-        const scan = c.newFunction('scan', (idHandle) => {
+        // The prelude hands options as JSON text ('' for none); a line starting with '!' says what is wrong with them.
+        const scan = c.newFunction('scan', (idHandle, optsHandle) => {
           const id = c.typeof(idHandle) === 'number' ? c.getNumber(idHandle) : Number.NaN;
           const now = services.current;
           if (!now || !Number.isInteger(id)) return c.newString('null');
-          return c.newString(now.scanJson ? now.scanJson(id) : JSON.stringify(now.scan(id) ?? null));
+          const text = optsHandle !== undefined && c.typeof(optsHandle) === 'string' ? c.getString(optsHandle) : '';
+          const opts = text === '' ? {} : readScanText(text);
+          if (typeof opts === 'string') return c.newString(`!${opts}`);
+          return c.newString(now.scanJson ? now.scanJson(id, opts) : JSON.stringify(now.scan(id, opts) ?? null));
         });
         c.setProp(c.global, '__scan', scan);
         scan.dispose();
@@ -84,6 +89,16 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
       }
     },
   };
+}
+
+/** `scan()` options as the prelude sends them: JSON text, at most 4 KB. */
+function readScanText(text: string): ScanOptions | string {
+  if (text.length > 4096) return 'scan(): the options are too long (4 KB at most)';
+  try {
+    return readScanOptions(JSON.parse(text));
+  } catch {
+    return 'scan(): the options could not be read';
+  }
 }
 
 /** Disposal can itself fail (QuickJS asserts on objects a native stack overflow left behind); never let it escape. */

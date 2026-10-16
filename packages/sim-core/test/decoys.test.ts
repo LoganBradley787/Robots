@@ -72,6 +72,8 @@ describe('decoys fool sensors (M11)', () => {
         var c = contacts[0];
         log(contacts.length, c.id, c.side, c.core, c.parts, Math.round(c.mass * 10) / 10, c.pos.x.toFixed(3), c.pos.y.toFixed(3), c.vel.x > 3, Math.abs(c.center.x - c.pos.x) < 1);
         log(JSON.stringify(scan(c.id).map(function (p) { return [p.id, p.type]; })));
+        // M16: options pick out of what the sensor sees there, the flare alone, with nothing in front of it.
+        log(JSON.stringify(scan(c.id, { of: 'core' })), JSON.stringify(scan(c.id, { from: self.pos, near: self.pos, most: 5 }).map(function (p) { return [p.id, p.cover, p.coverParts]; })));
       }`;
     const me = w.spawnBlueprint({ ...RADAR, scripts: [{ id: 'look', source: src }] }, { x: 0, y: 100 });
     const target = w.spawnBlueprint(RIGHT, { x: 0, y: 130 }, { team: 1 });
@@ -82,7 +84,7 @@ describe('decoys fool sensors (M11)', () => {
     const flare = where(w, 'flare@2,0', target.id);
     w.step();
     const logs = w.scriptLogs.filter((l) => l.robot === me.id).map((l) => l.text);
-    expect(logs).toEqual([`1 ${target.id} enemy true 2 3 ${flare.x.toFixed(3)} ${flare.y.toFixed(3)} true true`, '[["flare@2,0","flare"]]']);
+    expect(logs).toEqual([`1 ${target.id} enemy true 2 3 ${flare.x.toFixed(3)} ${flare.y.toFixed(3)} true true`, '[["flare@2,0","flare"]]', '[] [["flare@2,0",0,0]]']);
     w.dispose();
   });
 

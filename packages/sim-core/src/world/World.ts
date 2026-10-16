@@ -13,6 +13,7 @@ import { ScriptRunner } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
 import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { partSpec, partSpecsJson } from '../script/partSpec';
+import { scanAsks, selectScanned, type ScanOptions } from '../script/scanOptions';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, jamNear, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, smokeBlocks, type SmokeCloud } from '../sensors/smoke';
@@ -2029,7 +2030,7 @@ export class World {
       const robot = this.byId.get(robotId);
       if (!controller || !robot) continue;
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
-      const services: ScriptServices = { scan: (id) => this.scan(robot, id), scanJson: (id) => this.scanJson(robot, id), send: (to, json) => this.send(robot, to, json) };
+      const services: ScriptServices = { scan: (id, opts) => this.scan(robot, id, opts), scanJson: (id, opts) => this.scanJson(robot, id, opts), send: (to, json) => this.send(robot, to, json) };
       if (this.scriptProbe) this.scriptProbe(robotId, () => this.scriptInput(robot, controller.keyState()));
       const out = runner.tick(() => this.scriptFrame(robot, controller.keyState()), services);
       if (out.ran) {
@@ -2664,16 +2665,26 @@ export class World {
 
   /**
    * `scan(id)` (M8): a robot the viewer's sensors saw this tick, part by part, in blueprint order; null otherwise.
-   * M11: a robot seen at a decoy scans as what the sensor sees there: the decoy.
+   * M11: a robot seen at a decoy scans as what the sensor sees there: the decoy. M16: `opts` picks parts out of that
+   * (`scanOptions.ts`), so a script looking at a titan receives only what it asked for.
    */
-  private scan(viewer: Robot, id: number): ScannedPart[] | null {
+  private scan(viewer: Robot, id: number, opts?: ScanOptions): ScannedPart[] | null {
+    const seen = this.scanned(viewer, id);
+    if (!seen) return null;
+    if (!scanAsks(opts)) return seen.list;
+    const { robot, list } = seen;
+    return selectScanned(list, (i) => robot.parts.get((list[i] as ScannedPart).id), opts);
+  }
+
+  /** Everything `scan(id)` sees of a robot, and whose parts they are. */
+  private scanned(viewer: Robot, id: number): { robot: Robot; list: ScannedPart[] } | null {
     if (!this.seen.get(viewer.id)?.some((c) => c.id === id)) return null;
     const decoy = this.seenDecoys.get(viewer.id)?.get(id);
     const r = decoy ? decoy.robot : this.byId.get(id);
     if (!r) return null;
     // A whole robot's list is the same for every script that scans it this tick; one seen at a decoy is that one part.
     const known = decoy ? undefined : this.pass?.scans.get(r);
-    if (known) return known;
+    if (known) return { robot: r, list: known };
     const poseOf = this.poser(r);
     const out: ScannedPart[] = [];
     for (const bp of r.blueprint.parts) {
@@ -2683,11 +2694,15 @@ export class World {
       out.push({ id: p.id, type: p.def.id, pos: { x: pose.x, y: pose.y }, angle: pose.angle, health: p.health, maxHealth: p.def.health });
     }
     if (!decoy) this.pass?.scans.set(r, out);
-    return out;
+    return { robot: r, list: out };
   }
 
-  /** `scan(id)` as the JSON text a script host hands its script, kept with the list so the text is made once a tick. */
-  private scanJson(viewer: Robot, id: number): string {
+  /**
+   * `scan(id, opts)` as the JSON text a script host hands its script. A plain scan's text is kept with the list, so it
+   * is made once a tick; one with options is made for that call only, and is as long as what it picked.
+   */
+  private scanJson(viewer: Robot, id: number, opts?: ScanOptions): string {
+    if (scanAsks(opts)) return JSON.stringify(this.scan(viewer, id, opts));
     const parts = this.scan(viewer, id);
     if (parts === null) return 'null';
     const known = this.pass?.scanTexts.get(parts);

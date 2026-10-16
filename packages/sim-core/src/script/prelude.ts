@@ -24,6 +24,7 @@ export const PRELUDE = String.raw`
   var nanWarned = false;
   var marks = [];
   var scanWarned = false;
+  var optWarned = {};
   var s = seed.slice();
   function next() {
     var t = (((s[0] + s[1]) | 0) + s[3]) | 0;
@@ -59,14 +60,29 @@ export const PRELUDE = String.raw`
     // A point that is not a number is skipped: it would not survive the trip to the host as JSON.
     if (marks.length < 4 && finite(x) && finite(y)) marks[marks.length] = [x, y, label === undefined ? '' : String(label)];
   };
-  globalThis.scan = function (id) {
+  globalThis.scan = function (id, opts) {
     if (scans >= 4) {
       if (!scanWarned && logs.length < 5) logs[logs.length] = 'scan(): at most 4 calls per tick; this one returned null';
       scanWarned = true;
       return null;
     }
+    // Counted before the options are turned into text: a toJSON on them could call scan() again.
     scans++;
-    return hostScan ? parse(hostScan(Number(id))) : null;
+    if (!hostScan) return null;
+    var text = '';
+    if (opts !== undefined && opts !== null) {
+      try { text = stringify(opts); } catch (e) { text = undefined; }
+      if (typeof text !== 'string') text = '!scan(): the options could not be read';
+    }
+    // A line starting with '!' is what is wrong with the options: logged once per message, and nothing is returned.
+    var out = text.charCodeAt(0) === 33 ? text : hostScan(Number(id), text);
+    if (out.charCodeAt(0) === 33) {
+      out = out.slice(1);
+      if (!hasOwn.call(optWarned, out) && logs.length < 5) logs[logs.length] = out;
+      optWarned[out] = true;
+      return null;
+    }
+    return parse(out);
   };
   globalThis.param = function (name, def, opts) {
     name = String(name);

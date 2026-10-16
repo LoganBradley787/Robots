@@ -1,5 +1,6 @@
 import type { ScriptFrame } from './frame';
 import type { ScriptPartSpec } from './partSpec';
+import type { ScanOptions } from './scanOptions';
 
 /** Why a script stopped. Uniform across backends, so the UI, replays, and reports never learn which one ran it. */
 export interface ScriptError {
@@ -62,6 +63,12 @@ export interface ScannedPart {
   angle: number;
   health: number;
   maxHealth: number;
+  /**
+   * M16, only when scanned with `from` (`scanOptions.ts`): the summed health and the count of the robot's other parts
+   * in front of this one on the straight line from that point.
+   */
+  cover?: number;
+  coverParts?: number;
 }
 
 /** A message another core sent this one (M8), as its scripts see it in `inbox`. */
@@ -85,13 +92,14 @@ export interface ScriptMark {
  * `scan` only reads; `send` queues a message that is shown next tick.
  */
 export interface ScriptServices {
-  /** A seen robot's parts, or null when it is not seen this tick. */
-  scan(id: number): ScannedPart[] | null;
+  /** A seen robot's parts (M16: only those `opts` asks for), or null when it is not seen this tick. */
+  scan(id: number, opts?: ScanOptions): ScannedPart[] | null;
   /**
-   * The same answer as JSON text (`JSON.stringify(scan(id))`), for a host that hands its script text: the world makes
-   * it once per robot per tick, however many scripts scan that robot. Optional; a host falls back to `scan`.
+   * The same answer as JSON text (`JSON.stringify(scan(id, opts))`), for a host that hands its script text: without
+   * options the world makes it once per robot per tick, however many scripts scan that robot. Optional; a host falls
+   * back to `scan`.
    */
-  scanJson?(id: number): string;
+  scanJson?(id: number, opts?: ScanOptions): string;
   /** Queues `json` for an attached core named `to` (its scope or its part id). False when there is no such core. */
   send(to: string, json: string): boolean;
 }
