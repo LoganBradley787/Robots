@@ -1,0 +1,252 @@
+{
+  "format": 1,
+  "name": "enemy-hunter-carrier",
+  "kind": "enemy",
+  "grid": [
+    ". . = . . . . . . . . . . = .",
+    ". . = . . . . . . . . . . = .",
+    ". . = . . . . . . . . . . = .",
+    ". . = . . . . . . . . . . = .",
+    ". . = q = = = = = = = = = = .",
+    "a b F c c c F d F e e e F f g",
+    "h i Z Z Z Z Z C Z Z Z Z Z j k",
+    "l m F c c c c n e e e e F o p"
+  ],
+  "legend": {
+    "a": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare1"
+      ]
+    },
+    "b": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip1"
+      ]
+    },
+    "c": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "lprop"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "gyro",
+      "rot": 0,
+      "tags": [
+        "stab"
+      ]
+    },
+    "e": {
+      "part": "propeller",
+      "rot": 0,
+      "tags": [
+        "rprop"
+      ],
+      "auto": false
+    },
+    "f": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip1"
+      ]
+    },
+    "g": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare1"
+      ]
+    },
+    "h": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare2"
+      ]
+    },
+    "i": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip2"
+      ]
+    },
+    "j": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip2"
+      ]
+    },
+    "k": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare2"
+      ]
+    },
+    "l": {
+      "part": "flare",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.flare3"
+      ]
+    },
+    "m": {
+      "part": "decoupler",
+      "rot": 90,
+      "tags": [
+        "flare-rack1",
+        "flare-rack1.fgrip3"
+      ]
+    },
+    "n": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "o": {
+      "part": "decoupler",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.fgrip3"
+      ]
+    },
+    "p": {
+      "part": "flare",
+      "rot": 270,
+      "tags": [
+        "flare-rack2",
+        "flare-rack2.flare3"
+      ]
+    },
+    "q": {
+      "part": "fabbay",
+      "rot": 0,
+      "tags": [
+        "bay"
+      ],
+      "makes": "lifter-hunter",
+      "size": [
+        10,
+        4
+      ]
+    },
+    "Z": {
+      "part": "densebattery",
+      "rot": 0
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-hunter-carrier.pilot.js"
+      },
+      "params": {
+        "level": 15,
+        "settle": 0,
+        "jitter": 0,
+        "minRange": 0,
+        "maxRange": 1000,
+        "standoff": 300,
+        "above": 25
+      }
+    },
+    {
+      "id": "flares",
+      "source": {
+        "file": "enemy-hunter-carrier.flares.js"
+      },
+      "params": {
+        "auto": 1
+      }
+    }
+  ],
+  "recipes": {
+    "lifter-hunter": {
+      "format": 1,
+      "name": "lifter-hunter",
+      "grid": [
+        ".  .  .  Z  O  Z  .  .  .",
+        "=  t  s  F  C  F  d  e  =",
+        ".  .  .  K  F  K  .  .  .",
+        ".  .  .  K  F  K  .  .  ."
+      ],
+      "legend": {
+        "t": {
+          "part": "laser",
+          "rot": 90,
+          "tags": [
+            "beam"
+          ]
+        },
+        "s": {
+          "part": "rotator",
+          "rot": 90,
+          "tags": [
+            "aim"
+          ],
+          "auto": false
+        },
+        "d": {
+          "part": "rotator",
+          "rot": 270,
+          "tags": [
+            "aim"
+          ],
+          "auto": false
+        },
+        "e": {
+          "part": "laser",
+          "rot": 270,
+          "tags": [
+            "beam"
+          ]
+        },
+        "O": {
+          "part": "radar",
+          "rot": 0,
+          "tags": [
+            "radar"
+          ]
+        },
+        "K": {
+          "part": "booster",
+          "rot": 0,
+          "tags": [
+            "lift"
+          ],
+          "auto": false
+        }
+      },
+      "scripts": [
+        {
+          "id": "pilot",
+          "source": {
+            "file": "enemy-hunter-carrier.lifter-hunter.pilot.js"
+          }
+        }
+      ]
+    }
+  }
+}

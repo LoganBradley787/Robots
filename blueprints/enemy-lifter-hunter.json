@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "enemy-lifter-hunter",
+  "kind": "enemy",
+  "grid": [
+    ".  .  .  Z  O  Z  .  .  .",
+    "=  t  s  F  C  F  d  e  =",
+    ".  .  .  K  F  K  .  .  .",
+    ".  .  .  K  F  K  .  .  ."
+  ],
+  "legend": {
+    "t": {
+      "part": "laser",
+      "rot": 90,
+      "tags": [
+        "beam"
+      ]
+    },
+    "s": {
+      "part": "rotator",
+      "rot": 90,
+      "tags": [
+        "aim"
+      ],
+      "auto": false
+    },
+    "d": {
+      "part": "rotator",
+      "rot": 270,
+      "tags": [
+        "aim"
+      ],
+      "auto": false
+    },
+    "e": {
+      "part": "laser",
+      "rot": 270,
+      "tags": [
+        "beam"
+      ]
+    },
+    "O": {
+      "part": "radar",
+      "rot": 0,
+      "tags": [
+        "radar"
+      ]
+    },
+    "K": {
+      "part": "booster",
+      "rot": 0,
+      "tags": [
+        "lift"
+      ],
+      "auto": false
+    }
+  },
+  "scripts": [
+    {
+      "id": "pilot",
+      "source": {
+        "file": "enemy-lifter-hunter.pilot.js"
+      }
+    }
+  ]
+}
