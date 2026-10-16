@@ -680,7 +680,7 @@ button kbd { margin: 0; opacity: 0.75; }
 .tp-row .btn.pp { flex: 1; }
 .tp-warp { display: flex; gap: 3px; margin-top: 8px; }
 #ui .tp-warp .warp {
-  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 0 3px; cursor: pointer; background: var(--plate-3);
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; height: auto; padding: 6px 0 4px; cursor: pointer; background: var(--plate-3);
   border: 1px solid var(--edge); color: var(--dim); font: 600 11px var(--mono); justify-content: center; text-align: center;
 }
 #ui .tp-warp .warp:hover { border-color: var(--edge-hi); color: var(--ink); }
