@@ -386,6 +386,8 @@ export class World {
    */
   private readonly channels = new Map<number, Map<string, Map<string, number>>>();
   private pendingClearDebris = false;
+  /** M16: robots to remove at the start of the next tick, by id. */
+  private readonly pendingRemove = new Set<number>();
   /** Robots whose parts or faces changed this tick and must be rebuilt in the damage phase. */
   private readonly dirty = new Set<Robot>();
   /**
@@ -578,7 +580,6 @@ export class World {
     for (const input of inputs) {
       if (!Number.isInteger(input.robot) || input.robot < 1 || input.robot >= this.nextRobotId) throw new Error(`robot ${input.robot} does not exist`);
     }
-    const accepted = inputs.filter((i) => this.controllers.has(i.robot));
     this.decoyCache = undefined;
     this.jamCache = undefined;
     const change: WorldChange = {};
@@ -586,8 +587,14 @@ export class World {
     if (this.pendingClearDebris) change.clearDebris = true;
     if (this.pendingUnlimited !== undefined) this.unlimited = this.pendingUnlimited;
     this.pendingUnlimited = undefined;
+    // Removals first (M16), so a robot removed by hand drops this tick's keys like one that lost its core.
+    if (this.pendingRemove.size > 0) {
+      const removed = this.removeByHand();
+      if (removed.length > 0) change.remove = removed;
+    }
     if (this.pendingClearDebris) this.removeDebris();
     this.pendingClearDebris = false;
+    const accepted = inputs.filter((i) => this.controllers.has(i.robot));
     this.inputLog.append(this.tickCount, accepted, Object.keys(change).length > 0 ? change : undefined);
     for (const input of accepted) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
     for (const robot of this.unprimed) this.primeSights(robot);
@@ -774,6 +781,35 @@ export class World {
     this.pendingClearDebris = true;
   }
 
+  /**
+   * M16: removes robots by id on the next tick, logged for replays like Clear debris. Any robot can go, one you control
+   * included (its control is dropped, as when its core is lost). Ids that are gone by then are skipped. Which robots
+   * is the caller's choice (a click, a distance, a team): the world only takes the list.
+   */
+  removeRobots(ids: readonly number[]): void {
+    for (const id of ids) {
+      if (!Number.isInteger(id) || id < 1) throw new Error(`robot id must be a whole number, 1 or more, got ${String(id)}`);
+      this.pendingRemove.add(id);
+    }
+  }
+
+  /** Whether the robot is waiting to be removed on the next tick (M16): the screen stops drawing it at once. */
+  removing(id: number): boolean {
+    return this.pendingRemove.has(id);
+  }
+
+  /** The waiting removals, in the order the robots are in; returns the ids removed. */
+  private removeByHand(): number[] {
+    const removed: number[] = [];
+    for (const robot of [...this.robots]) {
+      if (!this.pendingRemove.has(robot.id)) continue;
+      this.removeRobot(robot);
+      removed.push(robot.id);
+    }
+    this.pendingRemove.clear();
+    return removed;
+  }
+
   private removeDebris(): void {
     for (const robot of [...this.robots]) if (!this.controllers.has(robot.id)) this.removeRobot(robot);
   }
@@ -809,6 +845,7 @@ export class World {
     this.jamCache = undefined;
     this.scriptMarks.delete(robot.id);
     for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
+    for (const key of [...this.lastSentEvent.keys()]) if (key.startsWith(`${robot.id}>`)) this.lastSentEvent.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'removed' });
   }
 

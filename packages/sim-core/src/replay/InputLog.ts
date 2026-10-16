@@ -5,6 +5,12 @@ export interface WorldChange {
   unlimitedEnergy?: boolean;
   /** Clear debris (M6): every robot nobody can control is removed at the start of the tick. */
   clearDebris?: true;
+  /** Robots removed by hand (M16), by id, at the start of the tick before anything else. Only ones that were there. */
+  remove?: number[];
+}
+
+function cloneChange(w: WorldChange): WorldChange {
+  return { ...w, ...(w.remove ? { remove: [...w.remove] } : {}) };
 }
 
 export interface LoggedTick {
@@ -32,7 +38,7 @@ export class InputLog {
     const last = this.entries[this.entries.length - 1];
     if (last && tick <= last.tick) throw new Error(`input log tick ${tick} is not after ${last.tick}`);
     const entry: LoggedTick = { tick, inputs: kept.map(cloneInput) };
-    if (world !== undefined) entry.world = { ...world };
+    if (world !== undefined) entry.world = cloneChange(world);
     this.entries.push(entry);
     this.byTick.set(tick, entry);
   }
@@ -44,7 +50,7 @@ export class InputLog {
 
   worldAt(tick: number): WorldChange | undefined {
     const w = this.byTick.get(tick)?.world;
-    return w ? { ...w } : undefined;
+    return w ? cloneChange(w) : undefined;
   }
 
   get length(): number {
@@ -52,7 +58,7 @@ export class InputLog {
   }
 
   toJSON(): LoggedTick[] {
-    return this.entries.map((e) => ({ tick: e.tick, inputs: e.inputs.map(cloneInput), ...(e.world ? { world: { ...e.world } } : {}) }));
+    return this.entries.map((e) => ({ tick: e.tick, inputs: e.inputs.map(cloneInput), ...(e.world ? { world: cloneChange(e.world) } : {}) }));
   }
 
   static fromJSON(entries: LoggedTick[]): InputLog {

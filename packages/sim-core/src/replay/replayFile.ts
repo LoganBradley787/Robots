@@ -72,12 +72,16 @@ export function parseReplay(raw: unknown): ReplayFile {
     const world = o.world === undefined ? undefined : obj(o.world, `inputs[${i}].world`);
     if (world && world.unlimitedEnergy !== undefined && typeof world.unlimitedEnergy !== 'boolean') throw new ReplayError(`inputs[${i}].world.unlimitedEnergy must be true or false`);
     if (world && world.clearDebris !== undefined && world.clearDebris !== true) throw new ReplayError(`inputs[${i}].world.clearDebris must be true when present`);
+    if (world && world.remove !== undefined && (!Array.isArray(world.remove) || !world.remove.every((id) => Number.isInteger(id) && (id as number) >= 1))) {
+      throw new ReplayError(`inputs[${i}].world.remove must be a list of robot ids (whole numbers, 1 or more)`);
+    }
     return {
       ...(world
         ? {
             world: {
               ...(world.unlimitedEnergy === undefined ? {} : { unlimitedEnergy: world.unlimitedEnergy as boolean }),
               ...(world.clearDebris === true ? { clearDebris: true as const } : {}),
+              ...(Array.isArray(world.remove) ? { remove: [...(world.remove as number[])] } : {}),
             },
           }
         : {}),
@@ -115,6 +119,7 @@ export async function runReplay(
     const change = log.worldAt(world.tick);
     if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
     if (change?.clearDebris) world.clearDebris();
+    if (change?.remove) world.removeRobots(change.remove);
     world.step(log.inputsAt(world.tick));
     onTick?.(world);
   }
