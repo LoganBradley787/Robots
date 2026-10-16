@@ -7,7 +7,8 @@
 // How it decides (everything from contacts and scan(), nothing typed in about the target):
 // - Target: the robot its carrier named when it let it go (a message with `id`), else the nearest enemy of `minMass`
 //   kg or more with a live core. One that has already lost too much lift to stay up is left for one that still flies,
-//   if there is one.
+//   if there is one. One whose core it burnt but that still hangs in the air (its lifters keep their last throttle) it
+//   goes on bringing down while there is nothing else.
 // - The target's lift, side by side: every part that pushes (`has: 'throttle'`, with `acts`) whose push points up its
 //   own body is a lifter, with the push its kind gives (LIFT below). It remembers each one from first sight, so it
 //   knows what is already gone. Left and right are taken about its center of mass, along its own body.
@@ -570,7 +571,11 @@ function pickTarget() {
     if ((state.skip[c.id] || 0) > time) d += 50000; // brought down already: others first
     if (!best || d < best.d) best = { c, d };
   }
-  return best && best.c;
+  if (best) return best.c;
+  // Nothing with a core left: the one it was hunting, if it lost its core but still hangs in the air (its lifters keep
+  // the throttle they last had), until it comes down.
+  const wreck = contacts.find((c) => c.id === state.id && c.side === 'none' && c.pos.y > floor + 10 && c.vel.y > -3);
+  return wreck;
 }
 
 function tick() {
