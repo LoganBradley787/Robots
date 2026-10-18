@@ -21,10 +21,11 @@ export function TimePanel({ store, actions }: { store: Store<AppState>; actions:
   const clock = useStore(store, (s) => s.clock ?? '0:00.0');
   if (!v) return null;
   const at = TIME_SCALES.findIndex((s) => s === v.timeScale);
-  // A click must not leave the focus on a button: the panel would stay open, and Space would press the button too.
+  // A click must not leave the focus on the panel or a button in it: the panel would stay dropped down after the mouse
+  // left (clicking the clock did), and Space would press the button too. The keyboard's Tab still focuses it.
   const noFocus = (e: MouseEvent): void => e.preventDefault();
   return (
-    <div class={`time-panel plate${v.paused ? ' paused' : ''}`} tabIndex={0} role="group" aria-label={`Time ${clock}${v.paused ? ', paused' : ''}, speed ${speedText(v.timeScale)}`} onContextMenu={(e) => e.preventDefault()}>
+    <div class={`time-panel plate${v.paused ? ' paused' : ''}`} tabIndex={0} role="group" aria-label={`Time ${clock}${v.paused ? ', paused' : ''}, speed ${speedText(v.timeScale)}`} onContextMenu={(e) => e.preventDefault()} onMouseDown={noFocus}>
       <div class="tp-line">
         <span class="tp-clock">{clock}</span>
         {v.paused && <span class="tp-paused h">Paused</span>}
@@ -33,7 +34,7 @@ export function TimePanel({ store, actions }: { store: Store<AppState>; actions:
       <div class="tp-who" title={v.who}>
         {v.who}
       </div>
-      <div class="tp-drop" onMouseDown={noFocus}>
+      <div class="tp-drop">
         <div class="tp-row">
           <Button class="pp" kind={v.paused ? 'go' : undefined} onClick={actions.worldTogglePause} title={v.paused ? 'Play (Space)' : 'Pause (Space)'}>
             {v.paused ? 'Play' : 'Pause'} <kbd>{worldKeyCap('togglePause')}</kbd>

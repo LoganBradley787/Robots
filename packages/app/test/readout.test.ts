@@ -55,12 +55,13 @@ describe('the live readout', () => {
         { script: 'hover', target: 'gyro@0,1', channel: 'spin', value: -0.25, parts: 1 },
         { script: 'aim', target: 'turret', channel: 'turn', value: 1, parts: 2 },
         { script: 'aim', target: 'lfit', channel: 'throttle', value: 1, parts: 0 },
+        { script: 'aim', target: 'gyro', channel: 'spin', value: 0, parts: 1 },
       ],
       inputs: [],
     };
     const r = buildReadout(base({ scripts: [{ id: 'hover', enabled: true }, { id: 'aim', enabled: true }], trace }));
     expect(r.scripts[0]?.sets).toEqual([{ text: 'throttle on 2 propellers: 0.52 to 0.56' }, { text: 'spin on gyro: -0.25' }]);
-    expect(r.scripts[1]?.sets).toEqual([{ text: 'turn on "turret" (2 parts): 1' }, { text: 'throttle on "lfit": nothing answers to that name', bad: true }]);
+    expect(r.scripts[1]?.sets).toEqual([{ text: 'turn on "turret" (2 parts): 1' }, { text: 'throttle on "lfit": nothing answers to that name', bad: true }, { text: 'spin on "gyro" (1 part): 0' }]);
   });
 
   it('a script drives an input: one line for parts driven the same way, with the spread of their values', () => {

@@ -126,7 +126,7 @@ function setsOf(script: string, trace: ControlTrace, src: ReadoutSource): Readou
       const key = `${src.typeName(src.typeOf(w.target) as string)}\0${w.channel}`;
       byPart.set(key, [...(byPart.get(key) ?? []), w.value]);
     } else if (w.parts === 0) out.push({ text: `${w.channel} on "${w.target}": nothing answers to that name`, bad: true });
-    else out.push({ text: `${w.channel} on "${w.target}" (${counted(w.parts, 'part')}): ${num(w.value)}` });
+    else out.push({ text: `${w.channel} on "${w.target}" (${w.parts} part${w.parts === 1 ? '' : 's'}): ${num(w.value)}` });
   }
   const folded: ReadoutScript['sets'] = [...byPart].map(([key, values]) => {
     const [name = '', channel = ''] = key.split('\0');

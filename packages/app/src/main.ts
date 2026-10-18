@@ -730,6 +730,9 @@ async function boot(): Promise<void> {
   };
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('pointerleave', () => {
+    if (modes.mode === 'world') worldScreen.onPointerLeave();
+  });
 
   window.addEventListener('keydown', (e) => {
     // Cmd+S never opens the browser's Save Page dialog; in the builder it saves, even from a text field.
