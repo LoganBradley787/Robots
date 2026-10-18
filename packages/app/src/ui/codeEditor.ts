@@ -4,7 +4,7 @@ import { javascript } from '@codemirror/lang-javascript';
 import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { lintGutter, lintKeymap, setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
-import { Annotation, EditorState } from '@codemirror/state';
+import { Annotation, EditorState, Transaction, type TransactionSpec } from '@codemirror/state';
 import { drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, hoverTooltip, keymap, lineNumbers } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import type { Completion, CompletionResult, EditorCheck } from '../builder/scriptAssist';
@@ -127,6 +127,21 @@ function apiAt(doc: string, from: number, to: number): { sig: string; about: str
   return e ? { sig: e.sig, about: e.about, ...(e.more !== undefined ? { more: e.more } : {}) } : undefined;
 }
 
+/**
+ * The transaction that puts text set from outside (an undo on the board, a fix, an update) into the editor, or
+ * undefined when it holds that text already. Only what differs is replaced, so the caret stays where it was when it
+ * can. It is kept out of the editor's own undo history: the board's Undo made it, and Cmd+Z in the code must not bring
+ * back what that Undo took away.
+ */
+export function outsideChange(now: string, next: string): TransactionSpec | undefined {
+  if (next === now) return undefined;
+  let a = 0;
+  while (a < now.length && a < next.length && now[a] === next[a]) a++;
+  let b = 0;
+  while (b < now.length - a && b < next.length - a && now[now.length - 1 - b] === next[next.length - 1 - b]) b++;
+  return { changes: { from: a, to: now.length - b, insert: next.slice(a, next.length - b) }, annotations: [outside.of(true), Transaction.addToHistory.of(false)] };
+}
+
 export function createCodeEditor(parent: HTMLElement, text: string, hooks: CodeEditorHooks): CodeEditor {
   const source = (ctx: CompletionContext): CmResult | null => {
     const node = syntaxTree(ctx.state).resolveInner(ctx.pos, -1);
@@ -151,7 +166,8 @@ export function createCodeEditor(parent: HTMLElement, text: string, hooks: CodeE
       }
       return out;
     });
-    return { from: r.from, to: ctx.pos, options, validFor: r.where === 'name' || r.where === 'channel' ? /^[^"'`\n,)]*$/ : /^\w*$/ };
+    // Up to the end of the word or name, not the caret: a choice made mid-word replaces all of it.
+    return { from: r.from, to: Math.max(ctx.pos, r.to), options, validFor: r.where === 'name' || r.where === 'channel' ? /^[^"'`\n,)]*$/ : /^\w*$/ };
   };
 
   const tips = hoverTooltip((view, pos) => {
@@ -232,14 +248,8 @@ export function createCodeEditor(parent: HTMLElement, text: string, hooks: CodeE
   return {
     view,
     setText(next) {
-      const now = view.state.doc.toString();
-      if (next === now) return;
-      // Only what differs is replaced, so the caret stays where it was when it can.
-      let a = 0;
-      while (a < now.length && a < next.length && now[a] === next[a]) a++;
-      let b = 0;
-      while (b < now.length - a && b < next.length - a && now[now.length - 1 - b] === next[next.length - 1 - b]) b++;
-      view.dispatch({ changes: { from: a, to: now.length - b, insert: next.slice(a, next.length - b) }, annotations: outside.of(true) });
+      const spec = outsideChange(view.state.doc.toString(), next);
+      if (spec) view.dispatch(spec);
     },
     setChecks(checks) {
       const len = view.state.doc.length;

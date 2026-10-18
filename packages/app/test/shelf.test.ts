@@ -524,6 +524,22 @@ describe('review fixes (M16)', () => {
     expect(store.get().builder.note?.lines[0]?.text).toBe('Hover now drives 1 propeller. Its own key is off.');
   });
 
+  it('a slider dragged while the code has the focus is one undo step, not one per value', () => {
+    const { builder } = builderOn(flyer);
+    builder.beginTextEdit('code');
+    builder.edit((b) => ({ ...b, name: 'typed' }));
+    // The press on the slider comes first, then the code's blur.
+    builder.beginTextEdit('drag');
+    builder.endTextEdit('code');
+    builder.edit((b) => ({ ...b, name: 'v1' }));
+    builder.edit((b) => ({ ...b, name: 'v2' }));
+    builder.endTextEdit('drag');
+    builder.undo();
+    expect(builder.draft.name).toBe('typed');
+    builder.undo();
+    expect(builder.draft.name).toBe('t');
+  });
+
   it("moving a placed copy's core keeps the panels on that core", () => {
     const withCopy = bp({
       parts: [

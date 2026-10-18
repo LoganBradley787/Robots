@@ -230,6 +230,16 @@ describe('DocumentController', () => {
     expect(t.doc.isDirty()).toBe(false);
   });
 
+  it('a script file written with Windows line ends opens with plain ones, so the code view and its checks agree on every offset (review fixes)', async () => {
+    const t = setup({
+      'drone.json': { format: 1, name: 'drone', grid: ['C'], scripts: [{ id: 'hover', source: { file: 'drone.hover.js' } }] },
+      'drone.hover.js': 'function tick() {\r\n  log(1);\r\n}\r\n',
+    });
+    expect(await t.doc.open('drone.json')).toBe(true);
+    expect(t.draft().scripts[0]?.source).toBe('function tick() {\n  log(1);\n}\n');
+    expect(t.doc.isDirty()).toBe(false);
+  });
+
   it("a script that points at another blueprint's file gets its own on Save, so the other is never overwritten (M7 review)", async () => {
     const t = setup({
       'launcher.missile1.guide.js': 'function tick() {}',

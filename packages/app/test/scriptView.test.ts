@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { history, undo } from '@codemirror/commands';
+import { EditorState, Transaction } from '@codemirror/state';
+import { outsideChange } from '../src/ui/codeEditor';
 import { defaultRegistry, loadBlueprint, type Blueprint } from '@robots/sim-core';
-import { allTargets, completeAt, editorChecks } from '../src/builder/scriptAssist';
+import { allTargets, completeAt, editorChecks, placeFix } from '../src/builder/scriptAssist';
 import { apiDim, apiSections, robotReference, SCRIPT_API } from '../src/builder/scriptRef';
 import { partNameInsert } from '../src/ui/ScriptEditor';
 import { scriptViewWidth } from '../src/ui/layout';
@@ -205,6 +208,24 @@ describe('checks in the script view', () => {
     expect(found[1]?.message).toBe("'level' is not something a battery takes or reports. It has: charge.");
   });
 
+  it('a fix clicked after the text changed goes where its problem is now, and nowhere once it is gone (review fixes)', () => {
+    const source = `function tick() { set('lift', 'throtle', 1); }`;
+    const recheck = (t: string) => editorChecks(t, flyer, registry, undefined, ok);
+    const [c] = recheck(source);
+    if (!c) throw new Error('no check');
+    const put = (text: string, ch: { from: number; to: number; insert: string }): string => text.slice(0, ch.from) + ch.insert + text.slice(ch.to);
+    const first = placeFix(c, 'throttle', source, source, recheck);
+    if (!first) throw new Error('no fix');
+    const fixed = put(source, first);
+    expect(fixed).toBe(`function tick() { set('lift', 'throttle', 1); }`);
+    // The second click of a double click, with the list not yet worked out again: nothing, not set('lift', 'throttle'', 1).
+    expect(placeFix(c, 'throttle', source, fixed, recheck)).toBeUndefined();
+    // A line typed above it since: the fix still lands on the name.
+    const moved = `// note\n${source}`;
+    const again = placeFix(c, 'throttle', source, moved, recheck);
+    expect(again && put(moved, again)).toBe(`// note\nfunction tick() { set('lift', 'throttle', 1); }`);
+  });
+
   it('contacts with nothing that sees, and no tick()', () => {
     const found = editorChecks(`function setup() { state.n = contacts.length; }`, flyer, registry, undefined, { ok: false, error: { kind: 'compile', message: 'x.js does not define function tick()' } });
     expect(found.map((c) => c.kind)).toEqual(['tick', 'sees']);
@@ -235,5 +256,26 @@ describe('small things of the script view', () => {
     }
     expect(scriptViewWidth(1366)).toBe(738);
     expect(scriptViewWidth(1440)).toBe(790);
+  });
+});
+
+describe('the code editor and the board share one undo (review fixes)', () => {
+  it("text set from outside is not in the editor's own history, so its undo never brings back what the board's Undo took away", () => {
+    let state = EditorState.create({ doc: 'a', extensions: [history()] });
+    const run = (cmd: (t: { state: EditorState; dispatch: (tr: Transaction) => void }) => boolean): void => {
+      cmd({ state, dispatch: (tr) => (state = tr.state) });
+    };
+    // Typed in the code: "ab".
+    state = state.update({ changes: { from: 1, insert: 'b' }, userEvent: 'input.type', annotations: Transaction.time.of(0) }).state;
+    // The board's Undo puts "a" back from outside.
+    const spec = outsideChange(state.doc.toString(), 'a');
+    if (!spec) throw new Error('no change');
+    // Seconds later, so CodeMirror would not fold it into the typing.
+    state = state.update(spec, { annotations: Transaction.time.of(10_000) }).state;
+    expect(state.doc.toString()).toBe('a');
+    // Cmd+Z in the code: not "ab" again.
+    run(undo);
+    expect(state.doc.toString()).not.toBe('ab');
+    expect(outsideChange('same', 'same')).toBeUndefined();
   });
 });

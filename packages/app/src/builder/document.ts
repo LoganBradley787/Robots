@@ -150,7 +150,8 @@ export class DocumentController {
     for (const f of wanted) {
       if (!SCRIPT_FILE.test(f) || f.includes('..')) continue;
       const t = await this.deps.api.loadText(f);
-      if (t !== undefined) texts.set(f, t);
+      // Plain line ends: the code view holds its text that way, and the checks' offsets are into this text.
+      if (t !== undefined) texts.set(f, t.replace(/\r\n?/g, '\n'));
     }
     const r = resolveScripts(raw, (f) => texts.get(f));
     if (r.missing.length > 0) this.deps.notify?.(`${file}: script file${r.missing.length === 1 ? '' : 's'} not found: ${r.missing.join(', ')}`);

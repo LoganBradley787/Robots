@@ -176,3 +176,18 @@ export function editorChecks(source: string, bp: Blueprint, registry: PartRegist
   }
   return out.sort((a, b) => (a.severity === b.severity ? a.from - b.from : a.severity === 'error' ? -1 : 1));
 }
+
+/**
+ * Where a one-click fix from the list under the code goes in the text as it is now. The list was worked out on
+ * `checked`; when the text is still that, the check's own offsets hold. When it changed (a fix just applied, a key
+ * typed), the text is checked again (`recheck`) and the fix goes where the same problem is now; when that problem is
+ * gone, nowhere, so a second click on a fix never writes into the wrong place.
+ */
+export function placeFix(c: EditorCheck, label: string, checked: string | undefined, now: string, recheck: (text: string) => readonly EditorCheck[]): { from: number; to: number; insert: string } | undefined {
+  const at = now === checked ? c : (() => {
+    const same = recheck(now).filter((x) => x.kind === c.kind && x.message === c.message && x.fixes.some((f) => f.label === label));
+    return same.find((x) => x.line === c.line) ?? same[0];
+  })();
+  const fix = at?.fixes.find((f) => f.label === label);
+  return at && fix ? { from: at.from, to: at.to, insert: fix.text } : undefined;
+}

@@ -42,6 +42,8 @@ export class Builder {
   /** The undo step being made: the blueprint it started from and what it has done so far. One drag is one step. */
   private step: { before: Blueprint; fx: Fx } | undefined;
   private inGesture = false;
+  /** Whose text edit or slider drag is the open undo step, if one is (`beginTextEdit`). */
+  private textOwner: 'code' | 'drag' | undefined;
   /** What the last edit affected (M16), with Undo in it. Gone at the next edit. */
   private note: { seq: number; lines: NoteLine[]; undo: boolean } | undefined;
   /** A refusal or an offer at the cursor. */
@@ -85,6 +87,7 @@ export class Builder {
     this.controlsFor = undefined;
     this.step = undefined;
     this.inGesture = false;
+    this.textOwner = undefined;
     this.note = undefined;
     this.cursorNote = undefined;
     this.shownId = undefined;
@@ -224,12 +227,20 @@ export class Builder {
     this.refresh(true);
   }
 
-  /** Text typed in the script editor coalesces into one undo step until the editor loses focus. */
-  beginTextEdit(): void {
+  /**
+   * Text typed in the script editor coalesces into one undo step until the editor loses focus (`code`), and so does a
+   * drag of a slider (`drag`). A new one closes the one before, and only its own end closes it: a slider grabbed while
+   * the code has the focus is its own step, and the code's blur that comes after the press does not cut the drag up.
+   */
+  beginTextEdit(owner: 'code' | 'drag' = 'code'): void {
+    if (this.textOwner !== undefined) this.history.endGesture();
+    this.textOwner = owner;
     this.history.beginGesture();
   }
 
-  endTextEdit(): void {
+  endTextEdit(owner: 'code' | 'drag' = 'code'): void {
+    if (this.textOwner !== owner) return;
+    this.textOwner = undefined;
     this.history.endGesture();
   }
 

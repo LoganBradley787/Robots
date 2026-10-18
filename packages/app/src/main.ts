@@ -384,7 +384,7 @@ async function boot(): Promise<void> {
     setBindings: (bindings) => editControls((c) => ({ ...c, bindings })),
     claimAuto: (ids, byKind) => builder.edit((bp) => claimAuto(bp, registry, builder.controlsFor, ids, { byKind })),
     lightParts: (ids) => builder.lightParts(ids),
-    dragValue: (on) => (on ? builder.beginTextEdit() : builder.endTextEdit()),
+    dragValue: (on) => (on ? builder.beginTextEdit('drag') : builder.endTextEdit('drag')),
     addTag: (ids, tag) => builder.edit((bp) => addTagToParts(bp, ids, tag)),
     removeTag: (ids, tag) => builder.edit((bp) => removeTagFromParts(bp, ids, tag)),
     setAuto: (ids, on) => builder.edit((bp) => setPartsAuto(bp, ids, on)),
@@ -573,8 +573,8 @@ async function boot(): Promise<void> {
       r.instance.dispose();
       return { ok: true, params };
     },
-    beginTextEdit: () => builder.beginTextEdit(),
-    endTextEdit: () => builder.endTextEdit(),
+    beginTextEdit: (owner) => builder.beginTextEdit(owner),
+    endTextEdit: (owner) => builder.endTextEdit(owner),
     robotKeyDown: (key) => worldScreen.keys.down('mouse', key),
     robotKeyUp: (key) => worldScreen.keys.up('mouse', key),
     rotate: (dir) => builder.dispatch({ type: 'rotate', dir }),

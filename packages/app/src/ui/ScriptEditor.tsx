@@ -5,7 +5,7 @@ import { useStore } from './store';
 import type { AppState } from './appState';
 import { Button, NumberField } from './kit';
 import { createCodeEditor, type CodeEditor } from './codeEditor';
-import { completeAt, editorChecks, type EditorCheck } from '../builder/scriptAssist';
+import { completeAt, editorChecks, placeFix, type EditorCheck } from '../builder/scriptAssist';
 import { apiSections, robotReference, type RefChannel, type RefTarget } from '../builder/scriptRef';
 
 export type ScriptCheck = { ok: true; params: Record<string, ParamSpec> } | { ok: false; error: ScriptError };
@@ -16,9 +16,9 @@ export interface ScriptEditorActions {
   /** Compiles in the sandbox without running; undefined while the sandbox is still loading. */
   checkScript(source: string, name: string): ScriptCheck | undefined;
   closeScript(): void;
-  /** Typing in the editor is one undo step per editing session. */
-  beginTextEdit(): void;
-  endTextEdit(): void;
+  /** Typing in the editor is one undo step per editing session (`code`); so is one drag of a slider (`drag`). */
+  beginTextEdit(owner?: 'code' | 'drag'): void;
+  endTextEdit(owner?: 'code' | 'drag'): void;
 }
 
 /**
@@ -47,6 +47,8 @@ export function ScriptEditor({ store, registry, actions }: { store: Store<AppSta
   const [check, setCheck] = useState<ScriptCheck | undefined>(undefined);
   const [checks, setChecks] = useState<EditorCheck[]>([]);
   const host = useRef<HTMLDivElement>(null);
+  /** The text the checks in the list were worked out on: their offsets are into it. */
+  const checkedFor = useRef<string | undefined>(undefined);
   const editor = useRef<CodeEditor | undefined>(undefined);
   const source = typeof spec?.source === 'string' ? spec.source : undefined;
   const name = spec?.file ?? `${id ?? 'script'}.js`;
@@ -109,6 +111,7 @@ export function ScriptEditor({ store, registry, actions }: { store: Store<AppSta
       const compiled = actions.checkScript(source, name);
       setCheck(compiled);
       const found = editorChecks(source, draft, registry, scope, compiled);
+      checkedFor.current = source;
       setChecks(found);
       editor.current?.setChecks(found);
       // The list under the code may have grown or shrunk: the line being typed stays in view.
@@ -122,6 +125,17 @@ export function ScriptEditor({ store, registry, actions }: { store: Store<AppSta
   const params = check?.ok ? Object.entries(check.params) : [];
   const put = (c: RefChannel): void => editor.current?.insert(c.insert, c.caret);
   const errors = checks.filter((c) => c.severity === 'error').length;
+  // A fix under the code is applied where its check is now: when the text changed since the check ran (a fix just
+  // applied, a key typed), it is checked again first, and a fix whose check is gone does nothing.
+  const applyFix = (c: EditorCheck, label: string): void => {
+    const ed = editor.current;
+    if (!ed) return;
+    const now = ed.view.state.doc.toString();
+    const change = placeFix(c, label, checkedFor.current, now, (text) => editorChecks(text, draft, registry, scope, actions.checkScript(text, name)));
+    if (!change) return;
+    ed.view.dispatch({ changes: change, userEvent: 'input' });
+    ed.focus();
+  };
   return (
     <div class="script-view plate" onContextMenu={(e) => e.preventDefault()}>
       <div class="sv-ref scroll">
@@ -202,12 +216,7 @@ export function ScriptEditor({ store, registry, actions }: { store: Store<AppSta
                       small
                       key={f.label}
                       title={`Write ${f.text} there`}
-                      onClick={() => {
-                        const ed = editor.current;
-                        if (!ed) return;
-                        ed.view.dispatch({ changes: { from: c.from, to: c.to, insert: f.text }, userEvent: 'input' });
-                        ed.focus();
-                      }}
+                      onClick={() => applyFix(c, f.label)}
                     >
                       {f.label}
                     </Button>
