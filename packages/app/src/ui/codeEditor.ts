@@ -4,7 +4,7 @@ import { javascript } from '@codemirror/lang-javascript';
 import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { lintGutter, lintKeymap, setDiagnostics, type Diagnostic } from '@codemirror/lint';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
-import { Annotation, EditorState, Transaction, type TransactionSpec } from '@codemirror/state';
+import { Annotation, Compartment, EditorState, Transaction, type Extension, type TransactionSpec } from '@codemirror/state';
 import { drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, hoverTooltip, keymap, lineNumbers } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
 import type { Completion, CompletionResult, EditorCheck } from '../builder/scriptAssist';
@@ -127,19 +127,31 @@ function apiAt(doc: string, from: number, to: number): { sig: string; about: str
   return e ? { sig: e.sig, about: e.about, ...(e.more !== undefined ? { more: e.more } : {}) } : undefined;
 }
 
+/** The editor's own undo history, in a slot of its own so that text set from outside can start it afresh. */
+const historySlot = new Compartment();
+
+/** The editor's own undo history (`history()`), as `outsideChanges` can clear it. */
+export function codeHistory(): Extension {
+  return historySlot.of(history());
+}
+
 /**
- * The transaction that puts text set from outside (an undo on the board, a fix, an update) into the editor, or
- * undefined when it holds that text already. Only what differs is replaced, so the caret stays where it was when it
- * can. It is kept out of the editor's own undo history: the board's Undo made it, and Cmd+Z in the code must not bring
- * back what that Undo took away.
+ * The transactions that put text set from outside (an undo on the board, a fix, an update) into the editor, in order;
+ * none when it holds that text already. Only what differs is replaced, so the caret stays where it was when it can.
+ * Then the editor's own undo history starts afresh: what it holds was typed into a text that is gone, and undoing it
+ * in the new one would put pieces of it back (the board's Undo took them away, Cmd+Z in the code must not return them).
  */
-export function outsideChange(now: string, next: string): TransactionSpec | undefined {
-  if (next === now) return undefined;
+export function outsideChanges(now: string, next: string): TransactionSpec[] {
+  if (next === now) return [];
   let a = 0;
   while (a < now.length && a < next.length && now[a] === next[a]) a++;
   let b = 0;
   while (b < now.length - a && b < next.length - a && now[now.length - 1 - b] === next[next.length - 1 - b]) b++;
-  return { changes: { from: a, to: now.length - b, insert: next.slice(a, next.length - b) }, annotations: [outside.of(true), Transaction.addToHistory.of(false)] };
+  return [
+    { changes: { from: a, to: now.length - b, insert: next.slice(a, next.length - b) }, annotations: [outside.of(true), Transaction.addToHistory.of(false)] },
+    { effects: historySlot.reconfigure([]) },
+    { effects: historySlot.reconfigure(history()) },
+  ];
 }
 
 export function createCodeEditor(parent: HTMLElement, text: string, hooks: CodeEditorHooks): CodeEditor {
@@ -212,7 +224,7 @@ export function createCodeEditor(parent: HTMLElement, text: string, hooks: CodeE
         lintGutter(),
         highlightActiveLineGutter(),
         highlightActiveLine(),
-        history(),
+        codeHistory(),
         drawSelection(),
         indentOnInput(),
         bracketMatching(),
@@ -248,8 +260,7 @@ export function createCodeEditor(parent: HTMLElement, text: string, hooks: CodeE
   return {
     view,
     setText(next) {
-      const spec = outsideChange(view.state.doc.toString(), next);
-      if (spec) view.dispatch(spec);
+      for (const spec of outsideChanges(view.state.doc.toString(), next)) view.dispatch(spec);
     },
     setChecks(checks) {
       const len = view.state.doc.length;

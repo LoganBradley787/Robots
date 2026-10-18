@@ -503,12 +503,15 @@ async function boot(): Promise<void> {
       const groups = clearableGroups(builder.draft, registry, core, id);
       const name = card?.header?.name ?? `"${id}"`;
       const filled = groups.map((g) => `"${g.tag}"`).join(' and ');
+      // Groups its slots filled that a key or another script still uses: they stay either way, and the box says so.
+      const kept = (card?.slots ?? []).filter((sl) => sl.filled.length > 0 && !groups.some((g) => g.tag === sl.tag)).map((sl) => `"${sl.tag}"`);
+      const stays = kept.length === 0 ? '' : ` ${kept.join(' and ')} ${kept.length === 1 ? 'stays' : 'stay'} either way: a key or another script uses ${kept.length === 1 ? 'it' : 'them'}.`;
       void ask(store, {
         title: `Remove ${name}?`,
         message:
           groups.length > 0
-            ? `Removes it from this robot, with the key that switches it. Its slots put parts in the group${groups.length === 1 ? '' : 's'} ${filled}: clearing ${groups.length === 1 ? 'that' : 'those'} too gives the parts it drove their own keys back. Undo brings all of it back.`
-            : `Removes it from this robot, with the key that switches it.${card?.file !== undefined ? ` Its file stays in blueprints/ until you delete it.` : ''} Undo brings it back.`,
+            ? `Removes it from this robot, with the key that switches it. Its slots put parts in the group${groups.length === 1 ? '' : 's'} ${filled}: clearing ${groups.length === 1 ? 'that' : 'those'} too gives the parts it drove their own keys back.${stays} Undo brings all of it back.`
+            : `Removes it from this robot, with the key that switches it.${stays}${card?.file !== undefined ? ` Its file stays in blueprints/ until you delete it.` : ''} Undo brings it back.`,
         buttons: [
           { label: 'Cancel', value: 'no' },
           ...(groups.length > 0 ? [{ label: 'Remove, keep groups', value: 'keep' }, { label: 'Remove and clear groups', value: 'clear', kind: 'danger' as const }] : [{ label: 'Remove', value: 'keep', kind: 'danger' as const }]),

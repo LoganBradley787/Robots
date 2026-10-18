@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { history, undo } from '@codemirror/commands';
+import { undo } from '@codemirror/commands';
 import { EditorState, Transaction } from '@codemirror/state';
-import { outsideChange } from '../src/ui/codeEditor';
+import { codeHistory, outsideChanges } from '../src/ui/codeEditor';
 import { defaultRegistry, loadBlueprint, type Blueprint } from '@robots/sim-core';
 import { allTargets, completeAt, editorChecks, placeFix } from '../src/builder/scriptAssist';
 import { apiDim, apiSections, robotReference, SCRIPT_API } from '../src/builder/scriptRef';
@@ -260,22 +260,22 @@ describe('small things of the script view', () => {
 });
 
 describe('the code editor and the board share one undo (review fixes)', () => {
-  it("text set from outside is not in the editor's own history, so its undo never brings back what the board's Undo took away", () => {
-    let state = EditorState.create({ doc: 'a', extensions: [history()] });
-    const run = (cmd: (t: { state: EditorState; dispatch: (tr: Transaction) => void }) => boolean): void => {
-      cmd({ state, dispatch: (tr) => (state = tr.state) });
-    };
-    // Typed in the code: "ab".
-    state = state.update({ changes: { from: 1, insert: 'b' }, userEvent: 'input.type', annotations: Transaction.time.of(0) }).state;
-    // The board's Undo puts "a" back from outside.
-    const spec = outsideChange(state.doc.toString(), 'a');
-    if (!spec) throw new Error('no change');
-    // Seconds later, so CodeMirror would not fold it into the typing.
-    state = state.update(spec, { annotations: Transaction.time.of(10_000) }).state;
-    expect(state.doc.toString()).toBe('a');
-    // Cmd+Z in the code: not "ab" again.
-    run(undo);
-    expect(state.doc.toString()).not.toBe('ab');
-    expect(outsideChange('same', 'same')).toBeUndefined();
+  it("after text is set from outside, the editor's own undo brings back none of what the board's Undo took away", () => {
+    let state = EditorState.create({ doc: 'function tick() { }', extensions: [codeHistory()] });
+    const at = (t: number) => Transaction.time.of(t);
+    // Typed in the code, then a word completed mid-word (a replace, whose undo would put text back in).
+    state = state.update({ changes: { from: 18, insert: 'con' }, userEvent: 'input.type', annotations: at(0) }).state;
+    state = state.update({ changes: { from: 15, to: 21, insert: 'contacts' }, userEvent: 'input.complete', annotations: at(1000) }).state;
+    // The board's Undo puts the first text back from outside, seconds later.
+    const specs = outsideChanges(state.doc.toString(), 'function tick() { }');
+    expect(specs.length).toBeGreaterThan(0);
+    for (const spec of specs) state = state.update(spec, { annotations: at(10_000) }).state;
+    expect(state.doc.toString()).toBe('function tick() { }');
+    // Cmd+Z in the code: nothing to undo, nothing comes back.
+    let ran = false;
+    undo({ state, dispatch: (tr) => ((state = tr.state), (ran = true)) });
+    expect(ran).toBe(false);
+    expect(state.doc.toString()).toBe('function tick() { }');
+    expect(outsideChanges('same', 'same')).toEqual([]);
   });
 });
