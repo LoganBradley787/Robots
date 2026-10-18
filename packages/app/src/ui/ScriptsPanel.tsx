@@ -154,6 +154,7 @@ export function ScriptsPanel({ store, registry, actions }: { store: Store<AppSta
                 </span>
                 <span class="about">{o.entry.header.about}</span>
                 {!o.ok && <span class="why">{o.reason}</span>}
+                {o.entry.problems.length > 0 && <span class="why">Its header: {o.entry.problems.join('; ')}</span>}
                 {o.ok && o.here.length > 0 && <span class="why here">already on this robot</span>}
               </button>
             ))}
@@ -339,9 +340,9 @@ function Param({ p, value, id, actions }: { p: ParamInfo; value: number; id: str
       </span>
       <span
         class="sl"
-        onPointerDown={actions.beginTextEdit}
-        onPointerUp={actions.endTextEdit}
-        onPointerCancel={actions.endTextEdit}
+        onPointerDown={() => actions.beginTextEdit('drag')}
+        onPointerUp={() => actions.endTextEdit('drag')}
+        onPointerCancel={() => actions.endTextEdit('drag')}
         onDblClick={() => set(p.default)}
         title={`${num(r.min)} to ${num(r.max)}. Double-click for the default, ${num(p.default)}.`}
       >
