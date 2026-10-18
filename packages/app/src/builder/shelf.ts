@@ -19,7 +19,7 @@ import {
   type ScriptSpec,
 } from '@robots/sim-core';
 import { countParts, typeName } from './boardOps';
-import { controlsOf, withControls } from './coreControls';
+import { controlCores, controlsOf, withControls } from './coreControls';
 import type { NoteLine } from './notice';
 import { removeScript, updateScript } from './scripts';
 
@@ -228,7 +228,8 @@ export function fillAccept(state: FillState): { state: FillState; refused?: stri
   const s = fillCurrent(state);
   if (!s) return { state };
   if (s.chosen.length === 0 && s.slot.required) return { state, refused: `${state.name} needs ${quoted(s.slot)}: pick at least one part, or cancel.` };
-  return { state: { ...state, index: state.index + 1 } };
+  // Accepted after a Skip and a Back: it is filled after all.
+  return { state: { ...state, slots: state.slots.map((x, i) => (i === state.index && x.skipped ? { ...x, skipped: false } : x)), index: state.index + 1 } };
 }
 
 /** Skip an optional slot: it is left exactly as it was. Refused for a required one. */
@@ -242,6 +243,23 @@ export function fillSkip(state: FillState): { state: FillState; refused?: string
 /** Back to the slot before, to pick again. */
 export function fillBack(state: FillState): FillState {
   return state.index > 0 ? { ...state, index: state.index - 1 } : state;
+}
+
+/**
+ * The parts in a slot that owns them of some behavior other than `scriptId` of `core` (on any core): their own keys
+ * stay off when this one lets go of them, since that one still drives them every tick.
+ */
+function ownedByOthers(bp: Blueprint, registry: PartRegistry, core: string | undefined, scriptId: string): Set<string> {
+  const root = rootPartId(bp, registry);
+  const self = core ?? root;
+  const out = new Set<string>();
+  for (const c of controlCores(bp, registry)) {
+    for (const card of behaviorCards(bp, registry, [], c.core)) {
+      if ((c.core ?? root) === self && card.id === scriptId) continue;
+      for (const s of card.slots) if (s.slot.owns) for (const id of s.filled) out.add(id);
+    }
+  }
+  return out;
 }
 
 /** "it" for one part, "them" for more. */
@@ -265,18 +283,24 @@ export function finishFill(bp: Blueprint, registry: PartRegistry, state: FillSta
   }
   const typeOf = (id: string): string => bp.parts.find((p) => p.id === id)?.part ?? '';
   const hadAuto = (id: string): boolean => bp.parts.find((p) => p.id === id)?.auto !== false;
+  // Only parts that are still there and can fill the slot: the robot may have changed since they were picked.
+  const slots = state.slots.map((x) => ({ ...x, chosen: x.chosen.filter((id) => slotFits(bp, registry, x.slot, id)) }));
   const driven: string[] = [];
   const keysOff: string[] = [];
   const keysBack: string[] = [];
   const lines: NoteLine[] = [];
-  for (const s of state.slots) {
+  for (const s of slots) {
     if (s.skipped) continue;
     out = fillSlot(out, registry, s.slot, s.chosen, opt);
     for (const id of s.chosen) if (!driven.includes(id)) driven.push(id);
-    if (!s.slot.owns) continue;
-    for (const id of s.chosen) if (hadAuto(id) && !keysOff.includes(id)) keysOff.push(id);
-    // Taken out of a slot that owned it: nothing drives it now, so its own keys come back.
-    const dropped = s.before.filter((id) => !s.chosen.includes(id) && !hadAuto(id));
+    if (s.slot.owns) for (const id of s.chosen) if (hadAuto(id) && !keysOff.includes(id)) keysOff.push(id);
+  }
+  // Taken out of a slot that owned it: nothing drives it now, so its own keys come back, unless another behavior's
+  // slot still owns it (that one drives it every tick).
+  const kept = ownedByOthers(out, registry, state.core, scriptId);
+  for (const s of slots) {
+    if (s.skipped || !s.slot.owns) continue;
+    const dropped = s.before.filter((id) => !s.chosen.includes(id) && !hadAuto(id) && !kept.has(id) && !keysBack.includes(id));
     if (dropped.length > 0) {
       out = setPartsAuto(out, dropped, true);
       keysBack.push(...dropped);
@@ -287,15 +311,21 @@ export function finishFill(bp: Blueprint, registry: PartRegistry, state: FillSta
   if (state.mode === 'add') {
     lines.push({ text: driven.length > 0 ? `${state.name} now drives ${kinds(driven)}.${off}` : `${state.name} is on this robot. None of its slots is filled yet.` });
   } else {
-    const s = state.slots[0];
+    const s = slots[0];
     if (s) lines.push({ text: s.chosen.length > 0 ? `${state.name}: ${quoted(s.slot)} is now ${kinds(s.chosen)}.${off}` : `${state.name}: ${quoted(s.slot)} is empty now.` });
   }
   if (keysBack.length > 0) lines.push({ text: `${cap(kinds(keysBack))} taken out ${keysBack.length === 1 ? 'has its own key' : 'have their own keys'} back.` });
-  for (const s of state.slots) {
+  for (const s of slots) {
     if (!s.skipped && s.chosen.length > 0) continue;
     if (state.mode === 'add' && !s.slot.required) lines.push({ text: `${quoted(s.slot)} is ${s.skipped && s.before.length > 0 ? 'left as it was' : 'empty'}. Its card can fill it later.` });
   }
   return { ok: true, bp: out, scriptId, lines };
+}
+
+/** Whether a part is on the robot and has one of the slot's inputs. */
+function slotFits(bp: Blueprint, registry: PartRegistry, slot: BehaviorSlot, id: string): boolean {
+  const p = bp.parts.find((x) => x.id === id);
+  return p !== undefined && registry.has(p.part) && registry.get(p.part).inputs.some((c) => slot.inputs.includes(c.name));
 }
 
 /** One `param()` of a script, read off its text. */
@@ -539,13 +569,18 @@ export function applyUpdate(bp: Blueprint, registry: PartRegistry, shelf: readon
   };
 }
 
-/** What removing a script would also offer to clear: the groups its slots filled that no other script here names. */
+/**
+ * What removing a script would also offer to clear: the groups its slots filled that no other script names and no key
+ * of this core targets (clearing one a key drives would leave the key reaching nothing).
+ */
 export function clearableGroups(bp: Blueprint, registry: PartRegistry, core: string | undefined, scriptId: string): CardSlot[] {
   const card = behaviorCards(bp, registry, [], core).find((c) => c.id === scriptId);
   if (!card) return [];
-  const own = controlsOf(bp, registry, core).scripts.find((s) => s.id === scriptId);
+  const controls = controlsOf(bp, registry, core);
+  const own = controls.scripts.find((s) => s.id === scriptId);
   const others = scriptRuns(bp).filter((r) => r.recipes.length === 0 && r.script !== own && typeof r.script.source === 'string');
-  return card.slots.filter((s) => s.filled.length > 0 && !others.some((r) => readScript(r.script.source as string).strings.has(s.slot.group) || readScript(r.script.source as string).strings.has(s.tag)));
+  const keyed = (s: CardSlot): boolean => controls.bindings.some((b) => b.mode !== 'script' && (b.target === s.slot.group || b.target === s.tag));
+  return card.slots.filter((s) => s.filled.length > 0 && !keyed(s) && !others.some((r) => readScript(r.script.source as string).strings.has(s.slot.group) || readScript(r.script.source as string).strings.has(s.tag)));
 }
 
 /**
@@ -561,10 +596,12 @@ export function removeBehavior(bp: Blueprint, registry: PartRegistry, core: stri
   const next = removeScript({ bindings: controls.bindings, scripts: controls.scripts }, scriptId);
   let out = withControls(bp, registry, core, { bindings: next.bindings, scripts: next.scripts });
   const back: string[] = [];
+  // A part another behavior's slot still owns keeps its own keys off: that one drives it.
+  const kept = groups.some((g) => g.slot.owns) ? ownedByOthers(out, registry, core, scriptId) : new Set<string>();
   for (const g of groups) {
     out = removeTagFromParts(out, g.filled, g.tag);
     if (!g.slot.owns) continue;
-    const off = g.filled.filter((id) => bp.parts.find((p) => p.id === id)?.auto === false);
+    const off = g.filled.filter((id) => bp.parts.find((p) => p.id === id)?.auto === false && !kept.has(id));
     if (off.length > 0) out = setPartsAuto(out, off, true);
     for (const id of off) if (!back.includes(id)) back.push(id);
   }

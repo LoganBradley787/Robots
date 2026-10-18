@@ -437,20 +437,24 @@ export type AttachResult = { ok: true; blueprint: Blueprint; scriptId: string } 
  * Adds a shelf behavior to a robot: a new script entry whose code is the robot's own copy of the shelf file
  * (`behaviorCopy`: the file with its `@from` mark). It has no file yet, so the next save writes it next to the
  * blueprint under the robot's name (`drone.hover.js`, `assignScriptFiles`), and editing it never touches the shelf or
- * another robot. Slots are filled separately (`fitBehavior`, then `fillSlot`). Refused when the text is not a
- * behavior, when `opts.core` is not a core with controls of its own, or when `opts.scriptId` is taken.
+ * another robot. Slots are filled separately (`fitBehavior`, then `fillSlot`). For `opts.core`, a core other than the
+ * primary one, the script goes in its `cores` entry, which is made when it has none yet (as the builder's Controls
+ * panel makes one). Refused when the text is not a behavior, when no part has the id `opts.core`, or when
+ * `opts.scriptId` is taken.
  */
 export function attachBehavior(bp: Blueprint, shelfId: string, source: string, opts: AttachOptions = {}): AttachResult {
   const parsed = parseBehaviorHeader(source);
   if (!parsed.header) return { ok: false, error: `${shelfId} is not a behavior: it has no @behavior line` };
-  const entry = opts.core === undefined || opts.core === bp.primaryCore ? undefined : bp.cores?.find((c) => c.core === opts.core);
-  if (opts.core !== undefined && opts.core !== bp.primaryCore && !entry) return { ok: false, error: `${opts.core} is not a core with controls of its own in this blueprint` };
-  const list = entry ? entry.scripts : bp.scripts;
+  const other = opts.core !== undefined && opts.core !== bp.primaryCore ? opts.core : undefined;
+  const entry = other === undefined ? undefined : bp.cores?.find((c) => c.core === other);
+  if (other !== undefined && !entry && !bp.parts.some((p) => p.id === other)) return { ok: false, error: `this blueprint has no part ${other}` };
+  const list = entry ? entry.scripts : other !== undefined ? [] : bp.scripts;
   const taken = new Set(list.map((s) => s.id));
   let scriptId = opts.scriptId ?? shelfId;
   if (opts.scriptId !== undefined && taken.has(scriptId)) return { ok: false, error: `this robot already has a script called '${scriptId}'` };
   for (let n = 2; taken.has(scriptId); n++) scriptId = `${shelfId}-${n}`;
   const script: ScriptSpec = { id: scriptId, enabled: opts.enabled ?? true, params: {}, source: behaviorCopy(shelfId, source) };
-  if (!entry) return { ok: true, blueprint: { ...bp, scripts: [...bp.scripts, script] }, scriptId };
+  if (other === undefined) return { ok: true, blueprint: { ...bp, scripts: [...bp.scripts, script] }, scriptId };
+  if (!entry) return { ok: true, blueprint: { ...bp, cores: [...(bp.cores ?? []), { core: other, bindings: [], scripts: [script] }] }, scriptId };
   return { ok: true, blueprint: { ...bp, cores: (bp.cores ?? []).map((c) => (c === entry ? { ...c, scripts: [...c.scripts, script] } : c)) }, scriptId };
 }

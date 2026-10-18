@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignScriptFiles, behaviorCopy, defaultRegistry, loadBlueprint, resolveScripts, scriptFiles, staticStats, toFileJson, type Blueprint } from '@robots/sim-core';
+import { assignScriptFiles, behaviorCopy, defaultRegistry, loadBlueprint, resolveScripts, scriptFiles, staticStats, toFileJson, validateBlueprint, type Blueprint } from '@robots/sim-core';
 import { Builder } from '../src/builder/Builder';
 import type { BuilderScene } from '../src/builder/BuilderScene';
 import {
@@ -8,6 +8,7 @@ import {
   clearableGroups,
   diffHunks,
   fillAccept,
+  fillBack,
   fillCurrent,
   fillDone,
   fillAll,
@@ -434,5 +435,112 @@ describe('the update offer', () => {
     const long = Array.from({ length: 30 }, (_, i) => `line ${i}`);
     const hunks = diffHunks(lineDiff(long.join('\n'), [...long.slice(0, 15), 'new', ...long.slice(15)].join('\n')), 2);
     expect(hunks.map((h) => (h.kind === 'gap' ? `gap ${h.lines}` : `${h.kind} ${h.text}`))).toEqual(['gap 13', 'same line 13', 'same line 14', 'add new', 'same line 15', 'same line 16', 'gap 13']);
+  });
+});
+
+describe('review fixes (M16)', () => {
+  const scene = (): BuilderScene => ({ cam: { x: 0, y: 0, zoom: 2, follow: false }, show() {}, drawParts() {}, drawGhost() {}, drawOverlay() {}, frame() {}, setInsets() {}, pointOf: () => ({ x: 0, y: 0 }) }) as unknown as BuilderScene;
+  const builderOn = (on: Blueprint): { builder: Builder; store: ReturnType<typeof createStore<AppState>> } => {
+    const store = createStore<AppState>({ builder: { draft: on, stats: staticStats(on, registry) } } as unknown as AppState);
+    return { builder: new Builder(registry, scene(), store, on), store };
+  };
+  const errors = (b: Blueprint): string[] => validateBlueprint(toFileJson(b, registry), registry).issues.filter((i) => i.severity === 'error').map((i) => i.code);
+
+  it('a group a key of this core drives is not cleared with the behavior, so the key still reaches its parts', () => {
+    const had = add(armed, 'hover');
+    const bound = { ...had.bp, bindings: [{ key: 'q', mode: 'hold' as const, target: 'lift', channel: 'throttle', value: 1 }] };
+    expect(errors(bound)).toEqual([]);
+    expect(clearableGroups(bound, registry, undefined, 'hover').map((g) => g.tag)).toEqual(['level']);
+    const r = removeBehavior(bound, registry, undefined, 'hover', true);
+    expect(r.bp.parts.filter((p) => p.tags.includes('lift')).map((p) => p.id)).toEqual(['propeller@-2,0', 'propeller@2,0']);
+    expect(errors(r.bp)).toEqual([]);
+  });
+
+  it('Skip, then Back, then Accept writes the slot after all', () => {
+    let s = done(startFill(armed, registry, entry('aim-and-fire')));
+    expect(fillCurrent(s)?.slot.group).toBe('turn');
+    s = fillSkip(s).state;
+    s = fillBack(s);
+    s = fillAccept(s).state;
+    s = fillAccept(s).state;
+    const r = finishFill(armed, registry, s);
+    expect(r.ok && r.bp.parts.filter((p) => p.tags.includes('turn')).map((p) => p.id)).toEqual(['rotator@0,1']);
+  });
+
+  it('two behaviors that own the same parts: clearing or changing one leaves the other in charge, keys off', () => {
+    const both = add(add(armed, 'hover').bp, 'guide');
+    const props = (b: Blueprint): Array<[string, boolean | undefined]> => b.parts.filter((p) => p.part === 'propeller').map((p) => [p.id, p.auto]);
+    expect(both.bp.parts.filter((p) => p.tags.includes('push')).map((p) => p.id)).toEqual(['propeller@-2,0', 'propeller@2,0']);
+    const removed = removeBehavior(both.bp, registry, undefined, 'guide', true);
+    expect(removed.bp.parts.filter((p) => p.tags.includes('push'))).toEqual([]);
+    expect(props(removed.bp)).toEqual([
+      ['propeller@-2,0', false],
+      ['propeller@2,0', false],
+    ]);
+    expect(removed.lines[0]?.text).not.toContain('propeller');
+    // Taking a propeller out of Guide's "what pushes": Hover still owns it, so its own key stays off.
+    let s = done(startChange(both.bp, registry, undefined, 'guide', 'push'));
+    s = fillToggle(s, both.bp, registry, 'propeller@2,0').state;
+    const r = finishFill(both.bp, registry, fillAccept(s).state);
+    expect(r.ok && props(r.bp)).toEqual([
+      ['propeller@-2,0', false],
+      ['propeller@2,0', false],
+    ]);
+    expect(r.ok && r.lines.map((l) => l.text)).toEqual(['Guide: "what pushes" is now 1 propeller.']);
+  });
+
+  it('adds a behavior to a second core that has no controls yet, giving it its own entry', () => {
+    const two = bp({
+      parts: [
+        ...flyer.parts.map((p) => ({ part: p.part, x: p.x, y: p.y })),
+        { part: 'frame', x: 3, y: 0 },
+        { part: 'core', x: 4, y: 0 },
+        { part: 'propeller', x: 5, y: 0 },
+      ],
+    });
+    expect(two.cores ?? []).toEqual([]);
+    let s = done(startFill(two, registry, entry('hover'), 'core@4,0'));
+    while (!fillDone(s)) s = fillAccept(s).state;
+    const r = finishFill(two, registry, s);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.bp.scripts).toEqual([]);
+    expect(r.bp.cores?.map((c) => [c.core, c.scripts.map((x) => x.id)])).toEqual([['core@4,0', ['hover']]]);
+  });
+
+  it('the robot cannot be edited while a slot is being filled, and finishing counts only parts that are still there', () => {
+    const { builder, store } = builderOn(flyer);
+    builder.startFill(done(startFill(builder.draft, registry, entry('hover'))));
+    builder.select(['propeller@2,0']);
+    expect(store.get().builder.selection).toEqual([]);
+    builder.swapTo(['propeller@2,0'], 'thruster');
+    builder.dispatch({ type: 'hold', part: 'battery' });
+    builder.dispatch({ type: 'deleteSelection' });
+    expect(builder.draft).toBe(flyer);
+    expect(store.get().builder.held).toBeUndefined();
+    expect(store.get().builder.fill).toBeDefined();
+    // An edit made some other way all the same: the part that went is not counted.
+    builder.edit((b) => ({ ...b, parts: b.parts.filter((p) => p.id !== 'propeller@2,0') }));
+    builder.fillAccept();
+    expect(store.get().builder.note?.lines[0]?.text).toBe('Hover now drives 1 propeller. Its own key is off.');
+  });
+
+  it("moving a placed copy's core keeps the panels on that core", () => {
+    const withCopy = bp({
+      parts: [
+        ...flyer.parts.map((p) => ({ part: p.part, x: p.x, y: p.y })),
+        { part: 'frame', x: 0, y: 1, tags: ['m1'] },
+        { part: 'core', x: 0, y: 2, tags: ['m1'] },
+        { part: 'propeller', x: 1, y: 2, tags: ['m1'] },
+      ],
+      cores: { 'core@0,2': { scope: 'm1', bindings: [], scripts: [{ id: 'mine', enabled: true, params: {}, source: 'function tick() {}' }] } },
+    });
+    const { builder, store } = builderOn(withCopy);
+    store.set({ scriptEditor: 'mine' } as Partial<AppState>);
+    builder.setControlsFor('core@0,2');
+    builder.select(withCopy.parts.map((p) => p.id));
+    builder.dispatch({ type: 'nudge', dx: 1, dy: 0 });
+    expect(builder.draft.cores?.[0]?.core).toBe('core@1,2');
+    expect(builder.controlsFor).toBe('core@1,2');
+    expect(store.get().scriptEditor).toBe('mine');
   });
 });

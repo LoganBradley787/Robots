@@ -155,7 +155,17 @@ describe('attachBehavior', () => {
     expect(b.ok && b.blueprint.scripts[1]?.enabled).toBe(false);
     expect(attachBehavior(a.blueprint, 'hover', shelf('hover'), { scriptId: 'hover' })).toEqual({ ok: false, error: "this robot already has a script called 'hover'" });
     expect(attachBehavior(blank, 'mine', 'function tick() {}')).toEqual({ ok: false, error: 'mine is not a behavior: it has no @behavior line' });
-    expect(attachBehavior(blank, 'hover', shelf('hover'), { core: 'core@9,9' })).toEqual({ ok: false, error: 'core@9,9 is not a core with controls of its own in this blueprint' });
+    expect(attachBehavior(blank, 'hover', shelf('hover'), { core: 'core@9,9' })).toEqual({ ok: false, error: 'this blueprint has no part core@9,9' });
+  });
+
+  it('for a second core with no controls yet, it makes that core its entry', () => {
+    const two = built({ format: 1, name: 't', grid: ['P C F C P'] });
+    const second = two.parts.filter((p) => p.part === 'core')[1]?.id as string;
+    expect(two.cores ?? []).toEqual([]);
+    const a = attachBehavior(two, 'hover', shelf('hover'), { core: second });
+    if (!a.ok) throw new Error(a.error);
+    expect(a.blueprint.scripts).toEqual([]);
+    expect(a.blueprint.cores).toEqual([{ core: second, bindings: [], scripts: [{ id: 'hover', enabled: true, params: {}, source: behaviorCopy('hover', shelf('hover')) }] }]);
   });
 
   it('for a placed copy with its own core, the script goes on that core', () => {

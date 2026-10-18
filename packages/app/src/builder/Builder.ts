@@ -234,6 +234,8 @@ export class Builder {
   }
 
   select(ids: string[]): void {
+    // A slot being filled keeps the selection empty: nothing is selected to swap, nudge or delete until it is done.
+    if (this.fill) return;
     this.editor = { ...this.editor, selection: ids };
     this.refresh(false);
   }
@@ -258,6 +260,7 @@ export class Builder {
    * was kept, what was dropped and what will not work is said after it, not asked before.
    */
   swapTo(ids: readonly string[], type: string): void {
+    if (this.fill) return;
     const r = swapParts(this.draft, this.registry, ids, type);
     if (!r.ok) {
       this.say([{ text: `Not swapped: ${r.error}`, bad: true }], false);
@@ -266,6 +269,7 @@ export class Builder {
     if (r.bp === this.draft) return;
     this.history.commit(r.bp);
     this.editor = { ...this.editor, selection: this.editor.selection.map((id) => r.ids.get(id) ?? id) };
+    this.followCore(r.ids);
     this.cursorNote = undefined;
     this.note = { seq: ++this.seq, lines: swapLines(r.swaps, this.registry), undo: true };
     this.refresh(true);
@@ -317,6 +321,8 @@ export class Builder {
   }
 
   dispatch(e: EditorEvent): void {
+    // While a slot is being filled only the mouse's moves go through: nothing else edits the robot or fills the hand.
+    if (this.fill && e.type !== 'move' && e.type !== 'endGesture') return;
     const before = this.draft;
     const held = this.editor.held?.part;
     const idle = !handFull(this.editor) && this.editor.selection.length === 0 && !this.editor.gesture;
@@ -334,6 +340,7 @@ export class Builder {
       this.note = undefined;
       this.cursorNote = undefined;
     }
+    if (r.fx?.renames) this.followCore(r.fx.renames);
     if (r.fx && this.step) {
       const renames = new Map(this.step.fx.renames ?? []);
       for (const [from, to] of r.fx.renames ?? []) renames.set(from, to);
@@ -353,6 +360,12 @@ export class Builder {
     // Esc with nothing in hand, nothing selected and no drag puts out the script light.
     if (e.type === 'escape' && idle) this.shownId = undefined;
     this.refresh(r.bp !== before);
+  }
+
+  /** The core the panels are on moved or was swapped: they stay on it under its new id. */
+  private followCore(renames: ReadonlyMap<string, string>): void {
+    const to = this.controlsFor !== undefined ? renames.get(this.controlsFor) : undefined;
+    if (to !== undefined) this.controlsFor = to;
   }
 
   /** One undo step is done: say what it affected, and offer a group to blank parts that landed among grouped ones. */
