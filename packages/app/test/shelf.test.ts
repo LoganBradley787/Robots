@@ -136,7 +136,7 @@ describe('filling slots', () => {
     // The flyer has nothing with a spin input, so "what levels" is not asked about.
     expect(s.slots.map((x) => x.slot.group)).toEqual(['lift']);
     expect(fillCurrent(s)?.chosen).toEqual(['propeller@-2,0', 'propeller@2,0']);
-    expect(fillSentence(s)).toBe('What lifts? These 2 parts look right.');
+    expect(fillSentence(s)).toBe('What lifts/pushes? These 2 parts look right.');
     const four = done(startFill(armed, registry, entry('hover')));
     expect(four.slots.map((x) => x.slot.group)).toEqual(['lift', 'level']);
   });
@@ -146,11 +146,11 @@ describe('filling slots', () => {
     const off = fillToggle(s, flyer, registry, 'propeller@2,0');
     expect(off.refused).toBeUndefined();
     expect(fillCurrent(off.state)?.chosen).toEqual(['propeller@-2,0']);
-    expect(fillSentence(off.state)).toBe('What lifts? 1 part picked.');
+    expect(fillSentence(off.state)).toBe('What lifts/pushes? 1 part picked.');
     s = fillToggle(off.state, flyer, registry, 'propeller@2,0').state;
     expect(fillCurrent(s)?.chosen).toEqual(['propeller@-2,0', 'propeller@2,0']);
     const no = fillToggle(s, flyer, registry, 'frame@1,0');
-    expect(no.refused).toBe('A frame has no throttle input, so it cannot be "what lifts".');
+    expect(no.refused).toBe('A frame has no throttle input, so it cannot be "what lifts/pushes".');
     expect(no.state).toBe(s);
   });
 
@@ -168,15 +168,15 @@ describe('filling slots', () => {
     const s = done(startFill(withCopy, registry, entry('hover')));
     expect(fillCurrent(s)?.could).toEqual(['propeller@-2,0', 'propeller@2,0', 'propeller@1,2']);
     expect(fillCurrent(s)?.guess).toEqual(['propeller@-2,0', 'propeller@2,0']);
-    expect(fillSentence(s)).toBe('What lifts? These 2 parts look right.');
+    expect(fillSentence(s)).toBe('What lifts/pushes? These 2 parts look right.');
     const all = fillAll(s);
     expect(fillCurrent(all)?.chosen).toEqual(['propeller@-2,0', 'propeller@2,0', 'propeller@1,2']);
-    expect(fillSentence(all)).toBe('What lifts? All 3 parts picked.');
+    expect(fillSentence(all)).toBe('What lifts/pushes? All 3 parts picked.');
     // Again changes nothing.
     expect(fillAll(all)).toBe(all);
     const none = fillNone(all);
     expect(fillCurrent(none)?.chosen).toEqual([]);
-    expect(fillSentence(none)).toBe('What lifts? Click the parts on the board: 3 parts could.');
+    expect(fillSentence(none)).toBe('What lifts/pushes? Click the parts on the board: 3 parts could.');
     expect(fillNone(none)).toBe(none);
     // A click after Clear picks just that one.
     expect(fillCurrent(fillToggle(none, withCopy, registry, 'propeller@1,2').state)?.chosen).toEqual(['propeller@1,2']);
@@ -194,18 +194,18 @@ describe('filling slots', () => {
     builder.startFill(done(startFill(builder.draft, registry, entry('hover'))));
     expect(store.get().builder.fill).toMatchObject({ many: true, could: 2, picked: 2 });
     builder.fillPick(false);
-    expect(store.get().builder.fill).toMatchObject({ picked: 0, sentence: 'What lifts? Click the parts on the board: 2 parts could.' });
+    expect(store.get().builder.fill).toMatchObject({ picked: 0, sentence: 'What lifts/pushes? Click the parts on the board: 2 parts could.' });
     builder.fillPick(true);
-    expect(store.get().builder.fill).toMatchObject({ picked: 2, sentence: 'What lifts? These 2 parts look right.' });
+    expect(store.get().builder.fill).toMatchObject({ picked: 2, sentence: 'What lifts/pushes? These 2 parts look right.' });
     expect(builder.draft).toBe(flyer);
   });
 
   it('a required slot cannot be accepted empty or skipped; an optional one can be skipped and is left as it was', () => {
     let s = done(startFill(armed, registry, entry('hover')));
     s = fillToggle(fillToggle(s, armed, registry, 'propeller@-2,0').state, armed, registry, 'propeller@2,0').state;
-    expect(fillSentence(s)).toBe('What lifts? Click the parts on the board: 2 parts could.');
-    expect(fillAccept(s).refused).toBe('Hover needs "what lifts": pick at least one part, or cancel.');
-    expect(fillSkip(s).refused).toBe('Hover needs "what lifts": it cannot be skipped.');
+    expect(fillSentence(s)).toBe('What lifts/pushes? Click the parts on the board: 2 parts could.');
+    expect(fillAccept(s).refused).toBe('Hover needs "what lifts/pushes": pick at least one part, or cancel.');
+    expect(fillSkip(s).refused).toBe('Hover needs "what lifts/pushes": it cannot be skipped.');
     s = fillToggle(s, armed, registry, 'propeller@2,0').state;
     s = fillAccept(s).state;
     expect(fillSentence(s)).toBe('What levels? This part looks right.');
@@ -248,7 +248,7 @@ describe('filling slots', () => {
     const key = (code: string): boolean => builder.onKeyDown({ code, key: code, metaKey: false, ctrlKey: false, shiftKey: false } as KeyboardEvent);
 
     builder.startFill(done(startFill(builder.draft, registry, entry('hover'))));
-    expect(store.get().builder.fill).toMatchObject({ name: 'Hover', mode: 'add', sentence: 'What lifts? These 2 parts look right.', step: 1, steps: 1, optional: false, picked: 2 });
+    expect(store.get().builder.fill).toMatchObject({ name: 'Hover', mode: 'add', sentence: 'What lifts/pushes? These 2 parts look right.', step: 1, steps: 1, optional: false, picked: 2 });
     key('Escape');
     expect(store.get().builder.fill).toBeUndefined();
     expect(builder.draft).toBe(flyer);
@@ -282,7 +282,7 @@ describe('the card of a behavior', () => {
     expect(card?.from?.newer).toBeUndefined();
     expect(card?.header?.name).toBe('Hover');
     expect(card?.slots.map((s) => [s.slot.label, slotText(had.bp, registry, s), s.could])).toEqual([
-      ['what lifts', '2 propellers', 2],
+      ['what lifts/pushes', '2 propellers', 2],
       ['what levels', '1 gyro', 1],
     ]);
     expect(card?.params.map((p) => p.name)).toEqual(['height', 'hold', 'climb', 'lean', 'keys']);
@@ -305,7 +305,7 @@ describe('the card of a behavior', () => {
 
   it('says when a required slot is empty, and an ordinary script gets a plain card', () => {
     const emptied = { ...had.bp, parts: had.bp.parts.map((p) => ({ ...p, tags: p.tags.filter((t) => t !== 'lift') })) };
-    expect(behaviorCards(emptied, registry, shelf)[0]?.problems).toEqual(['"what lifts" is empty, so it does nothing yet.']);
+    expect(behaviorCards(emptied, registry, shelf)[0]?.problems).toEqual(['"what lifts/pushes" is empty, so it does nothing yet.']);
     const plain = { ...flyer, scripts: [{ id: 'mine', enabled: false, params: { speed: 3 }, source: `const speed = param('speed', 2); // m/s\nfunction tick() {}` }], bindings: [{ key: 'h', mode: 'script' as const, script: 'mine' }] };
     expect(behaviorCards(plain, registry, shelf)).toEqual([{ id: 'mine', enabled: false, loaded: true, slots: [], params: [{ name: 'speed', default: 2, help: 'm/s' }], problems: [], key: 'h' }]);
   });
@@ -313,10 +313,10 @@ describe('the card of a behavior', () => {
   it('change reopens one slot with what is in it, and a part taken out of an owned slot gets its own keys back', () => {
     let s = done(startChange(had.bp, registry, undefined, 'hover', 'lift'));
     expect(s.mode).toBe('change');
-    expect(fillSentence(s)).toBe('What lifts? These 2 parts now.');
+    expect(fillSentence(s)).toBe('What lifts/pushes? These 2 parts now.');
     s = fillToggle(s, had.bp, registry, 'propeller@2,0').state;
     const r = finishFill(had.bp, registry, fillAccept(s).state);
-    expect(r.ok && r.lines.map((l) => l.text)).toEqual(['Hover: "what lifts" is now 1 propeller.', '1 propeller taken out has its own key back.']);
+    expect(r.ok && r.lines.map((l) => l.text)).toEqual(['Hover: "what lifts/pushes" is now 1 propeller.', '1 propeller taken out has its own key back.']);
     expect(r.ok && r.bp.parts.filter((p) => p.part === 'propeller').map((p) => [p.tags.includes('lift'), p.auto])).toEqual([
       [true, false],
       [false, undefined],

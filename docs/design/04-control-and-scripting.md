@@ -158,7 +158,7 @@ A shared behavior is an ordinary script kept on a shelf: one `.js` file per beha
 // @behavior Hover
 // @about Holds a height and stays level, on anything that lifts.
 // @version 1
-// @slot lift throttle "what lifts" required many owns guess up
+// @slot lift throttle "what lifts/pushes" required many owns guess up
 // @slot level spin "what levels" optional many
 // @needs sensor "something that sees, such as a radar"
 // @note Anything worth telling whoever adds it.

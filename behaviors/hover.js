@@ -1,7 +1,7 @@
 // @behavior Hover
 // @about Holds a height and stays level, on anything that lifts. W and S move the height, A and D fly it sideways: it leans, and runs whatever pushes that way.
 // @version 3
-// @slot lift throttle "what lifts" required many owns
+// @slot lift throttle "what lifts/pushes" required many owns
 // @slot level spin "what levels" optional many
 // @note It reads each lifter's strength, place and direction off the part, and the robot's weight, every tick: add armor or one more lifter and it needs no retuning.
 // @note Lifters in the group that point down are used to push down when cutting the lift is not enough.
