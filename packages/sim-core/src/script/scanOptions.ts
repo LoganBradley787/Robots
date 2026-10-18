@@ -1,5 +1,6 @@
 import type { Face } from '../parts/types';
 import type { ScannedPart } from './types';
+import { asin, atan2, hypot } from '../math/fdlibm';
 
 /**
  * What `scan(id, opts)` asks for (M16, `04`, scan). Every option is worked out on the host, so a script that looks at
@@ -154,7 +155,7 @@ export function coverAlong(parts: readonly ScannedPart[], sel: readonly number[]
     const y = p.pos.y - from.y;
     rx[i] = x;
     ry[i] = y;
-    const r = Math.hypot(x, y);
+    const r = hypot(x, y);
     if (r > 0 && r < rmin) rmin = r;
   }
   const health: number[] = [];
@@ -169,32 +170,32 @@ export function coverAlong(parts: readonly ScannedPart[], sel: readonly number[]
     if (along <= 0 || along >= d - COVER_GAP) return;
     if (Math.abs(qx * uy - qy * ux) < wide) hits.push(q);
   };
-  // Sorting pays only when many parts are asked about; either way the same parts are found.
-  const sorted = sel.length > 2 * Math.log2(n + 1) + 8;
+  // Sorting pays only when many parts are asked about, more than 2 log2(n + 1) + 8; either way the same parts are found.
+  const sorted = manyAsked(sel.length, n + 1);
   let order: Int32Array | undefined;
   let ang: Float64Array | undefined;
   let half = Math.PI / 2;
   if (sorted) {
     const a = new Float64Array(n);
-    for (let i = 0; i < n; i++) a[i] = Math.atan2(ry[i] as number, rx[i] as number);
+    for (let i = 0; i < n; i++) a[i] = atan2(ry[i] as number, rx[i] as number);
     const idx = Array.from({ length: n }, (_, i) => i).sort((i, j) => (a[i] as number) - (a[j] as number) || i - j);
     order = Int32Array.from(idx);
     ang = Float64Array.from(idx, (i) => a[i] as number);
     // A part in front is within `wide` of the line and nearer than the part, so its angle off the line is under
     // asin(wide / its distance), and every part is at least `rmin` away.
     // A hair wider, so rounding in atan2 never leaves out a part on the edge (each is still tested exactly).
-    if (wide < rmin) half = Math.min(Math.PI / 2, Math.asin(wide / rmin) + 1e-9);
+    if (wide < rmin) half = Math.min(Math.PI / 2, asin(wide / rmin) + 1e-9);
   }
   for (const p of sel) {
     hits.length = 0;
     const x = rx[p] as number;
     const y = ry[p] as number;
-    const d = Math.hypot(x, y);
+    const d = hypot(x, y);
     if (d >= 0.1) {
       const ux = x / d;
       const uy = y / d;
       if (order && ang) {
-        const a = Math.atan2(y, x);
+        const a = atan2(y, x);
         const span = (lo: number, hi: number): void => {
           for (let k = lowerBound(ang, lo); k < n && (ang[k] as number) <= hi; k++) test(order[k] as number, p, ux, uy, d);
         };
@@ -210,6 +211,13 @@ export function coverAlong(parts: readonly ScannedPart[], sel: readonly number[]
     count.push(hits.length);
   }
   return { health, count };
+}
+
+/** Whether `asked` > 2 log2(m) + 8 for whole numbers, without the host's `Math.log2`: whether 2^(asked - 8) > m^2. */
+function manyAsked(asked: number, m: number): boolean {
+  let p = 1;
+  for (let i = 8; i < asked && p <= m * m; i++) p *= 2;
+  return asked > 8 && p > m * m;
 }
 
 /** The first index whose value is at least `v` in a sorted array. */

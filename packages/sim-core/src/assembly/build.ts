@@ -3,6 +3,7 @@ import type { JointId, PhysicsWorld, ShapeSpec } from '../physics/PhysicsWorld';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { BodyGroup, PartInstance } from '../world/Robot';
 import type { GroupPlan } from './assemble';
+import { cos, sin } from '../math/fdlibm';
 
 /**
  * Friction of a part cell with no `collider.friction` of its own: steel sliding on ground (Rapier's default is 0.5).
@@ -100,11 +101,11 @@ export function buildBodies(
       const dir = faceDir(opposite(rotateFace(js.mountFace, jp.rot)));
       const at = poses[g.index] as GroupPose;
       const pp = poses[g.joint.parentGroup] as GroupPose;
-      const cos = Math.cos(pp.angle);
-      const sin = Math.sin(pp.angle);
-      const ax = pp.x + cos * anchorParentX - sin * anchorParentY;
-      const ay = pp.y + sin * anchorParentX + cos * anchorParentY;
-      const extension = (at.x - ax) * (Math.cos(at.angle) * dir.x - Math.sin(at.angle) * dir.y) + (at.y - ay) * (Math.sin(at.angle) * dir.x + Math.cos(at.angle) * dir.y);
+      const c = cos(pp.angle);
+      const s = sin(pp.angle);
+      const ax = pp.x + c * anchorParentX - s * anchorParentY;
+      const ay = pp.y + s * anchorParentX + c * anchorParentY;
+      const extension = (at.x - ax) * (cos(at.angle) * dir.x - sin(at.angle) * dir.y) + (at.y - ay) * (sin(at.angle) * dir.x + cos(at.angle) * dir.y);
       jointId = physics.createPrismaticJoint(parent.bodyId, child.bodyId, { x: anchorParentX, y: anchorParentY }, dir, jp.def.behaviorConfig?.stroke ?? 1, extension, rel);
     } else {
       jointId = physics.createRevoluteJoint(parent.bodyId, child.bodyId, { x: anchorParentX, y: anchorParentY }, { x: 0, y: 0 }, motor, rel);

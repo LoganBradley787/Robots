@@ -1,6 +1,7 @@
 import * as RAPIER from '@dimforge/rapier2d-deterministic-compat';
 import type { StateHasher } from '../replay/StateHasher';
 import { compareText } from '../replay/compareText';
+import { cos, hypot, sin } from '../math/fdlibm';
 
 /** Stable id owned by us. Rapier handles are index plus generation and get reused; ours never do. */
 export type BodyId = number;
@@ -354,8 +355,8 @@ export class PhysicsWorld {
       const end = (b: RAPIER.RigidBody, anchor: { x: number; y: number }) => {
         const t = b.translation();
         const rot = b.rotation();
-        const c = Math.cos(rot);
-        const n = Math.sin(rot);
+        const c = cos(rot);
+        const n = sin(rot);
         const x = t.x + c * anchor.x - n * anchor.y;
         const y = t.y + n * anchor.x + c * anchor.y;
         const v = b.linvel();
@@ -418,11 +419,11 @@ export class PhysicsWorld {
   ): { from: RAPIER.RigidBody; fromAnchor: { x: number; y: number } } {
     if (relAngle === 0 && slide.x === 0 && slide.y === 0) return { from: this.body(parent), fromAnchor: anchorParent };
     const p = this.state(parent);
-    const c = Math.cos(p.angle);
-    const n = Math.sin(p.angle);
+    const c = cos(p.angle);
+    const n = sin(p.angle);
     // The pivot's spot in the parent's frame: the anchor plus the slide (turned from the child's rest frame into the parent's).
-    const cr = Math.cos(relAngle);
-    const sr = Math.sin(relAngle);
+    const cr = cos(relAngle);
+    const sr = sin(relAngle);
     const at = { x: anchorParent.x + cr * slide.x - sr * slide.y, y: anchorParent.y + sr * slide.x + cr * slide.y };
     const pivot = this.createBody({ x: p.x + c * at.x - n * at.y, y: p.y + n * at.x + c * at.y, kind: 'dynamic' }, HELPER_MASS);
     this.addHelper(child, pivot);
@@ -537,12 +538,12 @@ export class PhysicsWorld {
     const c = this.body(s.child);
     const ct = c.translation();
     const ca = c.rotation();
-    const ax = Math.cos(ca) * s.axis.x - Math.sin(ca) * s.axis.y;
-    const ay = Math.sin(ca) * s.axis.x + Math.cos(ca) * s.axis.y;
+    const ax = cos(ca) * s.axis.x - sin(ca) * s.axis.y;
+    const ay = sin(ca) * s.axis.x + cos(ca) * s.axis.y;
     const pt = p.translation();
     const pa = p.rotation();
-    const anchorX = pt.x + Math.cos(pa) * s.anchorParent.x - Math.sin(pa) * s.anchorParent.y;
-    const anchorY = pt.y + Math.sin(pa) * s.anchorParent.x + Math.cos(pa) * s.anchorParent.y;
+    const anchorX = pt.x + cos(pa) * s.anchorParent.x - sin(pa) * s.anchorParent.y;
+    const anchorY = pt.y + sin(pa) * s.anchorParent.x + cos(pa) * s.anchorParent.y;
     const position = (ct.x - anchorX) * ax + (ct.y - anchorY) * ay;
     // Velocity of each body at the child's origin: linear plus spin about the center of mass.
     const cc = c.worldCom();
@@ -702,7 +703,7 @@ export class PhysicsWorld {
       if (done) return;
       const pos = c.translation();
       const type = c.shapeType();
-      const reach = type === RAPIER.ShapeType.Ball ? c.radius() : type === RAPIER.ShapeType.Cuboid ? Math.hypot(c.halfExtents()?.x ?? Infinity, c.halfExtents()?.y ?? Infinity) : Infinity;
+      const reach = type === RAPIER.ShapeType.Ball ? c.radius() : type === RAPIER.ShapeType.Cuboid ? hypot(c.halfExtents()?.x ?? Infinity, c.halfExtents()?.y ?? Infinity) : Infinity;
       if (pos.x + reach < minX || pos.x - reach > maxX || pos.y + reach < minY || pos.y - reach > maxY) return;
       const rot = c.rotation();
       if (probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0))) done = visit(c);

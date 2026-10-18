@@ -1,6 +1,7 @@
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { REST_SPEED, REST_SPIN } from '../metrics/robotMetrics';
 import type { Robot } from './Robot';
+import { hypot } from '../math/fdlibm';
 
 /** Batch: how long a broken-off, coreless piece must rest before it is swept away, seconds. */
 export const DEBRIS_REST_SECONDS = 10;
@@ -22,7 +23,7 @@ export function isDebris(robot: Robot): boolean {
 function atRest(physics: PhysicsWorld, robot: Robot): boolean {
   for (const g of robot.groups) {
     const s = physics.state(g.bodyId);
-    if (Math.hypot(s.vx, s.vy) >= REST_SPEED || Math.abs(s.w) >= REST_SPIN) return false;
+    if (hypot(s.vx, s.vy) >= REST_SPEED || Math.abs(s.w) >= REST_SPIN) return false;
   }
   return true;
 }

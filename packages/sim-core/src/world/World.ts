@@ -43,6 +43,7 @@ import { WIND_ACT } from '../behaviors/cannon';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
 import { Grapples, type GrappleHost } from './grapple';
+import { atan2, cos, hypot, powInt, sin } from '../math/fdlibm';
 
 export interface SpawnRecord {
   tick: number;
@@ -132,8 +133,8 @@ export const IMPACT_HEARD = 2;
 
 /** The world center of each footprint cell of a part, from its origin cell's pose (M12, multi-cell parts). */
 function footprintPoses(origin: { x: number; y: number; angle: number }, part: PartInstance): BlastCell[] {
-  const c = Math.cos(origin.angle);
-  const s = Math.sin(origin.angle);
+  const c = cos(origin.angle);
+  const s = sin(origin.angle);
   return (part.footprint ?? part.def.footprint).map((fc) => {
     const o = rotateCell(fc, part.rot);
     return { x: origin.x + c * o.x - s * o.y, y: origin.y + s * o.x + c * o.y, angle: origin.angle };
@@ -909,7 +910,7 @@ export class World {
         let f = frames.get(part.group);
         if (!f) {
           const s = this.physics.state(robot.groups[part.group]?.bodyId ?? 0);
-          f = { x: s.x, y: s.y, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+          f = { x: s.x, y: s.y, c: cos(s.angle), n: sin(s.angle) };
           frames.set(part.group, f);
         }
         return { x: f.x + f.c * part.localX - f.n * part.localY, y: f.y + f.n * part.localX + f.c * part.localY };
@@ -1017,7 +1018,7 @@ export class World {
             const b = hull.body(p.group);
             const pose = { x: b.s.x + b.c * p.localX - b.n * p.localY, y: b.s.y + b.n * p.localX + b.c * p.localY, angle: b.s.angle };
             const cells = (p.footprint ?? p.def.footprint).length === 1 ? [pose] : footprintPoses(pose, p);
-            if (cells.some((c) => (c.x - at.x) ** 2 + (c.y - at.y) ** 2 <= sq)) return true;
+            if (cells.some((c) => (c.x - at.x) * (c.x - at.x) + (c.y - at.y) * (c.y - at.y) <= sq)) return true;
           }
         }
         return false;
@@ -1059,7 +1060,7 @@ export class World {
       let b = bodies[group];
       if (!b) {
         const s = this.physics.state(robot.groups[group]?.bodyId ?? 0);
-        b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+        b = { s, c: cos(s.angle), n: sin(s.angle) };
         bodies[group] = b;
       }
       return b;
@@ -1246,7 +1247,7 @@ export class World {
         if (part.health <= 0) continue;
         const pose = partWorldPose(this, robot, part.id);
         const own = (part.footprint ?? part.def.footprint).length === 1 ? [pose] : footprintPoses(pose, part);
-        const near = own.filter((c) => (c.x - b.x) ** 2 + (c.y - b.y) ** 2 <= reach * reach);
+        const near = own.filter((c) => (c.x - b.x) * (c.x - b.x) + (c.y - b.y) * (c.y - b.y) <= reach * reach);
         if (near.length === 0) continue;
         for (const c of near) {
           cells.push(c);
@@ -1338,8 +1339,8 @@ export class World {
       }),
     );
     const s = this.physics.state(robot.groups[part.group]?.bodyId ?? 0);
-    const c = Math.cos(s.angle);
-    const n = Math.sin(s.angle);
+    const c = cos(s.angle);
+    const n = sin(s.angle);
     const nx = c * d.x - n * d.y;
     const ny = n * d.x + c * d.y;
     this.pendingPushes.push({ part, jx: -nx * impulse, jy: -ny * impulse });
@@ -1449,8 +1450,8 @@ export class World {
       if (!m) continue;
       // Spread: off the barrel's line by up to `spread` degrees, center weighted (two draws averaged).
       const off = spec.spread > 0 ? ((spec.spread * Math.PI) / 180) * (noise(this.seed, this.tickCount, robot.id, part.id, 0) + noise(this.seed, this.tickCount, robot.id, part.id, 1) - 1) : 0;
-      const sx = m.dx * Math.cos(off) - m.dy * Math.sin(off);
-      const sy = m.dx * Math.sin(off) + m.dy * Math.cos(off);
+      const sx = m.dx * cos(off) - m.dy * sin(off);
+      const sy = m.dx * sin(off) + m.dy * cos(off);
       this.shells.push({
         x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + sx * spec.speed, vy: m.vy + sy * spec.speed,
         robot: robot.id, gun: part.id, damage: spec.damage, push: spec.recoil, left: Math.max(1, Math.round(spec.life / this.dt)),
@@ -1659,7 +1660,7 @@ export class World {
     beam.hitRobot = hitRobot.id;
     beam.hitPart = hitPart.id;
     if (hitPart.health <= 0) return undefined;
-    return { hitRobot, hitPart, damage: spec.dps * this.dt * power * 0.5 ** smoke, x: x2, y: y2 };
+    return { hitRobot, hitPart, damage: spec.dps * this.dt * power * powInt(0.5, smoke), x: x2, y: y2 };
   }
 
   /** How `robot` reads `seen` (M8 contacts rule): itself, a robot nobody controls, a friend, or an enemy. */
@@ -1676,7 +1677,7 @@ export class World {
       const range = sightRange(part);
       if (range === undefined || part.sight) continue;
       const m = this.muzzle(robot, part);
-      if (m) part.sight = { distance: range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
+      if (m) part.sight = { distance: range, side: SIGHT.nothing, id: 0, aim: atan2(m.dy, m.dx) };
     }
   }
 
@@ -1688,8 +1689,8 @@ export class World {
     const com = this.physics.massProperties(group.bodyId);
     const pose = partWorldPose(this, robot, part.id);
     const f = faceDir(rotateFace(part.def.acts, part.rot));
-    const c = Math.cos(s.angle);
-    const n = Math.sin(s.angle);
+    const c = cos(s.angle);
+    const n = sin(s.angle);
     const dx = c * f.x - n * f.y;
     const dy = n * f.x + c * f.y;
     let x = pose.x + 0.5 * dx;
@@ -1784,7 +1785,7 @@ export class World {
     const range = sightRange(part);
     const m = range !== undefined && part.health > 0 ? this.muzzle(robot, part) : undefined;
     if (range === undefined || !m) return;
-    const sight: GunSight = { distance: range, side: SIGHT.nothing, id: 0, aim: Math.atan2(m.dy, m.dx) };
+    const sight: GunSight = { distance: range, side: SIGHT.nothing, id: 0, aim: atan2(m.dy, m.dx) };
     const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, range, (b, owner) => owner === part.id && bodies.get(b) === robot);
     if (hit) {
       sight.distance = hit.distance;
@@ -1891,8 +1892,8 @@ export class World {
   /** A bay's hollow as probes: a ball a little smaller than a cell on each of its cells (any tilt). */
   private hollowProbes(robot: Robot, bay: PartInstance, placed: PlacedPart): { x: number; y: number; shape: ShapeSpec }[] {
     const pose = partWorldPose(this, robot, bay.id);
-    const c = Math.cos(pose.angle);
-    const s = Math.sin(pose.angle);
+    const c = cos(pose.angle);
+    const s = sin(pose.angle);
     return hollowAt(placed, bay.def).map((h) => {
       const dx = h.x - placed.x;
       const dy = h.y - placed.y;
@@ -1958,8 +1959,8 @@ export class World {
     if (this.tickCount - since < bayClearAfterTicks(this.dt)) return;
     const d = faceDir(rotateFace(bay.def.acts ?? 'N', bay.rot));
     const s = this.physics.state(robot.groups[bay.group]?.bodyId ?? 0);
-    const c = Math.cos(s.angle);
-    const n = Math.sin(s.angle);
+    const c = cos(s.angle);
+    const n = sin(s.angle);
     const nx = c * d.x - n * d.y;
     const ny = n * d.x + c * d.y;
     for (const l of loose) this.pendingPushes.push({ part: l.part, jx: nx * l.mass * BAY_CLEAR_SPEED, jy: ny * l.mass * BAY_CLEAR_SPEED });
@@ -1989,8 +1990,8 @@ export class World {
     if (spec.clearAfter !== undefined && held.length > 0) this.leaving.set(bay, { since: this.tickCount, scope, parts: held });
     const d = faceDir(rotateFace(bay.def.acts ?? 'N', bay.rot));
     const s = this.physics.state(robot.groups[bay.group]?.bodyId ?? 0);
-    const c = Math.cos(s.angle);
-    const n = Math.sin(s.angle);
+    const c = cos(s.angle);
+    const n = sin(s.angle);
     const nx = c * d.x - n * d.y;
     const ny = n * d.x + c * d.y;
     if (held.length > 0) {
@@ -2193,7 +2194,7 @@ export class World {
       let b = bodies[group];
       if (!b) {
         const s = this.bodyState(robot.groups[group]?.bodyId ?? 0);
-        b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+        b = { s, c: cos(s.angle), n: sin(s.angle) };
         bodies[group] = b;
       }
       return b;
@@ -2391,7 +2392,7 @@ export class World {
       const near = bubbles ? jamNear(bubbles, pose) : undefined;
       if (near !== undefined && !(near > 0)) continue;
       const d = faceDir(rotateFace(p.def.acts ?? 'N', p.rot));
-      out.push({ id, x: pose.x, y: pose.y, facing: pose.angle + Math.atan2(d.y, d.x), cone: spec.cone, range: spec.range, ...(near !== undefined ? { jamNear: near } : {}) });
+      out.push({ id, x: pose.x, y: pose.y, facing: pose.angle + atan2(d.y, d.x), cone: spec.cone, range: spec.range, ...(near !== undefined ? { jamNear: near } : {}) });
     }
     return out;
   }
@@ -2491,7 +2492,7 @@ export class World {
       if (near === undefined) {
         const theirs = this.workingRadios(friend);
         // In reach when some pair of working radios is within both ranges.
-        near = radios.some((a) => theirs.some((b) => Math.hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)));
+        near = radios.some((a) => theirs.some((b) => hypot(a.x - b.x, a.y - b.y) <= Math.min(a.range, b.range)));
         reach.set(friend, near);
       }
       return near;
@@ -2506,7 +2507,7 @@ export class World {
       for (const r of reports) {
         if (r.friend === robot || !inReach(r.friend)) continue;
         first ??= r;
-        const distance = Math.hypot(r.contact.pos.x - from.x, r.contact.pos.y - from.y);
+        const distance = hypot(r.contact.pos.x - from.x, r.contact.pos.y - from.y);
         if (best && least <= distance) continue;
         best = r;
         least = distance;
@@ -2595,7 +2596,7 @@ export class World {
       for (const d of decoys ?? NO_DECOYS) {
         // One still on the robot it stands in for is just part of it (lit, not let go yet).
         if (d.robot === other) continue;
-        const dist = Math.hypot(d.pos.x - from.x, d.pos.y - from.y);
+        const dist = hypot(d.pos.x - from.x, d.pos.y - from.y);
         if (dist >= best) continue;
         const hid = bubbles ? jamNear(bubbles, d.pos) : undefined;
         const b = sensors.filter((s) => throughJam(s, d.pos, hid) && sees(s, d.pos, terrain, this.clouds)).map((s) => s.id);
@@ -2616,7 +2617,7 @@ export class World {
       if (at) fooled?.set(other.id, at);
       // Seen at a decoy, its center keeps the same offset from its position as the robot's own.
       const center = at ? { x: at.pos.x + ref.center.x - ref.pos.x, y: at.pos.y + ref.center.y - ref.pos.y } : ref.center;
-      const contact: ScriptContact = { id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center, mass: ref.mass, parts: other.parts.size, distance: Math.hypot(pos.x - from.x, pos.y - from.y), by };
+      const contact: ScriptContact = { id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center, mass: ref.mass, parts: other.parts.size, distance: hypot(pos.x - from.x, pos.y - from.y), by };
       out.push(contact);
       if (!pass) continue;
       // Its JSON text up to the distance: all but the side is the same for every viewer, unless it is seen at a decoy.
@@ -2725,7 +2726,7 @@ export class World {
         // No body: the plain reader says what is wrong.
         if (!group) return partWorldPose(this, robot, part.id);
         const s = this.physics.state(group.bodyId);
-        b = { s, c: Math.cos(s.angle), n: Math.sin(s.angle) };
+        b = { s, c: cos(s.angle), n: sin(s.angle) };
         bodies[part.group] = b;
       }
       return { x: b.s.x + b.c * part.localX - b.n * part.localY, y: b.s.y + b.n * part.localX + b.c * part.localY, angle: b.s.angle };
@@ -3299,6 +3300,6 @@ function poolContainers(robot: Robot, chunk: number): Container[] {
  */
 function throughJam(s: SensorPose, p: { x: number; y: number }, hid: number | undefined): boolean {
   if (s.jamNear === undefined && hid === undefined) return true;
-  const d = Math.hypot(p.x - s.x, p.y - s.y);
+  const d = hypot(p.x - s.x, p.y - s.y);
   return (s.jamNear === undefined || d <= s.jamNear) && (hid === undefined || d <= hid);
 }

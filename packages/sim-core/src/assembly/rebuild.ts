@@ -3,6 +3,7 @@ import type { BodyId, PhysicsWorld } from '../physics/PhysicsWorld';
 import type { BodyGroup, PartInstance, Robot } from '../world/Robot';
 import { assembleParts, type AssemblyLinks, type GroupPlan } from './assemble';
 import { buildBodies, type GroupPose } from './build';
+import { cos, sin } from '../math/fdlibm';
 
 /** A body's pose and motion; velocity is the center of mass's. */
 export interface BodyMotion {
@@ -113,8 +114,8 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
     const p = all.get(id);
     const m = p === undefined ? undefined : motions.get(p.group);
     if (p === undefined || m === undefined) return undefined;
-    const c = Math.cos(m.angle);
-    const n = Math.sin(m.angle);
+    const c = cos(m.angle);
+    const n = sin(m.angle);
     return { x: m.x + c * p.localX - n * p.localY, y: m.y + n * p.localX + c * p.localY, angle: m.angle };
   };
 

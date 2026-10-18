@@ -29,7 +29,7 @@ export const gyro: Behavior = {
     }
     const cx = mx / mass;
     const cy = my / mass;
-    const inertia = props.reduce((sum, p) => sum + p.inertia + p.mass * ((p.comX - cx) ** 2 + (p.comY - cy) ** 2), 0);
+    const inertia = props.reduce((sum, p) => sum + p.inertia + p.mass * ((p.comX - cx) * (p.comX - cx) + (p.comY - cy) * (p.comY - cy)), 0);
     const cap = damp * ctx.config('dampTorque');
     const torque = Math.max(-cap, Math.min(cap, (-inertia * w) / ctx.config('dampTime')));
     return { load: Math.abs(torque) / max, run: (grant) => ctx.physics.addTorque(body, torque * grant) };

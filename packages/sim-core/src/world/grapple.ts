@@ -3,6 +3,7 @@ import type { StateHasher } from '../replay/StateHasher';
 import { faceDir, rotateFace } from '../parts/faces';
 import type { PartInstance, Robot } from './Robot';
 import type { WorldEvent } from './World';
+import { cos, sin } from '../math/fdlibm';
 
 /**
  * Grapples (Batch): a part that fires a hook and ties a rope. The rope is a record here (the two ends, the anchor on
@@ -95,8 +96,8 @@ export class Grapples {
 
   private end(host: GrappleHost, body: BodyId, lx: number, ly: number): End {
     const s = host.physics.state(body);
-    const c = Math.cos(s.angle);
-    const n = Math.sin(s.angle);
+    const c = cos(s.angle);
+    const n = sin(s.angle);
     return { body, lx, ly, x: s.x + c * lx - n * ly, y: s.y + n * lx + c * ly };
   }
 
@@ -195,8 +196,8 @@ export class Grapples {
     const s = host.physics.state(hit.body);
     const px = m.x + m.dx * hit.distance - s.x;
     const py = m.y + m.dy * hit.distance - s.y;
-    const c = Math.cos(s.angle);
-    const n = Math.sin(s.angle);
+    const c = cos(s.angle);
+    const n = sin(s.angle);
     // The hit point in the body's frame.
     const lx = c * px + n * py;
     const ly = -n * px + c * py;

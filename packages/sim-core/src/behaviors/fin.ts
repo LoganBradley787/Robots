@@ -1,5 +1,6 @@
 import { faceDir, rotateFace } from '../parts/faces';
 import type { Behavior } from './registry';
+import { cos, sin } from '../math/fdlibm';
 
 /** Density of the air, kg per cubic meter. A fin's k is half of this times its area. */
 export const AIR_DENSITY = 1.2;
@@ -21,8 +22,8 @@ export const fin: Behavior = {
     if (acts === undefined) return undefined;
     const bodyId = ctx.group.bodyId;
     const s = ctx.physics.state(bodyId);
-    const c = Math.cos(s.angle);
-    const sn = Math.sin(s.angle);
+    const c = cos(s.angle);
+    const sn = sin(s.angle);
     const px = s.x + c * ctx.part.localX - sn * ctx.part.localY;
     const py = s.y + sn * ctx.part.localX + c * ctx.part.localY;
     // The body's velocity at the cell: the center of mass moves at (vx, vy) and the body turns at w about it.
@@ -37,8 +38,8 @@ export const fin: Behavior = {
     const ax = c * dir.x - sn * dir.y;
     const ay = sn * dir.x + c * dir.y;
     const turn = Math.max(-1, Math.min(1, ctx.value('deflect'))) * ctx.config('deflect') * (Math.PI / 180);
-    const nx = Math.cos(turn) * -ay - Math.sin(turn) * ax;
-    const ny = Math.cos(turn) * ax - Math.sin(turn) * ay;
+    const nx = cos(turn) * -ay - sin(turn) * ax;
+    const ny = cos(turn) * ax - sin(turn) * ay;
     const across = vx * nx + vy * ny;
     if (across === 0) return undefined;
     const f = -0.5 * AIR_DENSITY * ctx.config('area') * across * speed;

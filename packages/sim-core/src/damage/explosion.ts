@@ -1,4 +1,5 @@
 import type { ExplodeSpec } from '../parts/types';
+import { cos, powInt, sin } from '../math/fdlibm';
 
 /** A part cell in world space: its center and its body's angle. */
 export interface BlastCell {
@@ -58,7 +59,7 @@ export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec
         if (j !== i && segmentHitsBox(center.x, center.y, c.x, c.y, b.x, b.y, COVER_HALF, COVER_HALF, b.angle)) hits++;
       }
       for (const t of terrain) if (segmentHitsBox(center.x, center.y, c.x, c.y, t.x, t.y, t.hx, t.hy, t.angle)) hits++;
-      damage[i] = spec.damage * (1 - d / spec.radius) * COVER_FACTOR ** hits;
+      damage[i] = spec.damage * (1 - d / spec.radius) * powInt(COVER_FACTOR, hits);
     }
     if (d < spec.pushRadius && d > 1e-9) {
       const j = spec.push * (1 - d / spec.pushRadius);
@@ -75,8 +76,8 @@ export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec
 
 /** Whether the segment from (ax, ay) to (bx, by) crosses the box (center, half extents, angle). Slab test. */
 export function segmentHitsBox(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, hx: number, hy: number, angle: number): boolean {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
+  const c = cos(angle);
+  const s = sin(angle);
   // Into the box's frame.
   const toLocal = (x: number, y: number): [number, number] => [c * (x - cx) + s * (y - cy), -s * (x - cx) + c * (y - cy)];
   const [px, py] = toLocal(ax, ay);

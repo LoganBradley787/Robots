@@ -1,6 +1,7 @@
 import { faceDir, rotateFace } from '../parts/faces';
 import type { Behavior, BehaviorContext } from './registry';
 import type { Face } from '../parts/types';
+import { cos, sin } from '../math/fdlibm';
 
 /**
  * Thrusters and propellers: throttle * maxForce along the direction the part acts (its `acts` face, rotated with
@@ -33,10 +34,10 @@ function swivelAngle(ctx: BehaviorContext): number {
 function push(ctx: BehaviorContext, acts: Face, t: number, tilt: number): void {
   const face = faceDir(rotateFace(acts, ctx.part.rot));
   // Turn the push direction by the swivel (exactly the face direction when there is none).
-  const dir = tilt === 0 ? face : { x: Math.cos(tilt) * face.x - Math.sin(tilt) * face.y, y: Math.sin(tilt) * face.x + Math.cos(tilt) * face.y };
+  const dir = tilt === 0 ? face : { x: cos(tilt) * face.x - sin(tilt) * face.y, y: sin(tilt) * face.x + cos(tilt) * face.y };
   const s = ctx.physics.state(ctx.group.bodyId);
-  const c = Math.cos(s.angle);
-  const n = Math.sin(s.angle);
+  const c = cos(s.angle);
+  const n = sin(s.angle);
   const dx = c * dir.x - n * dir.y;
   const dy = n * dir.x + c * dir.y;
   const px = s.x + c * ctx.part.localX - n * ctx.part.localY;

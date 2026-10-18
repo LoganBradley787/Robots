@@ -1,5 +1,6 @@
 import type { Robot } from '../world/Robot';
 import type { World } from '../world/World';
+import { cos, hypot, sin } from '../math/fdlibm';
 
 export interface RobotSample {
   tick: number;
@@ -30,8 +31,8 @@ export function partWorldPose(world: World, robot: Robot, partId: string): { x: 
   const group = part ? robot.groups[part.group] : undefined;
   if (!part || !group) throw new Error(`robot ${robot.name} has no part ${partId}`);
   const s = world.physics.state(group.bodyId);
-  const c = Math.cos(s.angle);
-  const n = Math.sin(s.angle);
+  const c = cos(s.angle);
+  const n = sin(s.angle);
   return { x: s.x + c * part.localX - n * part.localY, y: s.y + n * part.localX + c * part.localY, angle: s.angle };
 }
 
@@ -58,7 +59,7 @@ export function sampleRobot(world: World, robot: Robot): RobotSample {
     mx += mp.mass * mp.comX;
     my += mp.mass * mp.comY;
     const s = world.physics.state(g.bodyId);
-    if (Math.hypot(s.vx, s.vy) >= REST_SPEED || Math.abs(s.w) >= REST_SPIN) resting = false;
+    if (hypot(s.vx, s.vy) >= REST_SPEED || Math.abs(s.w) >= REST_SPIN) resting = false;
   }
   return {
     tick: world.tick,
@@ -66,7 +67,7 @@ export function sampleRobot(world: World, robot: Robot): RobotSample {
     coreX: pose.x,
     coreY: pose.y,
     tiltDeg: degrees(pose.angle),
-    speed: Math.hypot(anchorState.vx, anchorState.vy),
+    speed: hypot(anchorState.vx, anchorState.vy),
     massKg: mass,
     comX: mass > 0 ? mx / mass : pose.x,
     comY: mass > 0 ? my / mass : pose.y,
