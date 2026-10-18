@@ -12,13 +12,14 @@ import { formatParts, partRows } from './commands/parts';
 import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
-import { defaultRegistry, isRotation, orientRaw, type Rotation } from '@robots/sim-core';
+import { defaultRegistry, isRotation, orientRaw, parseReplay, type ReplayFile, type Rotation } from '@robots/sim-core';
 import { parseTeam } from './spawnSpec';
 import { parseDrop } from './drops';
 import { flagProblem } from './flags';
 import { bench, BENCH_SCENES, formatBench, type BenchScene } from './commands/bench';
 import { duel, formatDuel, SpawnRefused, type Bounds, type DuelEntry } from './commands/duel';
 import { formatResults, parseRoster, rankingTable, runTournament, speedTable } from './commands/tournament';
+import { compareTickHashes, formatTickHashes, HASH_SCENES, readTickHashes, sceneReplay, tickHashes, type HashScene, type TickHashes } from './commands/hashes';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
 
@@ -38,6 +39,13 @@ commands
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
   replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
                      ends in the same state (exit 1 on mismatch)
+  hashes <arena|battle|replay> [--seconds <n>] [--save <file>] [--against <file>]
+                     the state hash after every tick (M16), to prove another engine reaches the same bits:
+                     arena (a laser tower and a truck against a many-gun drone and a drone, 21 s), battle
+                     (the Sandbox menu's 6 against 6, 20 s), or a replay file. Prints the tick count, the
+                     last hash, and one digest of them all. --save writes the replay with every hash, for a
+                     browser to run (docs/design/01-architecture.md, Determinism); --against reruns a file
+                     saved that way (no scene needed) and names the first tick that differs (exit 1)
   tune               measure the driving targets on test robots
   place <target> <source> --at x,y [--rot 90] [--mirror] [--save <name>] [--force]
                      place a copy of <source> on <target> with its root part at cell (x, y) of <target>'s
@@ -178,6 +186,7 @@ async function main(): Promise<number> {
   }
   if (command === 'mirror') return mirror(positional, flags);
   if (command === 'bench') return benchCommand(positional, flags);
+  if (command === 'hashes') return hashesCommand(positional, flags);
   if (command === 'duel') return duelCommand(positional, flags);
   if (command === 'tournament') return tournamentCommand(positional, flags);
   if (!['run', 'show', 'validate', 'determinism'].includes(command)) {
@@ -249,6 +258,38 @@ async function main(): Promise<number> {
     }
     throw e;
   }
+}
+
+async function hashesCommand(positional: string[], flags: Map<string, string>): Promise<number> {
+  const arg = positional[1];
+  const againstPath = flags.get('against');
+  const against = againstPath === undefined ? undefined : readTickHashes(resolveUserPath(againstPath));
+  let replay: ReplayFile;
+  if (arg === undefined) {
+    if (!against) {
+      console.error(`hashes needs ${HASH_SCENES.join(', ')}, or a replay file (or --against <file> to rerun a saved one)`);
+      return 2;
+    }
+    replay = against.replay;
+  } else if ((HASH_SCENES as readonly string[]).includes(arg)) {
+    const seconds = flags.has('seconds') ? numberFlag(flags, 'seconds', 1) : undefined;
+    if (seconds !== undefined && seconds <= 0) {
+      console.error(`--seconds must be more than 0, got ${seconds}`);
+      return 2;
+    }
+    replay = await sceneReplay(arg as HashScene, seconds);
+  } else replay = parseReplay(readJson(resolveReplay(arg)));
+  const here: TickHashes = await tickHashes(replay);
+  console.log(formatTickHashes(here));
+  const save = flags.get('save');
+  if (save !== undefined) {
+    writeFileSync(resolveUserPath(save), `${JSON.stringify(here)}\n`);
+    console.log(`saved ${save}`);
+  }
+  if (!against) return 0;
+  const c = compareTickHashes(here, against);
+  console.log(c.text);
+  return c.same ? 0 : 1;
 }
 
 async function benchCommand(positional: string[], flags: Map<string, string>): Promise<number> {

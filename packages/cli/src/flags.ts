@@ -19,6 +19,7 @@ export const COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
   place: ['at', 'rot', 'mirror', 'save', 'force'],
   mirror: ['axis', 'save', 'force'],
   bench: ['n', 'seconds', 'json'],
+  hashes: ['seconds', 'save', 'against'],
   duel: ['ya', 'yb', 'seed', 'seconds', 'world', 'bounds', 'json'],
   tournament: ['seeds', 'seconds', 'jobs', 'out', 'only', 'world', 'bounds', 'speed-seconds'],
 };

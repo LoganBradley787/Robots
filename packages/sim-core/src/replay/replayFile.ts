@@ -131,3 +131,14 @@ export async function runReplay(
   const hash = world.hash();
   return { world, hash, matches: hash === replay.endHash };
 }
+
+/**
+ * The state hash after every tick of a replay, first to last (M16). The same replay must give the same list in Node
+ * and in every browser: `pnpm sim hashes` saves Node's, and a browser's is compared with it (`01`, Determinism).
+ */
+export async function replayHashes(replay: ReplayFile, scripts?: ScriptHost): Promise<string[]> {
+  const hashes: string[] = [];
+  const r = await runReplay(replay, (world) => hashes.push(world.hash()), scripts);
+  r.world.dispose();
+  return hashes;
+}

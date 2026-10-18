@@ -47,7 +47,7 @@ function loadBlueprint(name: string, enableScripts: boolean): unknown {
 }
 
 /** The default world, widened so `width` meters of robots fit on it. */
-function worldFor(width: number): WorldFile {
+export function worldFor(width: number): WorldFile {
   const file = parseWorldFile(readJson(DEFAULT_WORLD));
   return { ...file, ground: { ...file.ground, width: Math.max(file.ground.width, width + 400) } };
 }
@@ -64,6 +64,15 @@ function spawnRow(world: World, bp: unknown, n: number, gap: number, y: number, 
   if (placed < n) throw new Error(`bench: only ${placed} of ${n} robots fit`);
 }
 
+/** The battle scene (also `pnpm sim hashes battle`): n enemy drones a side, team 1 on the left against team 2 flipped. */
+export function spawnBattle(world: World, n: number): void {
+  const left = loadBlueprint('enemy-drone', false);
+  const right = readBlueprint(resolveBlueprint('enemy-drone')).raw;
+  const flipped = orientRaw(right, { flip: true }, world.registry);
+  spawnRow(world, left, n, 25, 20, -150 - n * 25, 1);
+  spawnRow(world, flipped, n, 25, 22, 150, 2);
+}
+
 async function benchOne(scene: BenchScene, n: number, seconds: number): Promise<BenchRow> {
   const { host, clock } = timedHost(await scriptHost());
   const gap = scene === 'debris' ? 2 : 30;
@@ -77,11 +86,7 @@ async function benchOne(scene: BenchScene, n: number, seconds: number): Promise<
       const bp = loadBlueprint('flying-silo', true);
       for (let i = 0; i < n; i++) world.spawnBlueprint(bp, { x: -200 + i * 60, y: 0.5 });
     } else if (scene === 'battle') {
-      const left = loadBlueprint('enemy-drone', false);
-      const right = readBlueprint(resolveBlueprint('enemy-drone')).raw;
-      const flipped = orientRaw(right, { flip: true }, world.registry);
-      spawnRow(world, left, n, 25, 20, -150 - n * 25, 1);
-      spawnRow(world, flipped, n, 25, 22, 150, 2);
+      spawnBattle(world, n);
     } else {
       const piece = { format: 1, name: 'debris', grid: ['F'] };
       const perRow = 50;

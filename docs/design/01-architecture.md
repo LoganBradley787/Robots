@@ -63,6 +63,17 @@ Rendering runs on `requestAnimationFrame` and interpolates between the last two 
 - State hashes are computed from the tick, the RNG state, and per-body position and velocity as exact float bits (not quantized: the deterministic build should be bit-identical, and any drift should show at once), never from raw snapshot bytes, which differ across Rapier build variants.
 - Script interruption uses an instruction budget where the backend supports it (see `04` and `docs/research/script-sandbox.md`).
 - Replay = world file + blueprint set + input log. A CI test simulates, replays, and compares state hashes.
+- No host `Math` function the engine may approximate (M16). ECMAScript lets each engine compute `Math.sin`, `cos`, `atan2`, `asin`, `hypot`, `log2`, `pow` and `**` its own way, and they do: Chrome 155's `Math.cos` is correctly rounded, Node 24's is fdlibm (and Node for arm64 fuses fdlibm's multiply-adds, so it differs again in about 1 call in 200), each one unit in the last place apart now and then. That was enough for a fight to part at tick 35 between Chrome and Node. `sim-core` calls its own `sin`, `cos`, `atan`, `atan2`, `asin`, `hypot` and `powInt` from `src/math/fdlibm.ts`: a port of fdlibm (the library V8 ships) written only with `+ - * /`, `Math.sqrt`, `Math.abs`, `Math.floor`, integer ops and a double's bits, which are exact in every engine. They give what Node for x64 gives, bit for bit (no difference in 14.4 million samples). `test/hostMath.test.ts` fails on any other `Math` call, `Math[...]`, or `**` in `sim-core/src` (comments aside); the exact ones it allows are `abs`, `ceil`, `clz32`, `floor`, `fround`, `imul`, `max`, `min`, `round`, `sign`, `sqrt`, `trunc` and the constants. Rapier and QuickJS do their math inside their wasm, which is the same bytes and exact IEEE operations everywhere, so robot scripts' `Math` is the same in every engine already.
+- Checking another engine tick by tick: `pnpm sim hashes arena --save replays/arena.hashes.json` (or `battle`, the Sandbox menu's 6 against 6, or any replay file) runs the scene in Node and saves its replay with the state hash after every tick. To run it in a browser, start the dev server (`pnpm dev`) and paste into the page's console, with `<repo>` the checkout's absolute path:
+  ```js
+  const core = await import('/@fs<repo>/packages/sim-core/src/index.ts');
+  const qjs = (await import('/@id/@jitl/quickjs-singlefile-browser-release-sync')).default;
+  const saved = await (await fetch('/@fs<repo>/replays/arena.hashes.json')).json();
+  const got = await core.replayHashes(core.parseReplay(saved.replay), await core.createQuickJsHost(qjs));
+  const at = got.findIndex((h, i) => h !== saved.hashes[i]);
+  at < 0 && got.length === saved.hashes.length ? `same at all ${got.length} ticks` : `differs from tick ${at + 1}`;
+  ```
+  `pnpm sim hashes --against <file>` does the same in another Node (another machine, x64 against arm64). There is no browser in CI, so this is run by hand after a change to how the sim does math. Last run (2026-10-18): Chrome 155 and Node 24.4.1 (arm64) the same at all 1260 ticks of `arena` (ending `c121f204`) and all 1200 of `battle` (ending `aa64c5b1`).
 
 ## Events
 Typed event bus on `World`: `RobotSpawned`, `PartDestroyed`, `ChunkSplit`, `ExplosionFired`, `CoreDied`, `CoreActivated`, `EnergyEmpty`, `ScriptCrashed`. Render and UI subscribe. Sim modules also use it to stay decoupled (damage publishes, assembly reacts).
