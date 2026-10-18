@@ -1,6 +1,6 @@
 // @behavior Guide
 // @about Steers toward the enemy it tracks and flies into it, for a missile or a drone that should close on its target.
-// @version 1
+// @version 2
 // @slot push throttle "what pushes" required many owns
 // @slot steer spin|swivel|deflect "what steers" required many owns
 // @slot blast detonate "what goes off" optional many
@@ -55,6 +55,19 @@ function say(text) {
 }
 
 /**
+ * Where a part's weight is: the middle of its cells (`center`, from its position when built unturned), turned as the
+ * part is. A part of one cell is its position; a cannon or a fabricator bay is meters off its first cell.
+ */
+function middle(p) {
+  const c = p.center;
+  if (!c || (c.x === 0 && c.y === 0)) return p.pos;
+  const a = p.angle + p.rot * RAD;
+  const cs = Math.cos(a);
+  const sn = Math.sin(a);
+  return { x: p.pos.x + c.x * cs - c.y * sn, y: p.pos.y + c.x * sn + c.y * cs };
+}
+
+/**
  * The robot as it flies, from every part still attached: where its weight is, how heavy it is to turn, what pushes it
  * (each with its full push, the way it pushes with its swivel straight, and where it is from the middle), the way they
  * push together (the nose), and the parts that steer and go off.
@@ -64,9 +77,10 @@ function body() {
   let mx = 0;
   let my = 0;
   for (const p of parts) {
+    const m = middle(p);
     mass += p.mass;
-    mx += p.mass * p.pos.x;
-    my += p.mass * p.pos.y;
+    mx += p.mass * m.x;
+    my += p.mass * m.y;
   }
   const cx = mass > 0 ? mx / mass : self.pos.x;
   const cy = mass > 0 ? my / mass : self.pos.y;
@@ -80,8 +94,9 @@ function body() {
   const plates = [];
   const blasts = [];
   for (const p of parts) {
-    const rx = p.pos.x - cx;
-    const ry = p.pos.y - cy;
+    const m = middle(p);
+    const rx = m.x - cx;
+    const ry = m.y - cy;
     // Each part is a 1 m box: m / 6 about its own center, plus m r^2 about the center of mass.
     inertia += p.mass * (rx * rx + ry * ry + 1 / 6);
     const acts = p.spec.acts === undefined ? undefined : p.angle + (p.rot + p.spec.acts) * RAD;

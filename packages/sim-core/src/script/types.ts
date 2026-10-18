@@ -136,8 +136,10 @@ export interface ScriptInput {
    * from input built by hand without it. `rot` and `on` (M16, `frame.ts`, `LayoutPart`): how the part was built turned,
    * in degrees counterclockwise, and the id of the joint part that carries it ('' for none). `angle` is its body's
    * angle, so the way it acts is `angle` plus `rot + spec.acts` degrees. Absent only from input built by hand.
+   * `center` (M16 review): where its middle is (its weight), from `pos`, built unturned, at the size it was placed: in
+   * the world, `pos` plus this turned by `angle + rot` degrees. 0, 0 for a part of one cell. With `rot` and `on`.
    */
-  parts: { id: string; type: string; tags: string[]; pos: { x: number; y: number }; angle: number; mass: number; in: Record<string, number>; out: Record<string, number>; rot?: number; on?: string; spec?: ScriptPartSpec }[];
+  parts: { id: string; type: string; tags: string[]; pos: { x: number; y: number }; angle: number; mass: number; in: Record<string, number>; out: Record<string, number>; rot?: number; on?: string; center?: { x: number; y: number }; spec?: ScriptPartSpec }[];
   keys: { down: string[]; pressed: string[]; released: string[] };
   /** M8: robots this robot's sensors see, nearest first. Empty without sensors. */
   contacts: ScriptContact[];

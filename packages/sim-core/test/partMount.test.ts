@@ -28,7 +28,8 @@ async function said(bp: unknown): Promise<unknown> {
   return JSON.parse(line ?? 'null');
 }
 
-const LIST = `function tick() { if (!state.done) { state.done = true; log(JSON.stringify(parts.map((p) => [p.type, p.rot, p.on, Object.keys(p).join()]))); } }`;
+/** Each part's type, rot and on, and the keys every part has (a log line is at most 300 characters). */
+const LIST = `function tick() { if (!state.done) { state.done = true; const k = (p) => Object.keys(p).join(); log(JSON.stringify([parts.every((p) => k(p) === k(parts[0])) && k(parts[0]), parts.map((p) => [p.type, p.rot, p.on])])); } }`;
 const SHORT = `function tick() { if (!state.done) { state.done = true; log(JSON.stringify(parts.map((p) => [p.type, p.rot, p.on]))); } }`;
 
 describe('part.rot and part.on (M16)', () => {
@@ -40,12 +41,15 @@ describe('part.rot and part.on (M16)', () => {
       legend: { r: { part: 'rotator', rot: 0, auto: false }, g: { part: 'gun', rot: 0 }, p: { part: 'propeller', rot: 270 } },
       scripts: [{ id: 'a', source: LIST }],
     };
-    const keys = 'id,type,tags,pos,angle,mass,in,out,rot,on,spec';
+    // `center` (M16 review) comes with rot and on.
     expect(await said(bp)).toEqual([
-      ['gun', 0, 'rotator@0,1', keys],
-      ['rotator', 0, '', keys],
-      ['core', 0, '', keys],
-      ['propeller', 270, '', keys],
+      'id,type,tags,pos,angle,mass,in,out,rot,on,center,spec',
+      [
+        ['gun', 0, 'rotator@0,1'],
+        ['rotator', 0, ''],
+        ['core', 0, ''],
+        ['propeller', 270, ''],
+      ],
     ]);
   });
 

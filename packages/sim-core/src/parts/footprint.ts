@@ -52,6 +52,21 @@ export function footprintBox(def: PartDef, footprint: readonly FootprintCell[] =
   return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, w: maxX - minX + 1, h: maxY - minY + 1 };
 }
 
+/**
+ * Where a part's middle is, from its origin cell, unturned, in cells (meters): the middle of its cells, which each carry
+ * an equal share of its weight (`build.ts`). 0, 0 for one cell. Never -0.
+ */
+export function footprintMiddle(footprint: readonly FootprintCell[]): { x: number; y: number } {
+  let x = 0;
+  let y = 0;
+  for (const c of footprint) {
+    x += c.x;
+    y += c.y;
+  }
+  const n = Math.max(1, footprint.length);
+  return { x: x / n + 0, y: y / n + 0 };
+}
+
 const FLIP: Record<Face, Face> = { N: 'N', S: 'S', E: 'W', W: 'E' };
 
 /**

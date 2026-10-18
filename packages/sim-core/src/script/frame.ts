@@ -4,7 +4,7 @@ import type { ScriptContact, ScriptInput } from './types';
  * How a tick's input crosses into a script (M9). Parsing JSON text into part objects inside the sandbox was most of
  * a script's cost, so the input is split in three:
  * - the layout (JSON): each part's id, type, tags, mass, the names of its `in` and `out` values, in order, and (M16)
- *   how it was built turned and which joint carries it (`rot`, `on`). It
+ *   how it was built turned and which joint carries it (`rot`, `on`), and (M16 review) where its middle is (`center`). It
  *   changes only when the robot does, and a script is sent it only when its `id` differs from the last one it saw.
  *   With it goes `specs` (M16): each part type's static numbers (`partSpec.ts`), which never change, so a script is
  *   sent that text once and every part of a type shares one `spec` object;
@@ -58,11 +58,24 @@ export interface LayoutPart {
    * (a gun on a hinge on a hinge) is walked one `on` at a time. '' when no joint carries it.
    */
   on?: string;
+  /**
+   * M16 review: where the part's middle is (the middle of its cells at the size it was placed, where its weight is),
+   * from its position, built unturned, in meters. Absent for a part whose middle is its position (one cell): a script
+   * then reads 0, 0. Sent with `rot` and `on`, so a script works out a robot's weight without taking a cannon or a
+   * fabricator bay to weigh at its first cell.
+   */
+  center?: { x: number; y: number };
 }
 
-/** A layout entry as sent: `[id, type, tags, mass, in, out]`, and `rot, on` after them when the part has them. */
+/** A layout entry as sent: `[id, type, tags, mass, in, out]`, `rot, on` after them when the part has them, then `[x, y]` when it has a center. */
 function entryOf(p: LayoutPart): unknown[] {
-  return p.rot === undefined && p.on === undefined ? [p.id, p.type, p.tags, p.mass, p.in, p.out] : [p.id, p.type, p.tags, p.mass, p.in, p.out, p.rot ?? 0, p.on ?? ''];
+  if (p.rot === undefined && p.on === undefined) return [p.id, p.type, p.tags, p.mass, p.in, p.out];
+  return p.center === undefined ? [p.id, p.type, p.tags, p.mass, p.in, p.out, p.rot ?? 0, p.on ?? ''] : [p.id, p.type, p.tags, p.mass, p.in, p.out, p.rot ?? 0, p.on ?? '', [p.center.x, p.center.y]];
+}
+
+/** Whether two parts' centers are the same (both absent, or the same numbers). */
+function sameCenter(a: LayoutPart['center'], b: LayoutPart['center']): boolean {
+  return a === b || (a !== undefined && b !== undefined && a.x === b.x && a.y === b.y);
 }
 
 /** Slots at the start of the numbers: 1 when every number is finite, then frame, dt, time. */
@@ -91,9 +104,9 @@ const PATCH_LOOK = 32;
  * `now` as a patch on `old`, for a script that holds `old`: JSON text `[parts, mode, ops]`.
  * - Mode 2: only parts gone. `ops` is the gaps, each `[from, to]` of old indexes (to not included), in order.
  * - Otherwise `ops` builds the new list in order: `[from, to]` keeps those old parts as they are, and a layout entry
- *   (`[id, type, tags, mass, in, out, rot, on]`, as in `layoutJson` but always with `rot` and `on`, null for a part
- *   without them) makes a part. An entry with a ninth item, an old index, is that old part with other values
- *   present: same id, type, and tags, standing where it stood.
+ *   (`[id, type, tags, mass, in, out, rot, on, center]`, as in `layoutJson` but always with `rot`, `on` and `center`,
+ *   null for a part without them) makes a part. An entry with a tenth item, an old index, is that old part with other
+ *   values present: same id, type, and tags, standing where it stood.
  *   Mode 1 says the kept and replaced parts are in their old order and every other new part comes after them all (so
  *   what a script keeps per type and tag can follow along); mode 0 says nothing.
  * A part is kept only when every field of its entry is equal, so the patched layout is the new one, field for field.
@@ -126,7 +139,7 @@ export function layoutPatch(old: readonly LayoutPart[], now: readonly LayoutPart
     const was = k >= 0 ? (old[k] as LayoutPart) : undefined;
     const sameShape = was !== undefined && was !== p && was.type === p.type && sameNames(was.tags, p.tags);
     // A part behind where the walk has got to has moved: it is made anew, like one that was never there.
-    if (was && k >= next && (was === p || (sameShape && was.mass === p.mass && was.rot === p.rot && was.on === p.on && sameNames(was.in, p.in) && sameNames(was.out, p.out)))) {
+    if (was && k >= next && (was === p || (sameShape && was.mass === p.mass && was.rot === p.rot && was.on === p.on && sameCenter(was.center, p.center) && sameNames(was.in, p.in) && sameNames(was.out, p.out)))) {
       if (fresh) ordered = false;
       if (k > next) gaps.push([next, k]);
       if (run && run[1] === k) run[1] = k + 1;
@@ -137,7 +150,7 @@ export function layoutPatch(old: readonly LayoutPart[], now: readonly LayoutPart
     }
     run = undefined;
     made++;
-    const entry: unknown[] = [p.id, p.type, p.tags, p.mass, p.in, p.out, p.rot ?? null, p.on ?? null];
+    const entry: unknown[] = [p.id, p.type, p.tags, p.mass, p.in, p.out, p.rot ?? null, p.on ?? null, p.center ? [p.center.x, p.center.y] : null];
     if (was && sameShape && k >= next) {
       if (fresh) ordered = false;
       if (k > next) gaps.push([next, k]);
