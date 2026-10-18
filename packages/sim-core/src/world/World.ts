@@ -2667,9 +2667,16 @@ export class World {
   /**
    * `scan(id)` (M8): a robot the viewer's sensors saw this tick, part by part, in blueprint order; null otherwise.
    * M11: a robot seen at a decoy scans as what the sensor sees there: the decoy. M16: `opts` picks parts out of that
-   * (`scanOptions.ts`), so a script looking at a titan receives only what it asked for.
+   * (`scanOptions.ts`), so a script looking at a titan receives only what it asked for. Null too when `cover` would be
+   * too much work (`scanJson` says why).
    */
   private scan(viewer: Robot, id: number, opts?: ScanOptions): ScannedPart[] | null {
+    const out = this.pick(viewer, id, opts);
+    return typeof out === 'string' ? null : out;
+  }
+
+  /** `scan()`'s answer, or the line saying why it asked too much. */
+  private pick(viewer: Robot, id: number, opts?: ScanOptions): ScannedPart[] | null | string {
     const seen = this.scanned(viewer, id);
     if (!seen) return null;
     if (!scanAsks(opts)) return seen.list;
@@ -2700,10 +2707,14 @@ export class World {
 
   /**
    * `scan(id, opts)` as the JSON text a script host hands its script. A plain scan's text is kept with the list, so it
-   * is made once a tick; one with options is made for that call only, and is as long as what it picked.
+   * is made once a tick; one with options is made for that call only, and is as long as what it picked. Options that
+   * ask too much are a line starting with '!', which the prelude logs.
    */
   private scanJson(viewer: Robot, id: number, opts?: ScanOptions): string {
-    if (scanAsks(opts)) return JSON.stringify(this.scan(viewer, id, opts));
+    if (scanAsks(opts)) {
+      const out = this.pick(viewer, id, opts);
+      return typeof out === 'string' ? `!${out}` : JSON.stringify(out);
+    }
     const parts = this.scan(viewer, id);
     if (parts === null) return 'null';
     const known = this.pass?.scanTexts.get(parts);
