@@ -336,6 +336,15 @@ export function scriptParams(source: string): ParamInfo[] {
 }
 
 /**
+ * Whether a param is an on/off setting, shown as a switch: it runs exactly 0 to 1, its default is 0 or 1, and so is the
+ * value it has. A 0 to 1 amount defaults to something in between (`reserve` 0.3), and a value set in between (by hand
+ * in the file) keeps the slider, so nothing is rounded away.
+ */
+export function isOnOff(p: { default: number; min?: number; max?: number }, value: number): boolean {
+  return p.min === 0 && p.max === 1 && (p.default === 0 || p.default === 1) && (value === 0 || value === 1);
+}
+
+/**
  * The range a param's slider runs over: its own `min` and `max`, and where it has none, a range around its default
  * wide enough to be useful (0 to twice the default; -1 to 1 around nothing). The value it has is always inside.
  */

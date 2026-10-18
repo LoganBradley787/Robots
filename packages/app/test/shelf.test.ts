@@ -23,6 +23,7 @@ import {
   setScriptKey,
   shelfOffers,
   sliderRange,
+  isOnOff,
   slotText,
   startChange,
   startFill,
@@ -367,6 +368,15 @@ describe('params on a card', () => {
       { name: 'made', default: 3 },
     ]);
     expect(cardParams(text, undefined)).toEqual(text);
+  });
+
+  it('shows a param that runs 0 to 1 from a default of 0 or 1 as an on/off switch, and a 0 to 1 amount as a slider', () => {
+    expect(isOnOff({ default: 1, min: 0, max: 1 }, 1)).toBe(true);
+    expect(isOnOff({ default: 0, min: 0, max: 1 }, 1)).toBe(true);
+    expect(isOnOff({ default: 0.3, min: 0, max: 1 }, 0)).toBe(false);
+    expect(isOnOff({ default: 1, min: 0, max: 1 }, 0.4)).toBe(false);
+    expect(isOnOff({ default: 1, min: 0, max: 2 }, 1)).toBe(false);
+    expect(isOnOff({ default: 1 }, 1)).toBe(false);
   });
 
   it('gives every param a slider range that holds its value', () => {

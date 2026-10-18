@@ -8,11 +8,11 @@ import type { AppState } from './appState';
 import { ControlsFor } from './ControlsFor';
 import type { BuilderActions, PartActions } from './actions';
 import type { ScriptCheck, ScriptEditorActions } from './ScriptEditor';
-import { Button, Check, NumberField, Slider } from './kit';
+import { Button, Check, NumberField, Slider, Switch } from './kit';
 import { num } from './format';
 import { showScript, type ScriptShow } from '../builder/scriptView';
 import { typeName } from '../builder/boardOps';
-import { behaviorCards, shelfOffers, sliderRange, slotText, type BehaviorCard, type ParamInfo } from '../builder/shelf';
+import { behaviorCards, isOnOff, shelfOffers, sliderRange, slotText, type BehaviorCard, type ParamInfo } from '../builder/shelf';
 
 export interface ScriptActions {
   /** "Write your own": a blank script, opened in the script view. */
@@ -309,10 +309,28 @@ function Card({ card, view: v, lit, editing, main, params, source, draft, regist
   );
 }
 
-/** A setting as a slider with its number beside it and what it means under it. One drag is one undo step. */
+/**
+ * A setting as a slider with its number beside it and what it means under it. One drag is one undo step. An on/off
+ * setting (`isOnOff`) is a switch instead; it is still 0 or 1 in the blueprint.
+ */
 function Param({ p, value, id, actions }: { p: ParamInfo; value: number; id: string; actions: Actions }) {
   const r = sliderRange(p, value);
   const set = (v: number): void => actions.setScriptParam(id, p.name, v !== p.default ? v : undefined);
+  if (isOnOff(p, value)) {
+    return (
+      <div class="par">
+        <span class="lbl" title={`default ${p.default === 1 ? 'on' : 'off'}`}>
+          {p.name}
+        </span>
+        <span class="sl onoff">
+          <Switch on={value === 1} onChange={(on) => set(on ? 1 : 0)} title={`On is 1, off is 0. Default ${p.default === 1 ? 'on' : 'off'}.`}>
+            {value === 1 ? 'on' : 'off'}
+          </Switch>
+        </span>
+        {p.help !== undefined && <span class="phelp">{p.help}</span>}
+      </div>
+    );
+  }
   return (
     <div class="par">
       <span class="lbl" title={`default ${num(p.default)}`}>
