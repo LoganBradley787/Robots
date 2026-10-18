@@ -61,6 +61,22 @@ describe('scripts in the world', () => {
     w.dispose();
   });
 
+  it('each script says which keys it has asked about since it was switched on, held or not (M16, the readout)', async () => {
+    const w = await world();
+    const src = `const KEY = 'f'; function tick() { state.n = (state.n || 0) + 1; if (state.n > 2 && keys.pressed(KEY)) log('f'); set('thruster', 'throttle', keys.down('w') || keys.down('w') ? 1 : 0); }`;
+    const r = w.spawnBlueprint(lifter(src, { bindings: [{ key: 'h', mode: 'script', script: 'lift' }] }), { x: 0, y: 1 });
+    w.step();
+    expect(w.scripts(r.id)).toEqual([{ id: 'lift', enabled: true, reads: ['w'] }]);
+    for (let i = 0; i < 3; i++) w.step();
+    // A key named by a variable counts too, and one it stopped asking about stays.
+    expect(w.scripts(r.id)[0]?.reads).toEqual(['w', 'f']);
+    w.step([{ robot: r.id, pressed: ['h'], released: ['h'] }]);
+    w.step([{ robot: r.id, pressed: ['h'], released: ['h'] }]);
+    // Switched on again, it starts over.
+    expect(w.scripts(r.id)[0]?.reads).toEqual(['w']);
+    w.dispose();
+  });
+
   it('a script binding toggles the script, and setup runs again with fresh state', async () => {
     const w = await world();
     const src = `function setup() { state.n = 0; } function tick() { state.n++; set('thruster', 'throttle', state.n / 100); }`;

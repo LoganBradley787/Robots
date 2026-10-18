@@ -643,6 +643,7 @@ button kbd { margin: 0; opacity: 0.75; }
 .readout .err { color: #ffb3a6; font: 12px/1.4 var(--mono); margin: 2px 0 0 14px; overflow-wrap: anywhere; }
 .readout .sets { margin: 3px 0 0 14px; font: 12px/1.5 var(--mono); }
 .readout .sets .lbl { display: block; font: 700 11px var(--head); text-transform: uppercase; letter-spacing: var(--head-space); color: var(--dim); }
+.readout .reads { margin: 2px 0 0 14px; font: 12px/1.5 var(--mono); color: var(--accent); }
 .readout .sets.none { color: var(--dim); font-family: var(--body); }
 .readout .sets .bad { color: #f0b27a; }
 .readout .log { margin: 2px 0 0 14px; font: 11.5px/1.45 var(--mono); color: var(--dim); white-space: pre-wrap; overflow-wrap: anywhere; }

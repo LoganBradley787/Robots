@@ -1,9 +1,10 @@
-import type { ControlTrace, ScriptError, TraceInput } from '@robots/sim-core';
+import { AUTO_KEYS, type ControlTrace, type ScriptError, type TraceInput } from '@robots/sim-core';
 
 /**
  * The live readout of one robot in the world (M16, plan section 7), as plain text lines: each script running, off or
- * crashed with the message and line of a crash, its last log lines and what it set this tick; and for each input a
- * key or a script drives, who is driving it right now, with the values. Pure: the world's trace in, sentences out.
+ * crashed with the message and line of a crash, the keys it reads, its last log lines and what it set this tick; for
+ * each input a key or a script drives, who is driving it right now, with the values; and each held key a running script
+ * reads. Pure: the world's trace in, sentences out.
  */
 
 export interface ReadoutScript {
@@ -12,6 +13,8 @@ export interface ReadoutScript {
   /** A crash: what went wrong, and where. */
   error?: string;
   line?: number;
+  /** Running, the keys it has asked about ("reads W A S D"), when any. */
+  reads?: string;
   /** Its last log lines, oldest first. */
   logs: string[];
   /** What it set this tick, one line per input (several parts with one input are one line). */
@@ -32,12 +35,17 @@ export interface ReadoutView {
   watching: boolean;
   scripts: ReadoutScript[];
   inputs: ReadoutInput[];
+  /** Held keys a running script reads: "W is held: hover reads it.". */
+  held: string[];
 }
 
 export interface ReadoutSource {
   robot: string;
   watching: boolean;
-  scripts: ReadonlyArray<{ id: string; enabled: boolean; crashed?: ScriptError }>;
+  /** `reads`: the keys each has asked about since it was switched on. */
+  scripts: ReadonlyArray<{ id: string; enabled: boolean; crashed?: ScriptError; reads?: readonly string[] }>;
+  /** Whether a key is held, for the robot you control; undefined when you only watch it. */
+  held?(key: string): boolean;
   /** The robot's log lines, oldest first. */
   logs: ReadonlyArray<{ script: string; text: string }>;
   /** The trace of its last tick; undefined when the world has none (nothing ticked yet, or the robot has no core). */
@@ -60,6 +68,12 @@ export function percentOf(v: number, c: { min: number; max: number }): string {
 }
 
 const keyCap = (key: string): string => (key.length === 1 ? key.toUpperCase() : key);
+
+/** Keys in the keys bar's order: the auto control keys first (Q W E A S D), then the others as first read. */
+function inKeyOrder(keys: readonly string[]): string[] {
+  const rank = (k: string): number => (AUTO_KEYS.includes(k) ? AUTO_KEYS.indexOf(k) : AUTO_KEYS.length);
+  return keys.map((k, i) => ({ k, i })).sort((a, b) => rank(a.k) - rank(b.k) || a.i - b.i).map((x) => x.k);
+}
 
 function listed(items: readonly string[]): string {
   if (items.length <= 1) return items.join('');
@@ -131,6 +145,7 @@ export function buildReadout(src: ReadoutSource): ReadoutView {
       state: s.enabled ? 'on' : s.crashed ? 'crashed' : 'off',
       ...(s.crashed ? { error: s.crashed.message.replace(/\s*\(line \d+\)\s*$/, '') } : {}),
       ...(line !== undefined ? { line: Number(line) } : {}),
+      ...(s.enabled && s.reads && s.reads.length > 0 ? { reads: `reads ${inKeyOrder(s.reads).map(keyCap).join(' ')}` } : {}),
       logs: src.logs.filter((l) => l.script === s.id).slice(-LOGS_SHOWN).map((l) => l.text),
       sets: trace && s.enabled ? setsOf(s.id, trace, src) : [],
     };
@@ -158,5 +173,27 @@ export function buildReadout(src: ReadoutSource): ReadoutView {
       return { what, says: says(g), source: first.source };
     })
     .sort((a, b) => rank[a.source] - rank[b.source]);
-  return { robot: src.robot, watching: src.watching, scripts, inputs };
+  return { robot: src.robot, watching: src.watching, scripts, inputs, held: heldReads(src) };
+}
+
+/** Held keys that running scripts read, one line for the keys the same scripts read: "W and A are held: hover reads them.". */
+function heldReads(src: ReadoutSource): string[] {
+  const held = src.held;
+  if (!held) return [];
+  const readers = new Map<string, string[]>();
+  for (const s of src.scripts) {
+    if (!s.enabled) continue;
+    for (const k of s.reads ?? []) if (held(k)) readers.set(k, [...(readers.get(k) ?? []), s.id]);
+  }
+  const byWho = new Map<string, { ids: string[]; keys: string[] }>();
+  for (const k of inKeyOrder([...readers.keys()])) {
+    const ids = readers.get(k) as string[];
+    const who = byWho.get(ids.join('\0')) ?? { ids, keys: [] };
+    who.keys.push(keyCap(k));
+    byWho.set(ids.join('\0'), who);
+  }
+  return [...byWho.values()].map(({ ids, keys }) => {
+    const many = keys.length > 1;
+    return `${listed(keys)} ${many ? 'are' : 'is'} held: ${listed(ids)} ${ids.length > 1 ? 'read' : 'reads'} ${many ? 'them' : 'it'}.`;
+  });
 }

@@ -142,7 +142,7 @@ export class WorldScreen {
   /** M16: whether the live readout is open. Only then does the world keep a trace. Kept in the browser. */
   private readoutOpen = false;
   /** The readout as last worked out, and for which tick of which robot: it is made a few times a second, not every frame. */
-  private readoutAt: { robot: number; tick: number; open: boolean; view: ReadoutView } | undefined;
+  private readoutAt: { robot: number; tick: number; open: boolean; held: string; view: ReadoutView } | undefined;
   /** Keys each script source reads, cached by source (it only changes when the robot is redeployed). */
   private readonly readCache = new Map<string, Set<string>>();
   /** A blueprint waiting to be dropped, following the cursor. */
@@ -455,20 +455,26 @@ export class WorldScreen {
     }
     const tick = this.world.tick;
     const had = this.readoutAt;
-    const due = !had || had.robot !== focus.id || had.open !== this.readoutOpen || (had.tick !== tick && (tick - had.tick >= 6 || (stepped && this.time.paused)));
+    const scripts = this.world.scripts(focus.id);
+    // Keys held that its running scripts read: a change shows at once, not on the sixth tick.
+    const controller = controlled ? this.world.controller(focus.id) : undefined;
+    const held = controller ? (key: string): boolean => controller.isHeld(key) || this.keys.isDown(key) : undefined;
+    const heldNow = held ? [...new Set(scripts.flatMap((s) => (s.enabled ? (s.reads ?? []) : [])))].filter(held).join(',') : '';
+    const due = !had || had.robot !== focus.id || had.open !== this.readoutOpen || had.held !== heldNow || (had.tick !== tick && (tick - had.tick >= 6 || (stepped && this.time.paused)));
     if (had && !due) return had.view;
     const trace = this.readoutOpen ? this.world.trace(focus.id) : undefined;
     const registry = this.world.registry;
     const view = buildReadout({
       robot: focus.name,
       watching: !controlled,
-      scripts: this.world.scripts(focus.id),
+      scripts,
+      ...(held ? { held } : {}),
       logs: this.readoutOpen ? this.world.scriptLogs.filter((l) => l.robot === focus.id) : [],
       ...(trace ? { trace } : {}),
       typeOf: (id) => focus.parts.get(id)?.def.id,
       typeName: (type) => (registry.has(type) ? registry.get(type).name.toLowerCase() : type),
     });
-    this.readoutAt = { robot: focus.id, tick, open: this.readoutOpen, view };
+    this.readoutAt = { robot: focus.id, tick, open: this.readoutOpen, held: heldNow, view };
     return view;
   }
 

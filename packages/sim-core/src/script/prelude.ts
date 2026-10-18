@@ -17,6 +17,12 @@ export const PRELUDE = String.raw`
   var logs = [];
   var specs = {};
   var keyState = { down: [], pressed: [], released: [] };
+  // Keys it asked about this tick (M16, for the readout), at most 16.
+  var asked = [];
+  function ask(k) {
+    if (asked.length < 16 && asked.indexOf(k) < 0) asked.push(k);
+    return k;
+  }
   var seen = '';
   var scans = 0;
   var sends = 0;
@@ -118,9 +124,9 @@ export const PRELUDE = String.raw`
     return undefined;
   };
   globalThis.keys = {
-    down: function (k) { return keyState.down.indexOf(String(k)) >= 0; },
-    pressed: function (k) { return keyState.pressed.indexOf(String(k)) >= 0; },
-    released: function (k) { return keyState.released.indexOf(String(k)) >= 0; }
+    down: function (k) { return keyState.down.indexOf(ask(String(k))) >= 0; },
+    pressed: function (k) { return keyState.pressed.indexOf(ask(String(k))) >= 0; },
+    released: function (k) { return keyState.released.indexOf(ask(String(k))) >= 0; }
   };
   globalThis.log = function () {
     if (logs.length >= 5) return;
@@ -379,11 +385,12 @@ export const PRELUDE = String.raw`
     marks = [];
     writes = [];
     logs = [];
+    asked = [];
     // Tests only (the parity test compiles with inspect on): what the script sees, before it runs.
     if (inspecting) seen = stringify({ frame: globalThis.frame, dt: globalThis.dt, time: globalThis.time, self: globalThis.self, parts: globalThis.parts, keys: keyState, contacts: globalThis.contacts, inbox: globalThis.inbox });
   }
   function result() {
-    return stringify({ writes: writes, logs: logs, marks: marks });
+    return stringify({ writes: writes, logs: logs, marks: marks, keys: asked });
   }
   return {
     layout: function (json) { setLayout(json); return ''; },

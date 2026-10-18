@@ -9,9 +9,10 @@ export interface ReadoutActions {
 
 /**
  * The live readout (M16), in the world, for the robot you control or watch: each script running, off or crashed with
- * the message and line, its last log lines and what it set this tick; and for each input a key or a script drives,
- * who is driving it right now ("W is held: the key's 100% beats hover's 54%"). Nothing here can be changed: settings
- * are set in the builder. It folds to a small tab, which still says when a script has stopped.
+ * the message and line, the keys it reads, its last log lines and what it set this tick; for each input a key or a
+ * script drives, who is driving it right now ("W is held: the key's 100% beats hover's 54%"); and each held key a
+ * script reads ("W is held: hover reads it"). Nothing here can be changed: settings are set in the builder. It folds to
+ * a small tab, which still says when a script has stopped.
  */
 export function Readout({ store, actions }: { store: Store<AppState>; actions: ReadoutActions }) {
   const r = useStore(store, (s) => s.world?.readout);
@@ -63,6 +64,7 @@ export function Readout({ store, actions }: { store: Store<AppState>; actions: R
               <span class="state">{s.state === 'on' ? 'running' : s.state === 'off' ? 'off' : `stopped${s.line !== undefined ? ` at line ${s.line}` : ''}`}</span>
             </div>
             {s.error !== undefined && <div class="err">{s.error}</div>}
+            {s.reads !== undefined && <div class="reads">{s.reads}</div>}
             {s.sets.length > 0 && (
               <div class="sets">
                 <span class="lbl">set this tick</span>
@@ -81,9 +83,14 @@ export function Readout({ store, actions }: { store: Store<AppState>; actions: R
             ))}
           </div>
         ))}
-        {r.inputs.length > 0 && (
+        {(r.inputs.length > 0 || r.held.length > 0) && (
           <div class="ri-list">
             <div class="h sub">Who drives what</div>
+            {r.held.map((h) => (
+              <div class="rin key" key={h}>
+                <span class="says">{h}</span>
+              </div>
+            ))}
             {r.inputs.map((i, n) => (
               <div class={`rin ${i.source}`} key={n}>
                 <span class="what">{i.what}</span>

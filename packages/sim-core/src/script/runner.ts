@@ -7,6 +7,8 @@ export interface ScriptSlot {
   id: string;
   enabled: boolean;
   crashed?: ScriptError;
+  /** Keys it has asked about since it was last switched on (M16, for the readout), in the order it first did. */
+  reads?: readonly string[];
 }
 
 export interface ScriptTickOutput {
@@ -27,7 +29,7 @@ export interface ScriptTickOutput {
  * source. Scripts run in blueprint order and their writes apply in that order (last write wins).
  */
 export class ScriptRunner {
-  private readonly slots: (ScriptSlot & { source?: string; params: Record<string, number>; instance?: ScriptInstance; needsSetup: boolean; seed: number; name: string })[];
+  private readonly slots: (Omit<ScriptSlot, 'reads'> & { source?: string; params: Record<string, number>; instance?: ScriptInstance; needsSetup: boolean; seed: number; name: string; reads: string[] })[];
   private readonly host: ScriptHost | undefined;
 
   constructor(specs: readonly ScriptSpec[], host: ScriptHost | undefined, seed: (index: number) => number) {
@@ -37,6 +39,7 @@ export class ScriptRunner {
       enabled: false,
       params: { ...s.params },
       needsSetup: false,
+      reads: [],
       seed: seed(i),
       name: typeof s.source === 'string' ? `${s.id}.js` : s.source.file,
       ...(typeof s.source === 'string' ? { source: s.source } : {}),
@@ -48,7 +51,7 @@ export class ScriptRunner {
   }
 
   get scripts(): readonly ScriptSlot[] {
-    return this.slots.map((s) => ({ id: s.id, enabled: s.enabled, ...(s.crashed ? { crashed: s.crashed } : {}) }));
+    return this.slots.map((s) => ({ id: s.id, enabled: s.enabled, ...(s.crashed ? { crashed: s.crashed } : {}), ...(s.reads.length > 0 ? { reads: [...s.reads] } : {}) }));
   }
 
   /** Crashes found while enabling at construction (compile errors), reported on the first tick. */
@@ -91,6 +94,7 @@ export class ScriptRunner {
           out.writesBy.push({ script: slot.id, count: r.writes.length });
           out.marks.push({ script: slot.id, marks: r.marks });
           out.logs.push(...r.logs.map((text) => ({ script: slot.id, text })));
+          for (const k of r.keys ?? []) if (slot.reads.length < 16 && !slot.reads.includes(k)) slot.reads.push(k);
         } else {
           this.crash(slot, r.error);
           out.crashes.push({ script: slot.id, error: r.error });
@@ -109,6 +113,7 @@ export class ScriptRunner {
     const slot = this.slots[i];
     if (!slot) return;
     delete slot.crashed;
+    slot.reads = [];
     slot.instance?.dispose();
     delete slot.instance;
     const fail = (error: ScriptError): void => {

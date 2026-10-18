@@ -31,10 +31,10 @@ function compile(src: string, params?: Record<string, number>) {
 }
 
 describe('QuickJS script host', () => {
-  it('runs tick, reads sensors and keys, and returns writes and logs', () => {
+  it('runs tick, reads sensors and keys, and returns writes, logs and the keys it asked about', () => {
     const s = compile(`function tick() { set('props', 'throttle', self.vel.y < 0 ? 1 : 0); if (keys.down('a')) log('a held', frame); }`);
     const r = s.tick(input());
-    expect(r).toEqual({ ok: true, writes: [{ target: 'props', channel: 'throttle', value: 1 }], logs: ['a held 1'], marks: [] });
+    expect(r).toEqual({ ok: true, writes: [{ target: 'props', channel: 'throttle', value: 1 }], logs: ['a held 1'], marks: [], keys: ['a'] });
     s.dispose();
   });
 

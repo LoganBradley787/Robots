@@ -145,7 +145,8 @@ export interface ScriptInput {
   inbox: ScriptMessage[];
 }
 
-export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[]; marks: ScriptMark[] } | { ok: false; error: ScriptError };
+/** `keys`: the keys it asked about with `keys.down` and friends this call (M16, for the readout), when any. */
+export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[]; marks: ScriptMark[]; keys?: string[] } | { ok: false; error: ScriptError };
 
 export interface ScriptInstance {
   /** Params the script declared with `param()`, with the values it got. */

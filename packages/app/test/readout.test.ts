@@ -27,6 +27,21 @@ describe('the live readout', () => {
     expect(r.inputs).toEqual([]);
   });
 
+  it('says the keys each running script reads, and each held one plainly, folded by who reads it', () => {
+    const scripts = [
+      { id: 'hover', enabled: true, reads: ['w', 's', 'a', 'd'] },
+      { id: 'aim', enabled: true, reads: ['f', 'w', 'j'] },
+      { id: 'old', enabled: false, reads: ['q'] },
+    ];
+    const held = (keys: string[]) => (k: string) => keys.includes(k);
+    const r = buildReadout(base({ scripts, held: held(['d', 'w', 'a', 'q']) }));
+    expect(r.scripts.map((s) => s.reads)).toEqual(['reads W A S D', 'reads W F J', undefined]);
+    expect(r.held).toEqual(['W is held: hover and aim read it.', 'A and D are held: hover reads them.']);
+    expect(buildReadout(base({ scripts, held: held([]) })).held).toEqual([]);
+    // Only watched: no keys of yours reach it, so none is said to be held.
+    expect(buildReadout(base({ scripts, watching: true })).held).toEqual([]);
+  });
+
   it('keeps only the last few log lines of each script', () => {
     const logs = Array.from({ length: 9 }, (_, i) => ({ script: 'hover', text: `line ${i}` }));
     expect(buildReadout(base({ scripts: [{ id: 'hover', enabled: true }], logs })).scripts[0]?.logs).toEqual(['line 5', 'line 6', 'line 7', 'line 8']);

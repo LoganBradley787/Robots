@@ -277,7 +277,7 @@ function readResult(text: string): ScriptResult {
   } catch {
     return bad;
   }
-  const o = raw as { writes?: unknown; logs?: unknown; marks?: unknown } | null;
+  const o = raw as { writes?: unknown; logs?: unknown; marks?: unknown; keys?: unknown } | null;
   if (!o || !Array.isArray(o.writes) || !Array.isArray(o.logs) || !Array.isArray(o.marks)) return bad;
   const writes: ScriptWrite[] = [];
   for (const w of o.writes.slice(0, MAX_WRITES)) {
@@ -295,7 +295,9 @@ function readResult(text: string): ScriptResult {
     if (!Number.isFinite(m[0]) || !Number.isFinite(m[1])) continue;
     marks.push({ x: m[0], y: m[1], ...(typeof m[2] === 'string' && m[2] !== '' ? { label: m[2].slice(0, 40) } : {}) });
   }
-  return { ok: true, writes, logs, marks };
+  // Keys it asked about (M16): plain strings only, kept short; anything else is left out, not an error.
+  const keys = Array.isArray(o.keys) ? o.keys.slice(0, 16).filter((k): k is string => typeof k === 'string').map((k) => k.slice(0, 20)) : [];
+  return { ok: true, writes, logs, marks, ...(keys.length > 0 ? { keys } : {}) };
 }
 
 type RunResult = { ok: true; text: string } | { ok: false; error: ScriptError };
