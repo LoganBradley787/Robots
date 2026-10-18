@@ -18,7 +18,7 @@ export interface ScanOptions {
   has?: string[];
   /** Adds `cover` and `coverParts` to each part: what of the robot is in front of it on the line from this point. */
   from?: { x: number; y: number };
-  /** Meters either side of that line a part in front must be within (default 0.5, half a cell). */
+  /** Meters either side of that line a part in front must be within (default 0.5, half a cell; at most `WIDE_MAX`). */
   wide?: number;
   /**
    * Adds `acts` to each part that acts along one of its faces (it pushes, fires, or looks that way): the way it does
@@ -32,6 +32,16 @@ export interface ScanOptions {
 export const COVER_GAP = 0.3;
 /** The default half-width of the line `cover` looks along: half a cell. */
 export const COVER_WIDE = 0.5;
+/** The widest line `cover` looks along: 3 m either side (the stock scripts use 0.5 to 1.2). */
+export const WIDE_MAX = 3;
+/**
+ * The most pairs of parts one scan's `cover` may test (a part asked about against each part that might be in front of
+ * it). Past it the scan returns null and says why, before any is tested, so the host's work per call has a ceiling.
+ * The stock scripts test at most about 15,000; every part of a 3000-part titan, from 60 m off, about 200,000.
+ */
+export const COVER_TESTS_MAX = 250_000;
+/** What `selectScanned` says when `cover` would be too much work: one line, so the script logs it once. */
+export const COVER_TOO_MUCH = `scan(): cover from there would test more than ${COVER_TESTS_MAX} pairs of parts; ask about fewer (most, of, has) or from further off`;
 const NAMES_MAX = 64;
 const KNOWN = ['near', 'most', 'of', 'has', 'from', 'wide', 'acts'];
 /** A face as radians counterclockwise from the x axis. */
@@ -66,7 +76,7 @@ export function readScanOptions(raw: unknown): ScanOptions | string {
     out[k] = v as string[];
   }
   if (o.wide !== undefined) {
-    if (typeof o.wide !== 'number' || !Number.isFinite(o.wide) || o.wide <= 0) return 'scan(): wide must be a number of meters above 0';
+    if (typeof o.wide !== 'number' || !Number.isFinite(o.wide) || o.wide <= 0 || o.wide > WIDE_MAX) return `scan(): wide must be a number of meters above 0 and at most ${WIDE_MAX}`;
     out.wide = o.wide;
   }
   if (o.acts !== undefined) {
@@ -94,9 +104,10 @@ export interface ScanPartInfo {
  * those `of` and `has` let through, then the `most` nearest `near`. With `from`, each comes back as a copy with
  * `cover` and `coverParts`, worked out over all of `parts`, not only those returned; with `acts`, each that acts along a
  * face comes back as a copy with `acts`. `info(i)` is part i's tags, turn and definition; it is only asked when `of`,
- * `has` or `acts` is given. Pure and deterministic: no clocks, a fixed order.
+ * `has` or `acts` is given. A line saying what is wrong (`COVER_TOO_MUCH`) instead of parts when `cover` would test
+ * more than `COVER_TESTS_MAX` pairs. Pure and deterministic: no clocks, a fixed order.
  */
-export function selectScanned(parts: readonly ScannedPart[], info: (i: number) => ScanPartInfo | undefined, opts: ScanOptions): ScannedPart[] {
+export function selectScanned(parts: readonly ScannedPart[], info: (i: number) => ScanPartInfo | undefined, opts: ScanOptions): ScannedPart[] | string {
   let sel: number[] = [];
   const of = opts.of;
   const has = opts.has;
@@ -133,7 +144,8 @@ export function selectScanned(parts: readonly ScannedPart[], info: (i: number) =
     return { ...p, acts: p.angle + ((about.rot ?? 0) * Math.PI) / 180 + FACE_RAD[face] };
   };
   if (!opts.from) return sel.map((i) => way(i, parts[i] as ScannedPart));
-  const cover = coverAlong(parts, sel, opts.from, opts.wide ?? COVER_WIDE);
+  const cover = coverAlong(parts, sel, opts.from, opts.wide ?? COVER_WIDE, COVER_TESTS_MAX);
+  if (typeof cover === 'string') return cover;
   return sel.map((i, k) => ({ ...way(i, parts[i] as ScannedPart), cover: cover.health[k] as number, coverParts: cover.count[k] as number }));
 }
 
@@ -142,9 +154,10 @@ export function selectScanned(parts: readonly ScannedPart[], info: (i: number) =
  * straight line from `from` to that part's middle, and between them (more than 0 and less than its distance minus
  * `COVER_GAP` along the line). Sums are added in blueprint order, so the answer does not depend on how the candidates
  * were found: all parts against each, or (for many asked against many) only those within the angle the line's width
- * can take up seen from `from`, after sorting every part by its angle from there.
+ * can take up seen from `from`, after sorting every part by its angle from there. `COVER_TOO_MUCH` instead, before any
+ * is tested, when that would be more than `max` pairs.
  */
-export function coverAlong(parts: readonly ScannedPart[], sel: readonly number[], from: { x: number; y: number }, wide: number): { health: number[]; count: number[] } {
+export function coverAlong(parts: readonly ScannedPart[], sel: readonly number[], from: { x: number; y: number }, wide: number, max = Infinity): { health: number[]; count: number[] } | string {
   const n = parts.length;
   const rx = new Float64Array(n);
   const ry = new Float64Array(n);
@@ -186,6 +199,27 @@ export function coverAlong(parts: readonly ScannedPart[], sel: readonly number[]
     // A hair wider, so rounding in atan2 never leaves out a part on the edge (each is still tested exactly).
     if (wide < rmin) half = Math.min(Math.PI / 2, asin(wide / rmin) + 1e-9);
   }
+  /** The parts within `half` of angle a, as at most two runs of `order` (the second when the window wraps past pi). */
+  const spans = (a: number): [number, number, number, number] => {
+    const at = ang as Float64Array;
+    const run = (lo: number, hi: number): [number, number] => [lowerBound(at, lo), upperBound(at, hi)];
+    const [s0, e0] = run(Math.max(-Math.PI, a - half), Math.min(Math.PI, a + half));
+    const [s1, e1] = a - half < -Math.PI ? run(a - half + 2 * Math.PI, Math.PI) : a + half > Math.PI ? run(-Math.PI, a + half - 2 * Math.PI) : [0, 0];
+    return [s0, e0, s1, e1];
+  };
+  // Counted before any is tested, so too much asked costs only this.
+  let tests = 0;
+  for (const p of sel) {
+    const x = rx[p] as number;
+    const y = ry[p] as number;
+    if (hypot(x, y) < 0.1) continue;
+    if (!order) tests += n;
+    else {
+      const [s0, e0, s1, e1] = spans(atan2(y, x));
+      tests += Math.max(0, e0 - s0) + Math.max(0, e1 - s1);
+    }
+    if (tests > max) return COVER_TOO_MUCH;
+  }
   for (const p of sel) {
     hits.length = 0;
     const x = rx[p] as number;
@@ -194,14 +228,10 @@ export function coverAlong(parts: readonly ScannedPart[], sel: readonly number[]
     if (d >= 0.1) {
       const ux = x / d;
       const uy = y / d;
-      if (order && ang) {
-        const a = atan2(y, x);
-        const span = (lo: number, hi: number): void => {
-          for (let k = lowerBound(ang, lo); k < n && (ang[k] as number) <= hi; k++) test(order[k] as number, p, ux, uy, d);
-        };
-        span(Math.max(-Math.PI, a - half), Math.min(Math.PI, a + half));
-        if (a - half < -Math.PI) span(a - half + 2 * Math.PI, Math.PI);
-        if (a + half > Math.PI) span(-Math.PI, a + half - 2 * Math.PI);
+      if (order) {
+        const [s0, e0, s1, e1] = spans(atan2(y, x));
+        for (let k = s0; k < e0; k++) test(order[k] as number, p, ux, uy, d);
+        for (let k = s1; k < e1; k++) test(order[k] as number, p, ux, uy, d);
         hits.sort((i, j) => i - j);
       } else for (let q = 0; q < n; q++) test(q, p, ux, uy, d);
     }
@@ -218,6 +248,18 @@ function manyAsked(asked: number, m: number): boolean {
   let p = 1;
   for (let i = 8; i < asked && p <= m * m; i++) p *= 2;
   return asked > 8 && p > m * m;
+}
+
+/** The first index whose value is above `v` in a sorted array. */
+function upperBound(a: Float64Array, v: number): number {
+  let lo = 0;
+  let hi = a.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if ((a[mid] as number) <= v) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }
 
 /** The first index whose value is at least `v` in a sorted array. */

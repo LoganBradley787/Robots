@@ -49,7 +49,7 @@ const repick = param('repick', 0.5, { min: 0, max: 5 }); // s between choosing w
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is weighed only near its closest part
 const band = param('band', 6, { min: 0.5, max: 50 }); // m behind a huge robot's closest part that are weighed
 const most = param('most', 150, { min: 10, max: 2000 }); // parts of a huge robot weighed at most
-const wide = param('wide', 0.6, { min: 0.1, max: 10 }); // m either side of the line whose parts a bolt also goes through (0.6 lance, 1.2 cannon)
+const wide = param('wide', 0.6, { min: 0.1, max: 3 }); // m either side of the line whose parts a bolt also goes through (0.6 lance, 1.2 cannon)
 const light = param('light', 10, { min: 0, max: 1000 }); // kg: lighter robots (missiles, drone bombs) are not shot at
 const spareCore = param('spareCore', 5, { min: 0, max: 100 }); // what a core that is not the robot's main one is worth (a missile's on its rack)
 const g = 9.81;
@@ -123,7 +123,18 @@ function aimedParts(id) {
       const st = state.turrets[name];
       if (st.id === id && st.part !== undefined && !ids.includes(st.part)) ids.push(st.part);
     }
-    state.aimed[id] = ids.length > 0 ? scan(id, { of: ids }) : [];
+    // A scan names at most 64 parts: for more, it asks 64 at a time, each a scan of the 4 a tick. Turrets whose part
+    // is left when the scans run out go without it and pick again.
+    if (ids.length <= 64) state.aimed[id] = ids.length > 0 ? scan(id, { of: ids }) : [];
+    else {
+      const list = [];
+      for (let k = 0; k < ids.length; k += 64) {
+        const got = scan(id, { of: ids.slice(k, k + 64) });
+        if (!got) break;
+        for (const p of got) list.push(p);
+      }
+      state.aimed[id] = list;
+    }
   }
   return state.aimed[id];
 }

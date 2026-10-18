@@ -27,7 +27,7 @@ import { spawnRobot } from '../assembly/spawn';
 import { partCells, rootPartId } from '../assembly/assemble';
 import { placeBlueprint } from '../blueprint/place';
 import { buildSeconds, hollowAt, recipePlacement, recipeStats, scopeBase } from '../fabricate/recipe';
-import { footprintOf, partMass } from '../parts/footprint';
+import { footprintMiddle, footprintOf, partMass } from '../parts/footprint';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
@@ -2148,7 +2148,15 @@ export class World {
       const on = carriedBy(robot, p);
       const kept = old !== undefined && old.on === on && sameNames(old.in, ins) && sameNames(old.out, outs);
       parts.push(kept ? (lastParts?.[was] as ScriptFeed['parts'][number]) : { id, part: p, in: ins, out: outs });
-      layout.push(kept ? old : { id, type: p.def.id, tags: old ? old.tags : [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: old ? old.mass : partMass(p.def, p.footprint), in: ins, out: outs, rot: p.rot, on });
+      if (kept) {
+        layout.push(old);
+        continue;
+      }
+      const row: LayoutPart = { id, type: p.def.id, tags: old ? old.tags : [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], mass: old ? old.mass : partMass(p.def, p.footprint), in: ins, out: outs, rot: p.rot, on };
+      // Where its middle is (M16 review), for a part of more than one cell: the same for the part's whole life.
+      const center = old ? old.center : partCenter(p);
+      if (center) row.center = center;
+      layout.push(row);
     }
     // The robot's mass only changes when it is rebuilt, which makes a new layout.
     let mass = 0;
@@ -2298,7 +2306,7 @@ export class World {
         const v = referenceOutput(robot, p, id, o.name);
         if (v !== undefined) out[o.name] = v;
       }
-      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out, rot: p.rot, on: carriedBy(robot, p), spec: partSpec(p.def) });
+      parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out, rot: p.rot, on: carriedBy(robot, p), center: partCenter(p) ?? { x: 0, y: 0 }, spec: partSpec(p.def) });
     }
     return {
       frame: this.tickCount,
@@ -2667,9 +2675,16 @@ export class World {
   /**
    * `scan(id)` (M8): a robot the viewer's sensors saw this tick, part by part, in blueprint order; null otherwise.
    * M11: a robot seen at a decoy scans as what the sensor sees there: the decoy. M16: `opts` picks parts out of that
-   * (`scanOptions.ts`), so a script looking at a titan receives only what it asked for.
+   * (`scanOptions.ts`), so a script looking at a titan receives only what it asked for. Null too when `cover` would be
+   * too much work (`scanJson` says why).
    */
   private scan(viewer: Robot, id: number, opts?: ScanOptions): ScannedPart[] | null {
+    const out = this.pick(viewer, id, opts);
+    return typeof out === 'string' ? null : out;
+  }
+
+  /** `scan()`'s answer, or the line saying why it asked too much. */
+  private pick(viewer: Robot, id: number, opts?: ScanOptions): ScannedPart[] | null | string {
     const seen = this.scanned(viewer, id);
     if (!seen) return null;
     if (!scanAsks(opts)) return seen.list;
@@ -2700,10 +2715,14 @@ export class World {
 
   /**
    * `scan(id, opts)` as the JSON text a script host hands its script. A plain scan's text is kept with the list, so it
-   * is made once a tick; one with options is made for that call only, and is as long as what it picked.
+   * is made once a tick; one with options is made for that call only, and is as long as what it picked. Options that
+   * ask too much are a line starting with '!', which the prelude logs.
    */
   private scanJson(viewer: Robot, id: number, opts?: ScanOptions): string {
-    if (scanAsks(opts)) return JSON.stringify(this.scan(viewer, id, opts));
+    if (scanAsks(opts)) {
+      const out = this.pick(viewer, id, opts);
+      return typeof out === 'string' ? `!${out}` : JSON.stringify(out);
+    }
     const parts = this.scan(viewer, id);
     if (parts === null) return 'null';
     const known = this.pass?.scanTexts.get(parts);
@@ -3161,6 +3180,17 @@ function controllerFor(robot: Robot, registry: PartRegistry): Controller | undef
  * `energy` and `partOutput` as they were before M9, kept verbatim for the parity test's reference input
  * (`scriptInput`), so a mistake in the faster versions cannot hide on both sides of the comparison.
  */
+/**
+ * Where a part's middle is from its position, built unturned (`LayoutPart.center`): the middle of its cells at the size
+ * it was placed. Undefined for a part whose middle is its position (every part of one cell).
+ */
+function partCenter(part: PartInstance): { x: number; y: number } | undefined {
+  const cells = part.footprint ?? part.def.footprint;
+  if (cells.length < 2) return undefined;
+  const m = footprintMiddle(cells);
+  return m.x === 0 && m.y === 0 ? undefined : m;
+}
+
 /**
  * The id of the joint part that carries a part, as scripts read it in `part.on` (M16, `script/frame.ts`): the joint
  * its body hangs from, and for that joint part itself the joint that carries what it is mounted on (so a chain of

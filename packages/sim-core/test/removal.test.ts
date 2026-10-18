@@ -117,6 +117,21 @@ describe('robots that die and go are cleaned up (M16 audit)', () => {
 });
 
 describe('removing robots by hand (M16)', () => {
+  it("keeps a robot's weapon tallies once it is gone: the run report counts what a robot did before it went", async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const car = w.spawnBlueprint({ format: 1, name: 'gun-car', grid: ['C M>'], bindings: [{ key: 'f', mode: 'hold', target: 'gun', channel: 'fire', value: 1 }] }, { x: -100, y: 0.5 });
+    for (let i = 0; i < 5; i++) w.step();
+    w.step([{ robot: car.id, pressed: ['f'], released: [] }]);
+    for (let i = 0; i < 59; i++) w.step();
+    expect(w.shotsBy(car.id)).toBe(10);
+    w.removeRobots([car.id]);
+    w.step();
+    expect(w.robots).toEqual([]);
+    // Reporting only (shotsBy, laserStats, cannonStats): never simulation state, read by pnpm sim run's report.
+    expect(w.shotsBy(car.id)).toBe(10);
+    w.dispose();
+  });
+
   it('goes on the next tick, is logged with the ids that went, and a replay does the same', async () => {
     const w = await World.create({ seed: 3, scripts: quickjs }, flat);
     const a = w.spawnBlueprint(LIFTER, { x: -20, y: 1 });

@@ -78,7 +78,10 @@ const some = (rng: Prng, from: readonly string[], most: number): string[] => {
 let made = 0;
 const part = (rng: Prng): LayoutPart => {
   const id = `part${made++}`;
-  return { id, type: pick(rng, TYPES), tags: [...some(rng, TAGS, 3), id], mass: 1 + Math.floor(rng.next() * 3), in: some(rng, NAMES, 2), out: some(rng, NAMES, 2) };
+  const p: LayoutPart = { id, type: pick(rng, TYPES), tags: [...some(rng, TAGS, 3), id], mass: 1 + Math.floor(rng.next() * 3), in: some(rng, NAMES, 2), out: some(rng, NAMES, 2) };
+  // Every other part with rot and on (M16), and of those every other one bigger than a cell (a center, M16 review).
+  if (made % 2 === 0) Object.assign(p, { rot: (made % 4) * 90, on: made % 3 === 0 ? '' : 'part0' }, made % 4 === 0 ? { center: { x: 0.5, y: (made % 7) / 2 } } : {});
+  return p;
 };
 
 /** The next layout: some parts gone, some with other values present, some new ones, sometimes moved about. */
@@ -131,25 +134,37 @@ describe('layoutPatch: the new layout as a patch on the old', () => {
   it('a part with other values present stands where it stood; new parts after the rest keep the order', () => {
     const now = rows('a', 'b', 'c', 'n');
     (now[1] as LayoutPart).out = ['x', 'y'];
-    expect(layoutPatch(rows('a', 'b', 'c'), now)).toBe('[4,1,[[0,1],["b","frame",["b"],1,[],["x","y"],null,null,1],[2,3],["n","frame",["n"],1,[],["x"],null,null]]]');
+    expect(layoutPatch(rows('a', 'b', 'c'), now)).toBe('[4,1,[[0,1],["b","frame",["b"],1,[],["x","y"],null,null,null,1],[2,3],["n","frame",["n"],1,[],["x"],null,null,null]]]');
   });
 
   it('a new part before a kept one, or a part that moved, says the order is not kept', () => {
-    expect(layoutPatch(rows('a', 'b'), rows('a', 'n', 'b'))).toBe('[3,0,[[0,1],["n","frame",["n"],1,[],["x"],null,null],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), rows('a', 'n', 'b'))).toBe('[3,0,[[0,1],["n","frame",["n"],1,[],["x"],null,null,null],[1,2]]]');
     // b moved in front of a: a is found first, so b is behind the walk and made anew.
-    expect(layoutPatch(rows('a', 'b', 'c'), rows('b', 'a', 'c'))).toBe('[3,0,[[1,2],["a","frame",["a"],1,[],["x"],null,null],[2,3]]]');
+    expect(layoutPatch(rows('a', 'b', 'c'), rows('b', 'a', 'c'))).toBe('[3,0,[[1,2],["a","frame",["a"],1,[],["x"],null,null,null],[2,3]]]');
   });
 
   it('a part with another mass stands where it stood too; one with another type or other tags is a new part', () => {
     const heavier = rows('a', 'b');
     (heavier[0] as LayoutPart).mass = 2;
-    expect(layoutPatch(rows('a', 'b'), heavier)).toBe('[2,1,[["a","frame",["a"],2,[],["x"],null,null,0],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), heavier)).toBe('[2,1,[["a","frame",["a"],2,[],["x"],null,null,null,0],[1,2]]]');
     const tagged = rows('a', 'b');
     (tagged[0] as LayoutPart).tags = ['a', 'left'];
-    expect(layoutPatch(rows('a', 'b'), tagged)).toBe('[2,0,[["a","frame",["a","left"],1,[],["x"],null,null],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), tagged)).toBe('[2,0,[["a","frame",["a","left"],1,[],["x"],null,null,null],[1,2]]]');
     const typed = rows('a', 'b');
     (typed[0] as LayoutPart).type = 'gun';
-    expect(layoutPatch(rows('a', 'b'), typed)).toBe('[2,0,[["a","gun",["a"],1,[],["x"],null,null],[1,2]]]');
+    expect(layoutPatch(rows('a', 'b'), typed)).toBe('[2,0,[["a","gun",["a"],1,[],["x"],null,null,null],[1,2]]]');
+  });
+
+  it('a part bigger than a cell carries its center, before the old index', () => {
+    const big = rows('a', 'b').map((r) => ({ ...r, rot: 90, on: '', center: { x: 0.5, y: 1.5 } }));
+    expect(layoutJson(big.slice(0, 1))).toBe('[["a","frame",["a"],1,[],["x"],90,"",[0.5,1.5]]]');
+    const now = big.map((r) => ({ ...r }));
+    (now[0] as LayoutPart).out = ['x', 'y'];
+    expect(layoutPatch(big, now)).toBe('[2,1,[["a","frame",["a"],1,[],["x","y"],90,"",[0.5,1.5],0],[1,2]]]');
+    // A part whose center differs is not the part it was.
+    const moved = big.map((r) => ({ ...r }));
+    (moved[1] as LayoutPart).center = { x: 0, y: 1 };
+    expect(layoutPatch(big, moved)).toBe('[2,1,[[0,1],["b","frame",["b"],1,[],["x"],90,"",[0,1],1]]]');
   });
 
   it('nothing kept: no patch', () => {

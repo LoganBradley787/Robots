@@ -180,6 +180,8 @@ export const PRELUDE = String.raw`
     return (specReady[type] = deepFreeze(specTable[type]));
   }
   var lock = { writable: false, configurable: false };
+  // M16 review: the middle of a part of one cell is its position. Shared by all of them, so frozen.
+  var noCenter = freeze({ x: 0, y: 0 });
   // The parts by type and by tag, each list in parts order, for get(): null until a get() needs it, then kept up to
   // date as the layout is patched (or dropped, when a patch moves parts about, and built again on the next get()).
   var index = null;
@@ -193,23 +195,25 @@ export const PRELUDE = String.raw`
   function nullsFor(n) {
     return n === 0 ? '[]' : '[' + repeat('null,', n - 1) + 'null]';
   }
-  /** One part from its layout entry: [id, type, tags, mass, in names, out names], then (M16) rot and on when it has them. */
+  /** One part from its layout entry: [id, type, tags, mass, in names, out names], then (M16) rot and on when it has them, and its center [x, y] when it is not 0, 0. */
   function makeRow(l) {
     var inO = parse(zeros(l[4]));
     var outO = parse(zeros(l[5]));
     var pos = { x: 0, y: 0 };
     var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
-    // How it was built turned and the joint that carries it (M16) come after out, and its type's spec last; each
+    // How it was built turned, the joint that carries it (M16) and where its middle is come after out, and its type's spec last; each
     // only when the host sent it: without them a part is as it was before M16. Always a literal, never a property
     // added later, so a setter a script puts on Object.prototype never sees the part being made.
     var sp = specOf(r.type);
     var o;
     if (l.length > 7 && l[6] !== null && l[7] !== null) {
+      var mid = l.length > 8 && l[8] !== null ? freeze({ x: l[8][0], y: l[8][1] }) : noCenter;
       o = sp === undefined
-        ? { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, rot: l[6], on: l[7] }
-        : { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, rot: l[6], on: l[7], spec: sp };
+        ? { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, rot: l[6], on: l[7], center: mid }
+        : { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO, rot: l[6], on: l[7], center: mid, spec: sp };
       defineProperty(o, 'rot', lock);
       defineProperty(o, 'on', lock);
+      defineProperty(o, 'center', lock);
     } else {
       o = sp === undefined
         ? { id: l[0], type: r.type, tags: r.tags, pos: pos, angle: 0, mass: l[3], in: inO, out: outO }
@@ -297,11 +301,11 @@ export const PRELUDE = String.raw`
       } else {
         var r = makeRow(op);
         if (live) {
-          if (op.length > 8) {
-            // The old part op[8] with other values present: the new one stands where it stood.
-            for (var j = seen; j < op[8]; j++) reindex(rows[j], null);
-            reindex(rows[op[8]], r.o);
-            seen = op[8] + 1;
+          if (op.length > 9) {
+            // The old part op[9] with other values present: the new one stands where it stood.
+            for (var j = seen; j < op[9]; j++) reindex(rows[j], null);
+            reindex(rows[op[9]], r.o);
+            seen = op[9] + 1;
           } else {
             addIndex(r);
           }

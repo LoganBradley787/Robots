@@ -153,6 +153,8 @@ export class WorldScreen {
   /** M16: the remove cursor is armed, the robot under it (outlined in orange), and Remove far away's distance. */
   private removeArmed = false;
   private hoverId: number | undefined;
+  /** Where the pointer last was over the world (screen pixels), so the remove cursor's robot is found again every frame. */
+  private pointer: { sx: number; sy: number } | undefined;
   private farDistance: number;
   /** The orange outline over the robot a click would remove, with its edges per body, made again when the robot is. */
   private readonly outline = new Graphics();
@@ -410,10 +412,10 @@ export class WorldScreen {
     this.keys.setControlled(this.possessable(robotId) ? robotId : undefined);
   }
 
-  /** Only your own robots with a live core (M8): an enemy can be watched, never driven. */
+  /** Only your own robots with a live core (M8): an enemy can be watched, never driven. Nor one waiting to be removed (M16). */
   private possessable(robotId: number): boolean {
     const robot = this.world.robots.find((r) => r.id === robotId);
-    return robot !== undefined && canPossess({ team: robot.team, controllable: this.world.canControl(robotId) });
+    return robot !== undefined && !this.world.removing(robotId) && canPossess({ team: robot.team, controllable: this.world.canControl(robotId) });
   }
 
   /** Back to where robots drop in, following nothing: for when you are lost (Gate 3). */
@@ -577,8 +579,9 @@ export class WorldScreen {
           this.cam = setFollow(this.cam, true);
           return;
         }
+        // Not one waiting to be removed (a removal while paused goes on the next tick).
         const next = nextRobot(
-          this.world.robots.map((r) => ({ id: r.id, controllable: this.possessable(r.id) })),
+          this.present().map((r) => ({ id: r.id, controllable: this.possessable(r.id) })),
           this.focusId,
         );
         if (next !== undefined) this.focus(next);
@@ -624,11 +627,18 @@ export class WorldScreen {
   }
 
   onPointerMove(e: PointerEvent, sx: number, sy: number): void {
+    this.pointer = { sx, sy };
     if (this.placing) this.updateGhost(sx, sy);
     if (this.removeArmed) this.hoverId = this.robotAt(sx, sy)?.id;
     if (!this.dragging || e.pointerId !== this.dragging.id) return;
     this.cam = panByPixels(this.cam, e.clientX - this.dragging.x, e.clientY - this.dragging.y);
     this.dragging = { ...this.dragging, x: e.clientX, y: e.clientY };
+  }
+
+  /** The pointer left the world's canvas: the remove cursor points at nothing. */
+  onPointerLeave(): void {
+    this.pointer = undefined;
+    this.hoverId = undefined;
   }
 
   /** A click (not a drag) on a robot takes control of it, or with the remove cursor armed removes it (M16). */
@@ -730,10 +740,13 @@ export class WorldScreen {
     this.bolts.draw(this.world, alpha, simDt, this.cam.zoom);
     this.smoke.draw(this.world.smokeClouds());
     this.ropes.draw(this.world.liveRopes());
-    this.drawOutline(alpha);
     const focus = this.world.robots.find((r) => r.id === this.focusId);
     if (focus) this.cam = followTarget(this.cam, anchorPosition(this.world, focus, alpha), ticker.deltaMS / 1000);
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
+    // The robot under the remove cursor, found again now the robots and the camera have moved: the outline is always
+    // the robot a click takes (a click finds it the same way, with this camera).
+    if (this.removeArmed) this.hoverId = this.pointer ? this.robotAt(this.pointer.sx, this.pointer.sy)?.id : undefined;
+    this.drawOutline(alpha);
     if (this.shake > 0.3) {
       this.renderer.world.position.x += (Math.random() - 0.5) * 2 * this.shake;
       this.renderer.world.position.y += (Math.random() - 0.5) * 2 * this.shake;
@@ -745,18 +758,20 @@ export class WorldScreen {
     } else this.renderer.debug.clear();
 
     const s = focus ? sampleRobot(this.world, focus) : undefined;
+    // Robots waiting to be removed (a removal while paused goes on the next tick) are not counted.
+    const present = this.present();
     const controlled = this.keys.robot === undefined ? undefined : this.world.robots.find((r) => r.id === this.keys.robot);
     const robotLine =
       focus && s
-        ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name} (${this.world.robots.indexOf(focus) + 1}/${this.world.robots.length})   ${s.speed.toFixed(1)} m/s   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
-        : this.world.robots.length > 0
+        ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name} (${present.indexOf(focus) + 1}/${present.length})   ${s.speed.toFixed(1)} m/s   core (${s.coreX.toFixed(2)}, ${s.coreY.toFixed(2)})   tilt ${s.tiltDeg.toFixed(1)}   ${s.resting ? 'resting' : 'moving'}   ${s.massKg.toFixed(1)} kg`
+        : present.length > 0
           ? 'following no robot: click one, or press , for the next'
           : 'no robots yet: build one and press Test';
     // M16: who the camera is on, for the time panel at the top left.
     const who =
       focus !== undefined
         ? `${focus.id === controlled?.id ? 'controlling' : focus.team !== 0 ? `watching ${teamName(focus.team).toLowerCase()}` : 'watching'} ${focus.name}`
-        : this.world.robots.length > 0
+        : present.length > 0
           ? 'following no robot: click one'
           : 'no robots yet';
     const p = this.placing;
@@ -768,7 +783,6 @@ export class WorldScreen {
       : this.removeArmed
         ? [`REMOVING: click a robot to take it out of the world   Esc or right click stops   ${hovered ? `${hovered.name} (${teamName(hovered.team)}${hovered.brokeFrom !== undefined ? ', a piece' : ''})` : 'point at a robot'}`]
         : [];
-    const present = this.present();
     const view: WorldView = {
       paused: time.paused,
       timeScale: time.timeScale,

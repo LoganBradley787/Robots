@@ -27,6 +27,14 @@ import { built, coreState, give, raw, registry, shipped } from './shelfHelp';
  * Lifters that push sideways (2 thrusters up, one pointing each way, a gyro), D held from 5 s to 8 s, against the
  * same robot with the sideways ones left out of the group: 59.6 m/s at 8 s against 25.0, and under 0.1 m/s 3.9 s
  * after the key is let go against 12 s. Height within 0.26 m against 0.14 m, most tilt 54 degrees against 47.
+ *
+ * Slow turners with weight in big parts (review 2026-10-18), deployed at 12 m, a key held from 5 s to 8 s:
+ * - the many-gun drone (its pilot taken off), D: most tilt 45.1 degrees (its lean), height 16.99 to 17.07 m from 5 s
+ *   on, 0.5 degrees at 16 s. Before Hover v4 it learned its trim all through the turn, which then cancelled its
+ *   braking: it swung to 128 degrees and fell to 7 m.
+ * - the hunter carrier (its pilot taken off), A: most tilt 53.8 degrees, sinks to 5.8 m (its thrust is 1.48 times its
+ *   weight) and is back at 17.3 m and 2.1 degrees at 16 s. With its parts weighed at their first cells (before
+ *   `part.center`) it rolled over and lay upside down at 6.5 m, with or without v4.
  */
 const flat = parseWorldFile(flatJson);
 let host: ScriptHost;
@@ -174,6 +182,46 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
       expect(Math.abs(coreState(w, r).vx), grid[0]).toBeLessThan(0.1);
       w.dispose();
     }
+  });
+
+  /** Deployed at 12 m, `key` held from 5 s to 8 s, 16 s in all: the most tilt from 5 s, the height from 5 s, and the end. */
+  async function turn(bp: Blueprint, key: string): Promise<{ tilt: number; low: number; high: number; end: { y: number; tilt: number }; logs: string[]; crashes: number }> {
+    const w = await World.create({ seed: 1, scripts: host }, flat);
+    const r = w.spawnBlueprint(raw(bp), { x: 0, y: 12 });
+    let tilt = 0;
+    let low = Infinity;
+    let high = -Infinity;
+    for (let t = 0; t < 16 * 60; t++) {
+      w.step(t === 300 ? [{ robot: r.id, pressed: [key], released: [] }] : t === 480 ? [{ robot: r.id, pressed: [], released: [key] }] : []);
+      if (t < 300) continue;
+      const s = coreState(w, r);
+      tilt = Math.max(tilt, Math.abs((s.angle * 180) / Math.PI));
+      low = Math.min(low, s.y);
+      high = Math.max(high, s.y);
+    }
+    const s = coreState(w, r);
+    const out = { tilt, low, high, end: { y: s.y, tilt: Math.abs((s.angle * 180) / Math.PI) }, logs: w.scriptLogs.filter((l) => l.robot === r.id).map((l) => l.text), crashes: w.events.filter((e) => e.kind === 'scriptCrashed').length };
+    w.dispose();
+    return out;
+  }
+
+  it('a slow turner: the many-gun drone leans with D held and comes back level, without its trim cancelling its braking', { timeout: 60_000 }, async () => {
+    const f = await turn(give(shipped('enemy-many-gun-drone', ['pilot']), 'hover').blueprint, 'd');
+    expect([f.crashes, f.logs]).toEqual([0, []]);
+    expect(f.tilt).toBeLessThan(47);
+    expect(f.low).toBeGreaterThan(17 - WITHIN);
+    expect(f.high).toBeLessThan(17 + WITHIN);
+    expect(f.end.tilt).toBeLessThan(LEVEL);
+  });
+
+  it('weight in a big part: the hunter carrier (a 10 by 4 bay) leans with A held and does not roll over', { timeout: 60_000 }, async () => {
+    const f = await turn(give(shipped('enemy-hunter-carrier', ['pilot']), 'hover').blueprint, 'a');
+    expect([f.crashes, f.logs]).toEqual([0, []]);
+    expect(f.tilt).toBeLessThan(60);
+    // It has little thrust to spare and sinks while it rights itself, then climbs back.
+    expect(f.low).toBeGreaterThan(4);
+    expect(Math.abs(f.end.y - 17)).toBeLessThan(1);
+    expect(f.end.tilt).toBeLessThan(5);
   });
 
   it('too heavy to lift: it says so in plain words and stays down', { timeout: 60_000 }, async () => {

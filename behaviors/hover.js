@@ -1,6 +1,6 @@
 // @behavior Hover
 // @about Holds a height and stays level, on anything that lifts. W and S move the height, A and D fly it sideways: it leans, and runs whatever pushes that way.
-// @version 3
+// @version 4
 // @slot lift throttle "what lifts/pushes" required many owns
 // @slot level spin "what levels" optional many
 // @note It reads each lifter's strength, place and direction off the part, and the robot's weight, every tick: add armor or one more lifter and it needs no retuning.
@@ -37,6 +37,8 @@ const SPARE = 1; // m/s^2 of climb it keeps in hand while leaning, so leaning ne
 const ARM = 0.05; // m: a lifter closer to the middle than this is on neither side
 const SLOW = 3; // 1/s: how hard the sideways lifters brake its sideways speed, with A and D let go
 const SHARE = 0.25; // share of its turning power the sideways lifters may use up by being off center
+const TRIM_NEAR = 0.1; // radians: the balance it misses is learned only this near the lean it wants
+const TRIM_SPIN = 0.2; // radians/s: and only turning slower than this
 
 function setup() {
   // Just deployed: climb to its height. Switched on in flight: hold where it is.
@@ -54,6 +56,19 @@ function say(text) {
 }
 
 /**
+ * Where a part's weight is: the middle of its cells (`center`, from its position when built unturned), turned as the
+ * part is. A part of one cell is its position; a cannon or a fabricator bay is meters off its first cell.
+ */
+function middle(p) {
+  const c = p.center;
+  if (!c || (c.x === 0 && c.y === 0)) return p.pos;
+  const a = p.angle + p.rot * RAD;
+  const cs = Math.cos(a);
+  const sn = Math.sin(a);
+  return { x: p.pos.x + c.x * cs - c.y * sn, y: p.pos.y + c.x * sn + c.y * cs };
+}
+
+/**
  * The robot as a body that turns, from every part still attached: where its weight is, how heavy it is to turn about
  * that point, and what the air does to its plates there (the push upward and the turn, counterclockwise positive).
  */
@@ -62,9 +77,10 @@ function body() {
   let mx = 0;
   let my = 0;
   for (const p of parts) {
+    const m = middle(p);
     mass += p.mass;
-    mx += p.mass * p.pos.x;
-    my += p.mass * p.pos.y;
+    mx += p.mass * m.x;
+    my += p.mass * m.y;
   }
   const cx = mass > 0 ? mx / mass : self.pos.x;
   const cy = mass > 0 ? my / mass : self.pos.y;
@@ -73,8 +89,9 @@ function body() {
   let airUp = 0;
   let airTurn = 0;
   for (const p of parts) {
-    const rx = p.pos.x - cx;
-    const ry = p.pos.y - cy;
+    const m = middle(p);
+    const rx = m.x - cx;
+    const ry = m.y - cy;
     inertia += p.mass * (rx * rx + ry * ry + 1 / 6);
     const area = p.spec.config.area;
     if (!(area > 0) || p.spec.acts === undefined) continue;
@@ -190,7 +207,9 @@ function tick() {
   if (fly > 0.5 && keys.down('a')) want = most;
   if (fly > 0.5 && keys.down('d')) want = -most;
   const off = want - self.angle; // counterclockwise positive
-  state.trim = clamp(state.trim + 0.05 * off * dt, -0.2, 0.2);
+  // What the balance misses is learned only near the lean it wants and turning slowly: in a long turn the gap is the
+  // turn itself, and adding that up would cancel its own braking (a slow turner swung past upside down).
+  if (Math.abs(off) < TRIM_NEAR && Math.abs(self.angVel) < TRIM_SPIN) state.trim = clamp(state.trim + 0.05 * off * dt, -0.2, 0.2);
 
   // How hard it can turn each way: one side's lifters up and the other side's down by the same split, plus what
   // levels. The split is only what is left over the throttle that holds its weight at this tilt (at least 0.15, so it

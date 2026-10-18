@@ -104,10 +104,24 @@ function viewPoint(t, c, k) {
   return { x: c.center.x + r * Math.cos(a), y: c.center.y + r * Math.sin(a), ux: Math.cos(a), uy: Math.sin(a) };
 }
 
-/** Where the target's body points: the angle of most of its parts (they all share the core's body on most robots). */
+/**
+ * Where the target's body points: the angle most of the scanned parts share (on most robots they all share the
+ * core's body). The scan of its lifters holds no core, and the first lifter may be on a hinge or a piece of its own.
+ */
 function bodyAngle(list) {
-  for (const p of list) if (p.type === 'core') return p.angle;
-  return list.length > 0 ? list[0].angle : 0;
+  const count = {};
+  let best = 0;
+  let most = 0;
+  for (const p of list) {
+    const k = String(p.angle);
+    const n = (count[k] || 0) + 1;
+    count[k] = n;
+    if (n > most) {
+      most = n;
+      best = p.angle;
+    }
+  }
+  return best;
 }
 
 /** Updates what it knows of the target's lifters from a scan; `whole` when the scan saw every one of them. */
