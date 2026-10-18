@@ -169,6 +169,25 @@ export class DocumentController {
     return undefined;
   }
 
+  /** The script files the other saved blueprints use, each with the names of the blueprints that use it. One that cannot be read is skipped. */
+  private async scriptUsers(except: string): Promise<Map<string, string[]>> {
+    const out = new Map<string, string[]>();
+    for (const b of await this.deps.api.list()) {
+      if (b.file === except || !b.file.endsWith('.json')) continue;
+      try {
+        resolveScripts(await this.deps.api.load(b.file), (f) => {
+          const who = out.get(f) ?? [];
+          if (!who.includes(b.name)) who.push(b.name);
+          out.set(f, who);
+          return undefined;
+        });
+      } catch {
+        // unreadable: what it uses cannot be told, and it could not be opened anyway
+      }
+    }
+    return out;
+  }
+
   async saveAs(): Promise<boolean> {
     const answer = await this.deps.askName(this.state.name);
     const name = answer?.trim();
@@ -196,11 +215,16 @@ export class DocumentController {
     const file = this.state.file;
     if (file === undefined) return false;
     // Its own script files go with it (M16): the ones named after this blueprint (`drone.hover.js` for `drone.json`),
-    // which Save and Save As wrote for it alone. A script file another blueprint lent it is not its own, and stays.
+    // which Save and Save As wrote for it. A script file another blueprint lent it is not its own, and stays; so does
+    // one of its own that another saved blueprint uses too.
     const stem = file.slice(0, -'.json'.length);
-    const own = [...new Set(allScripts(this.deps.getDraft()).flatMap((s) => (s.file !== undefined && s.file.startsWith(`${stem}.`) && SCRIPT_FILE.test(s.file) && !s.file.includes('..') ? [s.file] : [])))];
+    const named = [...new Set(allScripts(this.deps.getDraft()).flatMap((s) => (s.file !== undefined && s.file.startsWith(`${stem}.`) && SCRIPT_FILE.test(s.file) && !s.file.includes('..') ? [s.file] : [])))];
+    const users = named.length > 0 ? await this.scriptUsers(file) : new Map<string, string[]>();
+    const own = named.filter((f) => !users.has(f));
+    const kept = named.filter((f) => users.has(f));
     const also = own.length === 0 ? '' : ` and its script file${own.length === 1 ? '' : 's'} (${own.join(', ')})`;
-    const msg = `Delete "${this.state.name}"? This removes blueprints/${file}${also}. What's on screen stays, as an unsaved blueprint.`;
+    const stays = kept.map((f) => ` ${f} stays: ${(users.get(f) ?? []).join(', ')} ${(users.get(f) ?? []).length === 1 ? 'uses' : 'use'} it.`).join('');
+    const msg = `Delete "${this.state.name}"? This removes blueprints/${file}${also}.${stays} What's on screen stays, as an unsaved blueprint.`;
     if (!(await this.deps.confirm(msg))) return false;
     await this.deps.api.remove(file);
     for (const f of own) {

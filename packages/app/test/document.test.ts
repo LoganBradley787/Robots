@@ -177,6 +177,23 @@ describe('DocumentController', () => {
     expect(t.draft().scripts.map((s) => s.id)).toEqual(['hover']);
   });
 
+  it('delete keeps a script file of its own that another saved blueprint uses, and says which files go and which stay', async () => {
+    const t = setup(
+      {
+        'drone.json': { format: 1, name: 'drone', parts: [{ part: 'core', x: 0, y: 0 }], scripts: [{ id: 'hover', source: { file: 'drone.hover.js' } }, { id: 'guide', source: { file: 'drone.guide.js' } }] },
+        'drone.hover.js': 'function tick() {}',
+        'drone.guide.js': 'function tick() {}',
+        'gun-drone.json': { format: 1, name: 'gun drone', parts: [{ part: 'core', x: 0, y: 0 }], scripts: [{ id: 'guide', source: { file: 'drone.guide.js' } }] },
+      },
+      { confirms: [true] },
+    );
+    expect(await t.doc.open('drone.json')).toBe(true);
+    expect(await t.doc.remove()).toBe(true);
+    expect(Object.keys(t.files).sort()).toEqual(['drone.guide.js', 'gun-drone.json']);
+    expect(t.asked.at(-1)).toContain('blueprints/drone.json and its script file (drone.hover.js)');
+    expect(t.asked.at(-1)).toContain('drone.guide.js stays: gun drone uses it');
+  });
+
   it('newBlank while dirty with Save saves first', async () => {
     const t = setup({ 'car.json': carFile }, { unsaved: ['save'] });
     await t.doc.open('car.json');
