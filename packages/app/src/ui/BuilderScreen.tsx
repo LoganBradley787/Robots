@@ -1,6 +1,7 @@
 import { useEffect } from 'preact/hooks';
 import type { PartRegistry } from '@robots/sim-core';
 import { isTypingTarget } from '../app/keys';
+import { keyWaitActive } from './keyWait';
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
@@ -29,7 +30,8 @@ export function BuilderScreen({ store, registry, actions }: { store: Store<AppSt
   // `?` opens the key list from anywhere on the builder; Esc closes whatever is over the board.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (dialog || e.metaKey || e.ctrlKey || e.altKey) return;
+      // A key cap waiting for a key gets every press (its own listener says what each does).
+      if (dialog || e.metaKey || e.ctrlKey || e.altKey || keyWaitActive()) return;
       // A menu open over the library closes first (it listens for Esc itself).
       if (e.key === 'Escape' && overlay !== undefined && !document.querySelector('.pop')) {
         e.stopPropagation();

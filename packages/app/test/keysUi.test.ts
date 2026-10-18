@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { claimKeys, keyWaitActive, waitStep } from '../src/ui/keyWait';
 import { autoBindings, defaultRegistry, expandBlueprint, toFileJson, type Binding, type Blueprint } from '@robots/sim-core';
 import { WORLD_KEYS } from '../src/app/keys';
 import { controlsOf, withControls } from '../src/builder/coreControls';
@@ -214,5 +215,30 @@ describe('who owns each key', () => {
     const off = withControls(bp, reg, undefined, { autoOn: false });
     expect(autoUses(off, reg, main(off))).toEqual([]);
     expect(ownerKind(keyOwners(off, reg, main(off)).get('d'))).toBe('free');
+  });
+});
+
+describe('a key cap waiting for a key (review fixes)', () => {
+  const press = (code: string, key: string, mod: { metaKey?: boolean; ctrlKey?: boolean } = {}) => waitStep({ code, key, metaKey: mod.metaKey ?? false, ctrlKey: mod.ctrlKey ?? false });
+  it('leaves Cmd and Ctrl chords to do what they always do, and calls the wait off', () => {
+    expect(press('KeyZ', 'z', { metaKey: true })).toEqual({ kind: 'pass' });
+    expect(press('KeyS', 's', { ctrlKey: true })).toEqual({ kind: 'pass' });
+    expect(press('KeyR', 'r', { metaKey: true })).toEqual({ kind: 'pass' });
+  });
+  it('takes a plain key, stops on Esc, waits on a lone modifier', () => {
+    expect(press('KeyQ', 'q')).toEqual({ kind: 'key', key: 'q' });
+    expect(press('Escape', 'Escape')).toEqual({ kind: 'stop' });
+    expect(press('ShiftLeft', 'Shift')).toEqual({ kind: 'ignore' });
+  });
+  it('says while a wait runs, so the builder screen leaves ? and Esc to it', () => {
+    expect(keyWaitActive()).toBe(false);
+    const a = claimKeys();
+    const b = claimKeys();
+    expect(keyWaitActive()).toBe(true);
+    a();
+    a();
+    expect(keyWaitActive()).toBe(true);
+    b();
+    expect(keyWaitActive()).toBe(false);
   });
 });

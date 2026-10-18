@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ParamSpec, PartRegistry } from '@robots/sim-core';
 import { worldKeyLabel } from '../app/keys';
+import { claimKeys } from './keyWait';
 import { keyName } from '../builder/bindings';
 import type { Store } from './store';
 import { useStore } from './store';
@@ -360,11 +361,12 @@ function ScriptKey({ id, value, onSet }: { id: string; value: string | undefined
   latest.current = onSet;
   useEffect(() => {
     if (!waiting) return;
+    const release = claimKeys();
     const onKey = (e: KeyboardEvent): void => {
       // Cmd+S and the like are not a key for the robot: they do what they always do.
       if (e.metaKey || e.ctrlKey) return setWaiting(false);
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       if (e.key === 'Shift' || e.key === 'Meta' || e.key === 'Control' || e.key === 'Alt') return;
       if (e.key === 'Escape') return setWaiting(false);
       if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -381,6 +383,7 @@ function ScriptKey({ id, value, onSet }: { id: string; value: string | undefined
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('pointerdown', away, true);
     return () => {
+      release();
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('pointerdown', away, true);
     };
