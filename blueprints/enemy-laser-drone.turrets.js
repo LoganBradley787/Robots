@@ -104,7 +104,18 @@ function aimedParts(id) {
       const st = state.turrets[name];
       if (st.id === id && st.part !== undefined && !ids.includes(st.part)) ids.push(st.part);
     }
-    state.aimed[id] = ids.length > 0 ? scan(id, { of: ids }) : [];
+    // A scan names at most 64 parts: for more, it asks 64 at a time, each a scan of the 4 a tick. Turrets whose part
+    // is left when the scans run out go without it and pick again.
+    if (ids.length <= 64) state.aimed[id] = ids.length > 0 ? scan(id, { of: ids }) : [];
+    else {
+      const list = [];
+      for (let k = 0; k < ids.length; k += 64) {
+        const got = scan(id, { of: ids.slice(k, k + 64) });
+        if (!got) break;
+        for (const p of got) list.push(p);
+      }
+      state.aimed[id] = list;
+    }
   }
   return state.aimed[id];
 }
