@@ -7,10 +7,15 @@ export interface WorldChange {
   clearDebris?: true;
   /** Robots removed by hand (M16), by id, at the start of the tick before anything else. Only ones that were there. */
   remove?: number[];
+  /**
+   * Smooth (the app's setting): robots whose scripts sit out this tick, by id, sorted. The app decides from how long
+   * scripts take on its machine; the world only takes the list, so a replay skips the same ones. Absent: all run.
+   */
+  skip?: number[];
 }
 
 function cloneChange(w: WorldChange): WorldChange {
-  return { ...w, ...(w.remove ? { remove: [...w.remove] } : {}) };
+  return { ...w, ...(w.remove ? { remove: [...w.remove] } : {}), ...(w.skip ? { skip: [...w.skip] } : {}) };
 }
 
 export interface LoggedTick {

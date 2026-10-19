@@ -30,6 +30,11 @@ export function TimePanel({ store, actions }: { store: Store<AppState>; actions:
         <span class="tp-clock">{clock}</span>
         {v.paused && <span class="tp-paused h">Paused</span>}
         {v.timeScale !== 1 && <span class="tp-speed">{speedText(v.timeScale)}</span>}
+        {v.smooth && (
+          <span class="tp-smooth" title="Smooth is on: slow scripts may skip ticks (Sandbox menu)">
+            Smooth
+          </span>
+        )}
       </div>
       <div class="tp-who" title={v.who}>
         {v.who}

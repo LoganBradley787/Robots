@@ -13,16 +13,18 @@ export class FixedStepper {
 
   /**
    * Returns how many fixed ticks to run this frame. When the tick cap is hit the leftover time is dropped, so a
-   * slow machine at 4x runs slower than 4x instead of falling further behind every frame.
+   * slow machine at 4x runs slower than 4x instead of falling further behind every frame. `maxTicks` lowers the cap
+   * for this frame (Smooth catches up at most one tick a frame).
    */
-  advance(frameMs: number, timeScale: number): number {
+  advance(frameMs: number, timeScale: number, maxTicks = this.maxTicks): number {
     this.acc += Math.min(frameMs, this.maxFrameMs) * timeScale;
+    const cap = Math.max(1, Math.min(this.maxTicks, maxTicks));
     let ticks = 0;
-    while (this.acc >= this.dtMs && ticks < this.maxTicks) {
+    while (this.acc >= this.dtMs && ticks < cap) {
       this.acc -= this.dtMs;
       ticks++;
     }
-    if (ticks === this.maxTicks) this.acc = Math.min(this.acc, this.dtMs * 0.999);
+    if (ticks === cap) this.acc = Math.min(this.acc, this.dtMs * 0.999);
     return ticks;
   }
 

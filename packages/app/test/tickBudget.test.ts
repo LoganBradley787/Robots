@@ -23,4 +23,10 @@ describe('runWithin', () => {
     expect(runWithin(16, 10, c.now, c.step)).toBe(1);
     expect(runWithin(0, 10, c.now, c.step)).toBe(0);
   });
+
+  it('with a guess of the next tick (Smooth), does not start one that would end past the budget', () => {
+    const c = clocked(4);
+    expect(runWithin(16, 10, c.now, c.step, () => 4)).toBe(2);
+    expect(runWithin(16, 10, c.now, c.step, () => 7)).toBe(1);
+  });
 });

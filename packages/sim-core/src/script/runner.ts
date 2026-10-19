@@ -29,7 +29,7 @@ export interface ScriptTickOutput {
  * source. Scripts run in blueprint order and their writes apply in that order (last write wins).
  */
 export class ScriptRunner {
-  private readonly slots: (Omit<ScriptSlot, 'reads'> & { source?: string; params: Record<string, number>; instance?: ScriptInstance; needsSetup: boolean; seed: number; name: string; reads: string[] })[];
+  private readonly slots: (Omit<ScriptSlot, 'reads'> & { source?: string; params: Record<string, number>; instance?: ScriptInstance; needsSetup: boolean; seed: number; name: string; reads: string[]; last: ScriptWrite[] })[];
   private readonly host: ScriptHost | undefined;
 
   constructor(specs: readonly ScriptSpec[], host: ScriptHost | undefined, seed: (index: number) => number) {
@@ -40,6 +40,7 @@ export class ScriptRunner {
       params: { ...s.params },
       needsSetup: false,
       reads: [],
+      last: [],
       seed: seed(i),
       name: typeof s.source === 'string' ? `${s.id}.js` : s.source.file,
       ...(typeof s.source === 'string' ? { source: s.source } : {}),
@@ -80,6 +81,7 @@ export class ScriptRunner {
       out.ran = true;
       const instance = slot.instance;
       const results: ScriptResult[] = [];
+      slot.last = [];
       try {
         if (slot.needsSetup) results.push(instance.setup(built, services));
         slot.needsSetup = false;
@@ -91,6 +93,7 @@ export class ScriptRunner {
       for (const r of results) {
         if (r.ok) {
           out.writes.push(...r.writes);
+          slot.last = slot.last.length === 0 ? r.writes : [...slot.last, ...r.writes];
           out.writesBy.push({ script: slot.id, count: r.writes.length });
           out.marks.push({ script: slot.id, marks: r.marks });
           out.logs.push(...r.logs.map((text) => ({ script: slot.id, text })));
@@ -101,6 +104,23 @@ export class ScriptRunner {
           break;
         }
       }
+    }
+    return out;
+  }
+
+  /**
+   * A tick its scripts sit out (Smooth, `skip` in the input log): no script is called, and each running script's
+   * `set()` calls from the last tick it ran are made again, in the same order, so its parts keep what it set (the
+   * script layer is cleared every tick, `Controller.endTick`). A script switched on since it last ran has none yet.
+   * Compile errors from switching one on are reported here too, as on a tick that ran.
+   */
+  repeat(): ScriptTickOutput {
+    const out: ScriptTickOutput = { writes: [], writesBy: [], marks: [], ran: false, logs: [], crashes: this.pending };
+    this.pending = [];
+    for (const slot of this.slots) {
+      if (!slot.enabled || !slot.instance || slot.needsSetup) continue;
+      out.writes.push(...slot.last);
+      out.writesBy.push({ script: slot.id, count: slot.last.length });
     }
     return out;
   }
@@ -131,6 +151,7 @@ export class ScriptRunner {
     }
     if (!r.ok) return fail(r.error);
     slot.instance = r.instance;
+    slot.last = [];
     slot.enabled = true;
     slot.needsSetup = true;
   }

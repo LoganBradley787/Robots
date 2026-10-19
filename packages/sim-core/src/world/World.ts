@@ -396,6 +396,9 @@ export class World {
   private pendingClearDebris = false;
   /** M16: robots to remove at the start of the next tick, by id. */
   private readonly pendingRemove = new Set<number>();
+  /** Smooth: robots whose scripts sit out the next tick (`skipScripts`), and those that sit out this one. */
+  private readonly pendingSkip = new Set<number>();
+  private skipping: ReadonlySet<number> = new Set();
   /** The host's watch on each robot's script call (`watchScripts`), for timing. Not simulation state. */
   private scriptWatch: ScriptWatch | undefined;
   /** Robots whose parts or faces changed this tick and must be rebuilt in the damage phase. */
@@ -604,6 +607,14 @@ export class World {
     }
     if (this.pendingClearDebris) this.removeDebris();
     this.pendingClearDebris = false;
+    // Smooth: after removals, so only robots whose scripts are here to skip are logged (and nothing changes the
+    // runners again before scripts run).
+    if (this.pendingSkip.size > 0) {
+      const skip = [...this.pendingSkip].filter((id) => this.runners.has(id)).sort((a, b) => a - b);
+      this.pendingSkip.clear();
+      if (skip.length > 0) change.skip = skip;
+      this.skipping = new Set(skip);
+    }
     const accepted = inputs.filter((i) => this.controllers.has(i.robot));
     this.inputLog.append(this.tickCount, accepted, Object.keys(change).length > 0 ? change : undefined);
     for (const input of accepted) this.controllers.get(input.robot)?.apply(input.pressed, input.released);
@@ -611,6 +622,7 @@ export class World {
     this.unprimed.clear();
     if (this.tracedRobot !== undefined) this.controllers.get(this.tracedRobot)?.setTrace(true);
     this.runScripts();
+    if (this.skipping.size > 0) this.skipping = new Set();
     for (const [id, c] of this.controllers) this.channels.set(id, c.values());
     if (this.tracedRobot !== undefined) {
       const t = this.controllers.get(this.tracedRobot)?.trace();
@@ -2039,6 +2051,12 @@ export class World {
       const robot = this.byId.get(robotId);
       if (!controller || !robot) continue;
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
+      if (this.skipping.has(robotId)) {
+        // Smooth: its scripts sit out this tick. Nothing is called and nothing is read; its parts keep what the
+        // scripts set when they last ran, messages wait in the inbox, and its marks stay up.
+        this.applyScriptOutput(robotId, controller, runner.repeat());
+        continue;
+      }
       const services: ScriptServices = { scan: (id, opts) => this.scan(robot, id, opts), scanJson: (id, opts) => this.scanJson(robot, id, opts), send: (to, json) => this.send(robot, to, json) };
       if (this.scriptProbe) this.scriptProbe(robotId, () => this.scriptInput(robot, controller.keyState()));
       let ran: ScriptTickOutput | undefined;
@@ -2804,6 +2822,27 @@ export class World {
   /** A robot's scripts, whether each runs or crashed, and the keys each has asked about since it was switched on. Read-only. */
   scripts(robotId: number): readonly { id: string; enabled: boolean; crashed?: ScriptError; reads?: readonly string[] }[] {
     return this.runners.get(robotId)?.scripts ?? [];
+  }
+
+  /**
+   * Smooth (the app's setting): these robots' scripts sit out the next tick, logged for replays like a removal. A
+   * robot sitting out calls no script and builds no input: its running scripts' `set()` calls from the last tick they
+   * ran are made again (`ScriptRunner.repeat`), so its parts keep what they were set to. Robots without scripts, or
+   * gone by then, are left out of the log. Which robots is the caller's choice (the app times scripts on its own
+   * clock): the world never reads a clock and never decides this itself.
+   */
+  skipScripts(ids: Iterable<number>): void {
+    for (const id of ids) {
+      if (!Number.isInteger(id) || id < 1) throw new Error(`robot id must be a whole number, 1 or more, got ${String(id)}`);
+      this.pendingSkip.add(id);
+    }
+  }
+
+  /** Robots with at least one script running now, in the order their scripts run: those Smooth may skip. Read-only. */
+  scriptedRobots(): number[] {
+    const out: number[] = [];
+    for (const [id, runner] of this.runners) if (this.controllers.has(id) && runner.scripts.some((s) => s.enabled)) out.push(id);
+    return out;
   }
 
   /**

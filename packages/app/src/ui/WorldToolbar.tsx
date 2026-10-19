@@ -28,6 +28,8 @@ export interface WorldActions {
   removeTeam(team: number): void;
   saveReplay(): void;
   toggleUnlimitedEnergy(): void;
+  /** Smooth: slow scripts may skip ticks so the frame rate holds (`app/scriptScheduler.ts`). */
+  toggleSmooth(): void;
   toggleDeployTeam(): void;
   /** M15: sound off and on, its volume (0 to 1), and whether far sounds arrive late. */
   toggleMute(): void;
@@ -98,6 +100,13 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
         {(close) => (
           <>
             <Row label="Unlimited energy" state={onOff(v.unlimitedEnergy)} on={v.unlimitedEnergy} onPick={actions.toggleUnlimitedEnergy} title="Every part gets all the energy it asks for, and nothing drains" />
+            <Row
+              label="Smooth: slow scripts may skip ticks"
+              state={onOff(v.smooth)}
+              on={v.smooth}
+              onPick={actions.toggleSmooth}
+              title="For big fights. When scripts would make the game lag, the slowest sit out a tick and keep what they set; each still runs at least every 4th tick. A fresh run may then not repeat exactly, but its saved replay does."
+            />
             <div class="mi-sep" />
             <div class="wblock" title="Drops a crowd of scripted robots around the middle of the screen, to see how the sim copes. Turn on Debug for the numbers, and Unlimited energy so the drones do not run dry and fall.">
               <div class="wb-head">Stress test</div>

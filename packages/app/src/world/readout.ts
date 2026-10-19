@@ -1,5 +1,6 @@
 import { AUTO_KEYS, type ControlTrace, type ScriptError, type TraceInput } from '@robots/sim-core';
 import { msText } from '../app/scriptCosts';
+import { runsText } from '../app/scriptScheduler';
 
 /**
  * The live readout of one robot in the world (M16, plan section 7), as plain text lines: each script running, off or
@@ -38,7 +39,10 @@ export interface ReadoutView {
   inputs: ReadoutInput[];
   /** Held keys a running script reads: "W is held: hover reads it.". */
   held: string[];
-  /** What its scripts cost on this machine: "scripts 1.4 ms a tick". Absent until they have run. */
+  /**
+   * What its scripts cost on this machine: "scripts 1.4 ms a tick", or with Smooth skipping them "scripts 4.2 ms a
+   * run, runs 1 tick in 3". Absent until they have run.
+   */
   cost?: string;
 }
 
@@ -55,6 +59,8 @@ export interface ReadoutSource {
   trace?: ControlTrace;
   /** Wall-clock ms its scripts take per run, smoothed (`ScriptCosts`); undefined before they ran. */
   cost?: number;
+  /** Smooth: how many of its recent ticks its scripts ran (`ScriptScheduler.rate`); undefined with Smooth off. */
+  rate?: { ran: number; of: number };
   /** A part's type by its id, and a type's name as its definition gives it ("propeller"). */
   typeOf(partId: string): string | undefined;
   typeName(type: string): string;
@@ -185,7 +191,8 @@ export function buildReadout(src: ReadoutSource): ReadoutView {
 /** "scripts 1.4 ms a tick", while any script runs. */
 function costText(src: ReadoutSource): string | undefined {
   if (src.cost === undefined || !src.scripts.some((s) => s.enabled)) return undefined;
-  return `scripts ${msText(src.cost)} a tick`;
+  const runs = runsText(src.rate);
+  return runs === undefined ? `scripts ${msText(src.cost)} a tick` : `scripts ${msText(src.cost)} a run, ${runs}`;
 }
 
 /** Held keys that running scripts read, one line for the keys the same scripts read: "W and A are held: hover reads them.". */

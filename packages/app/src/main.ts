@@ -1,5 +1,5 @@
 import { render, h } from 'preact';
-import { Sprite } from 'pixi.js';
+import { Sprite, UPDATE_PRIORITY } from 'pixi.js';
 import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
@@ -324,6 +324,7 @@ async function boot(): Promise<void> {
       });
     },
     toggleUnlimitedEnergy: () => worldScreen.toggleUnlimitedEnergy(),
+    toggleSmooth: () => worldScreen.toggleSmooth(),
     toggleDeployTeam: () => worldScreen.toggleDeployTeam(),
     toggleMute: () => worldScreen.sound.set({ muted: !worldScreen.sound.settings.muted }),
     setVolume: (volume) => worldScreen.sound.set({ volume }),
@@ -814,6 +815,14 @@ async function boot(): Promise<void> {
     if (modes.mode === 'world') worldScreen.frame(ticker);
     else builder.frame(renderer.screenWidth, renderer.screenHeight);
   });
+  // After Pixi's own render (LOW): how long the whole frame took to draw, for Smooth's time budget.
+  renderer.app.ticker.add(
+    () => {
+      if (modes.mode === 'world') worldScreen.frameDrawn();
+    },
+    undefined,
+    UPDATE_PRIORITY.UTILITY,
+  );
 }
 
 boot().catch((err: unknown) => {

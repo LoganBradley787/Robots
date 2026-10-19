@@ -32,6 +32,7 @@ import { canPossess, isClick, nextRobot } from '../control/possession';
 import { PerfMeter } from '../app/perfMeter';
 import type { ScriptClock } from '../app/timedHost';
 import { msText, ScriptCosts } from '../app/scriptCosts';
+import { FramePace, frameSimBudget, ScriptScheduler, scriptBudget, ticksPerWindow } from '../app/scriptScheduler';
 import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
@@ -76,6 +77,8 @@ export interface WorldView {
     logs: string[];
   };
   unlimitedEnergy: boolean;
+  /** Smooth: slow scripts may sit out ticks so the frame rate holds (`app/scriptScheduler.ts`). */
+  smooth: boolean;
   /** M16: whether a click removes the robot under it (the bar's Remove button). */
   removing: boolean;
   /** M16: robots per team, for the Sandbox menu's Remove all rows; teams with none are left out. */
@@ -230,8 +233,42 @@ export class WorldScreen {
   private readonly watch = (robot: number, run: () => void): void => {
     const t = performance.now();
     run();
-    this.costs.add(robot, performance.now() - t);
+    const ms = performance.now() - t;
+    this.costs.add(robot, ms);
+    this.stepScriptMs += ms;
   };
+  /** Script time in the tick being stepped, so the rest of the tick can be told apart. */
+  private stepScriptMs = 0;
+  /**
+   * Smooth (the Sandbox menu): off by default, kept across Reset world but not across a reload. While it is on the
+   * scheduler picks, before each tick, which robots' scripts sit out; the budget comes from these smoothed times.
+   */
+  private smooth = false;
+  private readonly scheduler = new ScriptScheduler();
+  private readonly smoothed = { frameMs: 1000 / 60, viewMs: 0, restMs: 0 };
+
+  private frameStart = 0;
+  private frameSimMs = 0;
+  /** The last frame's whole work (sim, views, draw), and the browser's frame pace worked out from it. */
+  private frameWorkMs = 0;
+  private readonly pace = new FramePace();
+  /** The last frame's Smooth budgets, for the debug overlay. */
+  private lastBudget = { frameSim: 0, scripts: 0 };
+
+  /**
+   * Called after Pixi has drawn the frame (a ticker callback after its render): the frame's work outside the sim, for
+   * Smooth's budget. Includes the draw calls `frame` cannot see.
+   */
+  frameDrawn(): void {
+    this.frameWorkMs = performance.now() - this.frameStart;
+    const drawMs = Math.max(0, this.frameWorkMs - this.frameSimMs);
+    this.smoothed.viewMs += (drawMs - this.smoothed.viewMs) * 0.1;
+  }
+
+  toggleSmooth(): void {
+    this.smooth = !this.smooth;
+    this.scheduler.clear();
+  }
 
   /**
    * Stress test (M9): drops copies of `raw` in rows around `centerX` (the middle of the screen by default), skipping
@@ -256,6 +293,7 @@ export class WorldScreen {
     this.world = next;
     next.watchScripts(this.watch);
     this.costs.clear();
+    this.scheduler.clear();
     for (const v of this.views.values()) v.root.destroy({ children: true });
     this.views.clear();
     this.effects.clear();
@@ -486,6 +524,7 @@ export class WorldScreen {
       logs: this.readoutOpen ? this.world.scriptLogs.filter((l) => l.robot === focus.id) : [],
       ...(trace ? { trace } : {}),
       ...(this.costs.cost(focus.id) !== undefined ? { cost: this.costs.cost(focus.id) as number } : {}),
+      ...(this.smooth && this.scheduler.rate(focus.id) ? { rate: this.scheduler.rate(focus.id) as { ran: number; of: number } } : {}),
       typeOf: (id) => focus.parts.get(id)?.def.id,
       typeName: (type) => (registry.has(type) ? registry.get(type).name.toLowerCase() : type),
     });
@@ -496,8 +535,12 @@ export class WorldScreen {
   /** The debug overlay's slowest scripts, by robot: "slowest scripts: Anvil 3.1 ms, enemy drone (4) 0.40 ms". */
   private slowestLine(): string {
     const top = this.costs.slowest(3);
-    if (top.length === 0) return 'slowest scripts: none running';
-    return `slowest scripts: ${top.map((t) => `${this.world.robotById(t.robot)?.name ?? 'gone'} (${t.robot}) ${msText(t.ms)}`).join(', ')}   a tick each`;
+    const b = this.lastBudget;
+    const smooth = this.smooth
+      ? `\nsmooth: ${this.scheduler.lastSkipped} skipped last tick   scripts may take ${msText(b.scripts)} a tick, the sim ${msText(b.frameSim)} a frame   (frame ${msText(this.smoothed.frameMs)}, drawing ${msText(this.smoothed.viewMs)}, rest of a tick ${msText(this.smoothed.restMs)})`
+      : '';
+    if (top.length === 0) return `slowest scripts: none running${smooth}`;
+    return `slowest scripts: ${top.map((t) => `${this.world.robotById(t.robot)?.name ?? 'gone'} (${t.robot}) ${msText(t.ms)}`).join(', ')}   a run each${smooth}`;
   }
 
   get controlledId(): number | undefined {
@@ -735,22 +778,43 @@ export class WorldScreen {
   frame(ticker: Ticker): void {
     const time = this.time;
     let ticks = time.takePendingSteps();
+    this.frameStart = performance.now();
+    const smooth = this.smooth;
+    const sm = this.smoothed;
+    this.pace.update(ticker.deltaMS, this.frameWorkMs);
+    sm.frameMs = this.pace.ms;
+    const budget = { ...sm, timeScale: time.timeScale };
+    // Smooth catches up at most one tick a frame past the speed asked: after a hitch the world runs a little slower
+    // instead of trying to step many ticks in one frame (which would mean many over-budget ticks, and a stutter).
     if (time.paused) this.stepper.reset();
-    else ticks += this.stepper.advance(ticker.deltaMS, time.timeScale);
+    else ticks += this.stepper.advance(ticker.deltaMS, time.timeScale, smooth ? Math.ceil(ticksPerWindow(budget)) + 1 : undefined);
     let simMs = 0;
-    // At most SIM_BUDGET_MS of sim per frame: a scene too heavy for the speed asked runs slower instead of dragging
-    // the frame rate down (Gate 10: 4x in a big battle fell to 10 fps).
-    const ran = runWithin(ticks, SIM_BUDGET_MS, () => performance.now(), (i) => {
+    const scriptMs = smooth ? scriptBudget(budget) : 0;
+    // At most SIM_BUDGET_MS of sim per frame (with Smooth, what the frame has left after drawing): a scene too heavy
+    // for the speed asked runs slower instead of dragging the frame rate down (Gate 10: 4x in a big battle fell to 10 fps).
+    const frameSim = smooth ? frameSimBudget(budget) : SIM_BUDGET_MS;
+    this.lastBudget = { frameSim, scripts: scriptMs };
+    const ran = runWithin(ticks, frameSim, () => performance.now(), (i) => {
+      // Smooth: the robots whose scripts do not fit this tick sit out (logged for the replay).
+      if (smooth) {
+        const skip = this.scheduler.plan(this.world.scriptedRobots(), (id) => this.costs.cost(id), scriptMs);
+        if (skip.length > 0) this.world.skipScripts(skip);
+      }
       // Keys are sampled once per tick: this frame's edges go into its first tick. While paused they wait.
+      this.stepScriptMs = 0;
       const t = performance.now();
       this.world.step(i === 0 ? this.keys.drain() : []);
-      simMs += performance.now() - t;
+      const took = performance.now() - t;
+      simMs += took;
+      sm.restMs += (Math.max(0, took - this.stepScriptMs) - sm.restMs) * 0.1;
       this.afterStep?.();
       if (this.world.tick % 60 === 0) {
         this.lastHash = this.world.hash();
         this.costs.keep(this.world.robots.filter((r) => this.world.scripts(r.id).some((sc) => sc.enabled)).map((r) => r.id));
       }
-    });
+      // Smooth: the next tick is expected to take the rest of a tick and at most its script budget (or, at the floor,
+      // more: then it waits for the next frame).
+    }, smooth ? () => sm.restMs + scriptMs : undefined);
     // Ticks it had no room for are dropped: the stepper already counted their time as spent.
     ticks = ran;
     const viewStart = performance.now();
@@ -831,6 +895,7 @@ export class WorldScreen {
       deployTeam: this.deploy.team,
       sound: { ...this.sound.settings, awake: this.sound.awake },
       unlimitedEnergy: this.world.unlimitedEnergy,
+      smooth,
       removing: this.removeArmed,
       teams: teamCounts(present),
       far: { distance: this.farDistance, count: this.farCount(present, ticks > 0) },
@@ -944,6 +1009,7 @@ export class WorldScreen {
       this.lastClock = clock;
       this.onClock?.(clock);
     }
+    this.frameSimMs = simMs;
     this.perf.add({ frameMs: ticker.deltaMS, ticks, simMs, scriptMs: scripts.ms, scriptCalls: scripts.calls, viewMs: performance.now() - viewStart });
   }
 }

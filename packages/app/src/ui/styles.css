@@ -678,6 +678,9 @@ button kbd { margin: 0; opacity: 0.75; }
 .tp-clock { font: 600 17px var(--mono); letter-spacing: 0.02em; }
 .tp-paused { font-size: 12px; color: var(--accent); }
 .tp-speed { font: 600 13px var(--mono); color: var(--accent); margin-left: auto; }
+/* Smooth on (the Sandbox menu): slow scripts may skip ticks. Right-aligned like the speed, after it when both show. */
+.tp-smooth { font: 700 11px var(--head); text-transform: uppercase; letter-spacing: var(--head-space); color: var(--dim); margin-left: auto; }
+.tp-speed + .tp-smooth { margin-left: 0; }
 .tp-who { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
 .tp-drop { display: none; border-top: 1px solid var(--edge); margin-top: 7px; padding-top: 8px; }
 .time-panel:hover .tp-drop, .time-panel:focus-within .tp-drop { display: block; }

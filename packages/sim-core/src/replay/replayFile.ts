@@ -75,6 +75,9 @@ export function parseReplay(raw: unknown): ReplayFile {
     if (world && world.remove !== undefined && (!Array.isArray(world.remove) || !world.remove.every((id) => Number.isInteger(id) && (id as number) >= 1))) {
       throw new ReplayError(`inputs[${i}].world.remove must be a list of robot ids (whole numbers, 1 or more)`);
     }
+    if (world && world.skip !== undefined && (!Array.isArray(world.skip) || !world.skip.every((id) => Number.isInteger(id) && (id as number) >= 1))) {
+      throw new ReplayError(`inputs[${i}].world.skip must be a list of robot ids (whole numbers, 1 or more)`);
+    }
     return {
       ...(world
         ? {
@@ -82,6 +85,7 @@ export function parseReplay(raw: unknown): ReplayFile {
               ...(world.unlimitedEnergy === undefined ? {} : { unlimitedEnergy: world.unlimitedEnergy as boolean }),
               ...(world.clearDebris === true ? { clearDebris: true as const } : {}),
               ...(Array.isArray(world.remove) ? { remove: [...(world.remove as number[])] } : {}),
+              ...(Array.isArray(world.skip) ? { skip: [...(world.skip as number[])] } : {}),
             },
           }
         : {}),
@@ -120,6 +124,7 @@ export async function runReplay(
     if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
     if (change?.clearDebris) world.clearDebris();
     if (change?.remove) world.removeRobots(change.remove);
+    if (change?.skip) world.skipScripts(change.skip);
     world.step(log.inputsAt(world.tick));
     onTick?.(world);
   }

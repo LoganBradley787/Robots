@@ -118,4 +118,10 @@ describe('the live readout', () => {
     expect(buildReadout(base({ scripts: [{ id: 'hover', enabled: true }] })).cost).toBeUndefined();
     expect(buildReadout(base({ scripts: [{ id: 'hover', enabled: false }], cost: 1.43 })).cost).toBeUndefined();
   });
+
+  it('with Smooth skipping its scripts, says what a run costs and how often it runs', () => {
+    const on = [{ id: 'hover', enabled: true }];
+    expect(buildReadout(base({ scripts: on, cost: 4.2, rate: { ran: 20, of: 60 } })).cost).toBe('scripts 4.2 ms a run, runs 1 tick in 3');
+    expect(buildReadout(base({ scripts: on, cost: 4.2, rate: { ran: 60, of: 60 } })).cost).toBe('scripts 4.2 ms a tick');
+  });
 });
