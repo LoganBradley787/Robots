@@ -21,5 +21,6 @@ export function placePress(button: number, shift: boolean, fits: boolean): Place
 export function placingLine(p: { name: string; team: number; flip: boolean; rot: Rotation; ok: boolean; reason?: string }): string {
   const how = `${teamName(p.team)}${p.flip ? ', flipped' : ''}${p.rot !== 0 ? `, turned ${p.rot}` : ''}`;
   const here = p.ok ? 'fits here' : `blocked: ${p.reason ?? 'move the cursor into the world'}`;
-  return `PLACING ${p.name} as ${how}: click to drop   Shift+click keeps placing   F flips   R turns   Esc or right click stops   ${here}`;
+  // Whether it fits comes first: on a narrow window the end of the line is cut off.
+  return `PLACING ${p.name} as ${how}: ${here}   click drops   Shift+click keeps placing   F flips   R turns   Esc or right click stops`;
 }

@@ -133,11 +133,11 @@ describe('placing robots in the world', () => {
   });
 
   it('the line while placing says what a click, Shift+click, Esc and a right click do', () => {
-    expect(placingLine({ name: 'drone', team: 0, flip: false, rot: 0, ok: true })).toBe('PLACING drone as Yours: click to drop   Shift+click keeps placing   F flips   R turns   Esc or right click stops   fits here');
+    expect(placingLine({ name: 'drone', team: 0, flip: false, rot: 0, ok: true })).toBe('PLACING drone as Yours: fits here   click drops   Shift+click keeps placing   F flips   R turns   Esc or right click stops');
     expect(placingLine({ name: 'car', team: 1, flip: true, rot: 90, ok: false, reason: 'overlaps something already in the world' })).toBe(
-      'PLACING car as Enemy, flipped, turned 90: click to drop   Shift+click keeps placing   F flips   R turns   Esc or right click stops   blocked: overlaps something already in the world',
+      'PLACING car as Enemy, flipped, turned 90: blocked: overlaps something already in the world   click drops   Shift+click keeps placing   F flips   R turns   Esc or right click stops',
     );
-    expect(placingLine({ name: 'car', team: 0, flip: false, rot: 0, ok: false })).toMatch(/blocked: move the cursor into the world$/);
+    expect(placingLine({ name: 'car', team: 0, flip: false, rot: 0, ok: false })).toMatch(/: blocked: move the cursor into the world   click drops/);
   });
 
   it('several dropped on one paused tick each go in the replay, one on top of another is refused, and the replay reruns them', async () => {
