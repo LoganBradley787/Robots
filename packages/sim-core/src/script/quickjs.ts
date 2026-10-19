@@ -15,6 +15,7 @@ const COMPILE_BUDGET_TICKS = 4;
  */
 export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<ScriptHost> {
   const module = await newQuickJSWASMModuleFromVariant(variant);
+  const stack = new StackBase(() => module.newRuntime());
   return {
     compile(source: string, opts: CompileOptions): CompileResult {
       const limits = opts.limits ?? DEFAULT_LIMITS;
@@ -29,8 +30,7 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
       };
       try {
         runtime.setMemoryLimit(limits.memoryBytes);
-        runtime.setMaxStackSize(limits.stackBytes);
-        const meter = new Meter(runtime);
+        const meter = new Meter(runtime, new StackGuard(runtime, stack, limits.stackBytes));
         // No Date at all: sim time comes in through `time`.
         ctx = runtime.newContext({ intrinsics: { ...DefaultIntrinsics, Date: false } });
         const c = ctx;
@@ -50,6 +50,8 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         c.setProp(c.global, '__scan', scan);
         scan.dispose();
         const send = c.newFunction('send', (toHandle, jsonHandle) => {
+          // Once the script has gone past its stack nothing more of it reaches the world, even if it caught the error.
+          if (meter.guard.touched()) return c.newString('false');
           if (c.typeof(toHandle) !== 'string' || c.typeof(jsonHandle) !== 'string') return c.newString('false');
           const ok = services.current?.send(c.getString(toHandle), c.getString(jsonHandle)) ?? false;
           return c.newString(ok ? 'true' : 'false');
@@ -58,6 +60,7 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         send.dispose();
         const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})}; var __inspect = ${opts.inspect === true};\n${PRELUDE}`;
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
+        meter.guard.arm();
         const pre = c.evalCode(setup, 'prelude.js');
         if (pre.error) {
           const err = dumpError(c, pre.error);
@@ -131,15 +134,21 @@ function readSpecs(text: string): Record<string, ParamSpec> {
   return out;
 }
 
-/** Counts interrupt-handler calls and stops the script past its budget. Counting, never wall clock. */
+/**
+ * Counts interrupt-handler calls and stops the script past its budget. Counting, never wall clock. It also stops a
+ * script that has overflowed its stack and caught the error: the interrupt cannot be caught.
+ */
 class Meter {
   private calls = 0;
   private budget = 0;
   tripped = false;
+  readonly guard: StackGuard;
 
-  constructor(runtime: QuickJSRuntime) {
+  constructor(runtime: QuickJSRuntime, guard: StackGuard) {
+    this.guard = guard;
     runtime.setInterruptHandler(() => {
       this.calls++;
+      if (guard.touched()) return true;
       if (this.calls > this.budget) {
         this.tripped = true;
         return true;
@@ -152,6 +161,163 @@ class Meter {
     this.calls = 0;
     this.budget = budget;
     this.tripped = false;
+  }
+}
+
+/**
+ * Stack overflow is always fatal (review D2). Two things can stop deep recursion, and they used to end differently:
+ * QuickJS's own check throws an InternalError the script can catch and carry on from; the host's own stack running
+ * out throws through the engine and stops the script. Which comes first depended on how deep the host's stack
+ * already was and how big it is, so one replay could end two ways.
+ *
+ * The script's stack (QuickJS's C stack, in the wasm memory) is the same on every host for the same calls: it does
+ * not depend on the host's stack. So the host marks the stack's last part, the guard: `GUARD_BYTES` past
+ * `stackBytes`, plus `BELOW_BYTES` past QuickJS's own limit (its error is built there). Before each call into the
+ * script it fills the guard with a known word; after the call, at every interrupt, and in `send` it looks whether
+ * any word changed. One changed word means the script went past `stackBytes`: the interrupt (which cannot be
+ * caught) stops it, `send` does nothing, and the call's result is a stack crash whatever the script did with the
+ * error. QuickJS's own limit (`stackBytes + GUARD_BYTES`) is a backstop that also writes the guard when it throws.
+ * A function with more than about 1000 locals and temporaries could step over the guard; then QuickJS's error is
+ * catchable, but the same on every host.
+ *
+ * `stackBytes` is small (`DEFAULT_LIMITS`), so QuickJS stops recursion through script functions long before the
+ * host's own stack runs out, even from a deep host stack (`stackOverflow.test.ts`). Nesting that QuickJS walks in
+ * C (deeply nested source for `eval`, `JSON.stringify` of an array nested thousands deep) uses far more host stack
+ * per level and can still run it out first: that is the same stack crash, but how deep it gets can differ by host.
+ */
+const GUARD_BYTES = 8 * 1024;
+const BELOW_BYTES = 4 * 1024;
+const CANARY = 0x5ca1ab1e;
+/** How far into QuickJS's runtime struct to look for its stack fields. */
+const STRUCT_WORDS = 256;
+/** How much wasm stack host stack overflows may use up before scripts stop running (see `StackBase`). */
+const MAX_DRIFT_BYTES = 1024 * 1024;
+
+/** What the guard reads from a runtime: QuickJS's own pointer to it and the wasm memory. Not public API. */
+interface RuntimeInternals {
+  rt: { value: number };
+  module: { HEAPU8: Uint8Array };
+}
+
+function internals(runtime: QuickJSRuntime): RuntimeInternals {
+  return runtime as unknown as RuntimeInternals;
+}
+
+/** The wasm memory as words. It can grow, which replaces its buffer, so a kept view is checked first. */
+function wordsOf(runtime: QuickJSRuntime, kept?: Uint32Array): Uint32Array {
+  const buffer = internals(runtime).module.HEAPU8.buffer;
+  return kept?.buffer === buffer ? kept : new Uint32Array(buffer);
+}
+
+/**
+ * Where the wasm stack starts for a call from the host, shared by every script of one host (they share one wasm
+ * memory). QuickJS takes it once, when a runtime is made. But when the host's own stack runs out inside the engine,
+ * the error unwinds past the code that would put the wasm stack pointer back, so every later call starts lower:
+ * left alone, every script made before would lose that much of its stack, and on another host (where the host's
+ * stack did not run out) it would not. So each call sets the runtime's stack fields from here, and after such an
+ * error the host measures again with a new runtime. Each one uses up some wasm stack for good (at most
+ * `stackBytes + GUARD_BYTES`); past `MAX_DRIFT_BYTES` scripts stop rather than run into the wasm memory below it.
+ */
+class StackBase {
+  /** The byte offset of `stack_size` in QuickJS's runtime struct; `stack_top` and `stack_limit` follow it. */
+  readonly field: number;
+  top: number;
+  private readonly first: number;
+  private readonly newRuntime: () => QuickJSRuntime;
+
+  constructor(newRuntime: () => QuickJSRuntime) {
+    this.newRuntime = newRuntime;
+    this.field = this.find();
+    this.top = this.measure();
+    this.first = this.top;
+  }
+
+  get usedUp(): boolean {
+    return this.first - this.top > MAX_DRIFT_BYTES;
+  }
+
+  /** After the host's stack ran out inside the engine. */
+  moved(): void {
+    this.top = this.measure();
+  }
+
+  private measure(): number {
+    const runtime = this.newRuntime();
+    try {
+      runtime.setMaxStackSize(64 * 1024);
+      return wordsOf(runtime)[((internals(runtime).rt.value + this.field) >>> 2) + 1] ?? 0;
+    } finally {
+      safely(() => runtime.dispose());
+    }
+  }
+
+  /**
+   * A word that equals the size just set, followed by two words (top and limit) that differ by it, is the place;
+   * checked with a second size. Throws when it is not found (a quickjs-emscripten upgrade that moved it): scripts
+   * must not run without the guard.
+   */
+  private find(): number {
+    const runtime = this.newRuntime();
+    try {
+      const at = (size: number): number[] => {
+        runtime.setMaxStackSize(size);
+        const m = wordsOf(runtime);
+        const base = internals(runtime).rt.value >>> 2;
+        const found: number[] = [];
+        for (let i = base; i < base + STRUCT_WORDS; i++) {
+          if (m[i] === size && ((m[i + 1] ?? 0) - (m[i + 2] ?? 0)) >>> 0 === size) found.push((i - base) * 4);
+        }
+        return found;
+      };
+      const a = at(64 * 1024 + 16);
+      const b = at(96 * 1024 + 32);
+      const offset = a.find((o) => b.includes(o));
+      if (offset === undefined) throw new Error('the script sandbox could not find QuickJS stack limit (did quickjs-emscripten change?)');
+      return offset;
+    } finally {
+      safely(() => runtime.dispose());
+    }
+  }
+}
+
+/** The guard words past a script's stack limit. See the comment above `GUARD_BYTES`. */
+class StackGuard {
+  readonly base: StackBase;
+  private readonly runtime: QuickJSRuntime;
+  private readonly cap: number;
+  private view: Uint32Array | undefined;
+  private lo = 0;
+  private hi = 0;
+
+  constructor(runtime: QuickJSRuntime, base: StackBase, stackBytes: number) {
+    this.runtime = runtime;
+    this.base = base;
+    this.cap = stackBytes + GUARD_BYTES;
+    runtime.setMaxStackSize(this.cap);
+  }
+
+  /** Sets QuickJS's limit from where the wasm stack starts now and fills the guard. Before each call into the script. */
+  arm(): void {
+    const m = this.words();
+    const at = (internals(this.runtime).rt.value + this.base.field) >>> 2;
+    const limit = this.base.top - this.cap;
+    m[at + 1] = this.base.top;
+    m[at + 2] = limit;
+    this.lo = (limit - BELOW_BYTES) >>> 2;
+    this.hi = (limit + GUARD_BYTES) >>> 2;
+    m.fill(CANARY, this.lo, this.hi);
+  }
+
+  /** Whether the script's stack has reached the guard since `arm()`. */
+  touched(): boolean {
+    const m = this.words();
+    for (let i = this.lo; i < this.hi; i++) if (m[i] !== CANARY) return true;
+    return false;
+  }
+
+  private words(): Uint32Array {
+    this.view = wordsOf(this.runtime, this.view);
+    return this.view;
   }
 }
 
@@ -302,15 +468,27 @@ function readResult(text: string): ScriptResult {
 
 type RunResult = { ok: true; text: string } | { ok: false; error: ScriptError };
 
+const stackError = (): ScriptError => ({ kind: 'stack', message: 'recursed too deep (stack overflow)' });
+
 /** Runs an eval or call, turning QuickJS results into plain data and every failure into a ScriptError. */
 function run(ctx: QuickJSContext, meter: Meter, go: () => ReturnType<QuickJSContext['evalCode']>, isUserCode = false): RunResult {
+  const guard = meter.guard;
+  if (guard.base.usedUp) return { ok: false, error: { kind: 'stack', message: 'too many scripts ran the stack out in this session: reload to run scripts again' } };
+  guard.arm();
   let result: ReturnType<QuickJSContext['evalCode']>;
   try {
     result = go();
   } catch (e) {
     // Only an engine-level failure reaches here (the host's own stack or memory); the instance is disposed after.
     const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, error: /call stack/i.test(message) ? { kind: 'stack', message: 'recursed too deep (stack overflow)' } : { kind: 'memory', message } };
+    const stack = /call stack/i.test(message);
+    if (stack) guard.base.moved();
+    return { ok: false, error: stack || guard.touched() ? stackError() : { kind: 'memory', message } };
+  }
+  // Past its stack is a crash even when the script caught the error and carried on (review D2).
+  if (guard.touched()) {
+    safely(() => (result.error ?? result.value).dispose());
+    return { ok: false, error: stackError() };
   }
   if (result.error) {
     const err = dumpError(ctx, result.error);
@@ -335,7 +513,7 @@ function dumpError(ctx: QuickJSContext, handle: QuickJSHandle): { name: string; 
 function classify(err: { name: string; message: string; stack: string }, meter: Meter, isUserCode: boolean): ScriptError {
   if (meter.tripped || err.message === 'interrupted') return { kind: 'budget', message: 'ran too long for one tick (an endless loop?)' };
   if (err.message.includes('out of memory')) return { kind: 'memory', message: 'used too much memory' };
-  if (err.message.includes('stack overflow')) return { kind: 'stack', message: 'recursed too deep (stack overflow)' };
+  if (err.message.includes('stack overflow')) return stackError();
   const where = /:(\d+)(?::(\d+))?/.exec(err.stack);
   const line = where ? ` (line ${where[1]})` : '';
   if (isUserCode && err.name === 'SyntaxError') return { kind: 'compile', message: `${err.name}: ${err.message}${line}` };

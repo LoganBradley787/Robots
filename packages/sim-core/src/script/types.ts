@@ -18,14 +18,17 @@ export interface ScriptLimits {
   /** Interrupt-handler calls per tick (about 10,000 bytecode poll points each). Deterministic, unlike time. */
   budgetPerTick: number;
   memoryBytes: number;
+  /** QuickJS stack a script may use; going past it stops the script, even if it catches the error (review D2). */
   stackBytes: number;
 }
 
 /**
- * Starting limits (`04`). The stack is 256 KB, not 512: at 512 deep recursion overflowed the host's own stack before
- * QuickJS's check fired (the research spike also used 256).
+ * Starting limits (`04`). The stack is 64 KB (about 350 plain calls deep). It was 256 KB, but that much script stack
+ * took about 60% of Node's and Chrome's own stack, so from a deep enough host stack the host ran out first and the
+ * same replay ended another way (review D2). At 64 KB, plus the guard past it, plain recursion takes about a quarter
+ * of the host's stack at most (`quickjs.ts`, `StackGuard`).
  */
-export const DEFAULT_LIMITS: ScriptLimits = { budgetPerTick: 200, memoryBytes: 16 * 1024 * 1024, stackBytes: 256 * 1024 };
+export const DEFAULT_LIMITS: ScriptLimits = { budgetPerTick: 200, memoryBytes: 16 * 1024 * 1024, stackBytes: 64 * 1024 };
 
 /** One `set(target, channel, value)` from a script. */
 export interface ScriptWrite {

@@ -116,6 +116,9 @@ importers:
         specifier: 0.32.0
         version: 0.32.0
     devDependencies:
+      '@jitl/quickjs-singlefile-browser-release-sync':
+        specifier: 0.32.0
+        version: 0.32.0
       '@jitl/quickjs-wasmfile-release-sync':
         specifier: 0.32.0
         version: 0.32.0
