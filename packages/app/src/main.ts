@@ -775,6 +775,8 @@ async function boot(): Promise<void> {
       else worldScreen.turnPlacing();
       return;
     }
+    // Shift while placing is for Shift+click (keep placing): it does not reach the robot you are driving either.
+    if (modes.mode === 'world' && worldScreen.isPlacing && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) return;
     if (modes.mode === 'world') {
       // Every key that is not a world key belongs to the controlled robot (Gate 2).
       const code = codeOf(e);

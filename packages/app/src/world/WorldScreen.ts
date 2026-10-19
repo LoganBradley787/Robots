@@ -19,6 +19,7 @@ import { TERRAIN } from '../render/assetKeys';
 import type { GameTextures } from '../render/assets';
 import { createCamera, followTarget, panByPixels, screenToWorld, setFollow, zoomBy, type CameraState } from '../render/camera';
 import { SpawnGhost } from './SpawnGhost';
+import { placePress, placingLine } from './placing';
 import { snapDrop } from '../builder/deployFlow';
 import { applyCamera } from '../render/cameraView';
 import { PIXELS_PER_METER, toScreen } from '../render/units';
@@ -494,7 +495,10 @@ export class WorldScreen {
     return this.placing !== undefined;
   }
 
-  /** Shows a ghost of the blueprint on the cursor until a click drops it or Esc cancels. */
+  /**
+   * Shows a ghost of the blueprint on the cursor until a click drops it, or Esc or a right click cancels. Shift+click
+   * drops one and keeps it on the cursor for the next.
+   */
   startPlacing(raw: unknown, registry: PartRegistry): void {
     this.cancelPlacing();
     this.stopRemoving();
@@ -537,14 +541,18 @@ export class WorldScreen {
     if (!p) return;
     const shown = p.ghost.root.visible;
     p.ghost.destroy();
-    const ghost = this.makeGhost(p.source, p.registry);
-    this.placing = { ...p, ghost };
-    if (shown && p.at) {
-      const check = this.world.canPlace(ghost.raw, p.at);
-      this.placing = { ...this.placing, ok: check.ok, ...(check.reason !== undefined ? { reason: check.reason } : {}) };
-      ghost.root.visible = true;
-      ghost.place(p.at, check.ok);
-    }
+    this.placing = { ...p, ghost: this.makeGhost(p.source, p.registry) };
+    if (shown) this.recheckGhost();
+  }
+
+  /** Checks the ghost again where it is, without the cursor moving: after a turn, or a drop that keeps placing. */
+  private recheckGhost(): void {
+    const p = this.placing;
+    if (!p?.at) return;
+    const check = this.world.canPlace(p.ghost.raw, p.at);
+    this.placing = { ...p, ok: check.ok, ...(check.reason !== undefined ? { reason: check.reason } : {}) };
+    p.ghost.root.visible = true;
+    p.ghost.place(p.at, check.ok);
   }
 
   cancelPlacing(): void {
@@ -556,10 +564,8 @@ export class WorldScreen {
     const p = this.placing;
     if (!p) return;
     const at = snapDrop(screenToWorld(this.cam, sx, sy, this.renderer.screenWidth, this.renderer.screenHeight));
-    const check = this.world.canPlace(p.ghost.raw, at);
-    this.placing = { ...p, at, ok: check.ok, ...(check.reason !== undefined ? { reason: check.reason } : {}) };
-    p.ghost.root.visible = true;
-    p.ghost.place(at, check.ok);
+    this.placing = { ...p, at };
+    this.recheckGhost();
   }
 
   keyActions(): KeyActions {
@@ -614,14 +620,25 @@ export class WorldScreen {
       this.stopRemoving();
       return;
     }
-    if (this.placing && e.button === 0) {
-      this.updateGhost(sx, sy);
+    if (this.placing) {
+      if (e.button === 0) this.updateGhost(sx, sy);
       const p = this.placing;
-      if (p?.ok && p.at) {
+      const press = placePress(e.button, e.shiftKey, p.ok && p.at !== undefined);
+      if (press === 'stop') {
         this.cancelPlacing();
-        this.spawn(p.ghost.raw, p.at, this.deploy.team);
+        return;
       }
-      return;
+      if ((press === 'drop' || press === 'drop-and-keep') && p.at) {
+        if (press === 'drop') this.cancelPlacing();
+        this.spawn(p.ghost.raw, p.at, this.deploy.team);
+        if (press === 'drop-and-keep') {
+          // Still placing: the camera stays where it is, so the next drop lands where the cursor points. The ghost
+          // turns red now, on top of the robot just dropped.
+          this.cam = setFollow(this.cam, false);
+          this.recheckGhost();
+        }
+      }
+      if (press !== 'pass') return;
     }
     this.dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY };
   }
@@ -777,9 +794,7 @@ export class WorldScreen {
     const p = this.placing;
     const hovered = this.removeArmed && this.hoverId !== undefined ? this.world.robotById(this.hoverId) : undefined;
     const placingLines = p
-      ? [
-          `PLACING ${p.ghost.name} as ${teamName(this.deploy.team)}${this.deploy.flip ? ', flipped' : ''}${this.deploy.rot !== 0 ? `, turned ${this.deploy.rot}` : ''}: click to drop   F flips   R turns   Esc cancels   ${p.ok ? 'fits here' : `blocked: ${p.reason ?? 'move the cursor into the world'}`}`,
-        ]
+      ? [placingLine({ name: p.ghost.name, team: this.deploy.team, flip: this.deploy.flip, rot: this.deploy.rot, ok: p.ok, ...(p.reason !== undefined ? { reason: p.reason } : {}) })]
       : this.removeArmed
         ? [`REMOVING: click a robot to take it out of the world   Esc or right click stops   ${hovered ? `${hovered.name} (${teamName(hovered.team)}${hovered.brokeFrom !== undefined ? ', a piece' : ''})` : 'point at a robot'}`]
         : [];

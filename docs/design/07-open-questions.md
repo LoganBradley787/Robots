@@ -74,7 +74,7 @@ Status: all decided (Q22 sensors decided 2026-09-25 for M8). Logan answered Q1, 
 - Multiple held bindings on one channel sum and clamp, so A plus D gives 0. A toggle that is on counts as manual and overrides scripts on that channel until toggled off. Scripts read keys freely to blend.
 
 ### Q20. Spawn: click to place, from the builder
-- Ghost preview, primary core (or the single part for core-less blueprints like a bomb) lands on the cursor, works in mid-air. Overlap is refused. Revised with Logan 2026-09-23: spawning starts only from the builder's Deploy button (one drop per deploy); a quick-spawn menu and a respawn shortcut in the world are not planned for now.
+- Ghost preview, primary core (or the single part for core-less blueprints like a bomb) lands on the cursor, works in mid-air. Overlap is refused. Revised with Logan 2026-09-23: spawning starts only from the builder's Deploy button (one drop per deploy); a quick-spawn menu and a respawn shortcut in the world are not planned for now. Revised 2026-10-19: Shift+click drops one and keeps placing the same robot, so one deploy can drop several (`10`, Deploy).
 
 ### Q21. Terrain: immune
 - Terrain takes no damage in v1. Destructible terrain later means terrain made of cells, a separate feature.

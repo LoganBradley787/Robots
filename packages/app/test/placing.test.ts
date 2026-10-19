@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { defaultRegistry, expandBlueprint, placeBlueprint, type Blueprint } from '@robots/sim-core';
+import { World, buildReplay, defaultRegistry, expandBlueprint, parseReplay, parseWorldFile, placeBlueprint, runReplay, type Blueprint } from '@robots/sim-core';
+import flatJson from '../../../worlds/flat.json';
+import carJson from '../../../blueprints/car.json';
 import { controlCores, controlsOf, withControls } from '../src/builder/coreControls';
 import { placeStamp, stampGhost, type Stamp } from '../src/builder/stamp';
 import { initialEditor, reduce, type EditorEvent } from '../src/builder/editorState';
+import { placePress, placingLine } from '../src/world/placing';
 
 const reg = defaultRegistry();
 const bp = (raw: unknown): Blueprint => {
@@ -109,5 +112,50 @@ describe("each core's controls (M7)", () => {
     const added = withControls(twoCores, reg, 'core@2,0', { bindings: [{ key: 'k', mode: 'hold', target: 'core', channel: 'x', value: 1 }] });
     expect(added.cores?.map((c) => c.core)).toEqual(['core@2,0']);
     expect(withControls(added, reg, 'core@2,0', { bindings: [] }).cores).toBeUndefined();
+  });
+});
+
+describe('placing robots in the world', () => {
+  it('a click drops one and stops placing; Shift+click drops one and keeps the same robot in hand', () => {
+    expect(placePress(0, false, true)).toBe('drop');
+    expect(placePress(0, true, true)).toBe('drop-and-keep');
+  });
+
+  it('a click where it does not fit drops nothing and keeps it in hand, Shift or not', () => {
+    expect(placePress(0, false, false)).toBe('nothing');
+    expect(placePress(0, true, false)).toBe('nothing');
+  });
+
+  it('a right click stops placing, as it puts the remove cursor away; the middle button still drags the view', () => {
+    expect(placePress(2, false, true)).toBe('stop');
+    expect(placePress(2, true, false)).toBe('stop');
+    expect(placePress(1, false, true)).toBe('pass');
+  });
+
+  it('the line while placing says what a click, Shift+click, Esc and a right click do', () => {
+    expect(placingLine({ name: 'drone', team: 0, flip: false, rot: 0, ok: true })).toBe('PLACING drone as Yours: click to drop   Shift+click keeps placing   F flips   R turns   Esc or right click stops   fits here');
+    expect(placingLine({ name: 'car', team: 1, flip: true, rot: 90, ok: false, reason: 'overlaps something already in the world' })).toBe(
+      'PLACING car as Enemy, flipped, turned 90: click to drop   Shift+click keeps placing   F flips   R turns   Esc or right click stops   blocked: overlaps something already in the world',
+    );
+    expect(placingLine({ name: 'car', team: 0, flip: false, rot: 0, ok: false })).toMatch(/blocked: move the cursor into the world$/);
+  });
+
+  it('several dropped on one paused tick each go in the replay, one on top of another is refused, and the replay reruns them', async () => {
+    const w = await World.create({ seed: 5 }, parseWorldFile(flatJson));
+    const spots = [{ x: -40, y: 2 }, { x: -30, y: 2 }, { x: -20, y: 2 }];
+    for (const at of spots) {
+      expect(w.canPlace(carJson, at).ok).toBe(true);
+      w.spawnBlueprint(carJson, at, { team: 1 });
+    }
+    // A fast second click on the same spot: the robot just dropped is already in the way, before any tick.
+    expect(w.canPlace(carJson, { x: -20, y: 2 })).toEqual({ ok: false, reason: 'overlaps something already in the world' });
+    for (let i = 0; i < 120; i++) w.step();
+    const replay = buildReplay(w);
+    expect(replay.spawns.map((s) => [s.tick, s.at.x, s.team])).toEqual([[0, -40, 1], [0, -30, 1], [0, -20, 1]]);
+    const r = await runReplay(parseReplay(JSON.parse(JSON.stringify(replay))));
+    expect(r.matches).toBe(true);
+    expect(r.world.robots.map((x) => x.team)).toEqual([1, 1, 1]);
+    r.world.dispose();
+    w.dispose();
   });
 });
