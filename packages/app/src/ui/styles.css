@@ -633,6 +633,7 @@ button kbd { margin: 0; opacity: 0.75; }
 .readout .rhead .who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .readout .rbody { padding: 7px 10px 9px; }
 .readout .rbody > p { margin: 0; }
+.readout .rcost { color: var(--dim); font: 12px/1.5 var(--mono); margin-bottom: 6px; }
 .readout .dot, .readout-tab .dot { display: inline-block; width: 8px; height: 8px; background: var(--dim); margin-right: 6px; flex: none; }
 .readout .dot.on, .readout-tab .dot.on { background: var(--good); }
 .readout .dot.crashed, .readout-tab .dot.crashed { background: var(--bad); }

@@ -31,6 +31,7 @@ import { KeyboardSource } from '../control/KeyboardSource';
 import { canPossess, isClick, nextRobot } from '../control/possession';
 import { PerfMeter } from '../app/perfMeter';
 import type { ScriptClock } from '../app/timedHost';
+import { msText, ScriptCosts } from '../app/scriptCosts';
 import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
@@ -193,6 +194,7 @@ export class WorldScreen {
     this.readoutOpen = this.settingsStore?.getItem(READOUT_KEY) === 'open';
     this.cam = createCamera(file.spawn.x, file.spawn.y - 3);
     this.stepper = new FixedStepper(1000 * world.dt);
+    world.watchScripts(this.watch);
     this.lastHash = world.hash();
     this.grid = buildGridView({ minX: -60, maxX: 60, minY: -2, maxY: 30 });
     renderer.world.addChildAt(this.effects.root, renderer.world.getChildIndex(renderer.bodies) + 1);
@@ -223,6 +225,13 @@ export class WorldScreen {
   /** Time spent in scripts (M9: the script host is wrapped in a timer), and the readout it feeds. */
   private clock: ScriptClock | undefined;
   private readonly perf = new PerfMeter();
+  /** Each robot's scripts, timed on this machine's clock (`World.watchScripts`), for the readout. */
+  private readonly costs = new ScriptCosts();
+  private readonly watch = (robot: number, run: () => void): void => {
+    const t = performance.now();
+    run();
+    this.costs.add(robot, performance.now() - t);
+  };
 
   /**
    * Stress test (M9): drops copies of `raw` in rows around `centerX` (the middle of the screen by default), skipping
@@ -245,6 +254,8 @@ export class WorldScreen {
     const next = await World.create({ seed: 1, ...(this.scriptHost ? { scripts: this.scriptHost } : {}) }, this.file);
     this.world.dispose();
     this.world = next;
+    next.watchScripts(this.watch);
+    this.costs.clear();
     for (const v of this.views.values()) v.root.destroy({ children: true });
     this.views.clear();
     this.effects.clear();
@@ -474,11 +485,19 @@ export class WorldScreen {
       ...(held ? { held } : {}),
       logs: this.readoutOpen ? this.world.scriptLogs.filter((l) => l.robot === focus.id) : [],
       ...(trace ? { trace } : {}),
+      ...(this.costs.cost(focus.id) !== undefined ? { cost: this.costs.cost(focus.id) as number } : {}),
       typeOf: (id) => focus.parts.get(id)?.def.id,
       typeName: (type) => (registry.has(type) ? registry.get(type).name.toLowerCase() : type),
     });
     this.readoutAt = { robot: focus.id, tick, open: this.readoutOpen, held: heldNow, view };
     return view;
+  }
+
+  /** The debug overlay's slowest scripts, by robot: "slowest scripts: Anvil 3.1 ms, enemy drone (4) 0.40 ms". */
+  private slowestLine(): string {
+    const top = this.costs.slowest(3);
+    if (top.length === 0) return 'slowest scripts: none running';
+    return `slowest scripts: ${top.map((t) => `${this.world.robotById(t.robot)?.name ?? 'gone'} (${t.robot}) ${msText(t.ms)}`).join(', ')}   a tick each`;
   }
 
   get controlledId(): number | undefined {
@@ -727,7 +746,10 @@ export class WorldScreen {
       this.world.step(i === 0 ? this.keys.drain() : []);
       simMs += performance.now() - t;
       this.afterStep?.();
-      if (this.world.tick % 60 === 0) this.lastHash = this.world.hash();
+      if (this.world.tick % 60 === 0) {
+        this.lastHash = this.world.hash();
+        this.costs.keep(this.world.robots.filter((r) => this.world.scripts(r.id).some((sc) => sc.enabled)).map((r) => r.id));
+      }
     });
     // Ticks it had no room for are dropped: the stepper already counted their time as spent.
     ticks = ran;
@@ -906,6 +928,7 @@ export class WorldScreen {
           robotLine,
           ...placingLines,
           ...this.perf.lines(this.world.robots.length),
+          this.slowestLine(),
           this.sound.debugLine(),
           `hash ${this.lastHash}`,
           HELP,

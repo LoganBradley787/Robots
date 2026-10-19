@@ -56,6 +56,11 @@ export function Readout({ store, actions }: { store: Store<AppState>; actions: R
       </div>
       <div class="rbody scroll">
         {r.scripts.length === 0 && r.inputs.length === 0 && <p class="dim">This robot has no scripts and no keys.</p>}
+        {r.cost !== undefined && (
+          <div class="rcost" title="Time its scripts take on this machine, smoothed. A frame has 16.7 ms for everything.">
+            {r.cost}
+          </div>
+        )}
         {r.scripts.map((s) => (
           <div class={`rs ${s.state}`} key={s.id}>
             <div class="st">

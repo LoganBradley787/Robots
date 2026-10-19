@@ -112,4 +112,10 @@ describe('the live readout', () => {
     expect(percentOf(1.57, { min: -3.14, max: 3.14 })).toBe('50%');
     expect(percentOf(3, { min: 0, max: 0 })).toBe('3');
   });
+
+  it('says what its scripts cost a tick, while any runs', () => {
+    expect(buildReadout(base({ scripts: [{ id: 'hover', enabled: true }], cost: 1.43 })).cost).toBe('scripts 1.4 ms a tick');
+    expect(buildReadout(base({ scripts: [{ id: 'hover', enabled: true }] })).cost).toBeUndefined();
+    expect(buildReadout(base({ scripts: [{ id: 'hover', enabled: false }], cost: 1.43 })).cost).toBeUndefined();
+  });
 });

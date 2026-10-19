@@ -9,7 +9,7 @@ import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
 import { allBindings, autoBindings } from '../control/autoControls';
 import { drainContainers, fillContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
-import { ScriptRunner } from '../script/runner';
+import { ScriptRunner, type ScriptTickOutput } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
 import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { partSpec, partSpecsJson } from '../script/partSpec';
@@ -228,6 +228,12 @@ export interface ScriptLog {
 const LOG_KEEP = 200;
 const LOG_PER_SECOND = 20;
 
+/**
+ * A host's watch on one robot's scripts for one tick (`World.watchScripts`): `run` runs them, and the watch may time
+ * it. It must not change the world.
+ */
+export type ScriptWatch = (robot: number, run: () => void) => void;
+
 export interface WorldOptions {
   seed: number;
   /** Runs robots' scripts. Without one, a robot's scripts report that they cannot run. */
@@ -390,6 +396,8 @@ export class World {
   private pendingClearDebris = false;
   /** M16: robots to remove at the start of the next tick, by id. */
   private readonly pendingRemove = new Set<number>();
+  /** The host's watch on each robot's script call (`watchScripts`), for timing. Not simulation state. */
+  private scriptWatch: ScriptWatch | undefined;
   /** Robots whose parts or faces changed this tick and must be rebuilt in the damage phase. */
   private readonly dirty = new Set<Robot>();
   /**
@@ -2033,7 +2041,14 @@ export class World {
       for (const id of controller.takeScriptToggles()) runner.toggle(id);
       const services: ScriptServices = { scan: (id, opts) => this.scan(robot, id, opts), scanJson: (id, opts) => this.scanJson(robot, id, opts), send: (to, json) => this.send(robot, to, json) };
       if (this.scriptProbe) this.scriptProbe(robotId, () => this.scriptInput(robot, controller.keyState()));
-      const out = runner.tick(() => this.scriptFrame(robot, controller.keyState()), services);
+      let ran: ScriptTickOutput | undefined;
+      const run = (): void => {
+        ran ??= runner.tick(() => this.scriptFrame(robot, controller.keyState()), services);
+      };
+      // The host may time the call (`watchScripts`); it runs exactly once either way.
+      this.scriptWatch?.(robotId, run);
+      run();
+      const out = ran as unknown as ScriptTickOutput;
       if (out.ran) {
         // Its scripts have seen the messages sent before this tick; this tick's own sends stay for next tick.
         const core = robot.parts.get(robot.primaryCoreId ?? '');
@@ -2045,17 +2060,22 @@ export class World {
       } else {
         this.scriptMarks.delete(robotId);
       }
-      if (controller.traced) {
-        // The trace wants to know whose each write is (M16); the writes are applied in the same order either way.
-        let k = 0;
-        for (const by of out.writesBy) {
-          for (const w of out.writes.slice(k, k + by.count)) controller.scriptWrite(w.target, w.channel, w.value, by.script);
-          k += by.count;
-        }
-      } else for (const w of out.writes) controller.scriptWrite(w.target, w.channel, w.value);
-      for (const c of out.crashes) this.events.push({ tick: this.tickCount, robot: robotId, kind: 'scriptCrashed', script: c.script, error: c.error });
-      for (const l of out.logs) this.pushLog(robotId, l.script, l.text);
+      this.applyScriptOutput(robotId, controller, out);
     }
+  }
+
+  /** A robot's script writes for this tick, in order, then its crashes and logs. */
+  private applyScriptOutput(robotId: number, controller: Controller, out: ScriptTickOutput): void {
+    if (controller.traced) {
+      // The trace wants to know whose each write is (M16); the writes are applied in the same order either way.
+      let k = 0;
+      for (const by of out.writesBy) {
+        for (const w of out.writes.slice(k, k + by.count)) controller.scriptWrite(w.target, w.channel, w.value, by.script);
+        k += by.count;
+      }
+    } else for (const w of out.writes) controller.scriptWrite(w.target, w.channel, w.value);
+    for (const c of out.crashes) this.events.push({ tick: this.tickCount, robot: robotId, kind: 'scriptCrashed', script: c.script, error: c.error });
+    for (const l of out.logs) this.pushLog(robotId, l.script, l.text);
   }
 
   private pushLog(robot: number, script: string, text: string): void {
@@ -2784,6 +2804,15 @@ export class World {
   /** A robot's scripts, whether each runs or crashed, and the keys each has asked about since it was switched on. Read-only. */
   scripts(robotId: number): readonly { id: string; enabled: boolean; crashed?: ScriptError; reads?: readonly string[] }[] {
     return this.runners.get(robotId)?.scripts ?? [];
+  }
+
+  /**
+   * A watch on each robot's scripts (for the app's per-robot timing): called once per robot per tick with a `run`
+   * that runs that robot's scripts, which the watch calls (the world calls it after, if the watch did not, and it
+   * never runs twice). Not simulation state: a run with a watch is the same run. Undefined removes it.
+   */
+  watchScripts(watch: ScriptWatch | undefined): void {
+    this.scriptWatch = watch;
   }
 
   /** Unlimited energy on or off, from the next tick on (logged, so replays match). */
