@@ -56,7 +56,7 @@ describe('parts', () => {
     expect(text('cannon')).toMatch(/charged gun: hold fire and it charges for 6 s, drawing 1000 J\/s \(6000 J a shot;/);
     expect(text('cannon')).toMatch(/let go before it is full and it drains back at the same rate, the energy flowing back/);
     expect(text('cannon')).toMatch(/held full for more than 4 s it backfires/);
-    expect(text('cannon')).toMatch(/carries 500 damage: each part it meets loses what health it has, up to what the bolt has left, in full whatever the part \(armor too\)/);
+    expect(text('cannon')).toMatch(/carries 1500 damage: each part it meets loses what health it has, up to what the bolt has left, in full whatever the part \(armor too\)/);
     expect(text('cannon')).toMatch(/1.5 m across/);
     expect(text('lance')).toMatch(/charges for 3 s, drawing 1000 J\/s \(3000 J a shot;/);
     expect(text('lance')).toMatch(/a line: one part at a time/);
