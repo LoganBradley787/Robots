@@ -202,6 +202,45 @@ describe('a host whose stack keeps running out', () => {
   });
 });
 
+describe('a host whose stack ran out a few times', () => {
+  it('still gives every script its stack to the exact call, after the crashed runtimes are freed', async () => {
+    // Freeing a runtime the host's stack ran out in fails an assertion inside QuickJS, and that abort also leaves
+    // the wasm stack pointer a little lower (16 bytes); the host must measure again after it, not only after the crash.
+    const own = await createQuickJsHost(nodeBuild);
+    // How far a script gets, to the byte: the deepest plain call, then the most locals one more call can hold there.
+    const fits = (src: string): boolean => {
+      const r = own.compile(`${src} function tick() { down(K); set('r', 'n', 1); }`, { name: 'reach.js', seed: 1 });
+      if (!r.ok) throw new Error(r.error.message);
+      const t = r.instance.tick(input());
+      r.instance.dispose();
+      return t.ok;
+    };
+    const most = (hi: number, ok: (n: number) => boolean): number => {
+      let lo = 0;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (ok(mid)) lo = mid;
+        else hi = mid - 1;
+      }
+      return lo;
+    };
+    const withLocals = (n: number): string => `function last() { var ${Array.from({ length: n + 1 }, (_, i) => `v${i} = ${i}`).join(', ')}; return v0; }`;
+    const reach = (): [number, number] => {
+      const k = most(2000, (k) => fits(`var K = ${k}; function down(k) { if (k > 0) down(k - 1); }`));
+      const n = most(400, (n) => fits(`var K = ${k - 1}; ${withLocals(n)} function down(k) { if (k > 0) down(k - 1); else last(); }`));
+      return [k, n];
+    };
+    const before = reach();
+    for (let i = 0; i < 3; i++) {
+      const bad = own.compile(`function tick() { eval('['.repeat(200000)); }`, { name: 'bad.js', seed: 1 });
+      if (!bad.ok) throw new Error(bad.error.message);
+      expect(bad.instance.tick(input())).toEqual({ ok: false, error: STACK });
+      bad.instance.dispose();
+    }
+    expect(reach()).toEqual(before);
+  });
+});
+
 describe('the outcome does not depend on the host', () => {
   const open = parseWorldFile({ name: 'open', ground: { width: 4000, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] });
   const lifter = (source: string) => ({ format: 1, name: 'lifter', grid: ['F  T^ C  T^ F'], scripts: [{ id: 'lift', source }] });

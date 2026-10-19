@@ -23,9 +23,12 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
       const handles: QuickJSHandle[] = [];
       let ctx: QuickJSContext | undefined;
       const fail = (error: ScriptError): CompileResult => {
-        for (const h of handles) safely(() => h.dispose());
-        if (ctx) safely(() => ctx?.dispose());
-        safely(() => runtime.dispose());
+        let freed = true;
+        for (const h of handles) freed = safely(() => h.dispose()) && freed;
+        if (ctx) freed = safely(() => ctx?.dispose()) && freed;
+        freed = safely(() => runtime.dispose()) && freed;
+        // A failed free aborts inside the engine and leaves the wasm stack pointer lower (`StackBase`).
+        if (!freed) safely(() => stack.moved());
         return { ok: false, error };
       };
       try {
@@ -87,7 +90,9 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         if (!specs.ok) return fail(specs.error);
         return { ok: true, instance: new QuickJsInstance(runtime, c, meter, limits, readSpecs(specs.text), entries, handles, services) };
       } catch (e) {
-        // Anything the engine throws at the host (not a script error) must not escape into the world.
+        // Anything the engine throws at the host (not a script error) must not escape into the world. It also left the
+        // wasm stack pointer lower.
+        safely(() => stack.moved());
         return fail({ kind: 'throw', message: e instanceof Error ? e.message : String(e) });
       }
     },
@@ -104,12 +109,17 @@ function readScanText(text: string): ScanOptions | string {
   }
 }
 
-/** Disposal can itself fail (QuickJS asserts on objects a native stack overflow left behind); never let it escape. */
-function safely(fn: () => void): void {
+/**
+ * Disposal can itself fail (QuickJS asserts on objects a native stack overflow left behind); never let it escape.
+ * Returns whether `fn` ran without throwing.
+ */
+function safely(fn: () => void): boolean {
   try {
     fn();
+    return true;
   } catch {
     // The runtime is abandoned either way; a leak beats a crashed world.
+    return false;
   }
 }
 
@@ -236,7 +246,10 @@ class StackBase {
     return this.first - this.top > MAX_DRIFT_BYTES;
   }
 
-  /** After the host's stack ran out inside the engine. */
+  /**
+   * After anything thrown through the engine: the host's stack running out, and also an abort while freeing a
+   * runtime it ran out in (QuickJS's assertion leaves the pointer 16 bytes lower), or any other engine-level error.
+   */
   moved(): void {
     this.top = this.measure();
   }
@@ -375,9 +388,12 @@ class QuickJsInstance implements ScriptInstance {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const h of this.handles) safely(() => h.dispose());
-    safely(() => this.ctx.dispose());
-    safely(() => this.runtime.dispose());
+    let freed = true;
+    for (const h of this.handles) freed = safely(() => h.dispose()) && freed;
+    freed = safely(() => this.ctx.dispose()) && freed;
+    freed = safely(() => this.runtime.dispose()) && freed;
+    // A failed free aborts inside the engine and leaves the wasm stack pointer lower (`StackBase`).
+    if (!freed) safely(() => this.meter.guard.base.moved());
   }
 
   private call(entry: QuickJSHandle, frame: ScriptFrame, services?: ScriptServices): ScriptResult {
@@ -414,6 +430,8 @@ class QuickJsInstance implements ScriptInstance {
       extras.dispose();
       return r.ok ? readResult(r.text) : r;
     } catch (e) {
+      // An engine-level error outside `run` (copying the inputs in) moves the wasm stack pointer the same way.
+      safely(() => this.meter.guard.base.moved());
       return { ok: false, error: { kind: 'throw', message: e instanceof Error ? e.message : String(e) } };
     }
   }
@@ -480,9 +498,10 @@ function run(ctx: QuickJSContext, meter: Meter, go: () => ReturnType<QuickJSCont
     result = go();
   } catch (e) {
     // Only an engine-level failure reaches here (the host's own stack or memory); the instance is disposed after.
+    // Any error thrown through the engine skips the code that puts the wasm stack pointer back, so measure again.
     const message = e instanceof Error ? e.message : String(e);
     const stack = /call stack/i.test(message);
-    if (stack) guard.base.moved();
+    safely(() => guard.base.moved());
     return { ok: false, error: stack || guard.touched() ? stackError() : { kind: 'memory', message } };
   }
   // Past its stack is a crash even when the script caught the error and carried on (review D2).
