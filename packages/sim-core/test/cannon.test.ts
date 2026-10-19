@@ -48,7 +48,7 @@ describe('charged guns (M15): the cannon and the lance', () => {
   it('are shipped parts: the cannon 2 by 4 and 40 kg, the lance 1 by 4 and everything twice as quick, both explode', () => {
     const c = defaultRegistry().get('cannon');
     expect(c).toMatchObject({ mass: 40, health: 150, powerDraw: 1000, acts: 'N', behavior: 'cannon' });
-    expect(c.cannon).toEqual({ charge: 6, hold: 4, dead: 4, damage: 500, speed: 300, width: 1.5, life: 2, range: 250, recoil: 800, backfire: 80 });
+    expect(c.cannon).toEqual({ charge: 6, hold: 4, dead: 4, damage: 1500, speed: 300, width: 1.5, life: 2, range: 250, recoil: 800, backfire: 80 });
     expect(c.footprint).toHaveLength(8);
     expect(c.footprint.filter((f) => f.faces.length > 0)).toEqual([
       { x: 0, y: 0, faces: ['S'] },
@@ -292,22 +292,29 @@ describe('charged guns (M15): the cannon and the lance', () => {
     w.dispose();
   });
 
-  it('the cannon fires from the middle of its two barrel cells and breaks two heavy plates side by side', async () => {
+  it('the cannon fires from the middle of its two barrel cells and breaks six heavy plates, two side by side and three deep', async () => {
     const w = await space0();
     const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
-    // Two plates deep, two high: rows 100 and 99, the cannon's two rows.
-    w.spawnBlueprint({ format: 1, name: 'block', grid: ['A A', 'A A'] }, { x: 50, y: 100 });
+    // Four plates deep, two high: rows 100 and 99, the cannon's two rows. Its 1500 takes the first three columns.
+    w.spawnBlueprint({ format: 1, name: 'block', grid: ['A A A A', 'A A A A'] }, { x: 50, y: 100 });
     steps(w, 5);
     chargeUp(w, rig);
     w.step(letGo(rig.id));
     const bolt = w.liveBolts()[0];
-    expect(bolt).toMatchObject({ damage: 500, left: 500, width: 1.5 });
+    expect(bolt).toMatchObject({ damage: 1500, left: 1500, width: 1.5 });
     expect(bolt?.px).toBeCloseTo(4.5, 3);
     expect(bolt?.py).toBeCloseTo(99.5, 3);
     expect(bolt?.vx).toBeCloseTo(300, 3);
     steps(w, 20);
     const hits = w.events.filter((e) => e.kind === 'boltHit');
-    expect(hits.map((e) => (e.kind === 'boltHit' ? [e.part, e.damage] : []))).toEqual([['armorplate@0,0', 250], ['armorplate@0,1', 250]]);
+    expect(hits.map((e) => (e.kind === 'boltHit' ? [e.part, e.damage] : []))).toEqual([
+      ['armorplate@0,0', 250],
+      ['armorplate@0,1', 250],
+      ['armorplate@1,0', 250],
+      ['armorplate@1,1', 250],
+      ['armorplate@2,0', 250],
+      ['armorplate@2,1', 250],
+    ]);
     const plates = w.robots.flatMap((r) => [...r.parts.values()]).filter((p) => p.def.id === 'armorplate');
     expect(plates.map((p) => p.health)).toEqual([250, 250]);
     expect(w.liveBolts()).toEqual([]);
@@ -317,17 +324,19 @@ describe('charged guns (M15): the cannon and the lance', () => {
     w.dispose();
   });
 
-  it('the cannon carves a hole two wide through frames: eight gone and the ninth scratched', async () => {
+  it('the cannon carves a hole two wide through frames: twenty-five gone, the last one spending the bolt', async () => {
     const w = await space0();
     const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
-    w.spawnBlueprint({ format: 1, name: 'slab', grid: ['F F F F F F', 'F F F F F F', 'F F F F F F', 'F F F F F F'] }, { x: 50, y: 101 });
+    w.spawnBlueprint({ format: 1, name: 'slab', grid: ['F F F F F F F F F F F F F F', 'F F F F F F F F F F F F F F', 'F F F F F F F F F F F F F F', 'F F F F F F F F F F F F F F'] }, { x: 50, y: 101 });
     steps(w, 5);
     chargeUp(w, rig);
     w.step(letGo(rig.id));
     steps(w, 20);
     const hits = w.events.filter((e) => e.kind === 'boltHit').map((e) => (e.kind === 'boltHit' ? e : undefined));
-    expect(hits.map((e) => e?.damage)).toEqual([60, 60, 60, 60, 60, 60, 60, 60, 20]);
-    // Only the two middle rows (the slab's rows 1 and 2 from the bottom are at 99 and 100), four columns deep.
+    // 1500 is 25 frames of 60 exactly: the 25th takes what is left and the bolt is spent.
+    expect(hits.map((e) => e?.damage)).toEqual(Array.from({ length: 25 }, () => 60));
+    expect(w.liveBolts()).toEqual([]);
+    // Only the two middle rows (the slab's rows 1 and 2 from the bottom are at 99 and 100), twelve columns deep and one more.
     expect(new Set(hits.map((e) => e?.part.split(',')[1]))).toEqual(new Set(['1', '2']));
     w.dispose();
   });

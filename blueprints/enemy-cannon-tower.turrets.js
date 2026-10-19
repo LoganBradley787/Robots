@@ -30,7 +30,7 @@
 const reach = param('reach', 250, { min: 1, max: 2000 }); // m: the part's sight (250 cannon, 400 lance)
 const track = param('track', 400, { min: 1, max: 2000 }); // m: it charges and points at things this near
 const speed = param('speed', 300, { min: 1, max: 5000 }); // m/s, the bolt (300 cannon, 600 lance)
-const damage = param('damage', 500, { min: 1, max: 100000 }); // what one bolt carries (500 cannon, 250 lance)
+const damage = param('damage', 1500, { min: 1, max: 100000 }); // what one bolt carries (1500 cannon, 250 lance)
 const full = param('full', 4, { min: 0.1, max: 60 }); // s the part can be held full (4 cannon, 2 lance)
 const barrel = param('barrel', 3.5, { min: 0, max: 20 }); // m from the part's first cell to the barrel's end
 const off = param('off', 0, { min: -5, max: 5 }); // m the barrel's middle is to the left of the part's first cell (cannon -0.5)

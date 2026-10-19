@@ -32,11 +32,12 @@ const body = (w: World, r: Robot) => w.physics.state(r.groups[0]?.bodyId as numb
 const of = (w: World, kind: string) => w.events.filter((e) => e.kind === kind);
 
 describe('M15 charged guns, done when', () => {
-  it('a cannon tower takes a core behind a heavy plate 200 m off with its first shot, 6 s in, and rocks back from the kick', { timeout: 60_000 }, async () => {
+  it('a cannon tower takes a core behind four heavy plates 200 m off with its first shot, 6 s in, and rocks back from the kick', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-cannon-tower'), { x: -300, y: 2.5 }, { team: 1 });
-    // A plate, the core behind it, another plate behind that: 250 and 50 of the orb's 500, the rest into the last.
-    const brick = w.spawnBlueprint({ format: 1, name: 'brick', grid: ['A C A'] }, { x: -100, y: 0.5 });
+    // Four plates, the core behind them, two plates behind that: 1000 and 50 of the orb's 1500, 250 into the next, the
+    // rest into the last.
+    const brick = w.spawnBlueprint({ format: 1, name: 'brick', grid: ['A A A A C A A'] }, { x: -100, y: 0.5 });
     const x0 = w.physics.state(tower.groups[1]?.bodyId as number).x;
     let tilt = 0;
     for (let t = 0; t < 12 * 60; t++) {
@@ -47,7 +48,7 @@ describe('M15 charged guns, done when', () => {
     expect(fires).toHaveLength(1);
     expect((fires[0]?.tick ?? 0) / 60).toBeLessThan(6.5);
     const hits = of(w, 'boltHit').map((e) => (e.kind === 'boltHit' ? [e.partType, e.damage] : []));
-    expect(hits).toEqual([['armorplate', 250], ['core', 50], ['armorplate', 200]]);
+    expect(hits).toEqual([['armorplate', 250], ['armorplate', 250], ['armorplate', 250], ['armorplate', 250], ['core', 50], ['armorplate', 250], ['armorplate', 200]]);
     expect(brick.primaryCoreId).toBeUndefined();
     // The kick: 800 N s on a 290 kg tower standing on the ground. It tips and slides back, and stays up.
     expect(tilt).toBeGreaterThan(0.03);
@@ -103,7 +104,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('an enemy cannon drone flies through its own kick: it pitches hard on each shot, recovers, and wrecks a hunter drone', { timeout: 120_000 }, async () => {
+  it('an enemy cannon drone flies through its own kick: it pitches hard on its shot, recovers, and wrecks a hunter drone with it', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('enemy-cannon-drone'), { x: -300, y: 60 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: 50, y: 60 });
@@ -119,8 +120,9 @@ describe('M15 charged guns, done when', () => {
       // The second after its first shot.
       if (shotAt >= 0 && t - shotAt < 60) pitch = Math.max(pitch, Math.abs(s.angle));
     }
-    // Two since the turret digs for the main core (it took three while it went for the missiles on the rack first).
-    expect(w.cannonStats(drone.id).shots).toBeGreaterThanOrEqual(2);
+    // One since the orb carries 1500 (two at 500 once the turret dug for the main core, three while it went for the
+    // missiles on the rack first).
+    expect(w.cannonStats(drone.id).shots).toBe(1);
     expect(w.cannonStats(drone.id).backfires).toBe(0);
     expect(pitch).toBeGreaterThan(0.25);
     expect(Math.abs(body(w, drone).angle)).toBeLessThan(0.15);
@@ -154,8 +156,9 @@ describe('M15 charged guns, done when', () => {
     const hits = of(w, 'boltHit').flatMap((e) => (e.kind === 'boltHit' ? [e] : []));
     expect(hits.some((e) => e.robot === drone.id && e.part === main)).toBe(true);
     expect(hits.filter((e) => e.partType === 'heavywarhead' || e.partType === 'seeker')).toEqual([]);
-    // Measured: the row in front of the core soaks up 460 of the orb's 500, so the core is left with 10 of its 50, and
-    // the drone's missiles then disarm the tower before a second shot. Recorded for Logan, not asserted as a win.
+    // Measured: at 500 the row in front of the core soaked up 460 of the orb's 500 and the drone's missiles disarmed the
+    // tower before a second shot. At 1500 the first orb goes the drone's whole length and takes the core at 9.0 s, but a
+    // missile already in the air still takes two of the tower's dense batteries. Recorded for Logan, not asserted.
     w.dispose();
   });
 
