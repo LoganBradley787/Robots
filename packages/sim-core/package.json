@@ -15,6 +15,7 @@
     "quickjs-emscripten-core": "0.32.0"
   },
   "devDependencies": {
+    "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
     "@jitl/quickjs-wasmfile-release-sync": "0.32.0",
     "@types/node": "^24.0.0",
     "typescript": "7.0.2",
