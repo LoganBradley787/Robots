@@ -2,9 +2,10 @@
 // Writes blueprints/titan-mirage.json, its helm script, its ghost recipe's guide, and a standalone copy of the ghost.
 //
 // The titan: a long flying spar. Stern (left as authored): the main core in an armor box under a block of jammer pods,
-// lit one at a time all match, so no sensor outside the bubble sees the hull. Bow: radars, far outside the bubble, so
-// the hull still sees. Between them: fabricator bays that build ghosts (darts with a distance charge nose that light
-// their own jammer pod and fly their last seconds unseen and blind, straight at the point the hull handed them).
+// lit one at a time all match, so no sensor outside the bubble sees the hull. Bow: radars and a radio, far outside the
+// bubble, so the hull still sees and tells its ghosts. Between them: fabricator bays that build ghosts (darts with a
+// distance charge nose, a radio and a seeker: they follow the robot the hull named by what the radio and seeker
+// report, and light their own jammer pod for their last 2 s, flying them unseen on the last fix).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +18,7 @@ const NAME = 'titan-mirage';
 const BAYS = 20; // fabricator bays
 const BAY_STEP = 7; // columns per bay: 5 for the bay, 2 for deck propellers
 const BAY_X0 = 28; // first bay's first hollow column
-const HOLLOW = [3, 5];
+const HOLLOW = [3, 6]; // the ghost is 2 by 6 (titan-darts, 2026-10: a radio and a seeker made it a row taller)
 const POD_COLS = 11;
 const POD_ROWS = 5;
 const KEEP = 11; // the keep: a square block at the stern, plate outside, batteries inside, the main core in its middle
@@ -34,8 +35,8 @@ const CORE = { x: 1 + (KEEP - 1) / 2, y: BASE + (KEEP - 1) / 2 };
 const HULL_X0 = KEEP + 1; // the spar starts here
 const BOW_PLATE = true;
 
-const MASS = { F: 1, Z: 3, A: 20, C: 2, O: 1, P: 1, K: 1.5, J: 0.5 };
-const GHOST_MASS = 12.5;
+const MASS = { F: 1, Z: 3, A: 20, C: 2, O: 1, N: 1, P: 1, K: 1.5, J: 0.5 };
+const GHOST_MASS = 13.8;
 
 // ---- the grid, [y][x], y 0 at the bottom ----
 const cells = [];
@@ -121,9 +122,11 @@ for (let k = 0; k < BAYS; k++) {
   }
   bayXs.push(x0 + (HOLLOW[0] - 1) / 2);
 }
-// radars at the bow, then propellers on every free deck cell
+// radars at the bow, a radio beside them (it shares what the radars see with the ghosts in flight), then propellers on
+// every free deck cell
 const radarXs = [W - 8, W - 6, W - 4];
 for (const x of radarXs) put(x, TOP, 'O');
+put(W - 7, TOP, 'N');
 for (let x = POD_X0 + POD_COLS + 1; x <= W - 2; x++) if (cells[TOP][x] === '.') props.push({ x, y: TOP });
 
 // center of mass along the hull, to split the lift into a stern group and a bow group
@@ -155,7 +158,7 @@ for (let y = H - 1; y >= 0; y--) grid.push(cells[y].map((t) => (t === '_' ? '.' 
 const ghost = (file) => ({
   format: 1,
   name: 'titan-mirage-ghost',
-  grid: ['Xd H', 'H  C', 'y  E', 'E  J', 'k  k'],
+  grid: ['Xd H', 'H  S^', 'N  C', 'y  E', 'E  J', 'k  k'],
   legend: {
     y: { part: 'heavygyro', rot: 0, auto: false },
     k: { part: 'booster', rot: 0, auto: false },

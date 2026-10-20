@@ -5,7 +5,8 @@
 //   boosters on the ends (pf toward the bow, pr toward the stern) hold its place `standoff` m from what it tracks.
 //   Left and right are worked out from where the parts are, so it flies the same deployed flipped.
 // - Ghosts: when enough bays hold a finished ghost, all of them are handed the same point and speed and let go on one
-//   tick. The point is the main enemy.
+//   tick. The point is the main enemy, and its id goes with it: a ghost follows that robot by what its radio and
+//   seeker report (the radio by the bow radars shares what they see).
 // - The main enemy (titan-darts, 2026-10, Logan): picked from what the radars report, never by id: the heaviest enemy
 //   with a live core of `minMass` kg or more, kept while it is seen unless one twice as heavy shows up, and given up
 //   the moment it dies. A robot that dies stays in the radars' view as debris (no live core), so nothing more goes to
@@ -227,14 +228,14 @@ function tick() {
     // Not at something close under the deck: a ghost would dive through its own hull.
     const fore = (t.pos.x - self.pos.x) * state.dir; // m along the hull from the core toward the bow
     const under = t.pos.y < self.pos.y - 4 && fore > -40 && fore < 215;
-    if (t.distance <= reach && !under) aim = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y };
+    if (t.distance <= reach && !under) aim = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id };
   } else if (time - state.lastSalvo >= blindGap) {
     // Nothing tracked: the place it vanished (kept `memory` s, carried on by its speed for a moment), else, with
     // nothing ever seen, the mirror of the start. Seen once and gone: no salvo.
     const l = state.last;
     if (l) {
       const age = Math.min(time - l.at, 2);
-      aim = { x: l.x + l.vx * age, y: Math.max(1, l.y + l.vy * age), vx: 0, vy: 0 };
+      aim = { x: l.x + l.vx * age, y: Math.max(1, l.y + l.vy * age), vx: 0, vy: 0, id: l.id };
     } else if (!state.everSeen) aim = { x: -state.x0, y: groundY, vx: 0, vy: 0 };
     if (aim && Math.hypot(aim.x - self.pos.x, aim.y - self.pos.y) > reach + 200) aim = null;
   }
