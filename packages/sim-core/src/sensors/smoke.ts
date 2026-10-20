@@ -1,6 +1,7 @@
 /**
  * Smoke (Batch): a cloud a smoke pod leaves where it went off. It is a circle that drifts down slowly and blocks
- * sensors' line of sight like terrain does. Pure: the world keeps the list and hashes it.
+ * sensors' line of sight like terrain does. Pure: the world keeps the list and hashes it. The Sandbox rule
+ * `World.setNoSmokeOrJam` keeps the clouds but blocks nothing with them (`World.blockingClouds`).
  */
 export interface SmokeCloud {
   x: number;

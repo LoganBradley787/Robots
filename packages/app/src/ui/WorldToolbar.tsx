@@ -30,6 +30,8 @@ export interface WorldActions {
   toggleUnlimitedEnergy(): void;
   /** Smooth: slow scripts may skip ticks so the frame rate holds (`app/scriptScheduler.ts`). */
   toggleSmooth(): void;
+  /** The Sandbox rule that turns off what smoke clouds and jammers do to sensors. */
+  toggleNoSmokeOrJam(): void;
   toggleDeployTeam(): void;
   /** M15: sound off and on, its volume (0 to 1), and whether far sounds arrive late. */
   toggleMute(): void;
@@ -107,6 +109,7 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
               onPick={actions.toggleSmooth}
               title="For big fights. When scripts would make the game lag, the slowest sit out a tick and keep what they set; each still runs at least every 4th tick. A fresh run may then not repeat exactly, but its saved replay does."
             />
+            <Row label="Smoke and jammers do nothing" state={onOff(v.noSmokeOrJam)} on={v.noSmokeOrJam} onPick={actions.toggleNoSmokeOrJam} title="Smoke pods and jammers still go off and show, but blind and hide nothing, and smoke no longer weakens lasers. Flares still fool sensors." />
             <div class="mi-sep" />
             <div class="wblock" title="Drops a crowd of scripted robots around the middle of the screen, to see how the sim copes. Turn on Debug for the numbers, and Unlimited energy so the drones do not run dry and fall.">
               <div class="wb-head">Stress test</div>

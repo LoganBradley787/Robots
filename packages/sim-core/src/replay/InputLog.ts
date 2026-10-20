@@ -12,6 +12,8 @@ export interface WorldChange {
    * scripts take on its machine; the world only takes the list, so a replay skips the same ones. Absent: all run.
    */
   skip?: number[];
+  /** The sandbox rule that turns off what smoke clouds and jammers do to sensors (and clouds to beams). */
+  noSmokeOrJam?: boolean;
 }
 
 function cloneChange(w: WorldChange): WorldChange {

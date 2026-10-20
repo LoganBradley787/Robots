@@ -71,6 +71,7 @@ export function parseReplay(raw: unknown): ReplayFile {
     if (!Array.isArray(o.inputs)) throw new ReplayError(`inputs[${i}].inputs must be a list`);
     const world = o.world === undefined ? undefined : obj(o.world, `inputs[${i}].world`);
     if (world && world.unlimitedEnergy !== undefined && typeof world.unlimitedEnergy !== 'boolean') throw new ReplayError(`inputs[${i}].world.unlimitedEnergy must be true or false`);
+    if (world && world.noSmokeOrJam !== undefined && typeof world.noSmokeOrJam !== 'boolean') throw new ReplayError(`inputs[${i}].world.noSmokeOrJam must be true or false`);
     if (world && world.clearDebris !== undefined && world.clearDebris !== true) throw new ReplayError(`inputs[${i}].world.clearDebris must be true when present`);
     if (world && world.remove !== undefined && (!Array.isArray(world.remove) || !world.remove.every((id) => Number.isInteger(id) && (id as number) >= 1))) {
       throw new ReplayError(`inputs[${i}].world.remove must be a list of robot ids (whole numbers, 1 or more)`);
@@ -86,6 +87,7 @@ export function parseReplay(raw: unknown): ReplayFile {
               ...(world.clearDebris === true ? { clearDebris: true as const } : {}),
               ...(Array.isArray(world.remove) ? { remove: [...(world.remove as number[])] } : {}),
               ...(Array.isArray(world.skip) ? { skip: [...(world.skip as number[])] } : {}),
+              ...(world.noSmokeOrJam === undefined ? {} : { noSmokeOrJam: world.noSmokeOrJam as boolean }),
             },
           }
         : {}),
@@ -122,6 +124,7 @@ export async function runReplay(
     }
     const change = log.worldAt(world.tick);
     if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
+    if (change?.noSmokeOrJam !== undefined) world.setNoSmokeOrJam(change.noSmokeOrJam);
     if (change?.clearDebris) world.clearDebris();
     if (change?.remove) world.removeRobots(change.remove);
     if (change?.skip) world.skipScripts(change.skip);

@@ -15,7 +15,7 @@ describe('flagProblem (review T3)', () => {
   });
 
   it('refuses a misspelled flag with the nearest real one', () => {
-    expect(flagProblem('run', ['secnds'])).toBe('unknown flag --secnds; did you mean --seconds? (run takes --world, --seconds, --seed, --x, --y, --keys, --unlimited, --team, --flip, --rot, --drop, --json)');
+    expect(flagProblem('run', ['secnds'])).toBe('unknown flag --secnds; did you mean --seconds? (run takes --world, --seconds, --seed, --x, --y, --keys, --unlimited, --no-smoke-jam, --team, --flip, --rot, --drop, --json)');
     expect(flagProblem('run', ['seconds', 'sead'])).toContain('unknown flag --sead; did you mean --seed?');
     expect(flagProblem('tournament', ['sed'])).toContain('did you mean --seeds?');
     expect(flagProblem('run', ['banana'])).toMatch(/^unknown flag --banana \(run takes /);
@@ -23,7 +23,7 @@ describe('flagProblem (review T3)', () => {
 
   it("refuses another command's flag", () => {
     expect(flagProblem('run', ['axis'])).toMatch(/^--axis is not a flag of run \(run takes /);
-    expect(flagProblem('duel', ['y'])).toBe('--y is not a flag of duel (duel takes --ya, --yb, --seed, --seconds, --world, --bounds, --json)');
+    expect(flagProblem('duel', ['y'])).toBe('--y is not a flag of duel (duel takes --ya, --yb, --seed, --seconds, --world, --bounds, --no-smoke-jam, --json)');
     expect(flagProblem('duel', ['bound'])).toMatch(/^unknown flag --bound; did you mean --bounds\? \(duel takes /);
     expect(flagProblem('validate', ['json'])).toBe('--json is not a flag of validate (validate takes no flags)');
     expect(flagProblem('determinism', ['json'])).toMatch(/^--json is not a flag of determinism/);

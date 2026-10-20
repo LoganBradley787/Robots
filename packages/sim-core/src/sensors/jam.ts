@@ -3,6 +3,7 @@
  * robot whose reference point is inside (both ways). Pure; the world finds the bubbles (`World.jamBubbles`).
  * Titans (Logan): up close a jam does nothing. A sensor and a point within `near` meters of each other see through
  * the bubble, whichever of them is inside it (a factory parked on a hidden titan could not find it).
+ * The Sandbox rule `World.setNoSmokeOrJam` leaves the world with no bubbles while the pods still burn.
  */
 export interface JamBubble {
   x: number;
