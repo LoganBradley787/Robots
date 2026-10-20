@@ -11,7 +11,13 @@
 //   hull, outside the bubble.
 // - Bays: every fabricator bay with a tag starting `bay`. A finished dart is sent the main enemy's place, speed and
 //   id and let go at once, at most one per `gap` s; every `spreadEvery`th goes to the nearest other enemy instead.
-//   With nothing seen it sends darts to the last place the main enemy was, else to the mirror of its own start.
+// - The main enemy (titan-darts, 2026-10, Logan): picked from what the radars report, by the situation, never by id:
+//   the heaviest enemy with a live core of `followMass` kg or more (a titan over its darts and drones), kept while it
+//   is seen unless one twice as heavy shows up, and given up the moment it dies. A robot that dies stays in the radar's
+//   view as debris (no live core), so its death is seen: nothing more goes to its spot. One that vanished alive (into
+//   a jammer's bubble or smoke, most likely) has its last place kept `memory` s, and darts go there; then it is
+//   forgotten. Only while it has never seen an enemy at all does it send darts to the mirror of its own start (a titan
+//   hidden from the first second is about there); after that, with nothing seen or remembered, it holds its darts.
 //   A bay with a dart in it builds nothing, so the pilot holds its darts while the energy left is under what the
 //   propellers need to hold the ship up to the end of the match (`match` s, `keep` times the hover's draw): since
 //   armor plates weigh 20 kg the ship hovers on more power, and a full match of darts would leave it little.
@@ -44,7 +50,9 @@ const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enem
 const retreat = param('retreat', 100, { min: 0, max: 600 }); // m back from its start it waits with no enemy seen
 const overlap = param('overlap', 2.4, { min: 0.5, max: 5 }); // s between one jammer bay's pod lighting and the other's
 const burn = param('burn', 5.1, { min: 1, max: 10 }); // s after lighting a pod its bay is told to let go (a pod jams 5 s)
-const followMass = param('followMass', 30, { min: 0, max: 100000 }); // kg: it takes its place beside nothing lighter (darts, small drones)
+const followMass = param('followMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, small drones)
+const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts go to its last place
+const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
 const heavyMass = param('heavyMass', 200, { min: 1, max: 100000 }); // kg: an enemy this heavy is flown around
 const ramSpeed = param('ramSpeed', 14, { min: 1, max: 100 }); // m/s: a heavy flier closing faster than this is a ram
 const reach = param('reach', 265, { min: 1, max: 300 }); // m: turrets blast within this
@@ -159,7 +167,8 @@ function setup() {
   state.trim = 0;
   state.lastRel = -Infinity;
   state.sent = 0;
-  state.last = null; // the main enemy's last known place
+  state.mem = null; // the main enemy: { id, x, y, vx, vy, at, d }, its last place while seen, kept a while once it vanishes
+  state.everSeen = false; // whether any enemy that could be the main one was ever seen
   state.dodge = 0;
   state.jam = {}; // jammer bay tag -> { lit: when its pod was lit (-1: none), wait: no sooner than this }
   state.lit = -Infinity;
@@ -311,19 +320,31 @@ function tick() {
   jam();
 
   // One pass over what the radars see: the main enemy, what the turrets may take, and friends near their lines.
-  let main = null;
+  let heaviest = null;
+  let kept = null;
+  let gone = false; // the remembered main enemy is in view as debris: it died
+  const mem = state.mem;
   const foes = [];
   const friends = [];
   for (const c of contacts) {
+    if (mem && c.id === mem.id && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side === 'enemy') {
       if (!c.core) continue;
-      // The other titan's main robot has id 1 or 2 (round 2, known to all); failing that, the heaviest.
-      if (c.id <= 2) main = c;
-      else if (!main || (main.id > 2 && c.mass > main.mass)) main = c;
+      if (c.mass >= followMass) {
+        if (mem && c.id === mem.id) kept = c;
+        if (!heaviest || c.mass > heaviest.mass) heaviest = c; // nearest first, so a tie goes to the nearer
+      }
       if (c.distance <= track && foes.length < 12) foes.push(c);
     } else if (c.side === 'friend' && c.distance < 170 && friends.length < 10) friends.push(c);
   }
-  if (main) state.last = { x: main.pos.x, y: main.pos.y };
+  const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  if (main) {
+    state.mem = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance };
+    state.everSeen = true;
+  } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
+    state.mem = null;
+  }
+  const last = state.mem;
 
   // Where to be.
   let wantY = cruise;
@@ -363,9 +384,13 @@ function tick() {
   const spare = self.energy.stored >= keep * hoverDraw * Math.max(0, match - time);
   if (!spare && !state.saving) log('low on energy: holding the darts to stay up');
   state.saving = !spare;
-  if (spare && time - state.lastRel >= gap && Math.abs(self.angle) < level && Math.abs(self.vel.y) < still) {
+  const steady = Math.abs(self.vel.y) < still;
+  // Somewhere to send it: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
+  // mirror of its own start. With none of those it holds its darts.
+  const someplace = main || last || !state.everSeen;
+  if (spare && someplace && time - state.lastRel >= gap && Math.abs(self.angle) < level && steady) {
     // The bay nearest the target goes first, so a dart never turns across one let go just before it.
-    const toRight = (main ? main.pos.x : state.last ? state.last.x : -state.home.x) >= self.pos.x;
+    const toRight = (main ? main.pos.x : last ? last.x : -state.home.x) >= self.pos.x;
     const order = C.bays.slice().sort((p, q) => (toRight ? q.p.pos.x - p.p.pos.x : p.p.pos.x - q.p.pos.x));
     for (const b of order) {
       if (!(b.p.out.ready > 0)) continue;
@@ -381,8 +406,11 @@ function tick() {
         }
       }
       if (t && t.mass >= minMass) msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
-      else if (state.last) msg = { x: state.last.x, y: state.last.y, vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
-      else msg = { x: -state.home.x, y: [5, 80, 150][state.sent % 3], vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
+      else if (last) {
+        // Where it was last seen, carried on by its speed for a moment (a mover is not where it vanished for long).
+        const age = Math.min(time - last.at, 2);
+        msg = { x: last.x + last.vx * age, y: Math.max(1, last.y + last.vy * age), vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
+      } else msg = { x: -state.home.x, y: [5, 80, 150][state.sent % 3], vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
       send(b.tag + b.p.out.built, msg);
       set(b.tag, 'release', 1);
       state.lastRel = time;

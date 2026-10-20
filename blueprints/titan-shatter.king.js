@@ -1,7 +1,14 @@
 // titan-shatter king (made by tournaments/gen/titan-shatter.mjs): the main core's script.
 // Tick 0: fires every roof decoupler (tag split), so each gunship under it becomes its own robot and wakes.
-// Then it lets its darts go in two waves, each told where the other side's main robot is (the enemy contact with the
-// lowest id), hides in its jammer bubbles, and flies to a quiet spot on its own side, moving on when found.
+// Then it lets its darts go in two waves, each told where the main enemy is, hides in its jammer bubbles, and flies to
+// a quiet spot on its own side, moving on when found.
+// The main enemy (titan-darts, 2026-10, Logan): picked from what its radar reports, never by id: the heaviest enemy
+// with a live core of `mainMass` kg or more, kept while it is seen unless one twice as heavy shows up, and forgotten
+// the moment it dies (it stays in view as debris, with no live core), `memory` s after it vanished, or at once when
+// it vanished out at the radar's edge. A wave goes only at a main enemy seen within `memory` s; with none, it waits.
+// Hidden in its own bubble the king sees only what is close, so before the second wave it lets its bubble lapse for
+// `lookFor` s (once a pod's 5 s) to look, until it has seen one. Only while it has never seen an enemy at all does
+// the first wave go to the mirror of its start (a titan hidden from the first second starts about there).
 const waveGap = param('waveGap', 40, { min: 1, max: 240 }); // s before the second wave of darts
 const pods = param('pods', 52, { min: 0, max: 200 }); // jammer pods it carries (tags jam0, jam1, ...)
 const darts = param('darts', 16, { min: 0, max: 64 }); // darts on its deck (cores d0.., grips g0..)
@@ -10,6 +17,10 @@ const roam = param('roam', 25, { min: 1, max: 240 }); // s between moves to a ne
 const danger = param('danger', 450, { min: 0, max: 1000 }); // m: an enemy this close makes it hide
 const ram = param('ram', 1500, { min: 0, max: 100000 }); // kg: an enemy this heavy is a ram to get out of the way of
 const threat = param('threat', 550, { min: 0, max: 1000 }); // m: a ram this close makes it move
+const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
+const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
+const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
+const lookFor = param('lookFor', 0.15, { min: 0.02, max: 2 }); // s its bubble lapses to look before the second wave
 const G = 9.81;
 const LIFT = 120;
 
@@ -114,8 +125,9 @@ function setup() {
   state.t0 = time;
   state.sgn = self.pos.x < 0 ? -1 : 1;
   state.guess = { x: -self.pos.x, y: 30 };
-  state.root = null;
-  state.rootId = 1e9;
+  state.root = null; // the main enemy: { id, x, y, vx, vy, at, d }, its last place while seen, kept a while once it vanishes
+  state.everSeen = false;
+  state.looking = false;
   state.hide = { x: state.sgn * (560 + 260 * random()), y: 236 + 3 * random() };
   state.moved = time;
   // Each wave takes pairs spread evenly over the deck, so it stays balanced; within a wave the darts nearest the other
@@ -139,26 +151,46 @@ function tick() {
 
   let near = Infinity;
   let big = null;
+  let heaviest = null;
+  let kept = null;
+  let gone = false;
+  const mem = state.root;
   for (const c of contacts) {
+    if (mem && c.id === mem.id && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.distance < near) near = c.distance;
     if (c.mass >= ram && c.distance < threat && !big) big = c;
-    if (c.id <= state.rootId) {
-      state.rootId = c.id;
-      state.root = { id: c.id, x: c.pos.x, y: c.pos.y, vx: c.vel.x, vy: c.vel.y };
-    }
+    if (c.mass < mainMass) continue;
+    if (mem && c.id === mem.id) kept = c;
+    if (!heaviest || c.mass > heaviest.mass) heaviest = c;
+  }
+  const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  if (main) {
+    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance };
+    state.everSeen = true;
+  } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
+    state.root = null;
   }
 
-  // Darts: one every 0.12 s within a wave, told the main robot's place and id (or the mirror of the start).
+  // Darts: one every 0.12 s within a wave, told the main enemy's place and id (or, nothing ever seen, the mirror of
+  // the start). A wave waits while it has no main enemy to go at.
   const half = darts / 2;
+  state.looking = false;
   if (state.next < darts && state.next < state.order.length) {
     const due = state.next < half ? 0.15 + 0.12 * state.next : waveGap + 0.12 * (state.next - half);
     if (t >= due) {
-      const k = state.order[state.next];
       const r = state.root;
-      send('d' + k, r ? { x: r.x, y: r.y, vx: r.vx, vy: r.vy, id: r.id, arc: 0 } : { x: state.guess.x, y: state.guess.y, arc: 0 });
-      set('g' + k, 'fire', 1);
-      state.next++;
+      if (r || (!state.everSeen && state.next < half)) {
+        const k = state.order[state.next];
+        if (main) send('d' + k, { x: r.x, y: r.y, vx: r.vx, vy: r.vy, id: r.id, arc: 0 });
+        else if (r) {
+          // Vanished alive: where it was last seen, carried on by its speed for a moment.
+          const age = Math.min(time - r.at, 2);
+          send('d' + k, { x: r.x + r.vx * age, y: Math.max(1, r.y + r.vy * age), vx: 0, vy: 0, arc: 0 });
+        } else send('d' + k, { x: state.guess.x, y: state.guess.y, arc: 0 });
+        set('g' + k, 'fire', 1);
+        state.next++;
+      } else state.looking = true;
     }
   }
 
@@ -166,7 +198,9 @@ function tick() {
   // ticks between pods, since it is blind inside its own bubble).
   const opening = t > 1.2 && t < open;
   const looked = time >= state.jamUntil + 0.07;
-  if ((opening && time >= state.jamUntil - 0.05) || (!opening && t >= open && looked && near < danger)) {
+  // Looking for a target before a wave: the bubble lapses `lookFor` s when the pod burns out, then the next is lit.
+  const peek = state.looking && time < state.jamUntil + lookFor;
+  if ((opening && time >= state.jamUntil - 0.05 && !peek) || (!opening && t >= open && looked && near < danger)) {
     while (state.jam < pods && !hasPod(state.jam)) state.jam++;
     if (state.jam < pods) {
       set('jam' + state.jam, 'ignite', 1);

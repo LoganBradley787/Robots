@@ -2,11 +2,16 @@
 // big parts list is handed over once a tick.
 // - Hiding: two 1 by 1 bays near the core build jammer pods; a held pod is lit, one bay at a time, so the core is
 //   always inside a bubble and no sensor outside sees the fortress. Its radars stand on the end masts, outside.
-// - Darts: every dart bay lets its copy go as soon as it is built, at the other titan's main robot (contact id 1
-//   or 2) when the radars track it, else at the heaviest tracked robot of the other side. Every dart flies at that
-//   robot's core, so they dig on one spot. With nothing tracked it sends them to where it last tracked one, and
-//   otherwise blind: one dart every `blindGap` s, over the top onto the mirror of its own start (the other side
-//   starts at -x), down the whole column. The rest wait in their bays for a target.
+// - Darts: every dart bay lets its copy go as soon as it is built, at the main enemy. Every dart flies at that
+//   robot's core, so they dig on one spot.
+// - The main enemy (titan-darts, 2026-10, Logan): picked from what the radars report, never by id: the heaviest
+//   enemy with a live core of `mainMass` kg or more (lighter ones, darts and pods, are the turrets' work), kept while
+//   it is seen unless one twice as heavy shows up, and given up the moment it dies. A robot that dies stays in the
+//   radars' view as debris (no live core), so nothing more goes to its spot. One that vanished alive (into a
+//   jammer's bubble or smoke, most likely) has its last place kept `memory` s and darts go there; then it is
+//   forgotten. Only while it has never seen an enemy at all does it fire blind: one dart every `blindGap` s, over the
+//   top onto the mirror of its own start (a titan hidden from the first second starts about there), down the whole
+//   column. Otherwise the darts wait in their bays for a target.
 // - Turrets: the rotators with guns on the tower's top each point at a near robot of the other side (darts and
 //   small fliers first come first), ahead of it by the shell's flight and up by its fall, and blast while on
 //   target with nothing of ours on the gun's sight.
@@ -15,13 +20,14 @@
 const anchors = param('anchors', 0, { min: 0, max: 200 }); // how many anchors the floor holds (the generator sets it)
 const anchorAt = param('anchorAt', 30, { min: 2, max: 600 }); // tick of the first cast
 const recast = param('recast', 60, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
-const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter robots (not the main one) are not worth a dart
+const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
 const high = param('high', 15, { min: -100, max: 300 }); // m over the base: targets above this get a straight dart, the rest an arc
 const gap = param('gap', 0.05, { min: 0, max: 5 }); // s between two bays letting go
 const overlap = param('overlap', 2.6, { min: 0.5, max: 5 }); // s between one jammer bay's pod lighting and the other's
 const burn = param('burn', 5.1, { min: 1, max: 10 }); // s after lighting a pod its bay is cleared (a pod jams 5 s)
 const blindGap = param('blindGap', 0.7, { min: 0.05, max: 30 }); // s between darts sent blind
-const keepLast = param('keepLast', 12, { min: 0, max: 240 }); // s a last tracked place is used before going blind
+const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts go to its last place
+const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
 const reach = param('reach', 280, { min: 10, max: 300 }); // m: turrets blast within this
 const track = param('track', 450, { min: 10, max: 1000 }); // m: turrets point at things within this
 const turnGain = param('turnGain', 8, { min: 0.1, max: 50 }); // rotator turn rate per radian off the aim
@@ -42,7 +48,8 @@ function setup() {
   state.home = { x: self.pos.x, y: self.pos.y };
   state.mirrorX = -self.pos.x;
   state.blind = 0;
-  state.last = null;
+  state.last = null; // the main enemy: { x, y, vx, vy, id, at, d }, its last place while seen, kept a while once it vanishes
+  state.everSeen = false; // whether any enemy that could be the main one was ever seen
   state.lit = -100;
   state.jbays = [
     { tag: 'jl', lit: -1, wait: 0 },
@@ -73,16 +80,30 @@ function jam() {
   }
 }
 
-/** The other titan's main robot (id 1 or 2) when tracked, else the heaviest tracked robot of the other side. */
+/**
+ * The main enemy: the one it had while still seen (unless one twice as heavy shows up), else the heaviest enemy with a
+ * live core of `mainMass` or more (nearest first, so a tie goes to the nearer). Forgets the remembered one when it is
+ * seen dead, `memory` s after it vanished, or at once when it vanished out at the radars' edge.
+ */
 function pick() {
-  let main = null;
-  let best = null;
+  const mem = state.last;
+  let heaviest = null;
+  let kept = null;
+  let gone = false;
   for (const c of contacts) {
-    if (c.side !== 'enemy' || !c.core) continue;
-    if (c.id <= 2) main = c;
-    else if (c.mass >= minMass && (!best || c.mass > best.mass)) best = c;
+    if (mem && c.id === mem.id && (c.side !== 'enemy' || !c.core)) gone = true;
+    if (c.side !== 'enemy' || !c.core || c.mass < mainMass) continue;
+    if (mem && c.id === mem.id) kept = c;
+    if (!heaviest || c.mass > heaviest.mass) heaviest = c;
   }
-  return main || best;
+  const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  if (main) {
+    state.last = { x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, id: main.id, at: time, d: main.distance };
+    state.everSeen = true;
+  } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
+    state.last = null;
+  }
+  return main;
 }
 
 /** Casts every anchor that holds no rope. A cast needs a rise, and `fire` is only set on the beat tick. */
@@ -136,9 +157,15 @@ function tick() {
   castAnchors();
   turrets();
   const t = pick();
-  if (t) state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, at: time };
   let aim = state.last;
-  const blind = !t && (!aim || time - aim.at > keepLast);
+  const blind = !t && !aim;
+  // Seen something once, and it is gone (dead, or vanished too long ago): nothing to fire at.
+  if (blind && state.everSeen) return;
+  if (!t && aim) {
+    // Vanished alive: where it was last seen, carried on by its speed for a moment.
+    const age = Math.min(time - aim.at, 2);
+    aim = { x: aim.x + aim.vx * age, y: Math.max(1, aim.y + aim.vy * age), vx: 0, vy: 0, at: aim.at };
+  }
   if (blind) {
     // Over the top onto the mirror column: from 60 m over the ground, or from 60 m over 150 and on down.
     aim = { x: state.mirrorX, y: state.blind % 2 === 0 ? 1 : 150, vx: 0, vy: 0, at: time };

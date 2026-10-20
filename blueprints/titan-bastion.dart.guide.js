@@ -136,6 +136,18 @@ function setup() {
 function pick() {
   let best = null;
   let bestD = Infinity;
+  // The robot it was sent at died (titan-darts, 2026-10): it is in view as debris, with no live core. It forgets that
+  // robot and its spot, flies on the way it is going, and takes the nearest enemy it sees.
+  if (state.id !== undefined) {
+    for (const c of contacts) {
+      if (c.id === state.id && (c.side !== 'enemy' || !c.core)) {
+        state.id = undefined;
+        state.point = undefined;
+        state.aim = Math.atan2(self.vel.y, self.vel.x);
+        break;
+      }
+    }
+  }
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
     if (state.id !== undefined && c.id === state.id) return c; // titan-bastion: the named robot, whatever it weighs

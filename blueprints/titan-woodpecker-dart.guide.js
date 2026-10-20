@@ -10,9 +10,10 @@
 //   whole arena and the radio shares it, so the dart takes the target's real point and speed all the way in. The
 //   radio is switched on one tick in `every` (each dart on its own beat) to keep the cost down, and one tick in
 //   `everyNear` once it is within `nearDist` m. Between two looks it carries the last point on by its speed.
-// - What it follows: the robot it was sent at, else the other side's main robot (the two that start a match are
-//   robots 1 and 2), whatever the message said. A sighting is believed however far it is from the point sent at
-//   launch: round 1's darts flew to where a rammer had been standing.
+// - What it follows: the robot it was sent at while that one is alive, else the heaviest enemy with a live core the
+//   radio shares (titan-darts, 2026-10: never a robot picked by its id), whatever the message said. A sighting is
+//   believed however far it is from the point sent at launch: round 1's darts flew to where a rammer had been
+//   standing. One sent at a robot that has since died (in view as debris) goes after that heaviest one instead.
 // - It arms its heads within `armDist` m of the edge of the real robot (as last seen), or of the point it was sent to
 //   when it never saw one, so a shell that finds it on the way only breaks it.
 // - It ends itself when it is spent (its life, or nearly out of energy) or has flown past its point. Its life fits the
@@ -31,6 +32,7 @@ const acrossMax = param('acrossMax', 40, { min: 0, max: 200 }); // m/s^2 at most
 const over = param('over', 130, { min: 0, max: 240 }); // m above a wide target it aims at most
 const loft = param('loft', 0.45, { min: 0, max: 2 }); // m of aim height per m of ground still to cover
 const ahead = param('ahead', 1.2, { min: 0.1, max: 5 }); // s of flight it looks ahead along its path
+const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: lighter robots (darts, pods) are never followed unless it was sent at one
 const life = param('life', 12.5, { min: 1, max: 60 }); // s after which it ends itself, at least (a spent dart on the ground still costs a script)
 const lifeSpeed = param('lifeSpeed', 50, { min: 5, max: 500 }); // m/s: its life is at least the time to its point at this speed
 const lifeSpare = param('lifeSpare', 5, { min: 0, max: 30 }); // s added to that (the climb, a target that moves away)
@@ -64,13 +66,14 @@ function steer(want, full) {
   set('booster', 'throttle', Math.abs(err) < 0.9 ? full : 0.3);
 }
 
-// The robot to follow among what the radio shares: the one it was sent at, else the other side's main robot.
+// The robot to follow among what the radio shares: the one it was sent at while it is alive, else the heaviest enemy
+// with a live core.
 function sighting(id) {
   let main = null;
   for (const c of contacts) {
-    if (c.side !== 'enemy') continue;
+    if (c.side !== 'enemy' || !c.core) continue;
     if (c.id === id) return c;
-    if (c.id <= 2 && c.core) main = c;
+    if (c.mass >= mainMass && (!main || c.mass > main.mass)) main = c;
   }
   return main;
 }

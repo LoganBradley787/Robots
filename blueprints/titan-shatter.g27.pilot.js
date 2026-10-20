@@ -1,13 +1,20 @@
 // titan-shatter gunship pilot (made by tournaments/gen/titan-shatter.mjs; every gunship runs a copy).
-// Wakes when the comb comes apart. It flies to its own place on a ring over the other side's main robot (the enemy
-// contact with the lowest id: pieces and copies always get newer ids), and its two turrets blast at that robot's core,
-// or at something small and close that is coming for it. With the main robot hidden it uses the last place it saw it,
-// or the mirror of its own start. The radar is on one tick in 'look', to keep the tick short.
+// Wakes when the comb comes apart. It flies to its own place on a ring over the main enemy, and its two turrets blast
+// at that robot's core, or at something small and close that is coming for it. The radar is on one tick in 'look', to
+// keep the tick short.
+// The main enemy (titan-darts, 2026-10, Logan): picked from what its radar reports, never by id: the heaviest enemy
+// with a live core of `mainMass` kg or more, kept while it is seen unless one twice as heavy shows up. It is forgotten
+// the moment it dies (it stays in view as debris, with no live core), `memory` s after it vanished alive (a jammer's
+// bubble or smoke), or at once when it vanished out at the radar's edge. The turrets blast at a remembered one only
+// in those `memory` s. With none it keeps flying round the last place it had (or the mirror of its own start).
 const slot = param('slot', 0, { min: 0, max: 999 });
 const look = param('look', 10, { min: 2, max: 60 }); // ticks between radar looks
 const reach = param('reach', 285, { min: 10, max: 300 }); // m, how far the guns blast
 const speed = param('speed', 30, { min: 1, max: 80 }); // m/s, its fastest sideways
 const lean = param('lean', 0.5, { min: 0.05, max: 1.2 }); // rad, its most lean
+const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
+const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered
+const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const room = param('room', 16, { min: 0, max: 60 }); // m it keeps from friends (two gunships that touch can lock together and fall)
 const G = 9.81;
 const LIFT = 120;
@@ -103,8 +110,8 @@ function fly(tx, ty, vmax, maxLean, vclimb, brake) {
 
 function setup() {
   state.phase = slot % look;
-  state.root = { id: -1, x: self.pos.x < 0 ? 400 : -400, y: 30, vx: 0, vy: 0, t: -100 };
-  state.rootId = 1e9;
+  state.root = { id: -1, x: self.pos.x < 0 ? 400 : -400, y: 30, vx: 0, vy: 0, t: -100, d: 0 };
+  state.live = false; // whether the root is a main enemy seen, or vanished alive within `memory` s
   state.home = self.pos.x;
   state.friends = [];
   state.near = null;
@@ -120,18 +127,30 @@ function lookAround() {
   const friends = [];
   let near = null;
   let small = null;
+  let heaviest = null;
+  let kept = null;
+  let gone = false;
+  const root = state.root;
   for (const c of contacts) {
     if (c.side === 'friend') {
       if (c.distance < 320) friends.push({ x: c.pos.x, y: c.pos.y });
       continue;
     }
+    if (c.id === root.id && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side !== 'enemy' || !c.core) continue;
-    if (c.id <= state.rootId) {
-      state.rootId = c.id;
-      state.root = { id: c.id, x: c.pos.x, y: c.pos.y, vx: c.vel.x, vy: c.vel.y, t: time };
+    if (c.mass >= mainMass) {
+      if (c.id === root.id) kept = c;
+      if (!heaviest || c.mass > heaviest.mass) heaviest = c;
     }
     if (!near) near = c;
     if (!small && c.mass < 60 && c.distance < 140) small = c;
+  }
+  const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  if (main) {
+    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance };
+    state.live = true;
+  } else if (state.live && (gone || time - root.t > memory || root.d > lostAt)) {
+    state.live = false;
   }
   state.friends = friends;
   const pick = small || near;
@@ -228,7 +247,7 @@ function tick() {
   let target = null;
   const near = state.near && time - state.near.t < 0.5 ? now(state.near) : null;
   if (near && state.near.small) target = near;
-  else if (Math.hypot(root.x - self.pos.x, root.y - self.pos.y) < reach + 10) target = root;
+  else if (state.live && Math.hypot(root.x - self.pos.x, root.y - self.pos.y) < reach + 10) target = root;
   else if (near) target = near;
   turret('gunA', 'rotA', target);
   turret('gunB', 'rotB', target);
