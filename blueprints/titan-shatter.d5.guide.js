@@ -1,4 +1,6 @@
-// titan-shatter dart guide: a copy of tech-missile.guide.js (made by tournaments/gen/titan-shatter.mjs).
+// titan-shatter dart guide: a copy of tech-missile.guide.js (made by tournaments/gen/titan-shatter.mjs), kept by hand since.
+// Its fuse fits the flight (titan-darts, 2026-10): `fuse` s at least, and the time to the launcher's point at
+// `fuseSpeed` plus `fuseSpare` when that is longer, up to `fuseMax`.
 // Seeker guide (M8): flies to the point its launcher sent it, and follows the robot its seeker tracks there.
 // Starts when the dart wakes (its decoupler lets go) or on deploy. G turns it off and on.
 // - setup() reads the launcher's point from inbox (and `arc` if the launcher chose the path for this shot). With none,
@@ -25,7 +27,10 @@
 //   gives per radian off the air is 0.6 * area * speed^2 times its arm behind the center of mass. Angled toward the
 //   wanted heading instead, they sprang it back and forth (Logan: "constantly overcorrecting... a very wiggly path").
 
-const fuse = param('fuse', 12, { min: 0.5, max: 30 }); // seconds of flight before it detonates
+const fuse = param('fuse', 12, { min: 0.5, max: 30 }); // s of flight before it detonates, at least (a far point gives it more)
+const fuseSpeed = param('fuseSpeed', 50, { min: 5, max: 500 }); // m/s: the fuse is at least the time to the launcher's point at this speed
+const fuseSpare = param('fuseSpare', 5, { min: 0, max: 30 }); // s added to that (the climb out, a target that moves away)
+const fuseMax = param('fuseMax', 40, { min: 1, max: 120 }); // s at most, so a dart that lost everything still ends
 const thrust = param('thrust', 160, { min: 10, max: 1000 }); // N, the motor's full push (thruster 160, booster 400)
 const gyroTorque = param('gyroTorque', 40, { min: 1, max: 1000 }); // N m, the gyro's full torque (gyro 40, heavy gyro 200)
 const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of the gyro's torque it plans its braking on
@@ -131,6 +136,12 @@ function setup() {
     // The launcher may choose the path for this shot: `arc: 1` over the top, `arc: 0` straight in.
     if (typeof d.arc === 'number') state.phase = d.arc > 0.5 ? 'climb' : 'direct';
   }
+  // The fuse fits the flight: a dart sent far gets the time to get there (titans let go from 900 m).
+  state.fuse = fuse;
+  if (state.point) {
+    const far = Math.hypot(state.point.x - self.pos.x, state.point.y - self.pos.y);
+    state.fuse = clamp(fuseSpare + far / fuseSpeed, fuse, Math.max(fuse, fuseMax));
+  }
 }
 
 /** The robot it follows: the one the launcher named, else the enemy nearest the point (or nearest at all without one). */
@@ -151,7 +162,7 @@ function pick() {
 }
 
 function tick() {
-  if (time - state.start > fuse) boom();
+  if (time - state.start > state.fuse) boom();
 
   const seen = pick();
   // Lost sight of what it was about to reach (M11): it passed out of the seeker's cone close by, or the robot is now

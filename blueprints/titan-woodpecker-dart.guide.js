@@ -15,7 +15,9 @@
 //   launch: round 1's darts flew to where a rammer had been standing.
 // - It arms its heads within `armDist` m of the edge of the real robot (as last seen), or of the point it was sent to
 //   when it never saw one, so a shell that finds it on the way only breaks it.
-// - It ends itself when it is spent (`life` s, or nearly out of energy) or has flown past its point.
+// - It ends itself when it is spent (its life, or nearly out of energy) or has flown past its point. Its life fits the
+//   flight (titan-darts, 2026-10): `life` s at least, and the time to the point it was sent to at `lifeSpeed` plus
+//   `lifeSpare` when that is longer, up to `lifeMax`. A fixed 12.5 s ended darts a few hundred meters short.
 const climb = param('climb', 9, { min: 0, max: 100 }); // m straight up before it turns
 const every = param('every', 20, { min: 1, max: 60 }); // ticks between two looks through the radio, far out
 const everyNear = param('everyNear', 3, { min: 1, max: 60 }); // the same, close in
@@ -29,7 +31,10 @@ const acrossMax = param('acrossMax', 40, { min: 0, max: 200 }); // m/s^2 at most
 const over = param('over', 130, { min: 0, max: 240 }); // m above a wide target it aims at most
 const loft = param('loft', 0.45, { min: 0, max: 2 }); // m of aim height per m of ground still to cover
 const ahead = param('ahead', 1.2, { min: 0.1, max: 5 }); // s of flight it looks ahead along its path
-const life = param('life', 12.5, { min: 1, max: 60 }); // s after which it ends itself (a spent dart on the ground still costs a script)
+const life = param('life', 12.5, { min: 1, max: 60 }); // s after which it ends itself, at least (a spent dart on the ground still costs a script)
+const lifeSpeed = param('lifeSpeed', 50, { min: 5, max: 500 }); // m/s: its life is at least the time to its point at this speed
+const lifeSpare = param('lifeSpare', 5, { min: 0, max: 30 }); // s added to that (the climb, a target that moves away)
+const lifeMax = param('lifeMax', 40, { min: 1, max: 120 }); // s at most
 
 function setup() {
   state.t = null;
@@ -43,6 +48,11 @@ function setup() {
   state.beat = Math.floor(random() * 60);
   state.n = 0;
   state.seen = false;
+  state.life = life;
+  if (state.t) {
+    const far = Math.hypot(state.t.x - self.pos.x, state.t.y - self.pos.y);
+    state.life = clamp(lifeSpare + far / lifeSpeed, life, Math.max(life, lifeMax));
+  }
 }
 
 function steer(want, full) {
@@ -109,7 +119,7 @@ function tick() {
   let dy = ty - py;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < state.best) state.best = dist;
-  if (time - state.born > life || self.energy.stored < 25 || (state.best < 60 && dist > state.best + 120)) {
+  if (time - state.born > state.life || self.energy.stored < 25 || (state.best < 60 && dist > state.best + 120)) {
     set('heavywarhead', 'arm', 1);
     set('heavywarhead', 'detonate', 1);
     return;
