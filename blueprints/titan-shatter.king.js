@@ -7,8 +7,10 @@
 // the moment it dies (it stays in view as debris, with no live core), `memory` s after it vanished, or at once when
 // it vanished out at the radar's edge. A wave goes only at a main enemy seen within `memory` s; with none, it waits.
 // Hidden in its own bubble the king sees only what is close, so before the second wave it lets its bubble lapse for
-// `lookFor` s (once a pod's 5 s) to look, until it has seen one. Only while it has never seen an enemy at all does
-// the first wave go to the mirror of its start (a titan hidden from the first second starts about there).
+// `lookFor` s (once a pod's 5 s) to look, until it has seen one, and meanwhile comes within `lookAt` m of the middle:
+// from its hiding places 560 to 820 m out, an enemy on the far side is out of its radar's reach. Only while it has
+// never seen an enemy at all does the first wave go to the mirror of its start (a titan hidden from the first second
+// starts about there).
 const waveGap = param('waveGap', 40, { min: 1, max: 240 }); // s before the second wave of darts
 const pods = param('pods', 52, { min: 0, max: 200 }); // jammer pods it carries (tags jam0, jam1, ...)
 const darts = param('darts', 16, { min: 0, max: 64 }); // darts on its deck (cores d0.., grips g0..)
@@ -21,6 +23,7 @@ const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const lookFor = param('lookFor', 0.15, { min: 0.02, max: 2 }); // s its bubble lapses to look before the second wave
+const lookAt = param('lookAt', 350, { min: 0, max: 1000 }); // m from the middle at most while a wave waits for a target (its radar reaches 1000 m)
 const G = 9.81;
 const LIFT = 120;
 
@@ -221,5 +224,7 @@ function tick() {
     const away = self.pos.x >= big.pos.x ? 1 : -1;
     state.hide = { x: clamp(self.pos.x + away * 150, -820, 820), y: big.pos.y > 120 ? 35 : 232 };
   }
-  fly(state.hide.x, clamp(state.hide.y, 20, 240), 30, 0.35, time - state.evade < 8 ? 25 : 12);
+  // A wave waiting for a target: near enough the middle for its radar to reach the far side.
+  const hx = state.looking ? state.sgn * Math.min(Math.abs(state.hide.x), lookAt) : state.hide.x;
+  fly(hx, clamp(state.hide.y, 20, 240), 30, 0.35, time - state.evade < 8 ? 25 : 12);
 }
