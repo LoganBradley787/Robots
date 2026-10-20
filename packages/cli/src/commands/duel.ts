@@ -36,6 +36,8 @@ export interface DuelOptions {
   file?: WorldFile;
   /** The bounds in place of DEFAULT_BOUNDS; false for none. */
   bounds?: Bounds | false;
+  /** The Sandbox rule that turns off what smoke and jammers do to sensors, from tick 0. */
+  noSmokeOrJam?: boolean;
   /** Seconds between rows of the report (default 10). */
   sampleEverySeconds?: number;
   /** Tests: half the distance between the main cores in place of DUEL_X. */
@@ -275,6 +277,7 @@ export async function duel(a: DuelEntry, b: DuelEntry, opts: DuelOptions): Promi
       teamOf.set(robot.id, robot.team);
       watches.push(new SideWatch(robot));
     }
+    if (opts.noSmokeOrJam) world.setNoSmokeOrJam(true);
     const [wa, wb] = watches as [SideWatch, SideWatch];
     const watchOf = (robot: number): SideWatch | undefined => watches[teamOf.get(robot) ?? -1];
 

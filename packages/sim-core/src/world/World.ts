@@ -178,6 +178,7 @@ function nearBox(box: HullBox, body: BodyPose, at: { x: number; y: number }, rea
 
 /** A burning decoy as a sensor sees it (M11): where it is, which piece holds it, and how it moves. */
 const NO_DECOYS: readonly SeenDecoy[] = [];
+const NO_CLOUDS: readonly SmokeCloud[] = [];
 
 interface SeenDecoy {
   robot: Robot;
@@ -355,6 +356,13 @@ export class World {
   /** Sandbox switch: every energy request is granted and nothing drains. Simulation state, logged and hashed. */
   private unlimited = false;
   private pendingUnlimited: boolean | undefined;
+  /**
+   * Sandbox rule: what a part's `smoke` or `jammer` block does to sensors is off. Clouds are still released, drift and
+   * expire, and jammers still light and burn, but no cloud blocks a sensor or weakens a beam, and no bubble blinds or
+   * hides anything. Simulation state, logged, and hashed only while on.
+   */
+  private noSmokeJam = false;
+  private pendingNoSmokeJam: boolean | undefined;
   /** Events so far, oldest first. Readers keep their own cursor. */
   readonly events: WorldEvent[] = [];
   private readonly scriptHost: ScriptHost | undefined;
@@ -589,6 +597,11 @@ export class World {
     if (this.pendingClearDebris) change.clearDebris = true;
     if (this.pendingUnlimited !== undefined) this.unlimited = this.pendingUnlimited;
     this.pendingUnlimited = undefined;
+    if (this.pendingNoSmokeJam !== undefined) {
+      change.noSmokeOrJam = this.pendingNoSmokeJam;
+      this.noSmokeJam = this.pendingNoSmokeJam;
+    }
+    this.pendingNoSmokeJam = undefined;
     // Removals first (M16), so a robot removed by hand drops this tick's keys like one that lost its core.
     if (this.pendingRemove.size > 0) {
       const removed = this.removeByHand();
@@ -709,6 +722,11 @@ export class World {
     return this.clouds;
   }
 
+  /** The clouds that block sensors and weaken beams: none while the sandbox rule turns smoke and jammers off. */
+  private blockingClouds(): readonly SmokeCloud[] {
+    return this.noSmokeJam ? NO_CLOUDS : this.clouds;
+  }
+
   private burnDecoy(robot: Robot, part: PartInstance, ignite: number, seconds: number): void {
     if (part.burn === undefined) {
       if (ignite <= 0.5 || part.health <= 0) return;
@@ -751,7 +769,8 @@ export class World {
    * nothing). Computed once per tick.
    */
   private jamBubbles(): JamBubble[] | undefined {
-    if (this.jammers.size === 0) return undefined;
+    // The sandbox rule: no bubble blinds or hides anything, so sensors and radios work as if none were lit.
+    if (this.jammers.size === 0 || this.noSmokeJam) return undefined;
     if (this.jamCache?.tick === this.tickCount) return this.jamCache.bubbles;
     const out: JamBubble[] = [];
     this.jammers.clear();
@@ -1643,7 +1662,7 @@ export class World {
     const x2 = m.x + m.dx * distance;
     const y2 = m.y + m.dy * distance;
     let smoke = 0;
-    for (const c of this.clouds) if (smokeBlocks(c, m.x, m.y, x2, y2)) smoke++;
+    for (const c of this.blockingClouds()) if (smokeBlocks(c, m.x, m.y, x2, y2)) smoke++;
     const beam: Beam = { robot: robot.id, laser: part.id, x1: m.x, y1: m.y, x2, y2, power, smoke, side: SIGHT.nothing };
     this.beams.push(beam);
     const stats = this.burns.get(robot.id) ?? { ticks: 0, damage: 0 };
@@ -2591,6 +2610,7 @@ export class World {
     const from = partWorldPose(this, robot, coreId);
     const lit = this.burningDecoys();
     const bubbles = this.jamBubbles();
+    const clouds = this.blockingClouds();
     const fooled = lit ? new Map<number, SeenDecoy>() : undefined;
     const pass = this.pass;
     const out: ScriptContact[] = [];
@@ -2607,7 +2627,7 @@ export class World {
         const dist = hypot(d.pos.x - from.x, d.pos.y - from.y);
         if (dist >= best) continue;
         const hid = bubbles ? jamNear(bubbles, d.pos) : undefined;
-        const b = sensors.filter((s) => throughJam(s, d.pos, hid) && sees(s, d.pos, terrain, this.clouds)).map((s) => s.id);
+        const b = sensors.filter((s) => throughJam(s, d.pos, hid) && sees(s, d.pos, terrain, clouds)).map((s) => s.id);
         if (b.length === 0) continue;
         at = d;
         by = b;
@@ -2617,7 +2637,7 @@ export class World {
         // Batch: a robot whose reference point is inside a jammer's bubble is hidden from every sensor outside it.
         // Titans: but for a sensor within the bubble's `near` of it.
         const hid = bubbles ? jamNear(bubbles, ref.pos) : undefined;
-        by = sensors.filter((s) => throughJam(s, ref.pos, hid) && sees(s, ref.pos, terrain, this.clouds)).map((s) => s.id);
+        by = sensors.filter((s) => throughJam(s, ref.pos, hid) && sees(s, ref.pos, terrain, clouds)).map((s) => s.id);
         if (by.length === 0) continue;
       }
       const pos = at ? at.pos : ref.pos;
@@ -2793,6 +2813,18 @@ export class World {
 
   get unlimitedEnergy(): boolean {
     return this.pendingUnlimited ?? this.unlimited;
+  }
+
+  /**
+   * The sandbox rule: smoke clouds and jammers' bubbles do nothing to sensors (and clouds nothing to beams), from the
+   * next tick on (logged, so replays match). Clouds and jammers are still made, drawn and burn out as usual.
+   */
+  setNoSmokeOrJam(on: boolean): void {
+    this.pendingNoSmokeJam = on === this.noSmokeJam ? undefined : on;
+  }
+
+  get noSmokeOrJam(): boolean {
+    return this.pendingNoSmokeJam ?? this.noSmokeJam;
   }
 
   /**
@@ -3100,6 +3132,8 @@ export class World {
         h.addInt(c.total);
       }
     }
+    // The sandbox rule turning smoke and jammers off. Off adds nothing, so worlds without it hash as before.
+    if (this.noSmokeJam) h.addString('noSmokeOrJam');
     // Grapple ropes (Batch). None adds nothing, so worlds without grapples hash as before.
     this.grapples.hashInto(h, this.gh());
     // Held keys and toggles shape the future, so they are state too.

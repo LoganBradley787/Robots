@@ -1,7 +1,7 @@
 import { nearestNames } from '@robots/sim-core';
 
 /** What `run` and `determinism` both read: where and how the robot is deployed, and what happens during the run. */
-const RUN_FLAGS = ['world', 'seconds', 'seed', 'x', 'y', 'keys', 'unlimited', 'team', 'flip', 'rot', 'drop'] as const;
+const RUN_FLAGS = ['world', 'seconds', 'seed', 'x', 'y', 'keys', 'unlimited', 'no-smoke-jam', 'team', 'flip', 'rot', 'drop'] as const;
 
 /**
  * Every flag each command reads (review T3). A flag that is not listed for its command is refused, so a misspelled
@@ -20,7 +20,7 @@ export const COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
   mirror: ['axis', 'save', 'force'],
   bench: ['n', 'seconds', 'json'],
   hashes: ['seconds', 'save', 'against'],
-  duel: ['ya', 'yb', 'seed', 'seconds', 'world', 'bounds', 'json'],
+  duel: ['ya', 'yb', 'seed', 'seconds', 'world', 'bounds', 'no-smoke-jam', 'json'],
   tournament: ['seeds', 'seconds', 'jobs', 'out', 'only', 'world', 'bounds', 'speed-seconds'],
 };
 

@@ -28,6 +28,8 @@ export interface WorldActions {
   removeTeam(team: number): void;
   saveReplay(): void;
   toggleUnlimitedEnergy(): void;
+  /** The Sandbox rule that turns off what smoke clouds and jammers do to sensors. */
+  toggleNoSmokeOrJam(): void;
   toggleDeployTeam(): void;
   /** M15: sound off and on, its volume (0 to 1), and whether far sounds arrive late. */
   toggleMute(): void;
@@ -98,6 +100,7 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
         {(close) => (
           <>
             <Row label="Unlimited energy" state={onOff(v.unlimitedEnergy)} on={v.unlimitedEnergy} onPick={actions.toggleUnlimitedEnergy} title="Every part gets all the energy it asks for, and nothing drains" />
+            <Row label="Smoke and jammers do nothing" state={onOff(v.noSmokeOrJam)} on={v.noSmokeOrJam} onPick={actions.toggleNoSmokeOrJam} title="Smoke pods and jammers still go off and show, but blind and hide nothing, and smoke no longer weakens lasers. Flares still fool sensors." />
             <div class="mi-sep" />
             <div class="wblock" title="Drops a crowd of scripted robots around the middle of the screen, to see how the sim copes. Turn on Debug for the numbers, and Unlimited energy so the drones do not run dry and fall.">
               <div class="wb-head">Stress test</div>

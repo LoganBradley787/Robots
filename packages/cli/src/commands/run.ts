@@ -13,6 +13,8 @@ export interface RunOptions {
   keys?: readonly KeyPress[];
   /** Unlimited energy from tick 0. */
   unlimited?: boolean;
+  /** The Sandbox rule that turns off what smoke and jammers do to sensors, from tick 0. */
+  noSmokeOrJam?: boolean;
   /** Other blueprints spawned mid-run (a bomb dropped on the robot). */
   drops?: readonly Drop[];
   /** The robot's team (M8); 0 when absent. */
@@ -91,6 +93,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     const robot = world.spawnBlueprint(blueprint, opts.at ?? file.spawn, { team: opts.team ?? 0 });
     const drops = [...(opts.drops ?? [])].sort((a, b) => a.t - b.t);
     if (opts.unlimited) world.setUnlimitedEnergy(true);
+    if (opts.noSmokeOrJam) world.setNoSmokeOrJam(true);
     if (opts.keys && opts.keys.length > 0 && !world.canControl(robot.id)) throw new Error(`${robot.name} has no core, so keys cannot control it`);
     const inputs = timelineInputs(opts.keys ?? [], robot.id, world.dt);
     const known = world.controller(robot.id)?.keys ?? [];

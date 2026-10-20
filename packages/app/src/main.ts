@@ -324,6 +324,7 @@ async function boot(): Promise<void> {
       });
     },
     toggleUnlimitedEnergy: () => worldScreen.toggleUnlimitedEnergy(),
+    toggleNoSmokeOrJam: () => worldScreen.toggleNoSmokeOrJam(),
     toggleDeployTeam: () => worldScreen.toggleDeployTeam(),
     toggleMute: () => worldScreen.sound.set({ muted: !worldScreen.sound.settings.muted }),
     setVolume: (volume) => worldScreen.sound.set({ volume }),

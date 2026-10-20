@@ -7,6 +7,8 @@ export interface WorldChange {
   clearDebris?: true;
   /** Robots removed by hand (M16), by id, at the start of the tick before anything else. Only ones that were there. */
   remove?: number[];
+  /** The sandbox rule that turns off what smoke clouds and jammers do to sensors (and clouds to beams). */
+  noSmokeOrJam?: boolean;
 }
 
 function cloneChange(w: WorldChange): WorldChange {

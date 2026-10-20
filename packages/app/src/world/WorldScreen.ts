@@ -75,6 +75,8 @@ export interface WorldView {
     logs: string[];
   };
   unlimitedEnergy: boolean;
+  /** The Sandbox rule: smoke clouds and jammers blind, hide and weaken nothing. */
+  noSmokeOrJam: boolean;
   /** M16: whether a click removes the robot under it (the bar's Remove button). */
   removing: boolean;
   /** M16: robots per team, for the Sandbox menu's Remove all rows; teams with none are left out. */
@@ -257,6 +259,7 @@ export class WorldScreen {
     this.outlineOf = undefined;
     this.eventCursor = 0;
     next.setUnlimitedEnergy(this.unlimitedWanted);
+    next.setNoSmokeOrJam(this.noSmokeJamWanted);
     this.home();
     this.lastHash = next.hash();
     this.stepper.reset();
@@ -433,6 +436,14 @@ export class WorldScreen {
   toggleUnlimitedEnergy(): void {
     this.unlimitedWanted = !this.world.unlimitedEnergy;
     this.world.setUnlimitedEnergy(this.unlimitedWanted);
+  }
+
+  /** Survives Clear robots like the energy switch. */
+  private noSmokeJamWanted = false;
+
+  toggleNoSmokeOrJam(): void {
+    this.noSmokeJamWanted = !this.world.noSmokeOrJam;
+    this.world.setNoSmokeOrJam(this.noSmokeJamWanted);
   }
 
   /** Opens or folds the live readout (M16). Folded, the world is asked for no trace. */
@@ -809,6 +820,7 @@ export class WorldScreen {
       deployTeam: this.deploy.team,
       sound: { ...this.sound.settings, awake: this.sound.awake },
       unlimitedEnergy: this.world.unlimitedEnergy,
+      noSmokeOrJam: this.world.noSmokeOrJam,
       removing: this.removeArmed,
       teams: teamCounts(present),
       far: { distance: this.farDistance, count: this.farCount(present, ticks > 0) },

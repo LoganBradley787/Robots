@@ -62,7 +62,7 @@ commands
   mirror <bp> [--axis <half cells>] [--save <name>] [--force]
                      print the blueprint flipped left to right (x becomes axis - x; the default axis keeps it
                      in place). --save works as for place
-  duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>] [--seconds <n>] [--world <path>] [--bounds <x>,<y>] [--json]
+  duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>] [--seconds <n>] [--world <path>] [--bounds <x>,<y>] [--no-smoke-jam] [--json]
                      a match between two robots that run themselves (the rules: tournaments/README.md), in
                      worlds/arena.json: <a> with its main core at x -400 on team 0, <b> at x 400 on team 1 and
                      flipped, every script on, no keys. --ya and --yb are the main cores' heights (default: on
@@ -91,6 +91,8 @@ flags (for run and determinism unless a command lists its own; a flag a command 
   --keys <timeline>  keys to press, in seconds from the start: "d:0-3, a:3.5-4, w:5" (w:5 is a tap),
                      or a .json file like [{ "key": "d", "down": 0, "up": 3 }]
   --unlimited        unlimited energy from the start
+  --no-smoke-jam     the Sandbox rule "Smoke and jammers do nothing" from the start: smoke clouds and jammers
+                     still go off, but blind, hide and weaken nothing (also for duel)
   --team <team>      the robot's team: yours (0, the default), enemy (1), or a number
   --flip             deploy the robot flipped left to right (around its core)
   --rot <deg>        deploy it turned 90, 180, or 270 degrees counterclockwise (after --flip)
@@ -101,7 +103,7 @@ flags (for run and determinism unless a command lists its own; a flag a command 
   --json             print the run report as json`;
 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
-const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'mirror', 'force', 'help', 'flip']);
+const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'no-smoke-jam', 'mirror', 'force', 'help', 'flip']);
 
 function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string>; drops: string[] } {
   const flags = new Map<string, string>();
@@ -238,7 +240,7 @@ async function main(): Promise<number> {
     if (d.t < 0) throw new Error(`--drop ${d.name}: the time must not be negative`);
     if (d.t >= seconds) console.error(`warning: --drop ${d.name} at ${d.t} s is after the run ends (${seconds} s), so it never lands`);
   }
-  const opts = { seconds, seed, ...(team !== 0 ? { team } : {}), ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}), ...(drops.length > 0 ? { drops } : {}) };
+  const opts = { seconds, seed, ...(team !== 0 ? { team } : {}), ...(at ? { at } : {}), ...(keys ? { keys } : {}), ...(flags.has('unlimited') ? { unlimited: true } : {}), ...(flags.has('no-smoke-jam') ? { noSmokeOrJam: true } : {}), ...(drops.length > 0 ? { drops } : {}) };
 
   try {
     if (command === 'run') {
@@ -325,7 +327,7 @@ async function duelCommand(positional: string[], flags: Map<string, string>): Pr
   const bounds = boundsFlag(flags);
   if (bounds === null) return 2;
   try {
-    const r = await duel(entry(aArg, 'ya'), entry(bArg, 'yb'), { seed: seedFlag(flags), seconds, ...(flags.has('world') ? { file: loadWorld(flags) } : {}), ...(bounds !== undefined ? { bounds } : {}) });
+    const r = await duel(entry(aArg, 'ya'), entry(bArg, 'yb'), { seed: seedFlag(flags), seconds, ...(flags.has('world') ? { file: loadWorld(flags) } : {}), ...(bounds !== undefined ? { bounds } : {}), ...(flags.has('no-smoke-jam') ? { noSmokeOrJam: true } : {}) });
     console.log(flags.has('json') ? JSON.stringify(r) : formatDuel(r));
     return 0;
   } catch (e) {

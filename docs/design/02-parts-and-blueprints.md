@@ -177,6 +177,7 @@ A def with `smoke: { radius, seconds }` is a smoke pod; it needs an `on` input (
 - **The cloud:** a circle of `radius` meters that stays where it was released, sinking 0.5 m/s (`SMOKE_DRIFT`), for `seconds` counted in ticks. `World.smokeClouds()` lists them read-only (`x`, `y`, `radius`, `left`, `total` ticks) for drawing. They are simulation state: hashed (position, radius, ticks left) only while any exists, so worlds without smoke keep their hashes.
 - **What it blocks:** sensors, like terrain does. `sees()` refuses a target when the line from the sensor touches any cloud, so a robot behind a cloud is missing from `contacts` and `scan`, and a sensor inside a cloud sees nothing, a robot inside one is seen by nobody outside it. Robots still never block. Because it is the sensor rule, whatever steers by contacts (a missile's guide, a turret's tracking, a drone's pilot) loses the target as a consequence; nothing names a kind of robot.
 - **What passes:** shells and a gun's sight pass through smoke (the sight is a ray in the physics world, not a sensor cone; kept simple).
+- **Smoke and jammers do nothing** (Sandbox rule, Logan 2026-10-19, off by default): while it is on, no cloud blocks a sensor and none halves a laser beam (`World.blockingClouds` is empty, so `sees()` and the beam count none). Pods still release clouds, which still drift, expire, are drawn and are hashed, so you can see a pod was used. The rule reads the clouds, never a part type. `World.setNoSmokeOrJam` applies on the next tick and is logged as `world: { noSmokeOrJam }`; the hash adds it only while on. The same rule turns jammers off (below). Flares are not touched.
 - **Look:** soft grey circles, thinning out over the last 1.5 s (`SmokeView`); the sprite is a grey canister.
 
 ### Grapples (Batch, as built)
@@ -201,6 +202,7 @@ A def with `jammer: { radius, seconds }` is a jammer pod; it needs an `ignite` i
 - **Gun sights are not affected:** a sight is a straight look out of a barrel, not a sensor part.
 - Hashing: the pod's timer (and its position while it jams) is added only for parts whose def has `jammer`, so worlds without one keep their hashes. Bubbles are found once a tick from the pods, never stored.
 - The sprite's `litFrame` is drawn while it jams; the app adds a cyan glow. There is no bubble drawing yet.
+- **Smoke and jammers do nothing** (Sandbox rule, see Smoke): while it is on, `World.jamBubbles` finds no bubble, so no sensor or radio is blinded and no robot or flare is hidden. Pods still light, jam their `seconds` (`jamming` reads 1, `jamStarted` is told), glow and burn out as usual.
 
 ### Sensor parts (M8, as built)
 A def with `sensor: { cone, range }` (degrees, 360 for all around, and meters) is a sensor, facing its `acts` face. The engine reads the field; no part type is special-cased. A `sensor` behavior draws power while the `on` input is above 0.5; switched off or unpowered, it sees nothing.
