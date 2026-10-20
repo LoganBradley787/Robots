@@ -42,6 +42,7 @@ const refresh = param('refresh', 120, { min: 1, max: 600 }); // ticks between wo
 const gap = param('gap', 0.15, { min: 0, max: 10 }); // s between two bays letting go
 const level = (param('level', 33, { min: 1, max: 90 }) * Math.PI) / 180; // lets darts go only within this many degrees of level
 const still = param('still', 12, { min: 0.1, max: 50 }); // m/s up or down: faster than this it holds its darts
+const drift = param('drift', 8, { min: 0.1, max: 50 }); // m/s sideways: faster than this it holds its darts too
 const spreadEvery = param('spreadEvery', 4, { min: 1, max: 100 }); // every this many darts, one goes to the nearest other enemy
 const match = param('match', 240, { min: 0, max: 100000 }); // s, how long it must stay up
 const keep = param('keep', 1.2, { min: 0, max: 10 }); // darts are held under this many times the energy the hover needs to the end
@@ -378,13 +379,15 @@ function tick() {
 
   // Bays: let a finished dart go at the main enemy (or the place it should be).
   // Not while climbing or sinking: a dart levels off right over the bays, and a rising ship would fly up into it.
+  // Not while sliding sideways either (titan-darts, 2026-10): a dart starts with the ship's speed, across the line it
+  // climbs out on, and drifts into the bay walls and the darts let go beside it.
   // Not while low on energy either: what is left must hold the ship up to the end (its weight over a propeller's push
   // is how many run at full, each drawing `propDraw`).
   const hoverDraw = ((self.mass * g) / lift) * propDraw;
   const spare = self.energy.stored >= keep * hoverDraw * Math.max(0, match - time);
   if (!spare && !state.saving) log('low on energy: holding the darts to stay up');
   state.saving = !spare;
-  const steady = Math.abs(self.vel.y) < still;
+  const steady = Math.abs(self.vel.y) < still && Math.abs(self.vel.x) < drift;
   // Somewhere to send it: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
   // mirror of its own start. With none of those it holds its darts.
   const someplace = main || last || !state.everSeen;

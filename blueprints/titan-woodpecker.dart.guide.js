@@ -16,6 +16,9 @@
 //   standing. One sent at a robot that has since died (in view as debris) goes after that heaviest one instead.
 // - It arms its heads within `armDist` m of the edge of the real robot (as last seen), or of the point it was sent to
 //   when it never saw one, so a shell that finds it on the way only breaks it.
+// - It goes off when its heads pass within `prox` m of the core of the robot it tracks (titan-darts, 2026-10, as the
+//   hive's darts do), counting where both will be by the next tick: one that passed a small robot by a meter flew
+//   on past it.
 // - It ends itself when it is spent (its life, or nearly out of energy) or has flown past its point. Its life fits the
 //   flight (titan-darts, 2026-10): `life` s at least, and the time to the point it was sent to at `lifeSpeed` plus
 //   `lifeSpare` when that is longer, up to `lifeMax`. A fixed 12.5 s ended darts a few hundred meters short.
@@ -24,6 +27,8 @@ const every = param('every', 20, { min: 1, max: 60 }); // ticks between two look
 const everyNear = param('everyNear', 3, { min: 1, max: 60 }); // the same, close in
 const nearDist = param('nearDist', 160, { min: 0, max: 1000 }); // m from the target where it looks more often
 const armDist = param('armDist', 30, { min: 1, max: 300 }); // m from the target's edge where the heads arm
+const prox = param('prox', 3, { min: 0, max: 20 }); // m from the tracked robot's core (from the heads) where it goes off
+const headAt = param('headAt', 1.5, { min: 0, max: 10 }); // m from the core to the middle of its heads, along the nose
 const kp = param('kp', 4, { min: 0, max: 50 });
 const kd = param('kd', 1.3, { min: 0, max: 50 });
 const push = param('push', 30, { min: 1, max: 200 }); // m/s^2 it asks for along the line
@@ -132,6 +137,21 @@ function tick() {
   if (!state.armed && px > tx - t.l - armDist && px < tx + t.r + armDist && py > ty - t.d - armDist && py < ty + t.u + armDist) {
     set('heavywarhead', 'arm', 1);
     state.armed = true;
+  }
+  // Next to the robot it tracks: from its heads (`headAt` m up the nose from the core), now or by the next tick.
+  if (state.armed && state.seen && time - state.at < 0.3) {
+    const hx = px - Math.sin(self.angle) * headAt;
+    const hy = py + Math.cos(self.angle) * headAt;
+    const rx = tx - hx;
+    const ry = ty - hy;
+    const wx = t.vx - self.vel.x;
+    const wy = t.vy - self.vel.y;
+    const w2 = wx * wx + wy * wy;
+    const s = w2 > 0 ? clamp(-(rx * wx + ry * wy) / w2, 0, dt) : 0;
+    if (Math.hypot(rx + wx * s, ry + wy * s) < prox) {
+      set('heavywarhead', 'detonate', 1);
+      return;
+    }
   }
   // Lead: aim where the target will be when the dart gets there.
   const rvx = self.vel.x - t.vx;
