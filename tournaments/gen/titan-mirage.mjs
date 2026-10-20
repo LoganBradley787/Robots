@@ -167,6 +167,7 @@ const ghost = (file) => ({
 const blueprint = {
   format: 1,
   name: NAME,
+  kind: 'yours',
   grid,
   legend,
   autoControls: false,
@@ -493,10 +494,17 @@ function tick() {
 `;
 
 fs.writeFileSync(path.join(out, `${NAME}.json`), JSON.stringify(blueprint, null, 1) + '\n');
-fs.writeFileSync(path.join(out, `${NAME}.helm.js`), HELM);
-fs.writeFileSync(path.join(out, `${NAME}.ghost.guide.js`), GUIDE);
-fs.writeFileSync(path.join(out, `${NAME}-ghost.json`), JSON.stringify(ghost(`${NAME}-ghost.guide.js`), null, 1) + '\n');
-fs.writeFileSync(path.join(out, `${NAME}-ghost.guide.js`), GUIDE);
+// The scripts are kept by hand in blueprints/ since the titan-darts fixes (2026-10): the text in this file is how they
+// started, and is written only when a file is missing.
+const kept = (file, made) => (fs.existsSync(path.join(out, file)) ? fs.readFileSync(path.join(out, file), 'utf8') : made);
+const helm = kept(`${NAME}.helm.js`, HELM);
+const guide = kept(`${NAME}.ghost.guide.js`, GUIDE);
+fs.writeFileSync(path.join(out, `${NAME}.helm.js`), helm);
+fs.writeFileSync(path.join(out, `${NAME}.ghost.guide.js`), guide);
+// The saved copy is stamped as one of yours (the builder's library kind); the bay's recipe is not.
+const { format: ghostFormat, name: ghostName, ...ghostRest } = ghost(`${NAME}-ghost.guide.js`);
+fs.writeFileSync(path.join(out, `${NAME}-ghost.json`), JSON.stringify({ format: ghostFormat, name: ghostName, kind: 'yours', ...ghostRest }, null, 1) + '\n');
+fs.writeFileSync(path.join(out, `${NAME}-ghost.guide.js`), guide);
 const plates = cells.flat().filter((t) => t === 'A').length;
 const lift = props.length * 120 + KEEP * 400;
 console.log(`${NAME}: ${W} by ${H} cells, ${BAYS} bays, ${pod} pods, ${props.length} propellers, ${plates} plates, about ${Math.round(m)} kg, lift ${lift} N (push to weight ${(lift / (m * 9.81)).toFixed(2)}), center of mass at column ${com.toFixed(1)}`);

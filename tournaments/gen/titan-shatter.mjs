@@ -8,7 +8,7 @@
 // - gunships hanging under the king in columns, each joined to the one above by a single decoupler on its roof.
 // On tick 0 the king fires every roof decoupler, so every gunship wakes with its own pilot. The king then lets its
 // darts go in two waves, hides in its jammer bubbles, and flies off to a quiet spot.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -493,6 +493,7 @@ const guide =
 const blueprint = {
   format: 1,
   name: NAME,
+  kind: 'yours',
   autoControls: false,
   grid,
   legend,
@@ -502,7 +503,13 @@ const blueprint = {
   cores,
 };
 writeFileSync(resolve(out, `${NAME}.json`), JSON.stringify(blueprint, null, 1) + '\n');
-writeFileSync(resolve(out, `${NAME}.king.js`), KING);
-for (let i = 0; i < SHIPS; i++) writeFileSync(resolve(out, `${NAME}.g${i}.pilot.js`), PILOT);
-for (let k = 0; k < DARTS; k++) writeFileSync(resolve(out, `${NAME}.d${k}.guide.js`), guide);
+// The scripts are kept by hand in blueprints/ since the titan-darts fixes (2026-10): the text in this file (and the copy of
+// tech-missile.guide.js) is how they started, and is written only when a file is missing.
+const kept = (file, made) => (existsSync(resolve(out, file)) ? readFileSync(resolve(out, file), 'utf8') : made);
+const king = kept(`${NAME}.king.js`, KING);
+const pilot = kept(`${NAME}.g0.pilot.js`, PILOT);
+const dartGuide = kept(`${NAME}.d0.guide.js`, guide);
+writeFileSync(resolve(out, `${NAME}.king.js`), king);
+for (let i = 0; i < SHIPS; i++) writeFileSync(resolve(out, `${NAME}.g${i}.pilot.js`), pilot);
+for (let k = 0; k < DARTS; k++) writeFileSync(resolve(out, `${NAME}.d${k}.guide.js`), dartGuide);
 console.log(`${NAME}: ${SHIPS} gunships, ${DARTS} darts, ${PODS} jammer pods, grid ${W} by ${H}`);
