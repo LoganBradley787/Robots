@@ -2,6 +2,9 @@
 // - The robot the base named is followed whatever it weighs.
 // - Its fuse fits the flight: `fuse` s at least, and the time to the launcher's point at `fuseSpeed` plus `fuseSpare`
 //   when that is longer, up to `fuseMax`.
+// - It arms only within `armDist` m of the point it flies to (the robot it tracks, else the launcher's point), as the
+//   hive's darts do. Armed 15 m out of its bay, darts let go 0.05 s apart bumped each other over the fortress and blew
+//   up there (a third of them); unarmed, a bump or a shell on the way only breaks one.
 // Seeker guide (M8): flies to the point its launcher sent it, and follows the robot its seeker tracks there.
 // Starts when the missile wakes (its decoupler lets go) or on deploy. G turns it off and on.
 // - setup() reads the launcher's point from inbox (and `arc` if the launcher chose the path for this shot). With none,
@@ -43,6 +46,7 @@ const passBy = param('passBy', 15, { min: 0, max: 50 }); // m it keeps over a fr
 const passMass = param('passMass', 25, { min: 0, max: 1000 }); // kg: friendly robots this heavy or more are flown over (drones, not other missiles)
 const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
+const armDist = param('armDist', 200, { min: 5, max: 2000 }); // m from the point it flies to: it arms inside this
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -158,8 +162,10 @@ function tick() {
   state.close = undefined;
   // Armed (M10) once clear of its launcher, and only when it was launched at something (a message with a point) or
   // tracks an enemy: safe while it rides on a launcher and while it clears it, and a missile knocked loose by a hit
-  // (no message) stays a dud unless it finds a target.
-  if (!state.armed && (state.launched || seen) && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
+  // (no message) stays a dud unless it finds a target. Only near where it is going (`armDist`).
+  const to = seen ? seen.pos : state.point;
+  const nearPoint = to && Math.hypot(to.x - self.pos.x, to.y - self.pos.y) < armDist;
+  if (!state.armed && (state.launched || seen) && nearPoint && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
     set('warhead', 'arm', 1);
     set('heavywarhead', 'arm', 1);
     state.armed = true;
