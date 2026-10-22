@@ -55,6 +55,8 @@ const tiltMax = param('tiltMax', 10, { min: 1, max: 90 }); // degrees: tilted mo
 const low = param('low', 0.1, { min: 0, max: 1 }); // under this share of its energy it stops driving
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole, only its extremes
 const gap = param('gap', 30, { min: 0, max: 200 }); // m between its nose (or tail) and a ground enemy it besieges (clear of what it launches from its edge)
+const weaveAmp = param('weaveAmp', 25, { min: 0, max: 200 }); // m either way it drifts while parked under something
+const weavePeriod = param('weavePeriod', 14, { min: 2, max: 120 }); // s for one drift there and back
 const standBack = param('standBack', 700, { min: 100, max: 2000 }); // m it keeps from a ground enemy it cannot move nor burn, with no arena edge
 const roam = param('roam', 300, { min: 0, max: 2000 }); // m either side of the last sighting it patrols with no arena edge
 const rest = param('rest', 60, { min: 0, max: 3600 }); // s with nothing seen before it stops to save energy (no arena edge)
@@ -180,6 +182,20 @@ function say(what) {
   if (state.said === what) return;
   state.said = what;
   log(what);
+}
+
+/**
+ * Meters to add to where it parks under something: it never sits still there. Darts aim where a robot will be from
+ * how it moves when they leave; a sled parked under a carrier for 45 s had its core tunneled to by them (titans v2).
+ */
+function weave() {
+  return weaveAmp * Math.sin((2 * Math.PI * time) / weavePeriod);
+}
+
+/** True when the radar sees robot `id` and it is lighter than `minMass`. */
+function light(id) {
+  for (const c of contacts) if (c.id === id) return c.mass < minMass;
+  return false;
 }
 
 function wrap(a) {
@@ -441,7 +457,7 @@ function tick() {
       say('sweep robot ' + T.id);
     } else {
       // Too high and heavy to sweep, or no edge to sweep it to: sit under its middle and let the guns and beams work.
-      const err = tmid - mid;
+      const err = tmid + weave() - mid;
       vdes = clamp(tvx + toward(err, a, top), -chase, chase);
       say('under robot ' + T.id);
     }
@@ -453,15 +469,20 @@ function tick() {
     // Nothing seen: hold under what a gun sight reads; otherwise patrol (corner to corner with an edge, around the
     // last sighting without one), and with no edge rest after a while to save energy.
     const deckX = me.x + dir * deck;
+    // A sight counts when it reads the main enemy, or, with none known yet, anything not seen by radar as lighter than
+    // `minMass` (a trickster's darts and pods kept it holding under them, far from the robot that sent them).
     let seenAt = null;
     for (let b = bins - 1; b >= 0 && seenAt === null; b--) {
       const g = guns[b];
       if (!g) continue;
       for (const p of g) {
-        if (p.out.sightSide === 3 && (state.tid < 0 || p.out.sightId === state.tid)) {
-          seenAt = p.pos.x;
-          break;
-        }
+        if (p.out.sightSide !== 3) continue;
+        const id = p.out.sightId;
+        if (state.tid >= 0 ? id !== state.tid : light(id)) continue;
+        seenAt = p.pos.x;
+        // Where the sight ends is a part of that robot: the beams burn there.
+        state.holdPt = { x: p.pos.x, y: p.pos.y + p.out.sight + 1, t: time };
+        break;
       }
     }
     if (seenAt !== null) {
@@ -471,10 +492,10 @@ function tick() {
     }
     let err;
     if (state.holdX !== null) {
-      err = clamp(state.holdX - dir * deck, -edgeX, edgeX) - me.x;
+      err = clamp(state.holdX - dir * deck + weave(), -edgeX, edgeX) - me.x;
       held = state.holdX;
       const quiet = time - state.holdSeen;
-      if ((Math.abs(err) < 8 && quiet > wait) || quiet > 45) state.holdX = null;
+      if ((Math.abs(err) < 8 + weaveAmp && quiet > wait) || quiet > 45) state.holdX = null;
       say('hold under x ' + Math.round(held));
     } else if (open && time - state.idleSince > rest) {
       err = 0;
@@ -545,7 +566,8 @@ function tick() {
   const charged = state.lowBeam ? share > reserve + 0.02 : share > reserve;
   if (charged === state.lowBeam) log(charged ? 'beams back on' : 'beams low on energy: holding fire');
   state.lowBeam = !charged;
-  const at = T ? { x: T.pos.x + (T.vel.x - vx) * dt, y: T.pos.y + (T.vel.y - self.vel.y) * dt, id: T.id, ghost: !!T.ghost } : null;
+  let at = T ? { x: T.pos.x + (T.vel.x - vx) * dt, y: T.pos.y + (T.vel.y - self.vel.y) * dt, id: T.id, ghost: !!T.ghost } : null;
+  if (!at && state.holdPt && time - state.holdPt.t < 1) at = { x: state.holdPt.x, y: state.holdPt.y, id: -1 };
   let burning = 0;
   for (const t of turrets) burning += aimTurret(t, at, charged);
   if (burning > 0 && time - (state.burnSaid || -1e9) > 10) {
