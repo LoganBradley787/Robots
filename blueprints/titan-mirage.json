@@ -5,19 +5,19 @@
  "grid": [
   ". . . . . . . . . . . . . . . . . . . . . . . . . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
   ". . . . . . . . . . . . . . . . . . . . . . . . . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
-  ". pa pa pa pa pa pa pa pa pa pa pa . j0 j1 j2 j3 j4 j5 j6 j7 j8 j9 j10 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". q0 q0 q0 q0 q0 q0 q0 q0 q0 q0 q0 . j0 j1 j2 j3 j4 j5 j6 j7 j8 j9 j10 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
   "ka A A A A A A A A A A A . j11 j12 j13 j14 j15 j16 j17 j18 j19 j20 j21 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . F kb",
   "ka A Z Z Z Z Z Z Z Z Z A . j22 j23 j24 j25 j26 j27 j28 j29 j30 j31 j32 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . F kb",
   "ka A Z Z Z Z Z Z Z Z Z A . j33 j34 j35 j36 j37 j38 j39 j40 j41 j42 j43 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . F kb",
-  "ka A Z Z Z Z Z Z Z Z Z A . j44 j45 j46 j47 j48 j49 j50 j51 j52 j53 j54 . pa pa = ga = = = pa pa = gb = = = pa pa = gc = = = pa pa = gd = = = pa pa = ge = = = pa pa = gf = = = pb pb = gg = = = pb pb = gh = = = pb pb = gi = = = pb pb = gj = = = pb pb = gk = = = pb pb = gl = = = pb pb = gm = = = pb pb = gn = = = pb pb = go = = = pb pb = gp = = = pb pb = gq = = = pb pb = gr = = = pb pb = gs = = = pb pb = gt = = = pb pb pb O N O pb O pb F kb",
+  "ka A Z Z Z Z Z Z Z Z Z A . j44 j45 j46 j47 j48 j49 j50 j51 j52 j53 j54 . q1 q1 = ga = = = q1 q1 = gb = = = q1 q1 = gc = = = q2 q2 = gd = = = q2 q2 = ge = = = q2 q2 = gf = = = q3 q3 = gg = = = q3 q3 = gh = = = q3 q3 = gi = = = q4 q4 = gj = = = q4 q4 = gk = = = q4 q4 = gl = = = q4 q5 = gm = = = q5 q5 = gn = = = q5 q5 = go = = = q5 q5 = gp = = = q6 q6 = gq = = = q6 q6 = gr = = = q6 q6 = gs = = = q7 q7 = gt = = = q7 q7 q7 O N O q7 O q7 F kb",
   "ka A Z Z Z A A A Z Z Z A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F kb",
   "ka A Z Z Z A C A Z Z Z A Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F Z F O F Z F Z F Z F Z F Z F Z F Z F Z F Z F O F Z F Z F Z F Z F Z F Z F Z F Z F Z F O F Z F Z F Z F Z F Z F Z F Z F Z F Z F O F Z F Z F Z F Z F Z F Z F Z F Z F Z F O F Z F Z F Z F Z F Z F Z F Z F Z F Z F O F Z F Z F Z F Z F Z F Z F A kb",
   "ka A Z Z Z A A A Z Z Z A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A kb",
-  "ka A Z Z Z Z Z Z Z Z Z A F pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb A kb",
-  "ka A Z Z Z Z Z Z Z Z Z A F pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb A kb",
-  "ka A Z Z Z Z Z Z Z Z Z A F pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pa pa pa pa pa pa F pa pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb pb pb pb F pb pb pb pb A kb",
+  "ka A Z Z Z Z Z Z Z Z Z A F q0 q0 q0 q0 F q0 q0 q0 q0 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 A kb",
+  "ka A Z Z Z Z Z Z Z Z Z A F q0 q0 q0 q0 F q0 q0 q0 q0 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 A kb",
+  "ka A Z Z Z Z Z Z Z Z Z A F q0 q0 q0 q0 F q0 q0 q0 q0 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 A kb",
   "ka A A A A A A A A A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F kb",
-  ". kc kc kc kc kc kc kd kd kd kd kd . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+  ". kc kc kc kc kc kc kc kc kc kc kc . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
  ],
  "legend": {
   "ka": {
@@ -36,35 +36,11 @@
    ],
    "auto": false
   },
-  "pa": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "la"
-   ],
-   "auto": false
-  },
-  "pb": {
-   "part": "propeller",
-   "rot": 0,
-   "tags": [
-    "lb"
-   ],
-   "auto": false
-  },
   "kc": {
    "part": "booster",
    "rot": 0,
    "tags": [
-    "la"
-   ],
-   "auto": false
-  },
-  "kd": {
-   "part": "booster",
-   "rot": 0,
-   "tags": [
-    "lb"
+    "l0"
    ],
    "auto": false
   },
@@ -637,6 +613,70 @@
     3,
     6
    ]
+  },
+  "q0": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l0"
+   ],
+   "auto": false
+  },
+  "q1": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l1"
+   ],
+   "auto": false
+  },
+  "q2": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l2"
+   ],
+   "auto": false
+  },
+  "q3": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l3"
+   ],
+   "auto": false
+  },
+  "q4": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l4"
+   ],
+   "auto": false
+  },
+  "q5": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l5"
+   ],
+   "auto": false
+  },
+  "q6": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l6"
+   ],
+   "auto": false
+  },
+  "q7": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l7"
+   ],
+   "auto": false
   }
  },
  "autoControls": false,
@@ -645,7 +685,8 @@
    "id": "helm",
    "params": {
     "pods": 55,
-    "bays": 20
+    "bays": 20,
+    "strips": 8
    },
    "source": {
     "file": "titan-mirage.helm.js"
