@@ -18,6 +18,7 @@ const wave = param('wave', 8, { min: 1, max: 200 }); // rack darts in one wave
 const waveGap = param('waveGap', 150, { min: 1, max: 6000 }); // ticks between two waves of the rack (longer than a flare burns)
 const bayGap = param('bayGap', 4, { min: 1, max: 120 }); // ticks between two bays letting go
 const minMass = param('minMass', 30, { min: 0, max: 100000 }); // kg: lighter robots (darts, pods) are never the target
+const hideMass = param('hideMass', 2, { min: 1, max: 1000 }); // a hidden main enemy this many times heavier than anything in view stays the target
 const smallMass = param('smallMass', 3, { min: 0, max: 100000 }); // kg: with nothing heavier, enemies down to this are the target
 const smallSpeed = param('smallSpeed', 45, { min: 1, max: 1000 }); // m/s: a light one faster than this is a dart, never the target
 const rescan = param('rescan', 180, { min: 30, max: 6000 }); // ticks between two looks at the target's size
@@ -116,9 +117,13 @@ function pick() {
     if (c.id === state.tid) kept = c;
     if (!best || c.mass > best.mass) best = c;
   }
-  const t = kept && !(best && best.mass > 2 * kept.mass) ? kept : best;
-  if (t) state.everSeen = true;
+  let t = kept && !(best && best.mass > 2 * kept.mass) ? kept : best;
   const s = state.last;
+  // The main enemy went into hiding (titans v2, 2026-10): while it is remembered and is much heavier than anything in
+  // view, the darts keep going at its last place, not at the small fry around it (a split titan's king sat hidden in
+  // a corner while every dart went at its gunships).
+  if (!kept && t && s && !gone && !s.small && s.mass > hideMass * t.mass && (time - s.at < memory || Math.hypot(s.vx, s.vy) < stillSpeed)) t = null;
+  if (t) state.everSeen = true;
   // One that stood still when last seen (a roped base in its bubble, titans v2, 2026-10) is kept as long as it is not
   // seen dead: it is most likely still there.
   const still = s && Math.hypot(s.vx, s.vy) < stillSpeed;
@@ -394,7 +399,7 @@ function tick() {
       state.tid = t.id;
       state.boxAt = -100000; // another robot: measure it again
     }
-    state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id, small: t.mass < minMass };
+    state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id, small: t.mass < minMass, mass: t.mass };
   }
   if (t) measure(t);
   if (debug && frame % 300 === 0) {
