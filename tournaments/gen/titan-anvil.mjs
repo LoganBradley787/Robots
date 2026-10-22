@@ -105,6 +105,7 @@ const grid = rows.map((r) => r.map(wide).join('').trimEnd());
 const blueprint = {
   format: 1,
   name: 'titan-anvil',
+  kind: 'yours',
   grid,
   legend: {
     l: { part: 'booster', rot: 0, tags: ['la'], auto: false },

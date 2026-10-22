@@ -88,6 +88,7 @@ const mid = (a) => (a[0] + a[a.length - 1]) / 2;
 const blueprint = {
   format: 1,
   name: 'titan-juggernaut',
+  kind: 'yours',
   grid,
   legend,
   scripts: [

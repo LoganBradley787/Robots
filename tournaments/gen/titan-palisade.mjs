@@ -153,6 +153,7 @@ for (let y = top - 1; y >= 0; y--) {
 const blueprint = {
   format: 1,
   name: NAME,
+  kind: 'yours',
   grid,
   legend,
   primaryCore: k.core,
