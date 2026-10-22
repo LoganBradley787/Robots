@@ -50,7 +50,8 @@ const standoff = param('standoff', 650, { min: 300, max: 1000 }); // m back from
 const waitUp = param('waitUp', 120, { min: 20, max: 400 }); // m over the main robot the keep waits in the open
 const roam = param('roam', 1000, { min: 100, max: 5000 }); // m either side of the start a search walks in the open
 const restAfter = param('restAfter', 25, { min: 1, max: 1000 }); // s with nothing seen before the keep sets down in the open
-const ram = param('ram', 1500, { min: 0, max: 1000000 }); // kg: a main robot this heavy that moves is run from
+const ram = param('ram', 1500, { min: 0, max: 1000000 }); // kg: a main robot this heavy coming at the keep is run from
+const ramFor = param('ramFor', 12, { min: 1, max: 100 }); // s a ram is still run from after it last came on
 const clearance = param('clearance', 40, { min: 5, max: 150 }); // m the keep wants between itself and a ram's top or bottom
 const tall = param('tall', 70, { min: 10, max: 1000 }); // m: a ground robot reaching this far over its core has a mast to cut
 const cutMax = param('cutMax', 15000, { min: 0, max: 1000000 }); // the most a band may cost to be cut (health times 4 for frames, 10 for plates)
@@ -177,6 +178,7 @@ function setup() {
   state.run = 0;
   state.pass = 0;
   state.ram = false;
+  state.ramUntil = -100;
   state.mainId = -1;
   state.light = {}; // ids of enemy robots seen lighter than `mainMass`
   state.fixed = []; // the main robot's guns that point the same way scan to scan: { dx, dy, c, s } from its core
@@ -540,7 +542,8 @@ function safe(main, wx, wy, w) {
     // A strip across (guns on its side) is left up or down, one going up (a roof's guns) outward.
     state.shift = 0;
     state.lift2 = 0;
-    for (let k = 0; k < 16; k++) {
+    // Never far: out of reach of the batteries there is no point, and guns on every face leave no gap anyway.
+    for (let k = 0; k < 12; k++) {
       const dy = k < 8 ? (k % 2 === 0 ? 1 : -1) * 15 * Math.ceil(k / 2) : 0;
       const dx = k < 8 ? 0 : out * 15 * (k - 7);
       if (wy + dy < floor) continue;
@@ -697,12 +700,24 @@ function tick() {
     state.gunsLeft = -1;
     state.same = 0;
     state.ram = false;
+    state.ramUntil = -100;
     state.scanAt = -100;
   }
   if (main) state.mainId = main.id;
   if (main) {
-    // A ram is a heavy main robot that moves; one that sits still (a fortress) is not run from.
-    if (!state.ram && main.mass >= ram && Math.hypot(main.vel.x, main.vel.y) > 10) state.ram = true;
+    // A ram is a heavy main robot coming at the keep (or right by it), and it stays one for `ramFor` s after: one that
+    // keeps its distance (a carrier) or sits still (a fortress) is not run from, and its propellers are not what the
+    // batteries are for (titans v2, 2026-10: any heavy robot that moved counted, and Hive lived through the match).
+    if (main.mass >= ram) {
+      const k = role > 0.5 ? { pos: self.pos, vel: self.vel } : mine || { pos: self.pos, vel: self.vel };
+      const rx = k.pos.x - main.pos.x;
+      const ry = k.pos.y - main.pos.y;
+      const dist = Math.hypot(rx, ry);
+      const closing = ((main.vel.x - k.vel.x) * rx + (main.vel.y - k.vel.y) * ry) / Math.max(1, dist);
+      const size = state.ext ? state.ext.hx : 40;
+      if ((closing > 12 && dist < 1200) || dist - size < 150) state.ramUntil = time + ramFor;
+    }
+    state.ram = time < state.ramUntil;
     state.last = { x: main.pos.x, y: main.pos.y };
     state.seen = time;
     state.stale = 0;
