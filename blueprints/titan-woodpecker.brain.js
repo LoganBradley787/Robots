@@ -38,7 +38,7 @@ const stillSpeed = param('stillSpeed', 1.5, { min: 0, max: 50 }); // m/s: a targ
 const useApp = param('useApp', 1, { min: 0, max: 1 }); // 1: the darts come in along the thinnest line the probes found
 const appCover = param('appCover', 1000, { min: 0, max: 100000 }); // health in front of the core on the thinnest line, at least, for the darts to take the way in
 const appSpeed = param('appSpeed', 3, { min: 0, max: 100 }); // m/s: a target faster than this is hit straight
-const flareLate = param('flareLate', 1.1, { min: 0.2, max: 6 }); // s: a flare goes when something will pass the keep within this (as late as works, so one flare covers more)
+const flareLate = param('flareLate', 2, { min: 0.2, max: 6 }); // s: a flare goes when something will pass the keep within this (a high flare has drifted out from the column by then)
 const flareSoon = param('flareSoon', 0.35, { min: 0, max: 3 }); // s: and not sooner than this (already here: too late)
 const flareMiss = param('flareMiss', 30, { min: 1, max: 200 }); // m from the main core: a pass this close counts
 const flareClose = param('flareClose', 25, { min: 0, max: 500 }); // m/s it must close at, at least (a robot pushing slowly is no dart)
@@ -79,8 +79,10 @@ function setup() {
   state.last = null; // the target: { x, y, vx, vy, at, d }, its last place while seen, kept a while once it vanishes
   state.everSeen = false; // whether any enemy that could be the target was ever seen
   state.shots = 0;
-  // The lowest flares go first, so a flare let go does not fall past the ones still held.
-  state.flares.sort((a, b) => a.y - b.y || a.n - b.n);
+  // The highest flares go first: one let go up high falls for a second or two and drifts out from the base before the
+  // dart it draws arrives, so the blast is not at the column (lowest first, the blasts broke the grips and the column
+  // fell away with most of its flares unused).
+  state.flares.sort((a, b) => b.y - a.y || a.n - b.n);
   state.flareAt = -1000;
   state.keepParts = Infinity;
   state.hurtAt = -1000;
