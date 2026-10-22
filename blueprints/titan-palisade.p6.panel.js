@@ -98,6 +98,8 @@ function index() {
   let na = 0;
   let nta = 0;
   let ntb = 0;
+  let tauA = 0;
+  let tauB = 0;
   let ngun = 0;
   const byName = {};
   const turrets = [];
@@ -115,8 +117,16 @@ function index() {
         na++;
       }
     } else if (p.type === 'thruster') {
-      if (p.tags.includes('ta')) nta++;
-      else if (p.tags.includes('tb')) ntb++;
+      // How much it turns the robot at full push (counterclockwise), from where it sits and the way it pushes.
+      const a = p.angle + ((p.rot + p.spec.acts) * Math.PI) / 180;
+      const tau = 160 * (dx * Math.sin(a) - dy * Math.cos(a));
+      if (p.tags.includes('ta')) {
+        nta++;
+        tauA += tau;
+      } else if (p.tags.includes('tb')) {
+        ntb++;
+        tauB += tau;
+      }
     } else if (p.type === 'gun' || p.type === 'rotator') {
       if (p.type === 'gun') ngun++;
       const end = p.type === 'gun' ? '.gun' : '.rot';
@@ -143,6 +153,8 @@ function index() {
   state.sa = na > 0 && ax < 0 ? -1 : 1;
   state.nta = nta;
   state.ntb = ntb;
+  state.tauA = tauA;
+  state.tauB = tauB;
   state.ngun = ngun;
   state.turrets = turrets;
 }
@@ -172,9 +184,11 @@ function setup() {
   state.movers = []; // a ram's thrusters and propellers least covered from here: { dx, dy } from its core
   state.shift = 0; // m a panel's slot is moved out to keep it off a strip such guns blast
   state.shiftAt = -100;
+  state.lift2 = 0; // m up a panel's slot is moved for the same reason
   state.lift = 0; // 1 while the keep rests on the ground
   state.down = 0; // s the keep has been sinking without moving
   state.landX = 0; // where it set down
+  state.tilt = 0; // the lean it holds now, radians
   index();
   if (state.facing === undefined) state.facing = self.pos.x < 0 ? 1 : -1;
 }
@@ -197,24 +211,36 @@ function fly(wx, wy, top, agile, lean, vref) {
   const v0 = vref || 0;
   const wantV = clamp(v0 + sign(ex) * Math.min(top, Math.sqrt(brake * Math.abs(ex)), 2 * Math.abs(ex)), -top, top);
   const axWant = clamp(2 * (wantV - self.vel.x), -20, 20);
-  // What the thrusters give that way; the rest from leaning, as far as the lift left over from holding height allows.
-  const thr = (160 * (axWant * state.facing > 0 ? state.nta : state.ntb)) / m;
-  const rest = Math.abs(axWant) > thr ? axWant - sign(axWant) * thr : 0;
-  const spare = lift > 0 ? Math.acos(clamp((m * G * 1.05) / (0.9 * lift), 0, 1)) : 0;
-  const tilt = -clamp(Math.atan2(rest, G + Math.max(0, ay)), -Math.min(lean, spare), Math.min(lean, spare));
-  let u = lift > 0 ? need / (lift * Math.max(0.5, Math.cos(th))) : 0;
+  // Leaning first, as far as the lift left over from holding height allows (height before speed); the thrusters
+  // only for the rest. A propeller pushes 12 N for each watt, a thruster 8: running on thrusters alone, the keep
+  // emptied its batteries in 90 s of running from a ram.
+  const spare = lift > 0 ? Math.acos(clamp(Math.max(need, m * G * 1.05) / (0.9 * lift), 0, 1)) : 0;
+  const most = Math.min(lean, spare);
+  const leanAcc = (G + Math.max(0, ay)) * Math.tan(most);
+  const want = -clamp(Math.atan2(axWant, G + Math.max(0, ay)), -most, most);
+  // The lean it holds swings over gently: a lean thrown from one side to the other at once overshot and rolled the
+  // keep over.
+  state.tilt += clamp(want - state.tilt, -0.6 * dt, 0.6 * dt);
+  const err = wrap(th - state.tilt);
+  // Leaning far past what it asked for: no push sideways and no climb until it is righted.
+  const righting = Math.abs(err) > 0.25;
+  const ath = Math.abs(axWant) > leanAcc ? axWant - sign(axWant) * leanAcc : 0;
+  const f = righting ? 0 : m * ath * state.facing;
+  const fa = state.nta > 0 ? clamp(f / (160 * state.nta), 0, 1) : 0;
+  const fb = state.ntb > 0 ? clamp(-f / (160 * state.ntb), 0, 1) : 0;
+  set('ta', 'throttle', fa);
+  set('tb', 'throttle', fb);
   const tq = 120 * state.s2;
-  let d = tq > 0 ? (state.inertia * (-6.25 * (th - tilt) - 5 * self.angVel)) / tq : 0;
+  let u = lift > 0 ? need / (lift * Math.max(0.5, Math.cos(th))) : 0;
+  // The thrusters sit above or below its middle and turn it as they push: the propellers take that out first.
+  let d = tq > 0 ? (state.inertia * (-6.25 * err - 5 * self.angVel) - fa * state.tauA - fb * state.tauB) / tq : 0;
   d = clamp(d, -0.6, 0.6);
   // The tilt first: leave the propellers room to right it, else a lean grows until the lift is gone.
-  u = clamp(u, 0.05, Math.max(0.55, 1 - Math.abs(d)));
+  u = clamp(u, 0.05, righting ? 0.6 : Math.max(0.55, 1 - Math.abs(d)));
   if (state.s2 > 0) d -= (u * state.s1) / state.s2;
   d = clamp(d, -0.7, 0.7) * state.sa;
   set('pa', 'throttle', clamp(u + d, 0, 1));
   set('pb', 'throttle', clamp(u - d, 0, 1));
-  const f = m * axWant * state.facing;
-  set('ta', 'throttle', state.nta > 0 ? clamp(f / (160 * state.nta), 0, 1) : 0);
-  set('tb', 'throttle', state.ntb > 0 ? clamp(-f / (160 * state.ntb), 0, 1) : 0);
 }
 
 /** Everything off: resting on the ground. */
@@ -511,9 +537,19 @@ function safe(main, wx, wy, w) {
   if (time - state.shiftAt > 0.5) {
     state.shiftAt = time;
     const out = wx >= main.pos.x ? 1 : -1;
-    let k = 0;
-    while (k < 12 && danger(main, wx + out * k * 15, wy, w) >= 3) k++;
-    state.shift = out * k * 15;
+    // A strip across (guns on its side) is left up or down, one going up (a roof's guns) outward.
+    state.shift = 0;
+    state.lift2 = 0;
+    for (let k = 0; k < 16; k++) {
+      const dy = k < 8 ? (k % 2 === 0 ? 1 : -1) * 15 * Math.ceil(k / 2) : 0;
+      const dx = k < 8 ? 0 : out * 15 * (k - 7);
+      if (wy + dy < floor) continue;
+      if (danger(main, wx + dx, wy + dy, w) < 3) {
+        state.shift = dx;
+        state.lift2 = dy;
+        break;
+      }
+    }
   }
   return wx + state.shift;
 }
@@ -564,7 +600,7 @@ function keepFlight(main) {
     }
     state.lift = 0;
     state.down = 0;
-    fly(safe(main, wx, wy, 14), wy, keepSpeed, true, 0.45);
+    fly(wx, wy, keepSpeed, true, 0.45);
     return;
   }
   state.lift = 0;
@@ -572,43 +608,57 @@ function keepFlight(main) {
   const ext = state.ext || { hx: 40, top: 25, bot: -25 };
   const side = self.pos.x >= main.pos.x ? 1 : -1; // which side of it the keep is on
   const open = Math.abs(self.pos.x - main.pos.x) - ext.hx; // m of air between them, sideways
+  const closing = (main.vel.x - self.vel.x) * side; // m/s it gains
   if (state.run === 0) state.run = side;
   const topY = main.pos.y + ext.top;
   const botY = main.pos.y + ext.bot;
   const over = topY + clearance;
   const under = botY - clearance;
-  const hiY = CEIL - 12;
-  // Never over or under it through a strip its fixed guns blast (Juggernaut's roof guns reach past the ceiling).
-  const canOver = over < hiY && danger(main, main.pos.x, Math.min(hiY, over + 8), 14) < 3;
-  const canUnder = under > 14 && danger(main, main.pos.x, Math.max(12, under - 8), 14) < 3;
+  const hiY = Math.min(CEIL - 12, main.pos.y + 500);
+  const grounded = botY < 8;
+  // Room over or under it, and whether going that way crosses a strip its fixed guns blast (Juggernaut's roof guns
+  // reach past the ceiling: running only along it is how the keep lives; titans v2, 2026-10).
+  const roomOver = over < hiY;
+  const roomUnder = !grounded && under > 14;
+  const passOver = roomOver && danger(main, main.pos.x, Math.min(hiY, over + 8), 14) < 3;
+  const passUnder = roomUnder && danger(main, main.pos.x, Math.max(12, under - 8), 14) < 3;
   const away = state.run * Math.min(EDGE - room, main.pos.x * state.run + 2000);
   if (state.pass === 0) {
     const cornered = arena && self.pos.x * state.run > EDGE - room - 220;
     if (state.run !== side) state.run = side; // it got past: the other way is now away
-    else if (botY < 8 && !canOver) state.pass = 0; // no way past a mast: run, and let the batteries cut it
-    else if ((cornered && open < 520) || open < 150) {
-      // Take the way with more room; over a robot on the ground, always over.
-      state.pass = canOver && (!canUnder || hiY - over >= under - 14) ? 1 : -1;
+    else if (closing > 3 && ((cornered && open < 300) || open < 120 || open / closing < 3.5)) {
+      // Over or under, whichever has more room and is the way it is not already moving (a flier follows the keep's
+      // height; it takes a heavy one seconds to turn round).
+      const upScore = passOver ? hiY - over - 4 * main.vel.y : -Infinity;
+      const downScore = passUnder ? under - 14 + 4 * main.vel.y : -Infinity;
+      if (upScore > -Infinity || downScore > -Infinity) state.pass = upScore >= downScore ? 1 : -1;
     }
   }
   let wy;
   let wx = away;
   if (state.pass !== 0) {
     wy = state.pass > 0 ? Math.min(hiY + 2, over + 8) : Math.max(12, under - 8);
-    const clear = state.pass > 0 ? self.pos.y > over - 12 : self.pos.y < under + 12;
+    // Clear once past its height (kept: sinking a little on the way over must not turn it back into it).
+    if (state.pass > 0 ? self.pos.y > over - 12 : self.pos.y < under + 12) state.clear = true;
+    const clear = state.clear === true;
     // Once clear of its height, cross to its other side; until then keep running.
     if (clear) wx = -state.run * Math.min(EDGE - room, Math.abs(main.pos.x) + 2000);
     if (side !== state.run && open > 30) {
       // Across: that side is now away.
       state.run = side;
       state.pass = 0;
+      state.clear = false;
     }
+    if (state.pass > 0 ? !passOver && !clear : !passUnder && !clear) {
+      state.pass = 0; // that way closed
+      state.clear = false;
+    }
+  } else if (grounded) {
+    // From a ground ram, high: a mast that reaches the ceiling is lighter up there than its hull is down here.
+    wy = roomOver ? Math.min(hiY - 2, over + 30) : hiY - 2;
   } else {
-    // Running: stay well off its height, on the side with more room; over a ground robot always high (a mast that
-    // reaches the ceiling is lighter up there than its hull is down here).
-    const roof = Math.min(hiY - 2, main.pos.y + 400);
-    if (botY < 8) wy = canOver ? Math.min(roof, over + 30) : roof;
-    else wy = canOver && (hiY - over >= under - 14 || !canUnder) ? Math.min(roof, over + 30) : Math.max(14, under - 30);
+    // From a flier, the middle of the air there is: room to go over or under it when it comes.
+    wy = arena ? (hiY + 14) / 2 : Math.max(main.pos.y, 100);
   }
   fly(wx, clamp(wy, 12, hiY + 2), keepSpeed, true, 0.45);
 }
@@ -707,6 +757,7 @@ function tick() {
         // Keep up with a fast one (a ram outruns a panel at its cruising speed), and off the strips its fixed guns blast.
         top = clamp(Math.abs(main.vel.x) + 25, vmax, chase);
         wx = safe(main, wx, wy, 12);
+        wy += state.lift2;
       }
       // In place with nothing seen: the wait before a search runs.
       if (!main && Math.abs(wx - self.pos.x) + Math.abs(wy - self.pos.y) < 40) state.stale += dt;

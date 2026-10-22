@@ -100,7 +100,7 @@ function panel(index, y0, link) {
 }
 
 /**
- * The keep (round 2): the main core over a belly of armor, propellers pushing up, eight thrusters each way, six
+ * The keep (round 2): the main core over a belly of batteries and armor, propellers pushing up, eight thrusters each way, six
  * single guns. Titans v2 (2026-10): the three rows that pushed down (`pd`) push up now, hung between the decks on a
  * frame at each end: with 44 propellers lifting 479 kg it could barely hover (lift 1.1 times its weight), and a lean
  * in its first seconds took it to the ground for the whole match. Cutting the lift drops it at 9.8 m/s^2 anyway.
@@ -115,7 +115,9 @@ function keep(y0, link) {
     put(15, y0 + y, token);
   }
   const rows = {
-    0: 'a a a a a a a a a a a',
+    // Titans v2 (2026-10): eight of the eleven belly plates are dense batteries now, three plates left under the
+    // core. Flying the whole match (it rests on the ground no longer when a ram is about) it ran dry at 90 s.
+    0: 'z z z z a a a z z z z',
     1: 'z z z z a c a z z z o',
     2: 'z z z z f a f z z z f',
   };
