@@ -23,7 +23,8 @@
 // - Bays: every fabricator bay with a tag starting `bay`. A finished dart is sent the main enemy's place, speed and
 //   id and let go at once, at most one per `gap` s; every `spreadEvery`th goes to the nearest other enemy instead.
 //   Titans v2: enemies with a core within `threatRange` m take turns first (every `spreadEvery`th still goes to the
-//   main one). Held while the ship speeds up, slows or turns hard (not while it is merely fast), `driftWait` s at most.
+//   main one). A bay lets go only while it moves slower than `launchSpeed`; with darts ready the ship slows to that
+//   for a volley (kiting from a close threat, only after holding them `kiteHold` s).
 // - The main enemy (titan-darts, 2026-10, Logan): picked from what the radars report, by the situation, never by id:
 //   the heaviest enemy with a live core of `followMass` kg or more (a titan over its darts and drones), kept while it
 //   is seen unless one twice as heavy shows up, and given up the moment it dies. A robot that dies stays in the radar's
@@ -60,9 +61,10 @@ const refresh = param('refresh', 120, { min: 1, max: 600 }); // ticks between wo
 const gap = param('gap', 0.15, { min: 0, max: 10 }); // s between two bays letting go
 const level = (param('level', 33, { min: 1, max: 90 }) * Math.PI) / 180; // lets darts go only within this many degrees of level
 const still = param('still', 12, { min: 0.1, max: 50 }); // m/s up or down: faster than this it holds its darts
-const shake = param('shake', 1.5, { min: 0.1, max: 50 }); // m/s^2 sideways: speeding up or slowing harder than this it holds its darts
-const spinHold = param('spinHold', 0.06, { min: 0.001, max: 5 }); // rad/s: turning faster than this it holds them too
-const driftWait = param('driftWait', 3, { min: 0, max: 60 }); // s at most it holds them for those (held by speed, not its change, and with no cap, it held every dart 36 s while following a ram drone)
+const launchSpeed = param('launchSpeed', 12, { min: 1, max: 100 }); // m/s: a bay moving faster than this keeps its dart (a hit this hard hurts no part)
+const kiteHold = param('kiteHold', 6, { min: 0, max: 60 }); // s it holds ready darts while kiting before it slows for them anyway
+const bayTime = param('bayTime', 1.2, { min: 0, max: 5 }); // s a dart takes to climb out of its bay: the ship stays slow that long after the last
+const windowMax = param('windowMax', 8, { min: 1, max: 60 }); // s at most it stays slowed for one volley
 const spreadEvery = param('spreadEvery', 4, { min: 1, max: 100 }); // every this many darts, one goes to the nearest other enemy
 const match = param('match', 240, { min: 0, max: 100000 }); // s, how long it must stay up in an arena (a match's length)
 const keep = param('keep', 1.2, { min: 0, max: 10 }); // in an arena, darts are held under this many times the energy the hover needs to the end
@@ -207,9 +209,8 @@ function setup() {
   state.side = self.pos.x <= 0 ? -1 : 1; // which side of the arena it started on
   state.trim = 0;
   state.lastRel = -Infinity;
-  state.slowAt = 0; // when it last flew steadily enough to let darts go
-  state.pvx = 0; // last tick's sideways speed, and the sideways speeding up from it, smoothed
-  state.ax = 0;
+  state.readyAt = -1; // since when a dart has been ready and waiting (-1: none)
+  state.window = -1; // when the ship slowed for a volley (-1: not slowing)
   state.sent = 0;
   state.mem = null; // the main enemy: { id, x, y, vx, vy, at, d }, its last place while seen, kept a while once it vanishes
   state.everSeen = false; // whether any enemy that could be the main one was ever seen
@@ -537,6 +538,30 @@ function tick() {
       state.sitting = true;
     }
   }
+  // Somewhere to send darts: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
+  // mirror of its own start (only in an arena: its middle is x 0; titans v2). With none of those it holds its darts.
+  const someplace = main || last || src || (arena && !state.everSeen);
+  // Launch windows (titans v2 fix, 2026-10). Measured: darts let go while the ship flew sideways faster than about
+  // 20 m/s broke within 0.3 s (vs titan-anvil, 20 of 23 over 30 m/s, none of 36 under 20 m/s), whether it sped up,
+  // slowed or flew steadily, tilted or level. Not air drag: at 40 m/s a dart slows 1.5 m/s^2 more than the ship, a
+  // gentle lean on a wall. The cause is in the engine: the ship is rebuilt every few ticks in a fight (a bay grows a
+  // dart, one is let go, a part is shot off), and on that tick the velocity it hands a dart let go is off by up to all
+  // of it (one started at 16 m/s in a bay flying 45), and the ship itself falls about a third of a tick's travel behind.
+  // The hollow is as wide as the dart, so a wall hits it with that difference. Under `launchSpeed` (12, the speed
+  // change no part takes harm from) even a dart started at rest is caught unhurt, so a bay lets go only while it moves
+  // slower than that (below). With a dart ready the ship slows to under it, lets the volley go and stays slow `bayTime`
+  // s more while the last one climbs out.
+  // Kiting from a close threat it first holds them `kiteHold` s: the volley costs it a few seconds slow under fire.
+  let anyReady = false;
+  for (const b of C.bays) if (b.p.out.ready > 0) anyReady = true;
+  const waiting = spare && someplace && anyReady && !state.sitting;
+  if (!waiting) state.readyAt = -1;
+  else if (state.readyAt < 0) state.readyAt = time;
+  if (state.window < 0 && waiting && (!state.runDir || time - state.readyAt >= kiteHold)) state.window = time;
+  else if (state.window >= 0 && ((!waiting && time - state.lastRel > bayTime) || time - state.window > windowMax)) {
+    state.window = -1;
+    if (waiting) state.readyAt = time; // a volley it could not slow for: wait again before the next try
+  }
   if (state.sitting) {
     set('lprop', 'throttle', 0);
     set('rprop', 'throttle', 0);
@@ -544,26 +569,16 @@ function tick() {
     // Carried outward past its place (a stream of shells pushes, a ram shoves): lean much harder to get back. While it
     // is pushed up it needs little lift, so only a steep lean gives it sideways push.
     const carried = Math.abs(self.pos.x - midX) > Math.abs(wantX - midX) + 25 && (self.pos.x - midX) * self.vel.x > 0;
-    fly(wantY, clamp(0.3 * (wantX - self.pos.x), -speedCap, speedCap), carried || speedCap > maxSpeed ? hardLean : lean);
+    // Slowed for a volley (titans v2 fix, 2026-10, above): it brakes at its hard lean, then flies at under `launchSpeed`.
+    const braking = state.window >= 0 && Math.abs(self.vel.x) > launchSpeed;
+    if (state.window >= 0) speedCap = Math.min(speedCap, 0.75 * launchSpeed);
+    fly(wantY, clamp(0.3 * (wantX - self.pos.x), -speedCap, speedCap), carried || braking || speedCap > maxSpeed ? hardLean : lean);
   }
 
   // Bays: let a finished dart go at the main enemy (or the place it should be).
   // Not while climbing or sinking: a dart levels off right over the bays, and a rising ship would fly up into it.
-  // Not while sliding sideways either (titan-darts, 2026-10): a dart starts with the ship's speed, across the line it
-  // climbs out on, and drifts into the bay walls and the darts let go beside it. But for `driftWait` s at most.
-  // Titans v2 (2026-10): what matters is not the speed but its change. A dart leaves with the ship's speed, so on a ship
-  // flying steadily at 50 m/s it rises straight out of its bay; on one speeding up, slowing or turning the walls move
-  // into it (the hollow is as wide as the dart). So it holds while the ship speeds up or slows by more than `shake`
-  // m/s^2 sideways or turns faster than `spinHold`, still for `driftWait` s at most.
   // Not while short of energy (above).
-  state.ax += 0.2 * ((self.vel.x - state.pvx) / dt - state.ax);
-  state.pvx = self.vel.x;
-  if (Math.abs(state.ax) < shake && Math.abs(self.angVel) < spinHold) state.slowAt = time;
-  const held = time - state.slowAt; // 0 while steady
-  const steady = Math.abs(self.vel.y) < still && (held < 0.5 * dt || held > driftWait);
-  // Somewhere to send it: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
-  // mirror of its own start (only in an arena: its middle is x 0; titans v2). With none of those it holds its darts.
-  const someplace = main || last || src || (arena && !state.everSeen);
+  const steady = Math.abs(self.vel.y) < still;
   if (debug > 0.5 && frame % 120 === 0) log('darts: spare ' + spare + ' place ' + !!someplace + ' tilt ' + (self.angle * 57.3).toFixed(0) + ' vx ' + self.vel.x.toFixed(1) + ' vy ' + self.vel.y.toFixed(1) + ' steady ' + steady + ' bays ' + C.bays.length + ' energy ' + (stored / 1000).toFixed(0) + 'k' + (main ? ' main ' + main.id + ' at ' + main.pos.x.toFixed(0) + ',' + main.pos.y.toFixed(0) : '') + (src ? ' darts from ' + src.x.toFixed(0) + ',' + src.y.toFixed(0) : ''));
   if (spare && someplace && time - state.lastRel >= gap && Math.abs(self.angle) < level && steady) {
     // The bay nearest the target goes first, so a dart never turns across one let go just before it.
@@ -571,6 +586,10 @@ function tick() {
     const order = C.bays.slice().sort((p, q) => (toRight ? q.p.pos.x - p.p.pos.x : p.p.pos.x - q.p.pos.x));
     for (const b of order) {
       if (!(b.p.out.ready > 0)) continue;
+      // The bay's own speed (the ship's, plus its turning at the bay's distance) under `launchSpeed` (above).
+      const vbx = self.vel.x - self.angVel * (b.p.pos.y - self.pos.y);
+      const vby = self.vel.y + self.angVel * (b.p.pos.x - self.pos.x);
+      if (vbx * vbx + vby * vby > launchSpeed * launchSpeed) continue;
       let msg;
       const clear = 30 + 8 * (state.sent % 5); // m straight up before it turns: neighbors turn at different heights
       let t = main;
