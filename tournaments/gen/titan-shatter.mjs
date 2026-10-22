@@ -85,7 +85,9 @@ for (let x = 0; x < W; x++) {
   else put(x, yP, 'propeller', 0, [x < 19.5 ? 'lp' : 'rp'], { auto: false });
   put(x, yD, 'frame');
 }
-const body = { 13: 'armorplate', 14: 'densebattery', 15: 'densebattery', 16: 'densebattery', 17: 'densebattery', 18: 'radar', 19: 'core', 20: 'heavygyro', 21: 'densebattery', 22: 'densebattery', 23: 'densebattery', 24: 'densebattery', 25: 'armorplate' };
+// Titans v2 (2026-10): dense batteries at the ends in place of two armor plates: the king carries its darts until the
+// gunships find a target (no blind first wave), and with them it barely lifted; the batteries keep it flying longer.
+const body = { 13: 'densebattery', 14: 'densebattery', 15: 'densebattery', 16: 'densebattery', 17: 'densebattery', 18: 'radar', 19: 'core', 20: 'heavygyro', 21: 'densebattery', 22: 'densebattery', 23: 'densebattery', 24: 'densebattery', 25: 'densebattery' };
 let pods = 0;
 for (let x = 0; x < W; x++) {
   if (body[x]) put(x, yB, body[x], 0, body[x] === 'heavygyro' ? ['stab'] : body[x] === 'radar' ? ['eye'] : [], body[x] === 'heavygyro' ? { auto: false } : {});

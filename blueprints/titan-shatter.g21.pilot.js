@@ -26,6 +26,9 @@ const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vani
 const room = param('room', 16, { min: 0, max: 60 }); // m it keeps from friends (two gunships that touch can lock together and fall)
 const seek = param('seek', 105, { min: 20, max: 300 }); // m: ring round a main enemy that vanished alive (within 150 m its bubble is seen through)
 const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no main enemy before a lighter one will do
+const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must be slower than this (not a dart)
+const widen = param('widen', 12, { min: 0, max: 100 }); // m/s the search ring grows while nothing is found
+const wide = param('wide', 420, { min: 50, max: 1000 }); // m: the search ring starts over past this
 const G = 9.81;
 const LIFT = 120;
 const SWING = Math.PI / 2;
@@ -160,13 +163,14 @@ function lookAround() {
     if (c.mass >= mainMass) {
       if (c.id === root.id) kept = c;
       if (!heaviest || c.mass > heaviest.mass) heaviest = c;
-    } else if (!light || c.mass > light.mass) light = c;
+    } else if (Math.hypot(c.vel.x, c.vel.y) < slow && (!light || c.mass > light.mass)) light = c;
     if (!near) near = c;
     if (!small && c.mass < 60 && c.distance < 140) small = c;
   }
   let main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
   if (main) state.mainAt = time;
-  // No main enemy for a while: a lighter one with a live core is chased instead (until a heavy one shows up).
+  // No main enemy for a while: a lighter, slow one with a live core is chased instead (until a heavy one shows up).
+  // Never a fast one: an enemy's darts are light too, and the swarm chased one across the sky.
   else if (light && time - state.mainAt > fallback && (!state.live || root.id === light.id)) main = light;
   if (main) {
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance };
@@ -256,13 +260,17 @@ function tick() {
   const root = now(state.root);
   let px;
   let py;
-  if (state.root.id >= 0 && !state.dead && time - state.seenAt > 1) {
-    // Hunting (titans v2): the main enemy vanished alive (most likely into a jammer's bubble). Close round its last
-    // place, each gunship on its own bearing, near enough that its radar sees through the bubble. It keeps at it
-    // after the turrets have given it up: one gunship seeing it tells them all.
-    px = root.x + seek * Math.cos(state.bearing);
-    py = root.y + seek * Math.abs(Math.sin(state.bearing)) * 0.8 + 15;
-    state.hider = true;
+  if (!state.dead && time - state.seenAt > 1 && (state.root.id >= 0 || arena)) {
+    // Hunting (titans v2): the main enemy vanished alive (most likely into a jammer's bubble), or, in a match, nothing
+    // was ever seen (it hid from the first second: its start is the mirror of ours). Each gunship takes its own bearing
+    // round the last place, on a ring that starts `seek` m out (its radar sees through a bubble within 150 m) and
+    // grows while nothing is found, so the swarm sweeps the sky round it. One gunship seeing it tells them all.
+    const lost = time - Math.max(state.seenAt, 0);
+    const r = seek + ((widen * Math.max(0, lost - 1)) % (wide - seek));
+    const b = -0.35 + ((state.bearing % Math.PI) / Math.PI) * (Math.PI + 0.7); // from a little under level on one side to the other
+    px = root.x + r * Math.cos(b);
+    py = root.y + r * Math.sin(b) + 15;
+    if (state.root.id >= 0) state.hider = true;
   } else {
     // Its place: on a ring around the main robot, on its own side or the far side, well above it. Round one that
     // hides (it vanished once), the ring is tighter, inside the 150 m where its bubble is seen through.
