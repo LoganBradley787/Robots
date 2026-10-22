@@ -166,7 +166,7 @@ describe('pnpm sim validate with scripts', () => {
   it('finds nothing to say about any stock blueprint but names that reach nothing, and those are the known ones', async () => {
     // M16: a plain name that reaches nothing is said. A part type a script drives as one of several (a guide that
     // arms `warhead` and `heavywarhead` alike) is left alone; what is left on the stock robots is tags only some of
-    // them carry (`bay`, `dprop`, `pd`) and a part type a shared script drives alone (`fin`, `swivelthruster`'s
+    // them carry (`bay`, `dprop`) and a part type a shared script drives alone (`fin`, `swivelthruster`'s
     // `swivel`, a `thruster`). The robots are left as they are; this holds the list of such names still, so a new
     // one is looked at when it appears.
     const noisy: string[] = [];
@@ -179,6 +179,6 @@ describe('pnpm sim validate with scripts', () => {
       }
     }
     expect(noisy).toEqual([]);
-    expect([...dead].sort()).toEqual(['bay', 'dprop', 'fin', 'pd', 'swivelthruster', 'thruster']);
+    expect([...dead].sort()).toEqual(['bay', 'dprop', 'fin', 'swivelthruster', 'thruster']);
   }, 120_000);
 });
