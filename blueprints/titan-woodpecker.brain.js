@@ -22,12 +22,21 @@ const memory = param('memory', 15, { min: 0, max: 240 }); // s a target that van
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const anchors = param('anchors', 0, { min: 0, max: 200 }); // how many anchors the floor holds (the generator sets it)
 const anchorAt = param('anchorAt', 40, { min: 2, max: 600 }); // tick of the first cast
+const ghostKeep = param('ghostKeep', 9, { min: 3, max: 60 }); // first sightings of light enemies kept for the hidden launcher's guess
+const ghostAge = param('ghostAge', 40, { min: 1, max: 600 }); // s a first sighting counts
+const ghostBack = param('ghostBack', 0.4, { min: 0, max: 5 }); // s each is carried back along its path
+const ghostNear = param('ghostNear', 150, { min: 0, max: 1000 }); // m: first sightings nearer than this say nothing
+const ghostOver = param('ghostOver', 15, { min: 0, max: 100 }); // m above the guess the darts fly up through
+const debug = param('debug', 0, { min: 0, max: 1 }); // 1 logs the probes, the hidden launcher guess, and the flares
+const ghostLow = param('ghostLow', 50, { min: 0, max: 250 }); // m: a guess lower than this is a ground robot, hit from above
+const stillSpeed = param('stillSpeed', 1.5, { min: 0, max: 50 }); // m/s: a target that vanished slower than this is kept at its last place
 const useApp = param('useApp', 1, { min: 0, max: 1 }); // 1: the darts come in along the thinnest line the probes found
-const flareAhead = param('flareAhead', 2.2, { min: 0.2, max: 6 }); // s: a flare goes when something will pass the keep within this
+const flareLate = param('flareLate', 1.1, { min: 0.2, max: 6 }); // s: a flare goes when something will pass the keep within this (as late as works, so one flare covers more)
 const flareSoon = param('flareSoon', 0.35, { min: 0, max: 3 }); // s: and not sooner than this (already here: too late)
 const flareMiss = param('flareMiss', 30, { min: 1, max: 200 }); // m from the main core: a pass this close counts
 const flareClose = param('flareClose', 25, { min: 0, max: 500 }); // m/s it must close at, at least (a robot pushing slowly is no dart)
-const flareGap = param('flareGap', 1.1, { min: 0.1, max: 10 }); // s between two flares (each burns 2)
+const flareGap = param('flareGap', 0.6, { min: 0.1, max: 10 }); // s between two flares at least
+const flareBurn = param('flareBurn', 2, { min: 0.1, max: 10 }); // s a flare burns: one burning covers what arrives before it is out
 const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
 
 function setup() {
@@ -63,6 +72,8 @@ function setup() {
   state.flares.sort((a, b) => a.y - b.y || a.n - b.n);
   state.flareAt = -1000;
   state.probe = null;
+  state.known = {}; // ids of light enemy robots already seen
+  state.launches = []; // their first sightings
   state.app = null; // the way in: { ax, ay, cover, tid }
   state.scanFrame = -1;
   state.scans = 0;
@@ -79,15 +90,46 @@ function pick() {
   let gone = false;
   for (const c of contacts) {
     if (c.id === state.tid && (c.side !== 'enemy' || !c.core)) gone = true;
-    if (c.side !== 'enemy' || !c.core || c.mass < minMass) continue;
+    if (c.side !== 'enemy' || !c.core) continue;
+    if (c.mass < minMass) {
+      if (!state.known[c.id]) launched(c);
+      continue;
+    }
     if (c.id === state.tid) kept = c;
     if (!best || c.mass > best.mass) best = c;
   }
   const t = kept && !(best && best.mass > 2 * kept.mass) ? kept : best;
   if (t) state.everSeen = true;
   const s = state.last;
-  if (!t && s && (gone || time - s.at > memory || s.d > lostAt)) state.last = null;
+  // One that stood still when last seen (a roped base in its bubble, titans v2, 2026-10) is kept as long as it is not
+  // seen dead: it is most likely still there.
+  const still = s && Math.hypot(s.vx, s.vy) < stillSpeed;
+  if (!t && s && (gone || (time - s.at > memory && !still) || s.d > lostAt)) state.last = null;
   return t;
+}
+
+/**
+ * Where hidden launches come from (titans v2, 2026-10): a light enemy robot (a dart, a drone) seen for the first time
+ * shows where something let it go, since the radar sees the whole field. A launcher hidden in a jammer's bubble is
+ * never in `contacts`, but what it lets go is, as soon as it leaves the bubble. The last `ghostKeep` first sightings,
+ * each carried back along its path by `ghostBack` s, give the guess: their middle, sideways and in height.
+ */
+function launched(c) {
+  state.known[c.id] = 1;
+  if (c.distance < ghostNear) return; // let go right beside us: no news of a far launcher
+  const g = state.launches;
+  g.push({ x: c.pos.x - c.vel.x * ghostBack, y: c.pos.y - c.vel.y * ghostBack, at: time });
+  if (g.length > ghostKeep) g.shift();
+}
+
+/** The guessed hidden launcher: the middle (median) of the recent first sightings, or null. */
+function ghost() {
+  const g = state.launches.filter((p) => time - p.at < ghostAge);
+  if (g.length < 3) return null;
+  const xs = g.map((p) => p.x).sort((a, b) => a - b);
+  const ys = g.map((p) => p.y).sort((a, b) => a - b);
+  const m = g.length >> 1;
+  return { x: xs[m], y: ys[m], spread: Math.max(20, (xs[xs.length - 1] - xs[0]) / 2) };
 }
 
 /**
@@ -146,11 +188,11 @@ function measure(t) {
 function probe(t) {
   const pr = state.probe;
   if (!pr || pr.tid !== t.id) {
-    state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity };
+    state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [] };
     return;
   }
   if (pr.i >= pr.list.length) {
-    if (frame - pr.at >= rescan) state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity };
+    if (frame - pr.at >= rescan) state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [] };
     return;
   }
   for (let k = 0; k < 2 && pr.i < pr.list.length; k++) {
@@ -166,12 +208,16 @@ function probe(t) {
     if (!one || one.length === 0) continue;
     // Health in the way, and a little for a line far from the darts' easy one (down from 45 degrees on our side).
     const score = one[0].cover + 25 * Math.abs(e - Math.PI / 4);
+    if (debug) pr.covers.push(Math.round((e * 180) / Math.PI) + ':' + Math.round(one[0].cover));
     if (score < pr.bestScore) {
       pr.bestScore = score;
       pr.best = { ax, ay, cover: one[0].cover };
     }
   }
-  if (pr.i >= pr.list.length && pr.best) state.app = { ...pr.best, tid: t.id };
+  if (pr.i >= pr.list.length && pr.best) {
+    state.app = { ...pr.best, tid: t.id };
+    if (debug) log('probe', t.id, 'way in', Math.round((Math.atan2(pr.best.ay, pr.best.ax) * 180) / Math.PI), 'cover', Math.round(pr.best.cover), 'all', pr.covers.join(' '));
+  }
 }
 
 // The lines to look along: angles up from level on our side, over the top, and under a robot high in the air.
@@ -199,12 +245,35 @@ function message(t) {
     return msg;
   }
   const s = state.last;
+  if (s && Math.hypot(s.vx, s.vy) < stillSpeed && s.id === state.tid) {
+    // Hidden but standing still: its last place, its size, and the way in, as if seen; the darts follow it by its id
+    // the moment the radio or their own seeker sees it again.
+    const b = state.box;
+    const msg = { x: s.x, y: s.y, vx: 0, vy: 0, id: s.id, l: b.l, r: b.r, d: b.d, u: b.u, top: b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0 };
+    const a = state.app;
+    if (useApp > 0.5 && a && a.tid === s.id) {
+      msg.ax = a.ax;
+      msg.ay = a.ay;
+    }
+    return msg;
+  }
   if (s) {
     const age = Math.min(time - s.at, 4);
     return { x: s.x + s.vx * age, y: Math.max(1, s.y + s.vy * age), vx: 0, vy: 0, id: -1, l: 60, r: 60, d: 40, u: 40, blind: 1 };
   }
   // Seen once and gone: nothing to fly at. In the open (no arena, titans v2, 2026-10) there is no far side to guess
   // at: the darts wait until something is seen, however long that takes.
+  // A launcher hidden in a bubble (titans v2, 2026-10): the darts go at the middle of where its launches show up,
+  // from under it and up through that point (`sweep`): a wide robot is hit somewhere along its width whatever its
+  // height, as long as the point is not below it, so the point is set `ghostOver` m above the guess.
+  const gh = ghost();
+  if (gh) {
+    if (debug) log('ghost', Math.round(gh.x), Math.round(gh.y), 'spread', Math.round(gh.spread), 'from', state.launches.length);
+    const w = gh.spread + 30;
+    // Low (a ground robot): from above, down onto the guess.
+    if (gh.y < ghostLow) return { x: gh.x, y: Math.max(1, gh.y - 5), vx: 0, vy: 0, id: -1, l: w, r: w, d: 10, u: 40, blind: 1, sweep: 1, ax: 0, ay: 1 };
+    return { x: gh.x, y: Math.max(3, gh.y + ghostOver), vx: 0, vy: 0, id: -1, l: w, r: w, d: 60, u: 30, blind: 1, sweep: 1, ax: 0, ay: -1 };
+  }
   if (state.everSeen || !arena) return null;
   // Never seen: the point across the arena, low for every second dart (a ground titan), the rest at stepped heights.
   const y = state.shots % 2 === 0 ? 3 : 8 + ((state.shots * 29) % 145);
@@ -213,13 +282,16 @@ function message(t) {
 
 /**
  * Flares (titans v2, 2026-10): something closing fast that will pass within `flareMiss` m of the main core between
- * `flareSoon` and `flareAhead` s from now (a dart, a ram) gets a flare let go burning at the end of the base on its
+ * `flareSoon` and `flareLate` s from now (a dart, a ram) gets a flare let go burning at the end of the base on its
  * side, about 80 m from the keep. Every sensor that sees the flare takes it for this titan for 2 s, so a dart that
  * steers by its seeker or a radio goes off at the flare, not on the keep. Rules by sensor: whatever steers by contacts
  * is fooled, whatever it is.
  */
 function flares() {
   if (state.flares.length === 0 || time - state.flareAt < flareGap) return;
+  // The flare still burning covers whatever arrives before it burns out (`flareBurn` s), less a margin. A new one goes
+  // only for something arriving after that, and as late as still works (`flareLate`), so each flare covers up to 2 s.
+  const covered = state.flareAt + flareBurn - flareSoon - time;
   const sx = self.pos.x;
   const sy = self.pos.y;
   let side = 0;
@@ -232,7 +304,7 @@ function flares() {
     const v2 = vx * vx + vy * vy;
     if (v2 < flareClose * flareClose) continue;
     const t = -(rx * vx + ry * vy) / v2; // s to its closest pass
-    if (t < flareSoon || t > flareAhead) continue;
+    if (t < flareSoon || t > flareLate || t < covered) continue;
     if (Math.hypot(rx + vx * t, ry + vy * t) > flareMiss) continue;
     if (-(rx * vx + ry * vy) / (Math.hypot(rx, ry) || 1) < flareClose) continue; // not closing fast enough
     side = rx < 0 ? -1 : 1;
@@ -252,6 +324,7 @@ function flares() {
   }
   if (!pickF) return;
   pickF.used = true;
+  if (debug) log('flare', pickF.n, 'side', side);
   set('f' + pickF.n, 'ignite', 1);
   set('fg' + pickF.n, 'fire', 1);
   state.flareAt = time;
@@ -280,7 +353,7 @@ function tick() {
       state.tid = t.id;
       state.boxAt = -100000; // another robot: measure it again
     }
-    state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance };
+    state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id };
   }
   if (t) measure(t);
   fire(t);

@@ -29,7 +29,9 @@ const nearDist = param('nearDist', 160, { min: 0, max: 1000 }); // m from the ta
 const armDist = param('armDist', 30, { min: 1, max: 300 }); // m from the target's edge where the heads arm
 const prox = param('prox', 3, { min: 0, max: 20 }); // m from the tracked robot's core (from the heads) where it goes off
 const anyArm = param('anyArm', 12, { min: 0, max: 300 }); // m from the guessed edge of any other enemy robot where the heads arm
-const reachMax = param('reachMax', 40, { min: 1, max: 300 }); // m: the most a robot it was not sent at is guessed to reach
+const reachK = param('reachK', 1.2, { min: 0.1, max: 5 }); // m of reach guessed per square root of a robot's part count (a long robot reaches about this far)
+const reachMax = param('reachMax', 120, { min: 1, max: 300 }); // m: the most a robot whose size it was not told is guessed to reach
+const seekDist = param('seekDist', 320, { min: 0, max: 2000 }); // m from its point where the nose seeker (if any) is on
 const headAt = param('headAt', 1.5, { min: 0, max: 10 }); // m from the core to the middle of its heads, along the nose
 const kp = param('kp', 4, { min: 0, max: 50 });
 const kd = param('kd', 1.3, { min: 0, max: 50 });
@@ -48,6 +50,8 @@ const lifeMax = param('lifeMax', 40, { min: 1, max: 120 }); // s at most
 
 function setup() {
   state.t = null;
+  state.seeker = parts.some((p) => p.type === 'seeker');
+  if (state.seeker) set('seeker', 'on', 0);
   for (const m of inbox) if (m.data && typeof m.data.x === 'number') state.t = m.data;
   state.at = time;
   state.born = time;
@@ -108,10 +112,10 @@ function sighting(id) {
   return mine || main;
 }
 
-// How far a robot's parts are guessed to reach from its core: a block of its parts, about square (a robot it was not
-// sent at has no measured box).
+// How far a robot's parts are guessed to reach from its core, from its part count, on the long side (a robot whose
+// size the base did not send has no measured box).
 function reachOf(c) {
-  return clamp(0.75 * Math.sqrt(c.parts), 1.5, reachMax);
+  return clamp(reachK * Math.sqrt(c.parts), 1.5, reachMax);
 }
 
 function tick() {
@@ -139,8 +143,9 @@ function tick() {
         // First real sighting of a robot the base could not name: a guess at its size, and at it from the side.
         t.id = c.id;
         t.blind = 0;
-        t.l = t.r = 20;
-        t.d = t.u = 10;
+        // Its size from its part count (titans v2, 2026-10): a fixed 20 m left darts unarmed when they met the edge
+        // of a wide robot found by the seeker or the radio after a blind start, and they broke on it.
+        t.l = t.r = t.d = t.u = reachOf(c);
         t.top = 0;
         t.ax = undefined; // the way in was found for another robot
       }
@@ -176,6 +181,9 @@ function tick() {
   const gapNow = state.gap - (speed + 30) * (time - state.gapAt);
   const beat = dist < nearDist || gapNow < nearDist ? everyNear : every;
   radio((state.n + state.beat) % beat === 0 ? 1 : 0);
+  // The nose seeker (a bay's dart, titans v2, 2026-10), on only near the end: within 150 m it sees a robot hidden in a
+  // jammer's bubble, so a dart sent at a guess finds the core itself. Off far out (its look costs every tick).
+  if (state.seeker) set('seeker', 'on', dist < seekDist ? 1 : 0);
   if (!state.armed && ((px > tx - t.l - armDist && px < tx + t.r + armDist && py > ty - t.d - armDist && py < ty + t.u + armDist) || gapNow < anyArm)) {
     set('heavywarhead', 'arm', 1);
     state.armed = true;
@@ -205,7 +213,7 @@ function tick() {
   // A wide target: follow a path that runs level at `over` m above it and then down to it at a slope of `loft`,
   // by aiming at the point on that path `ahead` s of flight in front (a dart at full speed turns slowly, so it has to
   // start the bend early). Inside that distance it aims at the target itself.
-  if (typeof t.ax === 'number' && !t.blind) {
+  if (typeof t.ax === 'number' && (!t.blind || t.sweep)) {
     // A way in from the base (titans v2, 2026-10): the thinnest line into the core it found. The dart flies at a point
     // out along that line, `loft` m out per m it still has to go (at most `over`), so the point slides in to the core
     // as the dart closes and the dart ends up coming in along the line.

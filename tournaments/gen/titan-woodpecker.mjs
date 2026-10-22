@@ -29,6 +29,11 @@ const PAIRS = Number(process.argv[2] ?? 12); // dart pairs on each side of the m
 const BAYS = Number(process.argv[3] ?? 5); // bays on each end (8 in round 1: fewer darts in the air at once keeps the tick time down)
 const DART = ['booster', 'heavygyro', 'radio', 'cell', 'core', 'heavywarhead', 'heavywarhead']; // bottom to top
 const DH = DART.length;
+// A bay's dart (titans v2, 2026-10) has a seeker on its nose: within 150 m it sees through a jammer's bubble, so the
+// darts that come later in the fight find a hidden core themselves. The rack's darts go in the first seconds, at what
+// the keep's radar sees, and have none (the parts are spent on flares instead).
+const BAY_DART = [...DART, 'seeker'];
+const BAY_H = BAY_DART.length;
 const MID_HALF = 7; // the keep is 15 wide
 const CORE_Y = 4; // the main core's row: four plates under it, eleven over it
 const ANCHOR_EVERY = 8; // one anchor in the floor every this many columns
@@ -36,10 +41,11 @@ const END = 2;
 const W = 2 * (END + BAYS * 3 + PAIRS * 5) + 2 * MID_HALF + 1;
 const CX = (W - 1) / 2;
 const ROOF = 2;
-const H = ROOF + 1 + DH + 1;
+const H = ROOF + 1 + BAY_H + 1;
 
-const KEEP_H = H + 5; // the keep stands five rows over the rack: eleven plates over the main core
-const g = Array.from({ length: KEEP_H }, () => Array.from({ length: W }, () => '.'));
+const KEEP_H = ROOF + DH + 7; // the keep stands five rows over the rack: eleven plates over the main core
+const FLARE_TOP = Number(process.argv[4] ?? 28); // the end columns of flares reach up to this row (titans v2)
+const g = Array.from({ length: Math.max(KEEP_H, FLARE_TOP) }, () => Array.from({ length: W }, () => '.'));
 const put = (x, y, t) => {
   if (g[y][x] !== '.') throw new Error(`cell ${x},${y} taken by ${g[y][x]} (placing ${t})`);
   g[y][x] = t;
@@ -81,11 +87,11 @@ let bay = 0;
 const addBay = (x0) => {
   bay++;
   const t = `y${bay}`;
-  legend[t] = { part: 'fabbay', tags: [`b${bay}x`], makes: 'dart', size: [1, DH] };
+  legend[t] = { part: 'fabbay', tags: [`b${bay}x`], makes: 'dart', size: [1, BAY_H] };
   put(x0 + 1, ROOF + 1, t);
   put(x0, ROOF + 1, '=');
   put(x0 + 2, ROOF + 1, '=');
-  for (let y = ROOF + 2; y <= ROOF + 1 + DH; y++) {
+  for (let y = ROOF + 2; y <= ROOF + 1 + BAY_H; y++) {
     put(x0, y, '=');
     put(x0 + 2, y, '=');
   }
@@ -120,14 +126,14 @@ const dartBlueprint = (file) => ({
   format: 1,
   name: `${NAME}-dart`,
   autoControls: false,
-  grid: ['H', 'H', 'C', 'E', 'N', 'y', 'k'],
+  grid: ['S^', 'H', 'H', 'C', 'E', 'N', 'y', 'k'],
   legend: { y: { part: 'heavygyro', auto: false }, k: { part: 'booster', rot: 0, auto: false } },
   scripts: [{ id: 'guide', source: { file } }],
 });
 
 // Flares (titans v2, 2026-10): a burning flare let go is taken for this titan by every sensor that sees it, so a dart
 // or gun steering by contacts goes for the flare. They stand as far from the keep as the base reaches: a column at each
-// end (flare outside, its grip inside, the grips stacked on the roof), as tall as the keep. Nowhere nearer: a grip
+// end (flare outside, its grip inside, the grips stacked on the roof), a tall thin column. Nowhere nearer: a grip
 // beside a dart would hold it on. Tags: flare `f<n>`, grip `fg<n>`.
 let flares = 0;
 const addFlare = (fx, fy, gx, gy, rot) => {
@@ -137,7 +143,7 @@ const addFlare = (fx, fy, gx, gy, rot) => {
   put(gx, gy, `r${flares}`);
   put(fx, fy, `q${flares}`);
 };
-for (let y = ROOF + 1; y < KEEP_H; y++) {
+for (let y = ROOF + 1; y < FLARE_TOP; y++) {
   addFlare(0, y, 1, y, 90);
   addFlare(W - 1, y, W - 2, y, 270);
 }
