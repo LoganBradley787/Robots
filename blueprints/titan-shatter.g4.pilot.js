@@ -319,7 +319,9 @@ function tick() {
   // No more lean than its lift allows while still holding its height (an armored gunship has little to spare).
   if (!state.body || state.body.n !== parts.length) measure();
   const spare = (state.body.m * G * 1.04) / Math.max(1, (state.body.na + state.body.nb) * LIFT);
-  fly(px, Math.max(py, 20), speed, Math.min(lean, Math.acos(clamp(spare, 0, 1))));
+  // Low, or far under where it should be, height comes first: barely leaning, it climbs on all it has.
+  const climb = self.pos.y < 25 || py - self.pos.y > 40;
+  fly(px, Math.max(py, 20), speed, Math.min(climb ? 0.12 : lean, Math.acos(clamp(spare, 0, 1))));
 
   // What the guns blast at: something small and close first, then the main robot's core, then whatever is nearest.
   let target = null;

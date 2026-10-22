@@ -71,6 +71,9 @@ for (let r = 0; r < ROWS; r++) {
     put(x0 + 5, yTop, 'radio', 0, ['ear']);
     for (const dx of [6, 7, 8]) put(x0 + dx, yTop, 'propeller', 0, ['rp'], { auto: false });
     put(x0 + 5, yJoin, 'decoupler', 0, ['split']);
+    // An armored gunship has a seventh propeller, beside its decoupler (held by the decoupler's side, which stays
+    // with it): with six it used 87 percent of its lift to hover, sank whenever it leaned, and sat on the ground.
+    if (!scout) put(x0 + 4, yJoin, 'propeller', 0, ['lp'], { auto: false });
     cores[`core@${x0 + 5},${yBody}`] = {
       autoControls: false,
       bindings: [],
