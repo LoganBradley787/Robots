@@ -48,7 +48,9 @@ const bins = param('bins', 30); // gun groups, tags bin0, bin1, ...
 const margin = param('margin', 45, { min: 5, max: 500 }); // m inside the arena's edge it keeps its core
 const blind = param('blind', 12, { min: 0, max: 100 }); // holding under a hidden robot, guns this near that place fire unseen, m
 const chase = param('chase', 58, { min: 5, max: 90 }); // fastest it follows something overhead, m/s
-const patrolTop = param('patrolTop', 38, { min: 1, max: 80 }); // how fast it patrols, m/s
+// How fast it patrols, m/s (titans v2: was 38). Getting 74 t to 38 m/s takes a bank flat out for half a minute, a
+// third of the batteries, and holding under a sight and patrolling on took turns every 10 s against a trickster.
+const patrolTop = param('patrolTop', 15, { min: 1, max: 80 });
 const wait = param('wait', 6, { min: 0, max: 60 }); // s parked with no sight of it before it patrols again
 const stall = param('stall', 2.5, { min: 0.5, max: 60 }); // s pushing without moving before it backs off for another run
 const tiltMax = param('tiltMax', 10, { min: 1, max: 90 }); // degrees: tilted more than this (riding up on something), it stops pushing
@@ -77,6 +79,7 @@ const ROT = { rotator: { range: Math.PI / 2, rate: 2 }, heavyrotator: { range: 2
 const WORTH = { fabbay: 5, heavywarhead: 6, warhead: 4, charge: 4, laser: 6, cannon: 6, lance: 4, core: 2 };
 const MAIN_CORE = 40;
 const PICK = Object.keys(WORTH);
+const spare = param('spare', 0.4, { min: 0, max: 1 }); // share of energy under which beams only burn the main enemy (no darts, no guesses)
 const reserve = param('reserve', 0.03, { min: 0, max: 1 }); // share of energy the beams never burn into (driving stops at `low`, so the beams get the last of it)
 const SIGHT_ENEMY = 3;
 const SIGHT_NONE = 4;
@@ -282,7 +285,7 @@ function aimTurret(t, at, charged) {
   let threat = null;
   let soonest = 1e9;
   for (const c of contacts) {
-    if (c.side !== 'enemy' || !c.core || c.mass >= minMass || c.distance > guard) continue;
+    if (c.side !== 'enemy' || !c.core || c.mass >= minMass || c.distance > guard || state.share < spare) continue;
     const rx = c.pos.x - from.x;
     const ry = c.pos.y - from.y;
     const d = Math.max(0.5, Math.hypot(rx, ry));
@@ -567,11 +570,14 @@ function tick() {
   // Beams: at the main enemy's core, where it is or (for `memory` s) where it was last seen, led a tick.
   const cap = self.energy.capacity;
   const share = cap > 0 ? self.energy.stored / cap : 0;
+  state.share = share;
   const charged = state.lowBeam ? share > reserve + 0.02 : share > reserve;
   if (charged === state.lowBeam) log(charged ? 'beams back on' : 'beams low on energy: holding fire');
   state.lowBeam = !charged;
   let at = T ? { x: T.pos.x + (T.vel.x - vx) * dt, y: T.pos.y + (T.vel.y - self.vel.y) * dt, id: T.id, ghost: !!T.ghost } : null;
-  if (!at && state.holdPt && time - state.holdPt.t < 1) at = { x: state.holdPt.x, y: state.holdPt.y, id: -1 };
+  // Nothing seen, but a sight reads a hidden robot: burn where that sight ends, while energy is plentiful (against a
+  // trickster's hidden pods and darts this burnt a quarter of the batteries on things that were not its core).
+  if (!at && state.holdPt && time - state.holdPt.t < 1 && share > spare) at = { x: state.holdPt.x, y: state.holdPt.y, id: -1 };
   let burning = 0;
   for (const t of turrets) burning += aimTurret(t, at, charged);
   if (burning > 0 && time - (state.burnSaid || -1e9) > 10) {
