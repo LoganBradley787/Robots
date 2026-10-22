@@ -48,10 +48,7 @@ const put = (x, y, t) => {
 const legend = {
   ka: { part: 'booster', rot: 270, tags: ['pf'], auto: false }, // at the stern, pushes toward the bow
   kb: { part: 'booster', rot: 90, tags: ['pr'], auto: false }, // at the bow, pushes toward the stern
-  pa: { part: 'propeller', rot: 0, tags: ['la'], auto: false },
-  pb: { part: 'propeller', rot: 0, tags: ['lb'], auto: false },
-  kc: { part: 'booster', rot: 0, tags: ['la'], auto: false }, // under the keep
-  kd: { part: 'booster', rot: 0, tags: ['lb'], auto: false },
+  kc: { part: 'booster', rot: 0, tags: ['l0'], auto: false }, // under the keep (lift strip 0, the stern)
 };
 const props = []; // filled in, then tagged by which side of the center of mass they are on
 
@@ -68,7 +65,7 @@ for (let y = 0; y < KEEP; y++) {
 // The keep's own lift: boosters under it and propellers on it, in both lift groups, so the helm can still set it down
 // gently (or hold it up) when the spar is gone. Its batteries are inside it.
 for (let x = 1; x <= KEEP; x++) {
-  put(x, 0, x <= CORE.x ? 'kc' : 'kd');
+  put(x, 0, 'kc');
   props.push({ x, y: KEEP + BASE });
 }
 for (let x = HULL_X0; x <= W - 3; x++) put(x, BASE, 'F');
@@ -135,7 +132,7 @@ let mx = 0;
 for (let y = 0; y < H; y++) {
   for (let x = 0; x < W; x++) {
     const t = cells[y][x];
-    const kg = t === 'ka' || t === 'kb' || t === 'kc' || t === 'kd' ? MASS.K : t.startsWith('j') ? MASS.J : MASS[t];
+    const kg = t === 'ka' || t === 'kb' || t === 'kc' ? MASS.K : t.startsWith('j') ? MASS.J : MASS[t];
     if (kg === undefined) continue;
     m += kg;
     mx += kg * x;
@@ -149,7 +146,15 @@ for (const x of bayXs) {
 m += props.length * MASS.P;
 mx += props.reduce((s, p) => s + p.x, 0) * MASS.P;
 const com = mx / m;
-for (const p of props) put(p.x, p.y, p.x < com ? 'pa' : 'pb');
+// Lift in strips along the hull (titans v2, 2026-10): every propeller and lift booster belongs to one of LIFT_BINS
+// strips (tags l0 at the stern to l7 at the bow, the keep's boosters in l0), and the helm throttles each strip on its
+// own, more toward the end that must rise. With two groups split at the center of mass the stern group ran near full
+// at a hover (the keep is heavy), and as its propellers were shot away its middle crept to the center of mass: the
+// helm could no longer hold the hull level and up at once, and it sank. Strips keep the balance whatever is lost.
+const LIFT_BINS = 8;
+const binOf = (x) => Math.min(LIFT_BINS - 1, Math.floor((x * LIFT_BINS) / W));
+for (let k = 0; k < LIFT_BINS; k++) legend[`q${k}`] = { part: 'propeller', rot: 0, tags: [`l${k}`], auto: false };
+for (const p of props) put(p.x, p.y, `q${binOf(p.x)}`);
 
 const grid = [];
 for (let y = H - 1; y >= 0; y--) grid.push(cells[y].map((t) => (t === '_' ? '.' : t)).join(' '));
@@ -174,7 +179,7 @@ const blueprint = {
   grid,
   legend,
   autoControls: false,
-  scripts: [{ id: 'helm', params: { pods: pod, bays: BAYS }, source: { file: `${NAME}.helm.js` } }],
+  scripts: [{ id: 'helm', params: { pods: pod, bays: BAYS, strips: LIFT_BINS }, source: { file: `${NAME}.helm.js` } }],
   recipes: { ghost: ghost(`${NAME}.ghost.guide.js`) },
 };
 
@@ -510,4 +515,4 @@ fs.writeFileSync(path.join(out, `${NAME}-ghost.json`), JSON.stringify({ format: 
 fs.writeFileSync(path.join(out, `${NAME}-ghost.guide.js`), guide);
 const plates = cells.flat().filter((t) => t === 'A').length;
 const lift = props.length * 120 + KEEP * 400;
-console.log(`${NAME}: ${W} by ${H} cells, ${BAYS} bays, ${pod} pods, ${props.length} propellers, ${plates} plates, about ${Math.round(m)} kg, lift ${lift} N (push to weight ${(lift / (m * 9.81)).toFixed(2)}), center of mass at column ${com.toFixed(1)}`);
+console.log(`${NAME}: ${W} by ${H} cells, ${BAYS} bays, ${pod} pods, ${props.length} propellers, ${plates} plates, about ${Math.round(m)} kg, lift ${lift} N (push to weight ${(lift / (m * 9.81)).toFixed(2)}), center of mass at column ${com.toFixed(1)}, ${LIFT_BINS} lift strips`);

@@ -19,8 +19,9 @@
 // - It arms as late as still works (titans v2, 2026-10, Logan): within `armDist` m of where it is going, or the
 //   moment it will reach ANY enemy it sees within `armTime` s (its middle, padded by the robot's size from its part
 //   count), so a ghost that meets a small gun panel or the near end of a big hull on its way goes off there instead of
-//   breaking. Armed early, ghosts of one salvo that touch set each other off (armed 200 m out, they did), so it arms
-//   only that close. It ends itself `life` s after letting go at the latest (sized from the distance it was sent: the
+//   breaking. Armed early, ghosts of one salvo that touch set each other off (armed 200 m out, they did), and a gun
+//   that hits an armed warhead sets it off, so the warheads arm only that close. The charge arms `chargeAt` m out:
+//   it needs an enemy part within 1.5 m or a hard hit, and shot it only breaks. It ends itself `life` s after letting go at the latest (sized from the distance it was sent: the
 //   flight at `lifeSpeed` plus `lifeSpare`, up to `lifeMax`).
 // Let go with no point (knocked loose), it does nothing and stays safe.
 const thrust = param('thrust', 800, { min: 1, max: 100000 }); // N, both boosters
@@ -47,6 +48,7 @@ const life = param('life', 10, { min: 1, max: 120 }); // s after letting go it e
 const lifeSpeed = param('lifeSpeed', 60, { min: 5, max: 1000 }); // m/s: its life is at least the flight to its point at this speed
 const lifeSpare = param('lifeSpare', 5, { min: 0, max: 60 }); // s added to that
 const lifeMax = param('lifeMax', 30, { min: 1, max: 120 }); // s at most
+const chargeAt = param('chargeAt', 40, { min: 0, max: 1000 }); // m from where it left: its charge arms (titans v2, 2026-10)
 const armTime = param('armTime', 0.4, { min: 0, max: 5 }); // s: it arms when it will reach any enemy this soon
 const armPad = param('armPad', 4, { min: 0, max: 50 }); // m: an enemy's reach is this plus `armSize` per square root of its parts
 const armSize = param('armSize', 1, { min: 0, max: 10 }); // m (its parts as a round blob would be 0.56)
@@ -166,6 +168,10 @@ function tick() {
   const dist = Math.hypot(p.x - self.pos.x, p.y - self.pos.y);
   const speed = Math.hypot(self.vel.x - state.fix.vx, self.vel.y - state.fix.vy);
 
+  // The charge arms once clear of the hull: it goes off only next to an enemy part or on a hard hit, never for a
+  // friend near it, and shot it breaks without a blast, so armed early it costs nothing and catches whatever enemy
+  // the ghost runs into.
+  if (out >= chargeAt) set('charge', 'arm', 1);
   if (!state.armed && out >= 20 && ((dist < armDist && !state.dead) || state.meet)) {
     set('charge', 'arm', 1);
     set('heavywarhead', 'arm', 1);
