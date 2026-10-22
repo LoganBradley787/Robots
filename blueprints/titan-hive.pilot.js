@@ -51,8 +51,9 @@ const refresh = param('refresh', 120, { min: 1, max: 600 }); // ticks between wo
 const gap = param('gap', 0.15, { min: 0, max: 10 }); // s between two bays letting go
 const level = (param('level', 33, { min: 1, max: 90 }) * Math.PI) / 180; // lets darts go only within this many degrees of level
 const still = param('still', 12, { min: 0.1, max: 50 }); // m/s up or down: faster than this it holds its darts
-const drift = param('drift', 8, { min: 0.1, max: 50 }); // m/s sideways: faster than this it holds its darts too
-const driftWait = param('driftWait', 1, { min: 0, max: 60 }); // s at most it holds them for that (always holding, it held every dart 36 s while following a ram drone)
+const shake = param('shake', 1.5, { min: 0.1, max: 50 }); // m/s^2 sideways: speeding up or slowing harder than this it holds its darts
+const spinHold = param('spinHold', 0.06, { min: 0.001, max: 5 }); // rad/s: turning faster than this it holds them too
+const driftWait = param('driftWait', 1, { min: 0, max: 60 }); // s at most it holds them for those (always holding, it held every dart 36 s while following a ram drone)
 const spreadEvery = param('spreadEvery', 4, { min: 1, max: 100 }); // every this many darts, one goes to the nearest other enemy
 const match = param('match', 240, { min: 0, max: 100000 }); // s, how long it must stay up in an arena (a match's length)
 const keep = param('keep', 1.2, { min: 0, max: 10 }); // in an arena, darts are held under this many times the energy the hover needs to the end
@@ -69,6 +70,9 @@ const kiteSpeed = param('kiteSpeed', 55, { min: 1, max: 100 }); // m/s it runs a
 const turnRoom = param('turnRoom', 150, { min: 0, max: 900 }); // m short of its edge it turns back
 const runHold = param('runHold', 4, { min: 0, max: 60 }); // s it keeps running once nothing is close
 const groundY = param('groundY', 35, { min: 0, max: 200 }); // m: an enemy core under this is on the ground
+const touchReach = param('touchReach', 320, { min: 0, max: 1000 }); // m: a heavy enemy this close is scanned for what presses on it
+const touchDist = param('touchDist', 90, { min: 0, max: 500 }); // m from its core: a part this close is the turrets' first target
+const touchEvery = param('touchEvery', 0.5, { min: 0.05, max: 10 }); // s between those scans
 const restHeight = param('restHeight', 9, { min: 1, max: 50 }); // m from its core down to the ground when it sits (the belly turrets are under it)
 const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
@@ -191,7 +195,9 @@ function setup() {
   state.side = self.pos.x <= 0 ? -1 : 1; // which side of the arena it started on
   state.trim = 0;
   state.lastRel = -Infinity;
-  state.slowAt = 0; // when it last slid sideways slower than `drift`
+  state.slowAt = 0; // when it last flew steadily enough to let darts go
+  state.pvx = 0; // last tick's sideways speed, and the sideways speeding up from it, smoothed
+  state.ax = 0;
   state.sent = 0;
   state.mem = null; // the main enemy: { id, x, y, vx, vy, at, d }, its last place while seen, kept a while once it vanishes
   state.everSeen = false; // whether any enemy that could be the main one was ever seen
@@ -203,6 +209,8 @@ function setup() {
   state.sitting = false; // landed with its propellers off (no arena only)
   state.runDir = 0; // kiting: 1 right, -1 left, 0 not
   state.runAt = -Infinity;
+  state.touchScan = -Infinity; // the frame of the last scan for what presses on it
+  state.touch = null; // the nearest part of a heavy enemy pressing on it: { x, y, d, at, id }
   state.ids = {}; // light enemies seen, by id: when first seen
   state.src = null; // where the last new light enemy came from: { x, y, at }
   recache();
@@ -318,6 +326,9 @@ function aimTurret(t, foes, friends) {
   }
   // Never along the hull: the next turret sits on that line, a little outside the sight's straight look.
   st.firing = Math.abs(err) < within && !blocked && best.distance <= reach && Math.abs(wrap(aim - rest)) < along;
+  // Its own sight on an enemy part within reach (titans v2): it blasts whatever it aims at, seen or hidden (a sight is
+  // not a sensor: a robot in a jammer's bubble still fills it).
+  if (!st.firing && side === 3 && t.gun.out.sight <= reach && Math.abs(wrap(aim - rest)) < along) st.firing = true;
   set(gunTag, 'fire', st.firing ? 1 : 0);
 }
 
@@ -523,9 +534,16 @@ function tick() {
   // Not while climbing or sinking: a dart levels off right over the bays, and a rising ship would fly up into it.
   // Not while sliding sideways either (titan-darts, 2026-10): a dart starts with the ship's speed, across the line it
   // climbs out on, and drifts into the bay walls and the darts let go beside it. But for `driftWait` s at most.
+  // Titans v2 (2026-10): what matters is not the speed but its change. A dart leaves with the ship's speed, so on a ship
+  // flying steadily at 50 m/s it rises straight out of its bay; on one speeding up, slowing or turning the walls move
+  // into it (the hollow is as wide as the dart). So it holds while the ship speeds up or slows by more than `shake`
+  // m/s^2 sideways or turns faster than `spinHold`, still for `driftWait` s at most.
   // Not while short of energy (above).
-  if (Math.abs(self.vel.x) < drift) state.slowAt = time;
-  const steady = Math.abs(self.vel.y) < still && (Math.abs(self.vel.x) < drift || time - state.slowAt > driftWait);
+  state.ax += 0.2 * ((self.vel.x - state.pvx) / dt - state.ax);
+  state.pvx = self.vel.x;
+  if (Math.abs(state.ax) < shake && Math.abs(self.angVel) < spinHold) state.slowAt = time;
+  const held = time - state.slowAt; // 0 while steady
+  const steady = Math.abs(self.vel.y) < still && (held < 0.5 * dt || held > driftWait);
   // Somewhere to send it: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
   // mirror of its own start (only in an arena: its middle is x 0; titans v2). With none of those it holds its darts.
   const someplace = main || last || src || (arena && !state.everSeen);
@@ -577,5 +595,24 @@ function tick() {
   }
 
   // Turrets.
+  // What is pressing on it (titans v2, 2026-10): a heavy enemy close by is scanned for its few parts nearest the
+  // ship's core every `touchEvery` s, and the nearest becomes the turrets' nearest target: a ground sled's mast poking
+  // up through the hull pushed the ship out of the arena while the turrets aimed at its core on the ground.
+  if (main && main.mass >= heavyMass && main.distance < touchReach && frame - state.touchScan >= touchEvery / dt) {
+    state.touchScan = frame;
+    state.touch = null;
+    const ps = scan(main.id, { near: { x: self.pos.x, y: self.pos.y }, most: 3 });
+    if (ps) {
+      for (const p of ps) {
+        const d = Math.hypot(p.pos.x - self.pos.x, p.pos.y - self.pos.y);
+        if (d < touchDist && (!state.touch || d < state.touch.d)) state.touch = { x: p.pos.x, y: p.pos.y, d, at: time, id: main.id };
+      }
+    }
+  }
+  const touch = state.touch && main && state.touch.id === main.id && time - state.touch.at < 2 * touchEvery ? state.touch : null;
+  if (touch) {
+    const age = time - touch.at;
+    foes.unshift({ id: -1, pos: { x: touch.x + main.vel.x * age, y: touch.y + main.vel.y * age }, vel: main.vel, mass: main.mass, distance: touch.d });
+  }
   for (const t of C.turrets) aimTurret(t, foes, friends);
 }
