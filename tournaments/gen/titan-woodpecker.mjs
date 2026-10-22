@@ -14,7 +14,9 @@
 //   robot that pushes the base toward the arena's edge pulls on ropes instead.
 // - The rack: darts stand nose up on the roof in pairs around a shared gap, each held by a grip (a decoupler) beside
 //   its booster: `D> K . K D<`, five columns a pair. Grip `g<n>` holds dart `d<n>`.
-// - The bays: fabricator bays (hollow 1 by 7) at both ends, each making the same dart. Tags `b<n>x`.
+// - The bays: fabricator bays (hollow 1 by 8) on both sides of the keep, each making the same dart. Tags `b<n>x`.
+//   (titans v2, 2026-10: they stood at the ends, where the flares now draw the enemy's darts, and their darts were
+//   caught in those blasts as they left. The rack, spent in the first seconds, stands at the ends instead.)
 // - A dart (round 2): booster, heavy gyro, radio, cell, core, two blast heads at the very nose (nothing in front of
 //   them to soak up the blast). It has no sensor of its own: it steers by what the keep's radar shares over the radio.
 import fs from 'node:fs';
@@ -97,8 +99,8 @@ const addBay = (x0) => {
   }
 };
 for (let i = 0; i < BAYS; i++) {
-  addBay(END + i * 3);
-  addBay(W - END - (i + 1) * 3);
+  addBay(END + PAIRS * 5 + i * 3);
+  addBay(CX + MID_HALF + 1 + i * 3);
 }
 
 // The rack.
@@ -116,7 +118,7 @@ const addDart = (x, gripX) => {
   });
 };
 for (let i = 0; i < PAIRS; i++) {
-  for (const x0 of [END + BAYS * 3 + i * 5, CX + MID_HALF + 1 + i * 5]) {
+  for (const x0 of [END + i * 5, CX + MID_HALF + 1 + BAYS * 3 + i * 5]) {
     addDart(x0 + 1, x0);
     addDart(x0 + 3, x0 + 4);
   }

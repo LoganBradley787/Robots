@@ -29,6 +29,7 @@ const nearDist = param('nearDist', 160, { min: 0, max: 1000 }); // m from the ta
 const armDist = param('armDist', 30, { min: 1, max: 300 }); // m from the target's edge where the heads arm
 const prox = param('prox', 3, { min: 0, max: 20 }); // m from the tracked robot's core (from the heads) where it goes off
 const anyArm = param('anyArm', 12, { min: 0, max: 300 }); // m from the guessed edge of any other enemy robot where the heads arm
+const anyMass = param('anyMass', 25, { min: 0, max: 100000 }); // kg: lighter robots (darts) do not arm the heads (armed, a dart passing another went off on it)
 const reachK = param('reachK', 1.2, { min: 0.1, max: 5 }); // m of reach guessed per square root of a robot's part count (a long robot reaches about this far)
 const reachMax = param('reachMax', 120, { min: 1, max: 300 }); // m: the most a robot whose size it was not told is guessed to reach
 const seekDist = param('seekDist', 320, { min: 0, max: 2000 }); // m from its point where the nose seeker (if any) is on
@@ -101,7 +102,7 @@ function sighting(id) {
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.id === id) mine = c;
-    else {
+    else if (c.mass >= anyMass) {
       const g = Math.hypot(c.pos.x - px, c.pos.y - py) - reachOf(c);
       if (g < gap) gap = g;
     }

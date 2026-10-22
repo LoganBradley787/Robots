@@ -22,8 +22,8 @@ const memory = param('memory', 15, { min: 0, max: 240 }); // s a target that van
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const anchors = param('anchors', 0, { min: 0, max: 200 }); // how many anchors the floor holds (the generator sets it)
 const anchorAt = param('anchorAt', 40, { min: 2, max: 600 }); // tick of the first cast
-const ghostKeep = param('ghostKeep', 9, { min: 3, max: 60 }); // first sightings of light enemies kept for the hidden launcher's guess
-const ghostAge = param('ghostAge', 40, { min: 1, max: 600 }); // s a first sighting counts
+const ghostKeep = param('ghostKeep', 5, { min: 3, max: 60 }); // first sightings of light enemies kept for the hidden launcher's guess
+const ghostAge = param('ghostAge', 15, { min: 1, max: 600 }); // s a first sighting counts
 const ghostBack = param('ghostBack', 0.4, { min: 0, max: 5 }); // s each is carried back along its path
 const ghostNear = param('ghostNear', 150, { min: 0, max: 1000 }); // m: first sightings nearer than this say nothing
 const ghostOver = param('ghostOver', 15, { min: 0, max: 100 }); // m above the guess the darts fly up through
@@ -36,6 +36,10 @@ const flareSoon = param('flareSoon', 0.35, { min: 0, max: 3 }); // s: and not so
 const flareMiss = param('flareMiss', 30, { min: 1, max: 200 }); // m from the main core: a pass this close counts
 const flareClose = param('flareClose', 25, { min: 0, max: 500 }); // m/s it must close at, at least (a robot pushing slowly is no dart)
 const flareGap = param('flareGap', 0.6, { min: 0.1, max: 10 }); // s between two flares at least
+const flareHurt = param('flareHurt', 1.5, { min: 0, max: 30 }); // s after the keep last lost a part that a flare is kept burning
+const hurtEvery = param('hurtEvery', 30, { min: 1, max: 600 }); // ticks between two counts of the keep's parts
+const keepHalf = param('keepHalf', 8, { min: 1, max: 100 }); // m to either side of the main core that count as the keep
+const keepTall = param('keepTall', 13, { min: 1, max: 100 }); // m up or down from the main core that count as the keep
 const flareBurn = param('flareBurn', 2, { min: 0.1, max: 10 }); // s a flare burns: one burning covers what arrives before it is out
 const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
 
@@ -71,6 +75,8 @@ function setup() {
   // The lowest flares go first, so a flare let go does not fall past the ones still held.
   state.flares.sort((a, b) => a.y - b.y || a.n - b.n);
   state.flareAt = -1000;
+  state.keepParts = Infinity;
+  state.hurtAt = -1000;
   state.probe = null;
   state.known = {}; // ids of light enemy robots already seen
   state.launches = []; // their first sightings
@@ -287,7 +293,19 @@ function message(t) {
  * steers by its seeker or a radio goes off at the flare, not on the keep. Rules by sensor: whatever steers by contacts
  * is fooled, whatever it is.
  */
+// How many parts the keep still has, counted every `hurtEvery` ticks; a drop marks the time it was hurt.
+function hurt() {
+  if (frame % hurtEvery !== 0) return;
+  const sx = self.pos.x;
+  const sy = self.pos.y;
+  let n = 0;
+  for (const p of parts) if (Math.abs(p.pos.x - sx) < keepHalf && Math.abs(p.pos.y - sy) < keepTall) n++;
+  if (n < state.keepParts) state.hurtAt = time;
+  state.keepParts = n;
+}
+
 function flares() {
+  hurt();
   if (state.flares.length === 0 || time - state.flareAt < flareGap) return;
   // The flare still burning covers whatever arrives before it burns out (`flareBurn` s), less a margin. A new one goes
   // only for something arriving after that, and as late as still works (`flareLate`), so each flare covers up to 2 s.
@@ -309,6 +327,12 @@ function flares() {
     if (-(rx * vx + ry * vy) / (Math.hypot(rx, ry) || 1) < flareClose) continue; // not closing fast enough
     side = rx < 0 ? -1 : 1;
     break;
+  }
+  // Under fire with nothing seen coming (guns, a blast that got through): the keep lost parts in the last look. Then a
+  // flare is kept burning on the side of the main enemy, so whatever aims by its sensors aims at the end of the base.
+  if (side === 0 && time - state.hurtAt < flareHurt && covered <= 0) {
+    const s = state.last;
+    side = s && s.x < sx ? -1 : 1;
   }
   if (side === 0) return;
   // The held flare on that side (the other side's when that one is spent), lowest first.
