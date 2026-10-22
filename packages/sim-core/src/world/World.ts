@@ -471,16 +471,11 @@ export class World {
   /** M15: shots and backfires of each robot's charged guns, and the damage their bolts did. Reporting only. */
   private readonly cannonTotals = new Map<number, { shots: number; backfires: number; damage: number }>();
   /**
-   * Velocities for new bodies, applied as kicks just before the next physics step. Until then Rapier reports them at
-   * rest, so a second rebuild reads the velocity from here (M6 review). Simulation state, hashed.
+   * Velocities for new bodies with joints, given as kicks after the tick's structural changes (`applyKicks`). Until
+   * then Rapier reports them at rest, so anything that reads one (a script, a second rebuild) reads the velocity from
+   * here (M6 review). Simulation state, hashed.
    */
   private readonly pendingKicks = new Map<BodyId, Kick>();
-  /**
-   * Kicks that have been stepped once or twice, with the velocity each body has after its first step (`settleKicks`).
-   * Rapier reports a kicked multibody link wrongly after that step and right from the second (`bodyState`). Not hashed:
-   * it follows from the last two ticks, and a replay runs them again (a snapshot restored mid-run would need it).
-   */
-  private readonly recentKicks = new Map<BodyId, { steps: number; vx: number; vy: number; w: number }>();
   /** Bodies given their velocity outright since the last step (`launch`): unsettled like a kicked one. Not hashed. */
   private launched: BodyId[] = [];
   /**
@@ -673,11 +668,12 @@ export class World {
     // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
     this.runBehaviors(true);
     if (this.dirty.size > 0) this.rebuildDirty();
+    // Before anything reads or pushes a new body: from here on Rapier has each one's velocity right.
+    this.applyKicks();
     this.runBehaviors(false);
     this.applyPendingForces();
     this.grapples.sync(this.gh());
     this.physics.step();
-    this.settleKicks();
     this.runGuns();
     this.runLasers();
     this.runCannons();
@@ -892,7 +888,6 @@ export class World {
     this.debrisRest.delete(robot.id);
     for (const g of robot.groups) {
       this.pendingKicks.delete(g.bodyId);
-      this.recentKicks.delete(g.bodyId);
       this.physics.removeBody(g.bodyId);
     }
     robot.groups = [];
@@ -1209,10 +1204,7 @@ export class World {
           tick: this.tickCount,
           motion: (body) => this.motion(body),
           kick: (body, vx, vy, w) => this.launch(body, { vx, vy, w }),
-          forget: (body) => {
-            this.pendingKicks.delete(body);
-            this.recentKicks.delete(body);
-          },
+          forget: (body) => this.pendingKicks.delete(body),
           newRobotId: () => this.nextRobotId++,
           full: this.fullRebuild,
           tally: this.rebuilds,
@@ -1267,7 +1259,8 @@ export class World {
   /**
    * Gives a new body (a rebuilt piece's) its velocity. A body with no joints has it set outright, so it is the body's
    * velocity at once and everything that acts on it in the next step counts (review S1). A multibody link cannot be
-   * written to: it gets a kick on the next step. Either way the body is unsettled for that step and the one after.
+   * written to: it gets a kick (`applyKicks`), before the next step. Either way the body is unsettled for that step and
+   * the one after.
    */
   private launch(body: BodyId, kick: Kick): void {
     if (this.physics.isLinked(body)) {
@@ -1280,51 +1273,32 @@ export class World {
 
   /**
    * A body's state with its true velocity (review S2: a new body read as standing still for a tick). Rapier does not
-   * know a kick until it is stepped, and reports a kicked link wrongly after its first step (measured: neither the kick
-   * nor the kick and what the step added; right from the second). Until then the velocity is the kick's, then what
-   * `settleKicks` worked out for it after that step. A body with no joints is always reported right.
+   * know a kick until `applyKicks` gives it, so until then the velocity is the kick's.
    */
   private bodyState(body: BodyId): BodyState {
     const s = this.physics.state(body);
     const k = this.pendingKicks.get(body);
-    if (k) return { ...s, vx: k.vx, vy: k.vy, w: k.w };
-    const recent = this.recentKicks.get(body);
-    if (recent && recent.steps === 1 && this.physics.isLinked(body)) return { ...s, vx: recent.vx, vy: recent.vy, w: recent.w };
-    return s;
+    return k ? { ...s, vx: k.vx, vy: k.vy, w: k.w } : s;
   }
 
   /**
-   * Right after the physics step: the velocity of every body whose kick that step applied. It is the kick's and what
-   * the step added to the body's robot as one thing: nothing if any of it touches something (it was held), else gravity
-   * and the forces put on it (`PhysicsWorld.forceLastStep`: thrust, fins, pushes) over its mass. Review S1: one step of
-   * gravity stood in for all of that, so a robot rebuilt on every tick ignored its thrust.
+   * Gives every waiting kick (from rebuilds since the last step, `kickRobot`) to its body now (`PhysicsWorld.applyKicks`):
+   * after the tick's structural changes, before behaviors read velocities or add forces. The kicked bodies are
+   * unsettled for this step and the next: their velocity jumps for a reason other than a hit.
    */
-  private settleKicks(): void {
-    let fresh = false;
-    for (const r of this.recentKicks.values()) if (r.steps === 1) fresh = true;
-    if (!fresh) return;
-    for (const robot of this.robots) {
-      if (!robot.groups.some((g) => this.recentKicks.get(g.bodyId)?.steps === 1)) continue;
-      let mass = 0;
-      let fx = 0;
-      let fy = 0;
-      let held = false;
-      for (const g of robot.groups) {
-        const f = this.physics.forceLastStep(g.bodyId);
-        mass += this.physics.massProperties(g.bodyId).mass;
-        fx += f.fx;
-        fy += f.fy;
-        held ||= this.physics.contactPoints(g.bodyId).length > 0;
-      }
-      const dvx = held || mass <= 0 ? 0 : (fx / mass) * this.dt;
-      const dvy = held || mass <= 0 ? 0 : (fy / mass + this.gravityY) * this.dt;
-      for (const g of robot.groups) {
-        const r = this.recentKicks.get(g.bodyId);
-        if (r?.steps !== 1) continue;
-        r.vx += dvx;
-        r.vy += dvy;
-      }
+  private applyKicks(): void {
+    if (this.pendingKicks.size === 0) return;
+    for (const [body, k] of this.pendingKicks) {
+      this.physics.kick(body, k.vx, k.vy, k.w);
+      this.unsettle(body);
     }
+    this.pendingKicks.clear();
+    this.physics.applyKicks();
+  }
+
+  /** The impact check ignores the body this step and the next. */
+  private unsettle(body: BodyId): void {
+    this.unsettled.set(body, Math.max(this.unsettled.get(body) ?? 0, this.tickCount + 2));
   }
 
   /** A body's pose and motion, for the pieces a rebuild makes of it. */
@@ -1380,25 +1354,12 @@ export class World {
   }
 
   /**
-   * Just before the physics step: kicks for new bodies, then pushes at each surviving part's cell, as forces for this
-   * step. Every body of a kicked or pushed robot is unsettled for the next two steps: its velocity jumps for a reason
-   * other than a hit, and a link reports it late.
+   * Just before the physics step: pushes at each surviving part's cell, as forces for this step. Every body of a pushed
+   * robot, and every body given its velocity outright since the last step (`launch`), is unsettled for the next two
+   * steps: its velocity jumps for a reason other than a hit.
    */
   private applyPendingForces(): void {
-    const settle = (body: BodyId): void => {
-      this.unsettled.set(body, Math.max(this.unsettled.get(body) ?? 0, this.tickCount + 2));
-    };
-    // A kick is kept for the two steps after which Rapier reports the body right (`bodyState`).
-    for (const [body, r] of this.recentKicks) {
-      if (r.steps >= 2) this.recentKicks.delete(body);
-      else r.steps++;
-    }
-    for (const [body, k] of this.pendingKicks) {
-      this.physics.kick(body, k.vx, k.vy, k.w);
-      this.recentKicks.set(body, { steps: 1, vx: k.vx, vy: k.vy, w: k.w });
-      settle(body);
-    }
-    this.pendingKicks.clear();
+    const settle = (body: BodyId): void => this.unsettle(body);
     for (const body of this.launched) if (this.physics.hasBody(body)) settle(body);
     this.launched = [];
     this.shotCount = 0;

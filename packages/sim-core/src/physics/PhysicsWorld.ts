@@ -107,6 +107,14 @@ const ROPE_HZ = 4;
 const ROPE_DAMPING = 0.7;
 const ROPE_MAX_FORCE = 30000;
 
+/**
+ * The length (s) of the short Rapier step that gives kicked bodies their velocity before the tick's step (`applyKicks`),
+ * and its solver substeps and iterations. 2^-16 s is a 1/1092 of a 60 Hz step: what moves in it moves a few
+ * hundredths of a millimeter, and the step after is shorter by it, so a tick still covers exactly `dt`.
+ */
+const KICK_SECONDS = 1 / 65536;
+const KICK_ITERATIONS = 1;
+
 /** Mass of the invisible helper bodies (a multibody root, a joint pivot): small enough to change nothing measurable. */
 const HELPER_MASS = 0.001;
 
@@ -177,9 +185,6 @@ export class PhysicsWorld {
   private readonly jointsAt = new Map<BodyId, JointId[]>();
   /** Invisible bodies that exist for another body (its multibody root, its joint pivot), removed with it. */
   private readonly helpers = new Map<BodyId, BodyId[]>();
-  /** The forces added to each body through `addForceAt` for the next step, and those of the last step. */
-  private pushing = new Map<BodyId, { fx: number; fy: number }>();
-  private pushed = new Map<BodyId, { fx: number; fy: number }>();
   /** Bodies that are links of a multibody (anything with a turning or sliding joint, or a kept root angle). */
   private readonly linked = new Set<BodyId>();
   private nextId: BodyId = 1;
@@ -190,18 +195,25 @@ export class PhysicsWorld {
    */
   private readonly ropes = new Map<RopeId, { a: BodyId; b: BodyId; anchorA: { x: number; y: number }; anchorB: { x: number; y: number }; length: number }>();
   private nextRopeId: RopeId = 1;
+  /** The fixed step as Rapier holds it (a 32-bit float), seconds. */
+  private readonly stepSeconds: number;
+  /** Velocities waiting to be given to bodies (`kick`), applied by `applyKicks`. */
+  private readonly kicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
+  /** Seconds of the current step already simulated by `applyKicks`: the step itself is shorter by them. */
+  private kickedSeconds = 0;
 
   constructor(gravityY: number, dt: number) {
     this.gravityY = gravityY;
     this.world = new RAPIER.World({ x: 0, y: gravityY });
     this.world.timestep = dt;
+    this.stepSeconds = this.world.timestep;
     this.world.numSolverIterations = SOLVER_ITERATIONS;
     this.world.numInternalPgsIterations = INTERNAL_PGS_ITERATIONS;
   }
 
   /** The fixed step, seconds. */
   get dt(): number {
-    return this.world.timestep;
+    return this.stepSeconds;
   }
 
   /** Pose is set through the descriptor at creation, never with setRotation afterwards (determinism, see 01). */
@@ -249,9 +261,8 @@ export class PhysicsWorld {
     this.prev.delete(id);
     this.jointChildren.delete(id);
     this.linked.delete(id);
-    this.pushing.delete(id);
-    this.pushed.delete(id);
     this.forced.delete(id);
+    this.kicks.delete(id);
   }
 
   /**
@@ -285,30 +296,68 @@ export class PhysicsWorld {
   }
 
   /**
-   * Gives a body a velocity for the next step: its center of mass moves at (vx, vy) and it turns at w. Applied as a
-   * one-step force and torque, because Rapier ignores velocity writes on multibody links (spike, M6). Rapier reports
-   * a link's new velocity one step late; positions move with it from the first step.
+   * Gives a body a velocity: its center of mass moves at (vx, vy) and it turns at w, from the next `applyKicks` (at the
+   * latest the next `step`). Works on multibody links, whose velocity Rapier does not let be written (spike, M6).
    */
   kick(id: BodyId, vx: number, vy: number, w: number): void {
-    const body = this.body(id);
-    const v = body.linvel();
-    const m = body.mass();
-    body.addForce({ x: (m * (vx - v.x)) / this.world.timestep, y: (m * (vy - v.y)) / this.world.timestep }, true);
-    body.addTorque((body.principalInertia() * (w - body.angvel())) / this.world.timestep, true);
-    this.forced.add(id);
+    this.body(id);
+    this.kicks.set(id, { vx, vy, w });
   }
 
   /**
-   * The sum of the forces `addForceAt` gave the body for the last step (thrust, fins, pushes, ropes), N. Not gravity,
-   * drag, contacts, joints or a kick.
+   * Gives every kicked body its velocity now, through a very short Rapier step (`KICK_SECONDS`) in which each one gets
+   * the force and torque that change its velocity to the kick's: `F = m (v - v0) / t`, `tau = I (w - w0) / t`. Rapier
+   * ignores velocity writes on multibody links, root included, and gives no access to a multibody's own velocities.
+   *
+   * Why not a force over the whole next step (what this was until 2026-10): Rapier adds a force's share to the velocity
+   * in each of the step's 8 substeps, so a kicked link started the step at rest and reached its velocity only at the
+   * end. It moved 9/16 of the step's distance, and anything it touched in that step met it nearly standing still: a
+   * dart just let go, flying on at full speed inside its bay, slammed into the bay's wall (titan-hive lost 9 darts a
+   * minute that way when flying sideways at 40 m/s). Here the whole world moves on by the short step, so everything
+   * else stays in step with the kicked bodies, and the tick's own step is shorter by it.
+   *
+   * Rapier reports a link's velocity as it was before the last substep's change, so after the short step it would
+   * still report about none of the kick: the kick's velocity is written over the report (a link ignores it otherwise,
+   * and the next step reports its true velocity again). Forces already added for this step are kept for it.
    */
-  forceLastStep(id: BodyId): { fx: number; fy: number } {
-    return this.pushed.get(id) ?? { fx: 0, fy: 0 };
+  applyKicks(): void {
+    if (this.kicks.size === 0) return;
+    const t = KICK_SECONDS;
+    const held: { body: RAPIER.RigidBody; fx: number; fy: number; torque: number }[] = [];
+    for (const [id, k] of this.kicks) {
+      const body = this.body(id);
+      const f = body.userForce();
+      held.push({ body, fx: f.x, fy: f.y, torque: body.userTorque() });
+      const v = body.linvel();
+      const m = body.mass();
+      body.addForce({ x: (m * (k.vx - v.x)) / t, y: (m * (k.vy - v.y)) / t }, true);
+      body.addTorque((body.principalInertia() * (k.w - body.angvel())) / t, true);
+    }
+    this.world.timestep = t;
+    this.world.numSolverIterations = KICK_ITERATIONS;
+    this.world.numInternalPgsIterations = KICK_ITERATIONS;
+    this.world.step();
+    this.world.timestep = this.stepSeconds;
+    this.world.numSolverIterations = SOLVER_ITERATIONS;
+    this.world.numInternalPgsIterations = INTERNAL_PGS_ITERATIONS;
+    this.kickedSeconds += t;
+    for (const h of held) {
+      h.body.resetForces(false);
+      h.body.resetTorques(false);
+      if (h.fx !== 0 || h.fy !== 0) h.body.addForce({ x: h.fx, y: h.fy }, false);
+      if (h.torque !== 0) h.body.addTorque(h.torque, false);
+    }
+    for (const [id, k] of this.kicks) {
+      const body = this.body(id);
+      body.setLinvel({ x: k.vx, y: k.vy }, true);
+      body.setAngvel(k.w, true);
+    }
+    this.kicks.clear();
   }
 
   /**
-   * Whether the body is a link of a multibody. Rapier ignores velocity writes on a link and reports a kicked link's
-   * velocity a step late; a body that is not one can be given its velocity outright (`setVelocity`).
+   * Whether the body is a link of a multibody. Rapier ignores velocity writes on a link, which takes a `kick`; a body
+   * that is not one can be given its velocity outright (`setVelocity`).
    */
   isLinked(id: BodyId): boolean {
     return this.linked.has(id);
@@ -611,11 +660,6 @@ export class PhysicsWorld {
    * multibody links, whose velocities Rapier recomputes from the joints, so a direct impulse on a link is lost.
    */
   addForceAt(id: BodyId, fx: number, fy: number, px: number, py: number): void {
-    const sum = this.pushing.get(id);
-    if (sum) {
-      sum.fx += fx;
-      sum.fy += fy;
-    } else this.pushing.set(id, { fx, fy });
     this.body(id).addForceAtPoint({ x: fx, y: fy }, { x: px, y: py }, true);
     this.forced.add(id);
   }
@@ -799,6 +843,7 @@ export class PhysicsWorld {
 
   /** Snapshots every body's state for interpolation, then advances one fixed step. */
   step(): void {
+    this.applyKicks();
     for (const [id, body] of this.bodies) this.prev.set(id, readState(body));
     // Joint motors: torque min(cap, gain * speed error) on the child and its reaction on the parent. A motor that
     // pushes wakes its bodies, so a wheel held against a wall never falls asleep with the key down.
@@ -843,7 +888,7 @@ export class PhysicsWorld {
       const force = Math.max(-sl.maxForce, Math.min(sl.maxForce, want));
       // The load term only learns while the motor has force to spare.
       if (Math.abs(want) < sl.maxForce || want * err < 0) {
-        sl.integral = Math.max(-sl.maxForce, Math.min(sl.maxForce, sl.integral + SLIDER_INTEGRAL_RATE * sl.stiffness * err * this.world.timestep));
+        sl.integral = Math.max(-sl.maxForce, Math.min(sl.maxForce, sl.integral + SLIDER_INTEGRAL_RATE * sl.stiffness * err * this.stepSeconds));
       }
       if (force === 0) continue;
       c.addForceAtPoint({ x: force * st.ax, y: force * st.ay }, { x: st.px, y: st.py }, true);
@@ -865,9 +910,11 @@ export class PhysicsWorld {
       this.forced.add(id);
     }
     this.pullRopes();
+    // What `applyKicks` already simulated of this step.
+    if (this.kickedSeconds > 0) this.world.timestep = this.stepSeconds - this.kickedSeconds;
     this.world.step();
-    this.pushed = this.pushing;
-    this.pushing = new Map();
+    if (this.kickedSeconds > 0) this.world.timestep = this.stepSeconds;
+    this.kickedSeconds = 0;
     for (const id of this.forced) {
       const b = this.body(id);
       b.resetForces(false);
@@ -917,6 +964,13 @@ export class PhysicsWorld {
       h.addF64(f.x);
       h.addF64(f.y);
       h.addF64(b.userTorque());
+    }
+    // Kicks waiting for the next step (only between a `kick` and the step: a world applies them inside its tick).
+    for (const [id, k] of this.kicks) {
+      h.addInt(id);
+      h.addF64(k.vx);
+      h.addF64(k.vy);
+      h.addF64(k.w);
     }
     // Batch: a slider's learned load shapes the future. Worlds without a slider add nothing.
     for (const sl of this.sliders.values()) h.addF64(sl.integral);
