@@ -163,6 +163,8 @@ function setup() {
   state.tvy = 0;
   state.tay = 0;
   state.lostAt = -100; // when it last had a target
+  state.partCount = parts.length;
+  state.hurtAt = -1000; // when it last lost a part
   state.misses = 0; // tries in a row, any way, that broke nothing
   state.regroupUntil = -100;
   state.stillAt = 0; // since when it has been still (or the last time it moved)
@@ -287,6 +289,8 @@ function tick() {
   const jolt = Math.hypot(vx - state.prevVx, vy - state.prevVy);
   state.prevVx = vx;
   state.prevVy = vy;
+  if (parts.length < state.partCount) state.hurtAt = time;
+  state.partCount = parts.length;
 
   // The main enemy: the one it had (unless one twice as heavy shows up), else the heaviest enemy with a live core of
   // `mainMass` or more (contacts come nearest first, so a tie goes to the nearer). One that vanished alive (a jammer's
@@ -645,8 +649,10 @@ function tick() {
       if (arena) limit = pushEdge;
       fromSide({ x: mid, y: Math.max(ylo, floor), vx: 0, vy: 0, ay: 0, m: mass }, mid >= 0 ? 1 : -1, Math.min(ceiling, 60 + state.bottom));
     }
-  } else if (!arena && (state.won || state.mainId < 0 || time - state.lostAt > forget)) {
-    // The open sandbox with nothing to go after: rest on the ground, guns watching, until something shows up.
+  } else if (!arena && (state.won || state.mainId < 0 || time - state.lostAt > forget) && time - state.hurtAt > forget) {
+    // The open sandbox with nothing to go after: rest on the ground, guns watching, until something shows up. Losing
+    // parts while it rests means something it cannot see is at it (an enemy hiding in jammer bubbles): it takes off
+    // and searches.
     plan('resting, watching for an enemy');
     land = true;
   } else {
@@ -659,7 +665,7 @@ function tick() {
     state.down = false;
     const far = state.home.x < 0 ? 1 : -1;
     const mid = arena ? 0 : state.last ? state.last.x : state.home.x;
-    const reach = arena ? edge - 10 : lapEnd;
+    const reach = arena ? edge - 10 : lapEnd + 300 * Math.floor(state.leg / 2); // with no arena each sweep reaches further
     const legs = [mid + far * reach, mid, mid + far * reach, mid - far * reach];
     const to = legs[state.leg % legs.length];
     if (Math.abs(to - x) < 10) state.leg++;
