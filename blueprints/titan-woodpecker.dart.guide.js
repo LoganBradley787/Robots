@@ -41,6 +41,7 @@ const across = param('across', 3, { min: 0, max: 20 }); // 1/s: how hard it canc
 const acrossMax = param('acrossMax', 40, { min: 0, max: 200 }); // m/s^2 at most across the line
 const over = param('over', 130, { min: 0, max: 240 }); // m above a wide target it aims at most
 const loft = param('loft', 0.45, { min: 0, max: 2 }); // m of aim height per m of ground still to cover
+const wayFar = param('wayFar', 260, { min: 0, max: 2000 }); // m: a dart sent at a wide target turns onto the way in from here
 const wayNear = param('wayNear', 25, { min: 0, max: 200 }); // m from the core where it stops leaning onto the way in
 const ahead = param('ahead', 1.2, { min: 0.1, max: 5 }); // s of flight it looks ahead along its path
 const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: lighter robots (darts, pods) are never followed unless it was sent at one
@@ -214,11 +215,13 @@ function tick() {
   // A wide target: follow a path that runs level at `over` m above it and then down to it at a slope of `loft`,
   // by aiming at the point on that path `ahead` s of flight in front (a dart at full speed turns slowly, so it has to
   // start the bend early). Inside that distance it aims at the target itself.
-  if (typeof t.ax === 'number' && (!t.blind || t.sweep)) {
+  const far = Math.sqrt(dx * dx + dy * dy);
+  if (typeof t.ax === 'number' && (!t.blind || t.sweep) && (far < wayFar || !t.top)) {
     // A way in from the base (titans v2, 2026-10): the thinnest line into the core it found. The dart flies at a point
     // out along that line, `loft` m out per m it still has to go (at most `over`), so the point slides in to the core
-    // as the dart closes and the dart ends up coming in along the line.
-    const far = Math.sqrt(dx * dx + dy * dy);
+    // as the dart closes and the dart ends up coming in along the line. Against a wide target it first flies the
+    // high path below until `wayFar` m out: lower down, a stream of darts met the enemy's own darts coming the other
+    // way along the same line, and broke on them.
     const out = Math.min(loft * Math.max(0, far - wayNear), over);
     dx += t.ax * out;
     dy += t.ay * out;
