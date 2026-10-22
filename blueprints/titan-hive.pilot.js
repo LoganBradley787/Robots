@@ -5,7 +5,13 @@
 //   leaning by throttling one wing more than the other (the flying silo's hover, with the body worked out every
 //   `refresh` ticks instead of every tick: the ship has hundreds of parts). Over something heavy on the ground and
 //   close it goes up to `high`; when something heavy closes fast in the air it goes over or under it (`low`, `high`).
-//   It stays inside the arena (x within `edge`, its core under 250 m).
+//   It stays inside the arena (titans v2, 2026-10: read from the global `arena`, `edgeRoom` m inside its edge and
+//   under its ceiling); with no arena (the open sandbox) within `roam` m of where it started.
+// - Sandbox (titans v2): with no arena there is no match to plan its energy to. It keeps `reserve` s of hover back,
+//   lands and sits with its propellers off when nothing has been seen for `restAfter` s or it is under that reserve,
+//   and takes off again for a new enemy. After a win it goes after the next enemy with a live core.
+// - What it fights with (titans v2): darts while it has bays and energy; with none, it closes to its turrets' reach;
+//   with no turrets either it rams anything lighter than itself.
 // - Hiding (round 2): two small bays on the middle block build jammer pods; the pilot lights them in turn, so the
 //   core sits in a jammer bubble all match and no sensor sees the ship. Its own radars are at the far ends of the
 //   hull, outside the bubble.
@@ -19,19 +25,22 @@
 //   forgotten. Only while it has never seen an enemy at all does it send darts to the mirror of its own start (a titan
 //   hidden from the first second is about there); after that, with nothing seen or remembered, it holds its darts.
 //   A bay with a dart in it builds nothing, so the pilot holds its darts while the energy left is under what the
-//   propellers need to hold the ship up to the end of the match (`match` s, `keep` times the hover's draw): since
-//   armor plates weigh 20 kg the ship hovers on more power, and a full match of darts would leave it little.
+//   propellers need to hold the ship up to the end of the match (`match` s, `keep` times the hover's draw; in an arena
+//   only): since armor plates weigh 20 kg the ship hovers on more power, and a full match of darts would leave it little.
 // - Turrets: parts tagged `turN.rot` (rotator) and `turN.gun`. Each takes the nearest enemy it can swing to within
 //   `track` m, leads it, and blasts within `reach` m while its sight shows nothing of ours in the way. It never
 //   scans: a scan of a titan costs too much.
 
-const cruise = param('cruise', 222, { min: 20, max: 240 }); // m, the height it holds
-const high = param('high', 238, { min: 20, max: 245 }); // m, the height it takes over a ground enemy or to go over a ram
+const cruiseAt = param('cruise', 222, { min: 20, max: 1000 }); // m, the height it holds (under the arena's ceiling less `cruiseRoom`)
+const highAt = param('high', 238, { min: 20, max: 1000 }); // m, the height it takes over a ground enemy or to go over a ram (under the ceiling less `highRoom`)
+const cruiseRoom = param('cruiseRoom', 28, { min: 0, max: 200 }); // m under the arena's ceiling it cruises at most
+const highRoom = param('highRoom', 12, { min: 0, max: 200 }); // m under the ceiling it climbs at most
 const low = param('low', 45, { min: 10, max: 200 }); // m, the height it takes to go under a ram
 const standoff = param('standoff', 900, { min: 50, max: 1000 }); // m to the side of the main enemy
-const groundEdge = param('groundEdge', 500, { min: 100, max: 990 }); // m from the middle it keeps to against a ground enemy
+const groundShare = param('groundShare', 0.5, { min: 0.1, max: 1 }); // share of the arena's half width it keeps to against a ground enemy
 const under = param('under', 0, { min: 0, max: 1000 }); // m sideways: a heavy ground enemy this close sends it up to `high`
-const edge = param('edge', 880, { min: 100, max: 990 }); // m from the middle it never passes
+const edgeRoom = param('edgeRoom', 120, { min: 0, max: 900 }); // m inside the arena's edge it never passes
+const roam = param('roam', 1500, { min: 100, max: 100000 }); // m from where it started it keeps to with no arena (the open sandbox)
 const maxSpeed = param('maxSpeed', 22, { min: 1, max: 60 }); // m/s sideways
 const climb = param('climb', 10, { min: 1, max: 40 }); // m/s up or down
 const lean = (param('lean', 30, { min: 0, max: 60 }) * Math.PI) / 180; // degrees it leans to fly sideways
@@ -45,8 +54,13 @@ const still = param('still', 12, { min: 0.1, max: 50 }); // m/s up or down: fast
 const drift = param('drift', 8, { min: 0.1, max: 50 }); // m/s sideways: faster than this it holds its darts too
 const driftWait = param('driftWait', 1, { min: 0, max: 60 }); // s at most it holds them for that (always holding, it held every dart 36 s while following a ram drone)
 const spreadEvery = param('spreadEvery', 4, { min: 1, max: 100 }); // every this many darts, one goes to the nearest other enemy
-const match = param('match', 240, { min: 0, max: 100000 }); // s, how long it must stay up
-const keep = param('keep', 1.2, { min: 0, max: 10 }); // darts are held under this many times the energy the hover needs to the end
+const match = param('match', 240, { min: 0, max: 100000 }); // s, how long it must stay up in an arena (a match's length)
+const keep = param('keep', 1.2, { min: 0, max: 10 }); // in an arena, darts are held under this many times the energy the hover needs to the end
+const reserveS = param('reserve', 60, { min: 0, max: 3600 }); // s of hover kept back with no arena: enough to come down and go up again
+const restAfter = param('restAfter', 20, { min: 1, max: 600 }); // s with no enemy seen or remembered before it lands to save energy
+const floorShare = param('floorShare', 0.15, { min: 0, max: 1 }); // share of the reserve it keeps sitting (sensors and turrets)
+const gunRange = param('gunRange', 0.85, { min: 0.1, max: 1 }); // share of `reach` it closes to when its turrets are all it has left
+const restHeight = param('restHeight', 9, { min: 1, max: 50 }); // m from its core down to the ground when it sits (the belly turrets are under it)
 const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
 const retreat = param('retreat', 100, { min: 0, max: 600 }); // m back from its start it waits with no enemy seen
@@ -176,6 +190,8 @@ function setup() {
   state.jam = {}; // jammer bay tag -> { lit: when its pod was lit (-1: none), wait: no sooner than this }
   state.lit = -Infinity;
   state.dodgeAt = -Infinity;
+  state.busyAt = 0; // when it last had an enemy seen or remembered
+  state.sitting = false; // landed with its propellers off (no arena only)
   recache();
 }
 
@@ -349,9 +365,45 @@ function tick() {
   }
   const last = state.mem;
 
+  // The ground it keeps to (titans v2, 2026-10): inside the arena's edge and under its ceiling when there is one (the
+  // global `arena`), else `roam` m either side of where it started, so in the open sandbox it never runs off for good.
+  const midX = arena ? 0 : state.home.x;
+  const half = arena ? Math.max(50, arena.x - edgeRoom) : roam;
+  const groundHalf = arena ? Math.max(50, arena.x * groundShare) : roam;
+  const ceil = arena ? arena.y : Infinity;
+  const cruise = Math.min(cruiseAt, ceil - cruiseRoom);
+  const high = Math.min(highAt, ceil - highRoom);
+
+  // Energy (titans v2). Its weight over a propeller's push is how many run at full, each drawing `propDraw`.
+  // - In an arena a match has an end: darts are held while what is left is under what the hover needs to the end
+  //   (`match` s, `keep` times the hover's draw), as before.
+  // - With no arena there is no end to plan to. What a flier must never do is run dry in the air, so it keeps
+  //   `reserve` s of hover back: enough to come down and go up again for the next enemy. Over that, energy is for
+  //   darts. Under it, and with nothing to fight for `restAfter` s, it lands and sits with its propellers off, which
+  //   costs nothing; it takes off again when an enemy shows up, if it has the reserve. Sitting, it lets darts go down
+  //   to `floorShare` of the reserve (the radars and turrets still need some), since sitting costs no lift.
+  const hoverDraw = ((self.mass * g) / lift) * propDraw;
+  const stored = self.energy.stored;
+  const reserve = reserveS * hoverDraw;
+  if (main || last) state.busyAt = time;
+  const wantRest = !arena && (time - state.busyAt > restAfter || stored < reserve);
+  if (!wantRest) state.sitting = false;
+  let spare;
+  if (arena) spare = stored >= keep * hoverDraw * Math.max(0, match - self.age);
+  else spare = stored >= (state.sitting ? floorShare * reserve : reserve);
+  if (!spare && !state.saving) log('low on energy: holding the darts' + (arena ? ' to stay up' : ''));
+  state.saving = !spare;
+
+  // What it still fights with (titans v2): darts while it has bays and energy for them, else its turrets, which reach
+  // only `reach` m, so it closes to `gunRange` of that. With neither it rams what is lighter than itself and keeps
+  // its distance from the rest.
+  const darts = C.bays.length > 0 && spare;
+  const guns = C.turrets.length > 0;
+
   // Where to be.
   let wantY = cruise;
   let wantX = state.home.x + state.side * retreat;
+  let ram = false;
   if (main && main.mass >= followMass) {
     const dx = main.pos.x - self.pos.x;
     const dy = main.pos.y - self.pos.y;
@@ -359,9 +411,13 @@ function tick() {
     const mySide = Math.abs(dx) > 5 ? -Math.sign(dx) : state.side;
     // A ground enemy can drive under it, and a stream of shells pushes: it keeps further from the edges then, so
     // there is room before the push carries it out.
-    const limit = main.pos.y < 35 ? groundEdge : edge;
-    wantX = clamp(main.pos.x + mySide * standoff, -limit, limit);
-    if (main.mass >= heavyMass) {
+    const limit = main.pos.y < 35 ? groundHalf : half;
+    let off = standoff;
+    if (!darts && guns) off = gunRange * reach;
+    ram = !darts && !guns && main.mass < self.mass;
+    wantX = ram ? main.pos.x : clamp(main.pos.x + mySide * off, midX - limit, midX + limit);
+    if (ram) wantY = main.pos.y;
+    else if (main.mass >= heavyMass) {
       const closing = -(dx * (main.vel.x - self.vel.x) + dy * (main.vel.y - self.vel.y)) / dist;
       if (main.pos.y < 35) {
         if (Math.abs(dx) < under) wantY = high;
@@ -372,28 +428,43 @@ function tick() {
     }
   }
   if (state.dodge && time - state.dodgeAt > 2.5) state.dodge = 0;
-  if (state.dodge) wantY = state.dodge > 0 ? high : low;
-  wantX = clamp(wantX, -edge, edge);
-  // Carried outward past its place (a stream of shells pushes, a ram shoves): lean much harder to get back. While it
-  // is pushed up it needs little lift, so only a steep lean gives it sideways push.
-  const carried = Math.abs(self.pos.x) > Math.abs(wantX) + 25 && self.pos.x * self.vel.x > 0;
-  fly(wantY, clamp(0.3 * (wantX - self.pos.x), -maxSpeed, maxSpeed), carried ? hardLean : lean);
+  if (state.dodge && !ram) wantY = state.dodge > 0 ? high : low;
+  wantX = clamp(wantX, midX - half, midX + half);
+  if (wantRest) {
+    // Down to the ground: where the belly turrets' sights meet it (pointing down at rest), else y 0.
+    let ground = state.ground === undefined ? 0 : state.ground;
+    for (const t of C.turrets) {
+      const o = t.gun.out;
+      if (o.sightSide === 5 && Math.sin(o.aim) < -0.9) ground = t.gun.pos.y - o.sight;
+    }
+    state.ground = ground;
+    wantX = self.pos.x;
+    wantY = ground + restHeight - 1;
+    if (self.pos.y - ground < restHeight + 1.5 && Math.abs(self.vel.y) < 1) {
+      if (!state.sitting) log('sitting down to save energy');
+      state.sitting = true;
+    }
+  }
+  if (state.sitting) {
+    set('lprop', 'throttle', 0);
+    set('rprop', 'throttle', 0);
+  } else {
+    // Carried outward past its place (a stream of shells pushes, a ram shoves): lean much harder to get back. While it
+    // is pushed up it needs little lift, so only a steep lean gives it sideways push.
+    const carried = Math.abs(self.pos.x - midX) > Math.abs(wantX - midX) + 25 && (self.pos.x - midX) * self.vel.x > 0;
+    fly(wantY, clamp(0.3 * (wantX - self.pos.x), -maxSpeed, maxSpeed), carried ? hardLean : lean);
+  }
 
   // Bays: let a finished dart go at the main enemy (or the place it should be).
   // Not while climbing or sinking: a dart levels off right over the bays, and a rising ship would fly up into it.
   // Not while sliding sideways either (titan-darts, 2026-10): a dart starts with the ship's speed, across the line it
   // climbs out on, and drifts into the bay walls and the darts let go beside it. But for `driftWait` s at most.
-  // Not while low on energy either: what is left must hold the ship up to the end (its weight over a propeller's push
-  // is how many run at full, each drawing `propDraw`).
-  const hoverDraw = ((self.mass * g) / lift) * propDraw;
-  const spare = self.energy.stored >= keep * hoverDraw * Math.max(0, match - time);
-  if (!spare && !state.saving) log('low on energy: holding the darts to stay up');
-  state.saving = !spare;
+  // Not while short of energy (above).
   if (Math.abs(self.vel.x) < drift) state.slowAt = time;
   const steady = Math.abs(self.vel.y) < still && (Math.abs(self.vel.x) < drift || time - state.slowAt > driftWait);
   // Somewhere to send it: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
-  // mirror of its own start. With none of those it holds its darts.
-  const someplace = main || last || !state.everSeen;
+  // mirror of its own start (only in an arena: its middle is x 0; titans v2). With none of those it holds its darts.
+  const someplace = main || last || (arena && !state.everSeen);
   if (spare && someplace && time - state.lastRel >= gap && Math.abs(self.angle) < level && steady) {
     // The bay nearest the target goes first, so a dart never turns across one let go just before it.
     const toRight = (main ? main.pos.x : last ? last.x : -state.home.x) >= self.pos.x;

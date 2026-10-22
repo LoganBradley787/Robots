@@ -48,6 +48,8 @@ const passMass = param('passMass', 25, { min: 0, max: 1000 }); // kg: friendly r
 const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
 const armDist = param('armDist', 140, { min: 5, max: 2000 }); // m from the point it flies to: it arms inside this
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
+const armNear = param('armNear', 40, { min: 0, max: 300 }); // m: any enemy its seeker sees reaching this close arms it too (titans v2)
+const ownNear = param('ownNear', 12, { min: 0, max: 100 }); // m: but not while a dart of its own side is this close in view
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -112,6 +114,28 @@ function boom() {
 function away() {
   const t = time - state.start;
   return Math.hypot(self.pos.x - state.origin.x - state.lv.x * t, self.pos.y - state.origin.y - state.lv.y * t);
+}
+
+/**
+ * Whether an enemy its seeker sees reaches within `armNear` m of it (titans v2, 2026-10). Only the core's place and the
+ * robot's middle are known, so its reach is guessed from them: the core's offset from the middle, plus the radius of
+ * its parts packed in a disc, a cell each. A wide robot is guessed wider than a round one of the same parts, never
+ * narrower. Any enemy counts, not only the one it was sent at: a panel or a gunship in the way is worth a blast too.
+ * A friend this close in view (a dart of its own volley) holds it: armed darts that bump set each other off.
+ */
+function enemyAhead() {
+  let foe = false;
+  for (const c of contacts) {
+    if (c.side === 'friend') {
+      if (c.distance < ownNear && c.mass < passMass) return false;
+      continue;
+    }
+    if (c.side !== 'enemy' || foe) continue;
+    const off = Math.hypot(c.center.x - c.pos.x, c.center.y - c.pos.y);
+    const near = Math.min(c.distance, Math.hypot(c.center.x - self.pos.x, c.center.y - self.pos.y));
+    if (near - off - 0.6 * Math.sqrt(c.parts) < armNear) foe = true;
+  }
+  return foe;
 }
 
 function setup() {
@@ -200,8 +224,10 @@ function tick() {
   // Round 2: armed only near where it is going (`armDist` m from the point), so darts that bump each other on the way
   // do nothing, and a shell on the way breaks a dart without a blast.
   const at = state.point ? here() : null;
+  // Titans v2 (2026-10): also armed when any enemy is close ahead (`enemyAhead`), wherever the point is. Mirage's
+  // darts, armed only near their point, broke as duds on Palisade's panels in the way.
   const nearPoint = at && Math.hypot(at.x - self.pos.x, at.y - self.pos.y) < armDist;
-  if (!state.armed && (state.launched || seen) && nearPoint && time - state.start >= clear && away() >= (state.clearDist || clearDist)) {
+  if (!state.armed && (state.launched || seen) && time - state.start >= clear && away() >= (state.clearDist || clearDist) && (nearPoint || enemyAhead())) {
     set('warhead', 'arm', 1);
     set('heavywarhead', 'arm', 1);
     set('charge', 'arm', 1);
