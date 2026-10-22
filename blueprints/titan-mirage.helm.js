@@ -31,7 +31,8 @@ const roofIn = param('roofIn', 35, { min: 5, max: 200 }); // m: and never asks t
 // The arena (titans v2, 2026-10): its edges come from the global `arena` (null in an open sandbox: no edge, no ceiling).
 const edge = arena ? Math.max(50, arena.x - edgeIn) : Infinity;
 const ceiling = arena ? Math.min(roof, arena.y - roofIn) : roof;
-const tilt = (param('tilt', 10, { min: 0, max: 20 }) * Math.PI) / 180; // degrees it leans its lift to move sideways (titans v2, 2026-10)
+const tiltRate = (param('tiltRate', 2, { min: 0.1, max: 30 }) * Math.PI) / 180; // degrees a second the lean may change
+const tilt = (param('tilt', 6, { min: 0, max: 20 }) * Math.PI) / 180; // degrees it leans its lift to move sideways (titans v2, 2026-10)
 const cruise = param('cruise', 24, { min: 1, max: 60 }); // m/s sideways at most
 const reach = param('reach', 960, { min: 50, max: 1000 }); // m: a salvo only at something this close
 const salvo = param('salvo', 20, { min: 1, max: 64 }); // ready bays that make a salvo
@@ -44,7 +45,7 @@ const minMass = param('minMass', 40, { min: 0, max: 100000 }); // kg: lighter ro
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and a salvo may go to its last place
 const wave = param('wave', 4, { min: 1, max: 64 }); // ghosts let go together in one wave of a volley
 const waveGap = param('waveGap', 0.4, { min: 0, max: 5 }); // s between waves
-const guardAt = param('guardAt', 450, { min: 0, max: 1000 }); // m: an enemy ship this close gets every other wave
+const guardAt = param('guardAt', 450, { min: 0, max: 1000 }); // m: an enemy ship this close gets the waves the main enemy cannot
 const minGuard = param('minGuard', 30, { min: 0, max: 100000 }); // kg: lighter ones (darts) never do
 const cutBelow = param('cutBelow', 35, { min: 0, max: 200 }); // m under its height where it cuts what reaches up from below
 const hunt = param('hunt', 60, { min: 0, max: 600 }); // s the heaviest enemy is remembered out of sight
@@ -208,8 +209,9 @@ function target() {
   }
   const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
   // The big one (titans v2, 2026-10): the heaviest enemy seen, remembered `hunt` s after it went out of sight (out of
-  // radar reach, most likely, while its gun ships come in). The hull keeps its place by it, not by the gun ship it
-  // fights now, so it closes in until the radars find it again. Forgotten when seen dead.
+  // radar reach, most likely). With nothing else in sight the hull closes in on its last place until the radars find
+  // it again, instead of waiting where it started. Forgotten when seen dead. (Keeping its place by the big one while
+  // fighting a lighter one in sight lost Mirage its wins over Shatter: it stayed back from the king.)
   const big = state.big;
   if (heaviest && (!big || heaviest.id === big.id || heaviest.mass >= big.mass)) {
     state.big = { id: heaviest.id, x: heaviest.pos.x, y: heaviest.pos.y, mass: heaviest.mass, at: time };
@@ -259,7 +261,7 @@ function tick() {
   // place: standoff from the tracked robot, on the side it is on unless only the other side has the room
   let want = state.x0 - state.dir * backoff;
   const b = state.big;
-  const away = b && (!t || (t.id !== b.id && t.mass * 2 < b.mass)) && time - b.at > 1;
+  const away = b && !t && time - b.at > 1;
   if (away) {
     // The big one is out of sight: close in to `huntAt` m of where it was last.
     if (state.side === 0) state.side = sign(self.pos.x - b.x) || -state.dir;
@@ -291,8 +293,12 @@ function tick() {
   const rest = axWorld - (state.dir * (pf * state.ff - pr * state.fr)) / Math.max(state.m, 1);
   // Small errors are the boosters' (a 170 m hull swings slowly: leaning for every meter rocked it), and the lean
   // follows what is asked over about a second.
+  // It never leans while it is sinking or low (the lift is for holding it up first), and the lean changes by at most
+  // `tiltRate` a second: leaning hard one way and the other while it dodged, it lost its height and came down.
   const lack = Math.abs(rest) > 0.4 ? rest - 0.4 * sign(rest) : 0;
-  state.tip += (clamp(-Math.atan2(lack, 9.81), -tilt, tilt) - state.tip) * 0.03;
+  const sinking = self.vel.y < -2 || self.pos.y < high - 25;
+  const goal = sinking ? 0 : clamp(-Math.atan2(lack, 9.81), -tilt, tilt);
+  state.tip += clamp(goal - state.tip, -tiltRate * dt, tiltRate * dt);
   const tip = state.tip;
 
   // height and level (with the lean asked above)
@@ -336,10 +342,11 @@ function tick() {
     const under = t.pos.y < self.pos.y - 4 && fore > -40 && fore < 215;
     if (t.distance <= reach && !under) aim = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id };
     // What threatens the hull most comes first: the part of a heavy enemy below that reaches up to its height (a
-    // mast that would shove it) gets every wave until it is cut; else every other wave goes at the nearest gun ship
-    // come close (it is what wears the hull down).
+    // mast that would shove it) gets every wave until it is cut. With the main enemy out of a ghost's way (out of
+    // reach, or under the deck), the nearest gun ship come close gets the wave instead of none. (Every other wave at
+    // gun ships whatever the main enemy did no good against Palisade's panels and spared Shatter's king.)
     const r = reaching(t);
-    const g = r || state.waves % 2 === 0 ? null : guard();
+    const g = r || aim ? null : guard();
     if (r) aim = r;
     else if (g) aim = { x: g.pos.x, y: g.pos.y, vx: g.vel.x, vy: g.vel.y, id: g.id };
   } else if (going || time - state.lastSalvo >= blindGap) {

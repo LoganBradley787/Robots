@@ -16,13 +16,14 @@
 //   enemy part (1.5 m).
 // - A target that died (it stays in view as debris, with no live core) is forgotten: the ghost takes another live
 //   enemy it sees near there, and with none it never goes off at the dead one's spot; it flies on until its life ends.
-// - It arms as late as still works (titans v2, 2026-10, Logan): within `armDist` m of where it is going, or the
-//   moment it will reach ANY enemy it sees within `armTime` s (its middle, padded by the robot's size from its part
-//   count), so a ghost that meets a small gun panel or the near end of a big hull on its way goes off there instead of
-//   breaking. Armed early, ghosts of one salvo that touch set each other off (armed 200 m out, they did), and a gun
-//   that hits an armed warhead sets it off, so the warheads arm only that close. The charge arms `chargeAt` m out:
-//   it needs an enemy part within 1.5 m or a hard hit, and shot it only breaks. It ends itself `life` s after letting go at the latest (sized from the distance it was sent: the
-//   flight at `lifeSpeed` plus `lifeSpare`, up to `lifeMax`).
+// - It arms as late as still works (titans v2, 2026-10, Logan: a ghost that hits ANY enemy must go off). Its charge
+//   arms `chargeAt` m out: it goes off only with an enemy part within 1.5 m or on a hard hit, never for a friend,
+//   and shot it only breaks, so a ghost that runs into a gun panel on its way goes off there instead of breaking. Its
+//   warheads arm within `armDist` m of where it is going, or when it will reach any enemy it sees within `armTime` s
+//   (that robot's middle, padded by its size from its part count). Armed early, warheads cost: ghosts of one salvo
+//   that touched set each other off (armed 200 m out), and guns set off a warhead they hit.
+// - It ends itself `life` s after letting go at the latest (sized from the distance it was sent: the flight at
+//   `lifeSpeed` plus `lifeSpare`, up to `lifeMax`).
 // - Sent with an offset (`ox`, `oy`, titans v2, 2026-10), it goes for that point on the robot it follows, measured from
 //   its core, not the core: the hull sends such ghosts at the part of a tall enemy that would reach it.
 // Let go with no point (knocked loose), it does nothing and stays safe.
@@ -51,9 +52,9 @@ const lifeSpeed = param('lifeSpeed', 60, { min: 5, max: 1000 }); // m/s: its lif
 const lifeSpare = param('lifeSpare', 5, { min: 0, max: 60 }); // s added to that
 const lifeMax = param('lifeMax', 30, { min: 1, max: 120 }); // s at most
 const chargeAt = param('chargeAt', 40, { min: 0, max: 1000 }); // m from where it left: its charge arms (titans v2, 2026-10)
-const armTime = param('armTime', 0.4, { min: 0, max: 5 }); // s: it arms when it will reach any enemy this soon
-const armPad = param('armPad', 4, { min: 0, max: 50 }); // m: an enemy's reach is this plus `armSize` per square root of its parts
-const armSize = param('armSize', 1, { min: 0, max: 10 }); // m (its parts as a round blob would be 0.56)
+const armTime = param('armTime', 0.25, { min: 0, max: 5 }); // s: its warheads arm when it will reach any enemy this soon (titans v2, 2026-10)
+const armPad = param('armPad', 1.5, { min: 0, max: 50 }); // m: an enemy's reach is this plus `armSize` per square root of its parts
+const armSize = param('armSize', 0.6, { min: 0, max: 10 }); // m (its parts as a round blob would be 0.56; 0.4 s, 4 m and 1 m armed the warheads passing Shatter's gun ships, which shot them: it lost its win over Shatter)
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
