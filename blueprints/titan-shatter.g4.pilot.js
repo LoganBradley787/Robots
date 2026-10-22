@@ -247,8 +247,12 @@ function now(r) {
 }
 
 function turret(gunTag, rotTag, target) {
-  let gun = null;
-  for (const p of parts) if (p.type === 'gun' && p.tags.indexOf(gunTag) >= 0) gun = p;
+  // The gun's part object is refilled in place every tick: found again only when the parts change.
+  if (!state.guns2 || state.guns2.n !== parts.length) {
+    state.guns2 = { n: parts.length };
+    for (const p of parts) if (p.type === 'gun') state.guns2[p.tags.indexOf('gunA') >= 0 ? 'gunA' : 'gunB'] = p;
+  }
+  const gun = state.guns2[gunTag];
   if (!gun) return;
   const turned = get(rotTag, 'angle') || 0;
   if (!target) {

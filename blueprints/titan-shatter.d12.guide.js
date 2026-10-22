@@ -206,7 +206,7 @@ function tick() {
   // tracks an enemy: safe while it rides on a launcher and while it clears it, and a dart knocked loose by a hit
   // (no message) stays a dud unless it finds a target.
   let enemyNear = false;
-  for (const c of contacts) {
+  if (!state.armed) for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
     const reachOf = armNear + 2 * Math.sqrt(c.parts || 1);
     if (c.distance < reachOf || Math.hypot(c.center.x - self.pos.x, c.center.y - self.pos.y) < reachOf) {
