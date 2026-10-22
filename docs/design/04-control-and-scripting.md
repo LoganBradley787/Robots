@@ -253,7 +253,7 @@ interface ParamSpec { default: number; min?: number; max?: number; step?: number
 
 ## As built (M8, 2026-09-25): teams, sensors, messages
 - **Teams:** `Robot.team` is a number (0 Logan's, 1 the enemy; a number so more sides need no format change). `spawnBlueprint(raw, at, { team })`; pieces keep their robot's team; the spawn log, replays, and the state hash carry it (a replay without it loads as 0). Scripts never see team numbers, only `side` in `contacts`.
-- **Possession:** the app only takes over team 0 robots with a live core (`canPossess`). `,` and clicks skip enemies; clicking one follows it with the camera ("watching enemy"). Enemy robots run their scripts; their keys are never pressed.
+- **Possession:** the app only takes over team 0 robots with a live core (`canPossess`). `,` and clicks skip enemies; clicking one follows it with the camera ("watching enemy") and shows its readout, read-only (`11`, Possession). Enemy robots run their scripts; their keys are never pressed.
 - **Script API additions** (every tick, before the robot's scripts run, from positions after the last physics step, robots in spawn order):
   - `contacts`: `[{ id, side, core, pos, vel, center, mass, parts, distance, by }]`, nearest first (ties by id), for every robot its sensor parts see (`02`, Sensor parts). `side` is `enemy`, `friend`, or `none` (debris, headless). `pos` is the core's position (the center of mass's without one), `vel` the velocity of the body the core is on. A robot never sees itself; its attached missiles are its own parts, and released ones are friends.
   - `scan(id)`: a seen robot's parts (`id, type, pos, angle, health, maxHealth`) or null; a host call, so the cost is paid only on use; at most 4 per script per tick.
