@@ -32,6 +32,7 @@ const fallbackMatch = param('fallbackMatch', 45, { min: 0, max: 240 }); // s wit
 const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
 const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must be slower than this (not a dart)
 const widen = param('widen', 12, { min: 0, max: 100 }); // m/s the search ring grows while nothing is found
+const wideHome = param('wideHome', 600, { min: 50, max: 2000 }); // m: the same round where it woke, in the open sandbox with nothing seen
 const wide = param('wide', 420, { min: 50, max: 1000 }); // m: the search ring starts over past this
 const G = 9.81;
 const LIFT = 120;
@@ -278,15 +279,17 @@ function tick() {
   const root = now(state.root);
   let px;
   let py;
-  if (!state.dead && time - state.seenAt > 1 && (state.root.id >= 0 || arena)) {
+  if (!state.dead && time - state.seenAt > 1) {
     // Hunting (titans v2): the main enemy vanished alive (most likely into a jammer's bubble), or, in a match, nothing
-    // was ever seen (it hid from the first second: its start is the mirror of ours). Each gunship takes its own bearing
+    // was ever seen (it hid from the first second: its start is the mirror of ours; in the open sandbox, round where
+    // the gunship woke: radars see 1000 m, so only a robot hidden in a bubble can be that close). Each gunship takes its own bearing
     // round the last place, on a ring that starts `seek` m out (its radar sees through a bubble within 150 m) and
     // grows while nothing is found, so the swarm sweeps the sky round it. One gunship seeing it tells them all.
     // Gunships start spread over the ring's width (scouts on the outer half), so the whole disc is looked over at once.
     const lost = time - Math.max(state.seenAt, 0);
-    const band = (wide - seek) / 2;
-    const r = seek + ((((slot * 53) % band) + scout * band + widen * Math.max(0, lost - 1)) % (wide - seek));
+    const w = (arena || state.root.id >= 0 ? wide : wideHome) - seek;
+    const band = w / 2;
+    const r = seek + ((((slot * 53) % band) + scout * band + widen * Math.max(0, lost - 1)) % w);
     const b = -0.35 + ((state.bearing % Math.PI) / Math.PI) * (Math.PI + 0.7); // from a little under level on one side to the other
     px = root.x + r * Math.cos(b);
     py = root.y + r * Math.sin(b) + 15;
