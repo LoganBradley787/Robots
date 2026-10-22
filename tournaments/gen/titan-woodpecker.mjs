@@ -35,8 +35,12 @@ const DH = DART.length;
 // the keep's radar sees, and have none (the parts are spent on flares instead).
 const BAY_DART = [...DART, 'seeker'];
 const BAY_H = BAY_DART.length;
-const MID_HALF = 7; // the keep is 15 wide
-const CORE_Y = 4; // the main core's row: four plates under it, eleven over it
+// The keep (titans v2, 2026-10): 19 wide and 13 tall with the main core on the ground row: nine plates to each side
+// and twelve over it, none under it. It was 15 wide with four plates under the core, where nothing can come from (the
+// ground), and darts came in from the side at the core's height through seven; and a dart aimed low at a core on the
+// ground meets the ground first.
+const MID_HALF = 9;
+const CORE_Y = 0;
 const ANCHOR_EVERY = 8; // one anchor in the floor every this many columns
 const END = 2; // columns of base beyond the bays: the flare columns stand on them
 const W = 2 * (END + BAYS * 3 + PAIRS * 5) + 2 * MID_HALF + 1;
@@ -44,8 +48,8 @@ const CX = (W - 1) / 2;
 const ROOF = 2;
 const H = ROOF + 1 + BAY_H + 1;
 
-const KEEP_H = ROOF + DH + 7; // the keep stands five rows over the rack: eleven plates over the main core
-const FLARE_TOP = Number(process.argv[4] ?? 28); // the end columns of flares reach up to this row (titans v2)
+const KEEP_H = 13; // twelve plates over the main core
+const FLARE_TOP = Number(process.argv[4] ?? 26); // the end columns of flares reach up to this row (titans v2)
 const g = Array.from({ length: Math.max(KEEP_H, FLARE_TOP) }, () => Array.from({ length: W }, () => '.'));
 const put = (x, y, t) => {
   if (g[y][x] !== '.') throw new Error(`cell ${x},${y} taken by ${g[y][x]} (placing ${t})`);
@@ -65,7 +69,7 @@ for (let x = 0; x < W; x++) {
       if (y === CORE_Y && x === CX) put(x, y, 'C');
       else if (y === CORE_Y && x === CX - 1) put(x, y, 'O');
       else if (y === CORE_Y && x === CX + 1) put(x, y, 'N');
-      else if (y === CORE_Y - 1 && Math.abs(x - CX) <= 1) put(x, y, 'Z');
+      else if (y === CORE_Y && (x === CX - 2 || x === CX + 2 || x === CX + 3)) put(x, y, 'Z');
       else put(x, y, 'A');
     }
     continue;

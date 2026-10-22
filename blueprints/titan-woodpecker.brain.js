@@ -53,7 +53,7 @@ const flareClose = param('flareClose', 25, { min: 0, max: 500 }); // m/s it must
 const flareGap = param('flareGap', 0.6, { min: 0.1, max: 10 }); // s between two flares at least
 const flareHurt = param('flareHurt', 1.5, { min: 0, max: 30 }); // s after the keep last lost a part that a flare is kept burning
 const hurtEvery = param('hurtEvery', 30, { min: 1, max: 600 }); // ticks between two counts of the keep's parts
-const keepHalf = param('keepHalf', 8, { min: 1, max: 100 }); // m to either side of the main core that count as the keep
+const keepHalf = param('keepHalf', 10, { min: 1, max: 100 }); // m to either side of the main core that count as the keep
 const keepTall = param('keepTall', 13, { min: 1, max: 100 }); // m up or down from the main core that count as the keep
 const flareBurn = param('flareBurn', 2, { min: 0.1, max: 10 }); // s a flare burns: one burning covers what arrives before it is out
 const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
@@ -349,6 +349,7 @@ function flares() {
   const sx = self.pos.x;
   const sy = self.pos.y;
   let side = 0;
+  let steep = true; // coming down from above (either end's flare draws it off the keep), not in from one side
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
     const rx = c.pos.x - sx;
@@ -362,6 +363,7 @@ function flares() {
     if (Math.hypot(rx + vx * t, ry + vy * t) > flareMiss) continue;
     if (-(rx * vx + ry * vy) / (Math.hypot(rx, ry) || 1) < flareClose) continue; // not closing fast enough
     side = rx < 0 ? -1 : 1;
+    steep = Math.abs(ry) > Math.abs(rx);
     break;
   }
   // Under fire with nothing seen coming (guns, a blast that got through): the keep lost parts in the last look. Then a
@@ -369,9 +371,11 @@ function flares() {
   if (side === 0 && time - state.hurtAt < flareHurt && covered <= 0) {
     const s = state.last;
     side = s && s.x < sx ? -1 : 1;
+    steep = false; // guns aim at the flare: one beyond the keep would draw their shells through it
   }
   if (side === 0) return;
-  // The held flare on that side (the other side's when that one is spent), lowest first.
+  // The held flare on that side, highest first. The other end's only for something coming down from above: one
+  // coming in from the side flew through the keep on its way to a flare beyond it.
   let pickF = null;
   for (const f of state.flares) {
     if (f.used || !(get('fg' + f.n, 'armed') > 0)) continue;
@@ -380,7 +384,7 @@ function flares() {
       pickF = f;
       break;
     }
-    if (!pickF) pickF = f;
+    if (!pickF && steep) pickF = f;
   }
   if (!pickF) return;
   pickF.used = true;
@@ -422,7 +426,9 @@ function tick() {
     log('status t', t ? t.id + ' ' + Math.round(t.mass) : '-', 'last', state.last ? state.last.id : '-', 'bays', parts.filter((p) => p.type === 'fabbay').length, 'built', state.bays.map((b) => get(b, 'built')).join(','), 'ready', ready, 'energy', Math.round(self.energy.stored), 'enemies', contacts.filter((c) => c.side === 'enemy' && c.core).map((c) => Math.round(c.mass) + '@' + Math.round(Math.hypot(c.vel.x, c.vel.y))).join(','));
   }
   fire(t);
-  if (t && useApp > 0.5) probe(t);
+  // Probes only for a target that keeps still: the way in is used for no other, and each probe looks over the whole
+  // robot (a titan of thousands of parts).
+  if (t && useApp > 0.5 && Math.hypot(t.vel.x, t.vel.y) < appSpeed) probe(t);
 }
 
 // The rack and the bays.

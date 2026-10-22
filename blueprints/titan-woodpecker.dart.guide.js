@@ -186,10 +186,12 @@ function tick() {
   const speed = Math.sqrt(self.vel.x * self.vel.x + self.vel.y * self.vel.y);
   const gapNow = state.gap - (speed + 30) * (time - state.gapAt);
   const beat = dist < nearDist || gapNow < nearDist ? everyNear : every;
-  radio((state.n + state.beat) % beat === 0 ? 1 : 0);
-  // The nose seeker (a bay's dart, titans v2, 2026-10), on only near the end: within 150 m it sees a robot hidden in a
-  // jammer's bubble, so a dart sent at a guess finds the core itself. Off far out (its look costs every tick).
-  if (state.seeker) set('seeker', 'on', dist < seekDist ? 1 : 0);
+  const look = (state.n + state.beat) % beat === 0 ? 1 : 0;
+  radio(look);
+  // The nose seeker (a bay's dart, titans v2, 2026-10), on only near the end and on the radio's beat: within 150 m it
+  // sees a robot hidden in a jammer's bubble, so a dart sent at a guess finds the core itself. Every tick it is on,
+  // the dart has contacts to read, so it looks no more often than the radio does.
+  if (state.seeker) set('seeker', 'on', look && dist < seekDist ? 1 : 0);
   if (!state.armed && ((px > tx - t.l - armDist && px < tx + t.r + armDist && py > ty - t.d - armDist && py < ty + t.u + armDist) || gapNow < anyArm)) {
     set('heavywarhead', 'arm', 1);
     state.armed = true;
