@@ -20,10 +20,15 @@
 //     counted, those made the guess chase its own darts' craters.
 //   * where new enemy robots first show up (`origins`): darts and drones let go from its bays.
 //   * where new debris heavier than a dart first shows up far from us (`debris`): a piece our darts broke off it.
-//   Darts go round the middle of the recent debris, else origins, else ends (the least sure: a dart blasted by its
-//   guns ends short of it), else its last place, in a sweep of heights and sides (`sweep` m apart; a hull in the
-//   bubble is hit by whichever line crosses it). Measured against the hive: the ends alone put the guess 60 m under
-//   it, where its turrets blast the darts. The darts arm on the way (see the guide), so
+//   Darts go round the middle of the clues of the last `clueFresh` s (debris, else origins, else ends, the least
+//   sure: a dart blasted by its guns ends short of it) in a sweep of heights and sides (`sweep` m apart; a hull in
+//   the bubble is hit by whichever line crosses it). Measured against the hive: the ends alone put the guess 60 m
+//   under it, where its turrets blast the darts.
+//   With no fresh clue, one in the air is searched for along level lines: a dart climbs to one end of a line at a
+//   height round its last one and flies along it to the other end (`via`), lines ever longer (`searchGrow` m/s
+//   since it was last seen, up to the arena's edge or `searchMax`). A flier hiding in its bubble keeps its height
+//   (the anvil laps end to end at 200 m, hidden), so a line at that height runs into it whichever way it went.
+//   One on the ground gets the sweep round its last place, with a ground row. The darts arm on the way (see the guide), so
 //   a hull they run into in the bubble is hit, seen or not. One seen dead is forgotten at once, as before.
 // - Sandbox (titans v2, 2026-10): darts sent blind onto the mirror of its own start only in a match (`arena`); in an
 //   open world it waits for its radars. After a win it keeps watching, and the next enemy with a live core is the
@@ -55,6 +60,9 @@ const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vani
 const originKeep = param('originKeep', 25, { min: 1, max: 300 }); // s an enemy robot's first sighting counts as a clue to where a hidden one is
 const originAfter = param('originAfter', 3, { min: 0, max: 60 }); // s into the match before first sightings count (at the start everything is new)
 const debrisMass = param('debrisMass', 12, { min: 0, max: 10000 }); // kg: new debris at least this heavy (more than a dart) far off is a clue
+const clueFresh = param('clueFresh', 12, { min: 1, max: 300 }); // s a clue is used to aim (kept longer only to be counted)
+const searchGrow = param('searchGrow', 40, { min: 0, max: 500 }); // m/s: a search line reaches this much further either side per s since it was last seen
+const searchMax = param('searchMax', 1000, { min: 50, max: 5000 }); // m either side of its last place a search line reaches at most (an arena's edge stops it sooner)
 const sweep = param('sweep', 30, { min: 1, max: 200 }); // m between the lines of the sweep round a hidden enemy's last place
 const endNear = param('endNear', 250, { min: 10, max: 1000 }); // m: a dart of ours that ends this close to the guess is a clue
 const maxFlying = param('maxFlying', 40, { min: 1, max: 1000 }); // darts in flight at most: each runs a script, and 90 at once against a hidden mirage made the tick much dearer
@@ -152,7 +160,7 @@ function pick() {
     state.hidden = null;
   } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
     // Vanished alive near enough to have been hiding, not out at the radars' edge: kept as hidden.
-    state.hidden = gone || mem.d > lostAt ? null : { x: mem.x, y: mem.y, id: mem.id };
+    state.hidden = gone || mem.d > lostAt ? null : { x: mem.x, y: mem.y, id: mem.id, at: mem.at };
     state.last = null;
   }
   if (state.hidden) {
@@ -192,10 +200,12 @@ function watchDarts() {
     if (d) {
       d.x = c.pos.x;
       d.y = c.pos.y;
+      d.vx = c.vel.x;
+      d.vy = c.vel.y;
       d.f = frame;
     } else {
       // New: the dart let go last (one a tick at most), with the point it was sent to.
-      state.darts[c.id] = { x: c.pos.x, y: c.pos.y, f: frame, aim: state.sent };
+      state.darts[c.id] = { x: c.pos.x, y: c.pos.y, vx: c.vel.x, vy: c.vel.y, f: frame, aim: state.sent };
       state.sent = null;
     }
   }
@@ -211,23 +221,30 @@ function watchDarts() {
     }
     delete state.darts[id];
     const a = d.aim;
-    // Short of its point: more than 30 m from it, on our side of it.
-    const short = a && Math.hypot(d.x - a.x, d.y - a.y) > 30 && (a.x - state.home.x) * (d.x - a.x) + (a.y - state.home.y) * (d.y - a.y) < 0;
-    if (g && short && Math.hypot(d.x - g.x, d.y - g.y) < endNear && Math.hypot(d.x - state.home.x, d.y - state.home.y) > 100) state.ends.push({ x: d.x, y: d.y, at: time });
+    // Short of its point: more than 30 m from it and still flying toward it.
+    const short = a && Math.hypot(d.x - a.x, d.y - a.y) > 30 && d.vx * (a.x - d.x) + d.vy * (a.y - d.y) > 0;
+    // Near where it was last seen, the more so the longer ago (it may have gone anywhere since).
+    const near = g && Math.hypot(d.x - g.x, d.y - g.y) < endNear + (g.at !== undefined ? searchGrow * (time - g.at) : 0);
+    // Not at the radars' reach (it flew out of sight there, measured against the anvil), nor on the ground (it came
+    // down short of a point in the air), nor next to us.
+    const far = Math.hypot(d.x - state.home.x, d.y - state.home.y);
+    if (short && near && d.y > 3 && far > 100 && far < lostAt - 100) state.ends.push({ x: d.x, y: d.y, at: time });
   }
   while (state.ends.length > 0 && (state.ends.length > 10 || time - state.ends[0].at > originKeep)) state.ends.shift();
 }
 
-/** The middle of a list of clues, or null with none. */
+/** The middle of the clues of the last `clueFresh` s in a list, or null with none. */
 function middle(o) {
-  if (o.length === 0) return null;
   let x = 0;
   let y = 0;
+  let n = 0;
   for (const p of o) {
+    if (time - p.at > clueFresh) continue;
     x += p.x;
     y += p.y;
+    n++;
   }
-  return { x: x / o.length, y: Math.max(1, y / o.length) };
+  return n > 0 ? { x: x / n, y: Math.max(1, y / n) } : null;
 }
 
 /**
@@ -360,11 +377,25 @@ function tick() {
   let aim = state.last;
   let wait = t ? gap : blindGap;
   let guess = false;
+  let via = null;
   if (!t && !aim && (state.hidden || !state.everSeen)) {
     // Hidden (or never seen): the middle of where its new robots showed up, else its last place, more slowly.
     const o = middle(state.debris) || middle(state.origins) || middle(state.ends);
     const h = o || state.hidden;
-    if (h) {
+    if (!o && h && h.y > 30) {
+      // The line search: heights round its last one in turn, each line the other way, longer with time.
+      // Higher more than lower: a flier that hides tends to climb (the anvil hid at 200 m, last seen at 99).
+      const k = state.sweepK % 8;
+      const y = Math.max(10, h.y + [0, 1, -1, 2, -2, 3, 4, 5][k] * sweep);
+      let r = Math.min(searchMax, 150 + searchGrow * (time - h.at));
+      const x0 = arena ? clamp(h.x - r, -arena.x, arena.x) : h.x - r;
+      const x1 = arena ? clamp(h.x + r, -arena.x, arena.x) : h.x + r;
+      const from = k % 2 === 0 ? x0 : x1;
+      const to = k % 2 === 0 ? x1 : x0;
+      aim = { x: to, y, vx: 0, vy: 0, at: time };
+      via = [{ x: Math.round(from - to), y: 0 }];
+      wait = hiddenGap;
+    } else if (h) {
       // The sweep: a 3 by 5 grid of points round the middle, in turn: three heights round it and one on the ground
       // under it (no heights for one on the ground). Measured: the mirage, hidden, came down to the ground while
       // the darts kept looking for it in the air.
@@ -401,6 +432,7 @@ function tick() {
     const msg = { x: aim.x, y: aim.y, vx: t ? aim.vx : 0, vy: t ? aim.vy : 0, arc: !blind && aim.y > state.home.y + high ? 0 : 1 };
     if (t) msg.id = t.id;
     if (t && state.way && state.way.id === t.id && state.way.via && Math.hypot(t.vel.x, t.vel.y) < wayStill) msg.via = state.way.via;
+    if (via) msg.via = via;
     if (blind) state.blind++;
     if (guess) state.sweepK++;
     state.sent = { x: aim.x, y: aim.y };
