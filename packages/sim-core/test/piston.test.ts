@@ -195,4 +195,36 @@ describe('piston (Batch)', () => {
     };
     expect(await run()).toBe(await run());
   });
+  // S4 (review 2026-10-09): the mount side is one 1 kg frame and the carried side an 8 wide hull. Gains sized from the
+  // hull alone threw the frame at over 24 m/s in one step, and the crash check destroyed it.
+  it('pushes a heavy hull off a light mount without throwing the mount (S4)', async () => {
+    const stub = { format: 1, name: 'stub', grid: ['B  B  B  C  B  B  B  B', '.  .  .  I^ .  .  .  .', '.  .  .  F  .  .  .  .'] };
+    const w = await World.create({ seed: 1, gravityY: 0 }, open);
+    const r = w.spawnBlueprint(stub, { x: 0, y: 500 });
+    for (let i = 0; i < 30; i++) w.step();
+    const gap = (): number => {
+      const a = partWorldPose(w, r, 'frame@3,0');
+      const b = partWorldPose(w, r, 'core@3,2');
+      return Math.hypot(b.x - a.x, b.y - a.y);
+    };
+    const gap0 = gap();
+    let worst = 0;
+    let prev: { vx: number; vy: number } | undefined;
+    w.step([{ robot: r.id, pressed: ['c'], released: [] }]);
+    for (let i = 0; i < 180; i++) {
+      if (i === 90) w.step([{ robot: r.id, pressed: [], released: ['c'] }]);
+      else w.step();
+      const frame = r.parts.get('frame@3,0');
+      expect(frame).toBeDefined();
+      const s = w.physics.state(r.groups[frame?.group ?? -1]?.bodyId ?? -1);
+      if (prev) worst = Math.max(worst, Math.hypot(s.vx - prev.vx, s.vy - prev.vy));
+      prev = s;
+    }
+    expect(worst).toBeLessThan(2);
+    expect(r.parts.size).toBe(10);
+    // It still did its job: the whole stroke.
+    expect(position(w, r)).toBe(1);
+    expect(gap() - gap0).toBeGreaterThan(1.9);
+    w.dispose();
+  });
 });

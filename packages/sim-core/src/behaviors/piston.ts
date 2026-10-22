@@ -1,4 +1,5 @@
 import type { Behavior } from './registry';
+import { motorLoad, reducedMass } from './reduced';
 
 /**
  * A piston (Batch): a linear actuator, the rotator's sliding cousin. The part is the moving head: it slides out of its
@@ -24,8 +25,15 @@ export const piston: Behavior = {
     const extend = ctx.value('extend');
     const actual = ctx.physics.sliderPosition(joint.jointId);
     // The gains follow the mass being moved: the head's own, plus the weight the motor has learned to carry (a car on
-    // it). A fixed gain that suits a light head would ring under a heavy load.
-    const mass = Math.max(ctx.physics.massProperties(ctx.group.bodyId).mass, 1) + ctx.physics.sliderCarriedMass(joint.jointId);
+    // it). A fixed gain that suits a light head would ring under a heavy load. S4: the force pushes the mount back as
+    // hard; a light mount under a heavy head is what moves, and gains sized for the head alone threw it, so the head's
+    // share is capped by the pair's reduced mass. The learned load is weight the mount already presses into whatever
+    // holds it up, so it is carried in full.
+    const parent = ctx.robot.groups[joint.parentGroup];
+    const head = Math.max(ctx.physics.massProperties(ctx.group.bodyId).mass, 1);
+    const moved = parent ? motorLoad(head, reducedMass(head, ctx.physics.massProperties(parent.bodyId).mass)) : head;
+    const carried = ctx.physics.sliderCarriedMass(joint.jointId);
+    const mass = moved + carried;
     const speed = ctx.config('extendSpeed');
     let next = (ctx.part.aim ?? 0) + extend * speed * ctx.dt;
     if (extend !== 0) next = Math.max(actual - TARGET_LEAD, Math.min(actual + TARGET_LEAD, next));
@@ -37,7 +45,7 @@ export const piston: Behavior = {
     const damping = 2 * mass * f;
     const need = Math.abs(stiffness * (next - actual)) / maxForce;
     // Holding a load up costs energy too: the weight of what the head carries, as a share of the force cap.
-    const hold = (mass * Math.abs(ctx.physics.gravityY)) / maxForce;
+    const hold = ((head + carried) * Math.abs(ctx.physics.gravityY)) / maxForce;
     return {
       load: Math.min(1, Math.max(Math.abs(extend), need, hold)),
       run(grant) {

@@ -3,6 +3,7 @@ import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import type { Robot } from '../src/world/Robot';
+import { hingeInertia, MOTOR_REDUCED_LIMIT, motorLoad } from '../src/behaviors/reduced';
 
 const flat = parseWorldFile(flatJson);
 const DEG = Math.PI / 180;
@@ -112,5 +113,52 @@ describe('rotator (M6)', () => {
     expect(Math.abs(entry?.integral ?? 0)).toBeLessThanOrEqual(entry?.maxTorque ?? 0);
     expect(Math.abs(entry?.integral ?? 0)).toBeGreaterThan(0);
     w.dispose();
+  });
+  // S4 (review 2026-10-09): a joint whose mount side is one frame and whose carried side is an 8 wide hull. The motor
+  // pushes the frame round as hard as the hull, so gains sized from the hull alone flung the frame: it was still
+  // spinning at 3 to 4 rad/s nine seconds after the key was released.
+  for (const [part, token] of [
+    ['rotator', 'R'],
+    ['heavyrotator', 'RR'],
+  ] as const) {
+    it(`a ${part} on a light mount under a heavy hull settles after the key is released (S4)`, async () => {
+      const space = parseWorldFile({ name: 'void', ground: { width: 50, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] });
+      const stub = { format: 1, name: 'stub', grid: ['B  B  B  C  B  B  B  B', `.  .  .  ${token}  .  .  .  .`, '.  .  .  F  .  .  .  .'] };
+      const w = await World.create({ seed: 1, gravityY: 0 }, space);
+      const r = w.spawnBlueprint(stub, { x: 0, y: 500 });
+      for (let i = 0; i < 30; i++) w.step();
+      w.step([{ robot: r.id, pressed: ['z'], released: [] }]);
+      for (let i = 0; i < 29; i++) w.step();
+      w.step([{ robot: r.id, pressed: [], released: ['z'] }]);
+      for (let i = 0; i < 60 * 9; i++) w.step();
+      const frame = r.parts.get('frame@3,0');
+      const group = frame ? r.groups[frame.group] : undefined;
+      expect(group).toBeDefined();
+      expect(Math.abs(w.physics.state(group?.bodyId ?? -1).w)).toBeLessThan(0.1);
+      // It holds the aim it was given, and nothing broke.
+      const rot = r.parts.get(`${part}@3,1`);
+      const joint = rot ? r.groups[rot.group]?.joint : undefined;
+      expect(Math.abs(w.physics.jointAngle(joint?.jointId ?? -1) - (rot?.aim ?? 9))).toBeLessThan(2 * DEG);
+      expect(Math.abs(rot?.aim ?? 0)).toBeGreaterThan(0.2);
+      expect(r.parts.size).toBe(10);
+      w.dispose();
+    });
+  }
+
+  it('sizes its gains from both sides: a heavy turret on a heavy hull is unchanged, a light mount takes over (S4)', () => {
+    // A 6 kg turret 1.5 m above the hinge (14.5 kg m^2 about it) on a 40 kg hull whose center is 0.5 m below.
+    const turret = { mass: 6, comX: 0, comY: 1.5, inertia: 1 };
+    const own = turret.inertia + turret.mass * 1.5 * 1.5;
+    const hull = { mass: 40, comX: 0, comY: -0.5, inertia: 200 };
+    expect(hingeInertia(turret, hull, 0, 0)).toBeGreaterThan(0.9 * own);
+    expect(hingeInertia(turret, hull, 0, 0)).toBeLessThan(own);
+    expect(motorLoad(own, hingeInertia(turret, hull, 0, 0))).toBe(own);
+    // The same turret on a 1 kg mount 1 m below: the reduced inertia is about the mount's own, and the gains follow it.
+    const mount = { mass: 1, comX: 0, comY: -1, inertia: 1 / 6 };
+    const reduced = hingeInertia(turret, mount, 0, 0);
+    expect(reduced).toBeLessThan(1.1);
+    expect(motorLoad(own, reduced)).toBeCloseTo(MOTOR_REDUCED_LIMIT * reduced, 9);
+    // Symmetric in its two sides, as a torque pair is.
+    expect(hingeInertia(hull, turret, 0, 0)).toBeCloseTo(hingeInertia(turret, hull, 0, 0), 9);
   });
 });
