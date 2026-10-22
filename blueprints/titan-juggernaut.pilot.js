@@ -174,6 +174,7 @@ function setup() {
   state.leg = 0;
   state.holdX = null;
   state.holdSeen = -1000;
+  state.dartsAt = -1000;
   state.holdArea = null; // where it has been holding under a sight, and for how long in all
   state.holdTime = 0;
   state.skipX = 0; // a place whose sights it ignores until `skipUntil`
@@ -199,6 +200,9 @@ function say(what) {
 // Gentle on purpose: 25 m every 14 s asked for more than the boosters give, ran them flat out the whole time and
 // emptied the batteries in under two minutes; 12 m every 30 s is under 3 m/s and 0.6 m/s2.
 function weave() {
+  // Only while darts are about: moving 74 t costs a bank's full draw, and a drift all match long emptied half the
+  // batteries by itself.
+  if (time - state.dartsAt > 10) return 0;
   return weaveAmp * Math.sin((2 * Math.PI * time) / weavePeriod);
 }
 
@@ -216,6 +220,8 @@ function wrap(a) {
 
 /** Speed toward a spot `err` m away that it can still stop at, at most `cap`. */
 function toward(err, a, cap) {
+  // Within a couple of meters is there: hunting back and forth around a spot kept a bank half on all the time.
+  if (Math.abs(err) < 2) return 0;
   return sign(err) * Math.min(cap, Math.sqrt(2 * 0.6 * a * Math.abs(err)));
 }
 
@@ -361,6 +367,17 @@ function tick() {
   const aR = Math.max((0.8 * 400 * (dir > 0 ? state.nf : state.nr)) / Math.max(M, 1), 0.05); // toward +x
   const aL = Math.max((0.8 * 400 * (dir > 0 ? state.nr : state.nf)) / Math.max(M, 1), 0.05); // toward -x
   const a = Math.min(aR, aL);
+
+  // Darts about: something light of theirs closing on it within 400 m (it drifts while parked, see weave()).
+  for (const c of contacts) {
+    if (c.side !== 'enemy' || !c.core || c.mass >= minMass || c.distance > 400) continue;
+    const rx = c.pos.x - me.x;
+    const ry = c.pos.y - me.y;
+    if ((c.vel.x - self.vel.x) * rx + (c.vel.y - self.vel.y) * ry < 0) {
+      state.dartsAt = time;
+      break;
+    }
+  }
 
   // The main enemy: the heaviest enemy with a live core, kept unless one twice as heavy shows up; let go when it is
   // seen as debris, or after `forget` s unseen.
@@ -593,6 +610,7 @@ function tick() {
   const cap = self.energy.capacity;
   const share = cap > 0 ? self.energy.stored / cap : 0;
   state.share = share;
+  if (frame % 1800 === 0 && frame > 0) log('energy ' + Math.round(share * 100) + '%');
   const charged = state.lowBeam ? share > reserve + 0.02 : share > reserve;
   if (charged === state.lowBeam) log(charged ? 'beams back on' : 'beams low on energy: holding fire');
   state.lowBeam = !charged;
