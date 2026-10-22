@@ -26,13 +26,24 @@ const RADARS = [{ x: 49, y: 8 }, { x: 51, y: 10 }];
 // Standing back from a roped base, the copies come down on the roof over the core instead: a hump of extra plates.
 const HUMP = { x0: 40, x1: 59, h: Number(process.env.JUG_HUMP ?? 24) };
 const BIN = 4; // guns per fire group
+// Two beam turrets (titans v2, 2026-10): a rotator with a laser on each end of the gun deck, the front one facing the
+// nose, the back one the tail. Guns barely scratch armor (a tenth of a shell's damage), so nothing the sled carried
+// could end a core under armor once pushing it out was off the table (a roped base, the sandbox with no edge). A
+// beam burns armor in full; from the deck, 100 m up, it reaches down to a core in front of the nose or behind the
+// tail, and straight up. The deck's two end guns make way for them, and no roof gun fires up through the back one's swing.
+const TURRET_Y = H + MAST; // the deck's top row
+const BACK_CLEAR = 4; // roof guns left out under the back turret
 
 const legend = {
   k: { part: 'booster', rot: 270, tags: ['fwd'], auto: false },
   j: { part: 'booster', rot: 90, tags: ['rev'], auto: false },
+  rf: { part: 'rotator', rot: 270, tags: ['rotF'], auto: false },
+  lf: { part: 'laser', rot: 270, tags: ['laserF'], auto: false },
+  rb: { part: 'rotator', rot: 90, tags: ['rotB'], auto: false },
+  lb: { part: 'laser', rot: 90, tags: ['laserB'], auto: false },
 };
 const OX = SHELF; // grid column of hull x 0
-const GW = OX + Math.max(W, DECK.x1 + 1);
+const GW = OX + Math.max(W, DECK.x1 + 3);
 const rows = []; // rows[y][x + OX], y 0 at the bottom
 for (let y = 0; y <= SPAR_TOP; y++) rows.push(new Array(GW).fill('.'));
 const put = (x, y, t) => {
@@ -71,15 +82,20 @@ for (const x of MAST_X) for (let y = H + 1; y < H + MAST - 1; y++) put(x, y, 'A'
 for (let x = DECK.x0; x <= DECK.x1; x++) {
   put(x, H + MAST - 1, 'A');
   put(x, H + MAST, 'A');
-  if (!SPAR_X.includes(x)) gun(x, H + MAST + 1);
+  // the end guns would fire up into a turret swung upright
+  if (!SPAR_X.includes(x) && x !== DECK.x0 && x !== DECK.x1) gun(x, H + MAST + 1);
 }
 for (const x of SPAR_X) for (let y = H + MAST + 1; y <= SPAR_TOP; y++) put(x, y, 'F');
 for (let x = 0; x < Math.min(W, DECK.x0); x++) {
-  // nothing fires up into the deck
+  // nothing fires up into the deck, nor into the back turret
   const hump = x >= HUMP.x0 && x <= HUMP.x1 ? HUMP.h : 0;
   for (let y = H + 1; y <= H + hump; y++) put(x, y, 'A');
-  gun(x, H + hump + 1);
+  if (x < DECK.x0 - BACK_CLEAR) gun(x, H + hump + 1);
 }
+put(DECK.x1 + 1, TURRET_Y, 'rf');
+put(DECK.x1 + 2, TURRET_Y, 'lf');
+put(DECK.x0 - 1, TURRET_Y, 'rb');
+put(DECK.x0 - 2, TURRET_Y, 'lb');
 
 const width = Math.max(...Object.keys(legend).map((k) => k.length), 2);
 const grid = rows.map((r) => r.map((t) => t.padEnd(width)).join(' ').trimEnd()).reverse();
