@@ -84,6 +84,7 @@ const touchDist = param('touchDist', 90, { min: 0, max: 500 }); // m from its co
 const touchEvery = param('touchEvery', 0.5, { min: 0.05, max: 10 }); // s between those scans
 const cutUnder = param('cutUnder', 28, { min: 0, max: 100 }); // m under its core it cuts a mast that presses on it (the belly is 9 m down; the belly turrets swing no closer than 76 degrees to level)
 const srcSpeed = param('srcSpeed', 10, { min: 0, max: 200 }); // m/s: a new light enemy slower than this tells nothing of a launcher
+const searchAfter = param('searchAfter', 20, { min: 0, max: 600 }); // s with no enemy ever seen before it moves to the arena's middle to look
 const restHeight = param('restHeight', 9, { min: 1, max: 50 }); // m from its core down to the ground when it sits (the belly turrets are under it)
 const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
@@ -451,10 +452,11 @@ function tick() {
 
   // Where to be.
   let wantY = cruise;
-  // With nothing to fight it waits `retreat` m back from its start, until it has seen an enemy. After that (a win,
-  // or one that went quiet) it waits over the middle of the arena (titans v2, 2026-10): radars reach 1000 m, so from
-  // there they see the whole arena, and a new enemy anywhere in it is found.
-  let wantX = arena && state.everSeen ? midX : state.home.x + state.side * retreat;
+  // With nothing to fight it waits `retreat` m back from its start, until it has seen an enemy or `searchAfter` s
+  // have gone by. After that (a win, one that went quiet, or one never seen) it waits over the middle of the arena
+  // (titans v2, 2026-10): radars reach 1000 m, so from there they see the whole arena, and an enemy anywhere in it is
+  // found (an enemy hidden from the start and a drone 1100 m off went unseen all match from its start).
+  let wantX = arena && (state.everSeen || self.age > searchAfter) ? midX : state.home.x + state.side * retreat;
   let ram = false;
   if (main && main.mass >= followMass) {
     const dx = main.pos.x - self.pos.x;
