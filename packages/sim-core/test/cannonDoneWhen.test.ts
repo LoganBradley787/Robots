@@ -111,23 +111,34 @@ describe('M15 charged guns, done when', () => {
     let lowest = Infinity;
     let pitch = 0;
     let shotAt = -1;
+    let levelAt = -1;
+    let lostByThen = -1;
     for (let t = 0; t < 40 * 60; t++) {
       w.step();
       const s = body(w, drone);
-      lowest = Math.min(lowest, s.y);
+      if (levelAt < 0) lowest = Math.min(lowest, s.y);
       const shots = w.cannonStats(drone.id).shots;
       if (shots > 0 && shotAt < 0) shotAt = t;
       // The second after its first shot.
       if (shotAt >= 0 && t - shotAt < 60) pitch = Math.max(pitch, Math.abs(s.angle));
+      // Then it comes level again.
+      if (shotAt >= 0 && t - shotAt >= 60 && levelAt < 0 && Math.abs(s.angle) < 0.15) {
+        levelAt = t;
+        lostByThen = partsLost(w, drone);
+      }
     }
     // One since the orb carries 1500 (two at 500 once the turret dug for the main core, three while it went for the
     // missiles on the rack first).
     expect(w.cannonStats(drone.id).shots).toBe(1);
     expect(w.cannonStats(drone.id).backfires).toBe(0);
     expect(pitch).toBeGreaterThan(0.25);
-    expect(Math.abs(body(w, drone).angle)).toBeLessThan(0.15);
+    // Level again within 6 s of its shot, never under 40 m, nothing lost. Only that far: since a bolt's shove lands on
+    // what is left of the parts it breaks (Claude's call, 2026-10-22), the hunter's wreck is thrown 90 m and the
+    // missiles knocked off its racks come for the drone some 7 s after the shot.
+    expect(levelAt).toBeGreaterThan(shotAt);
+    expect(levelAt - shotAt).toBeLessThan(6 * 60);
     expect(lowest).toBeGreaterThan(40);
-    expect(partsLost(w, drone)).toBe(0);
+    expect(lostByThen).toBe(0);
     expect(hunter.primaryCoreId).toBeUndefined();
     expect(partsLost(w, hunter)).toBeGreaterThanOrEqual(40);
     w.dispose();
