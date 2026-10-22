@@ -50,6 +50,9 @@ const minGuard = param('minGuard', 30, { min: 0, max: 100000 }); // kg: lighter 
 const cutBelow = param('cutBelow', 35, { min: 0, max: 200 }); // m under its height where it cuts what reaches up from below
 const hunt = param('hunt', 60, { min: 0, max: 600 }); // s the heaviest enemy is remembered out of sight
 const huntAt = param('huntAt', 700, { min: 100, max: 1000 }); // m from its last place the hull closes to (inside radar reach)
+const hideAt = param('hideAt', 1050, { min: 100, max: 2000 }); // m from the last place of a big one that hid nearby
+const still = param('still', 2, { min: 0, max: 100 }); // m/s: a big one that hid moving slower than this is still there (blind volleys at it)
+const huntFar = param('huntFar', 940, { min: 0, max: 2000 }); // m: the big one seen last further than this went out of reach and is hunted; nearer, it hid
 const awake = param('awake', 20, { min: 1, max: 600 }); // s: in an open sandbox it keeps its cloak up this long after it last saw an enemy
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
 
@@ -109,58 +112,67 @@ function measure() {
 
 /**
  * Throttles for the lift strips (titans v2, 2026-10): strip k runs at clamp(u + b * arm[k], 0, 1), a lean along the
- * hull, with b set for the turning asked (`torque`, N m about the center of mass) and u for the lift (N). Level comes
- * first: when both cannot be had (strips shot away), u is lowered until the lean can still level the hull, so it sinks
- * level instead of rolling. Each is found by halving (lift and turning only grow with u and b).
+ * hull, with u and b set so the strips give the lift (N) and the turning (`torque`, N m about the center of mass)
+ * asked. Solved straight out (two sums, two unknowns), then again with every strip that ran past empty or full held
+ * there, a few times at most. Level comes first: when both cannot be had (strips shot away), the lift asked is cut
+ * until the turning can still be had, so it sinks level instead of rolling. (Found by halving before: about a hundred
+ * passes over the strips a tick, a third of the hull's script time.)
  */
 function share(lift, torque) {
   const cap = state.cap;
   const arm = state.arm;
   const n = cap.length;
-  const sums = (u, b) => {
-    let l = 0;
-    let t = 0;
-    for (let k = 0; k < n; k++) {
-      let r = u + b * arm[k];
-      if (r <= 0) continue;
-      if (r > 1) r = 1;
-      l += cap[k] * r;
-      t += cap[k] * r * arm[k];
-    }
-    return [l, t];
-  };
-  const lean = (u) => {
-    let lo = -0.2;
-    let hi = 0.2;
-    for (let i = 0; i < 18; i++) {
-      const mid = (lo + hi) / 2;
-      if (sums(u, mid)[1] < torque) lo = mid;
-      else hi = mid;
-    }
-    return (lo + hi) / 2;
-  };
-  let u = 0.5;
-  let b = 0;
-  for (let pass = 0; pass < 2; pass++) {
-    b = lean(u);
-    let lo = -1;
-    let hi = 2;
-    for (let i = 0; i < 18; i++) {
-      const mid = (lo + hi) / 2;
-      if (sums(mid, b)[0] < lift) lo = mid;
-      else hi = mid;
-    }
-    u = (lo + hi) / 2;
-  }
-  b = lean(u);
-  // Level first: the turning still missing means u is too high (the low end is out of push) or too low.
-  const slack = 0.05 * Math.abs(torque) + 2000;
-  for (let i = 0; i < 8 && Math.abs(sums(u, b)[1] - torque) > slack; i++) {
-    u *= 0.75;
-    b = lean(u);
-  }
   const out = [];
-  for (let k = 0; k < n; k++) out.push(clamp(u + b * arm[k], 0, 1));
+  const slack = 0.05 * Math.abs(torque) + 2000;
+  for (let tries = 0; tries < 4; tries++) {
+    const held = []; // -1 free, 0 empty, 1 full
+    for (let k = 0; k < n; k++) held.push(cap[k] > 0 ? -1 : 0);
+    let u = 0;
+    let b = 0;
+    for (let pass = 0; pass < 5; pass++) {
+      let s0 = 0;
+      let s1 = 0;
+      let s2 = 0;
+      let l = lift;
+      let t = torque;
+      for (let k = 0; k < n; k++) {
+        if (held[k] === 1) {
+          l -= cap[k];
+          t -= cap[k] * arm[k];
+        } else if (held[k] < 0) {
+          s0 += cap[k];
+          s1 += cap[k] * arm[k];
+          s2 += cap[k] * arm[k] * arm[k];
+        }
+      }
+      const det = s0 * s2 - s1 * s1;
+      if (!(det > 1e-6 * s0 * s2)) {
+        // One strip left (or all at one place): it can only lift.
+        b = 0;
+        u = s0 > 0 ? l / s0 : 0;
+        break;
+      }
+      u = (l * s2 - t * s1) / det;
+      b = (s0 * t - s1 * l) / det;
+      let moved = false;
+      for (let k = 0; k < n; k++) {
+        if (held[k] >= 0) continue;
+        const r = u + b * arm[k];
+        if (r < 0 || r > 1) {
+          held[k] = r < 0 ? 0 : 1;
+          moved = true;
+        }
+      }
+      if (!moved) break;
+    }
+    let got = 0;
+    for (let k = 0; k < n; k++) {
+      out[k] = held[k] < 0 ? clamp(u + b * arm[k], 0, 1) : held[k];
+      got += cap[k] * out[k] * arm[k];
+    }
+    if (Math.abs(got - torque) <= slack) break;
+    lift *= 0.75;
+  }
   return out;
 }
 
@@ -214,7 +226,7 @@ function target() {
   // fighting a lighter one in sight lost Mirage its wins over Shatter: it stayed back from the king.)
   const big = state.big;
   if (heaviest && (!big || heaviest.id === big.id || heaviest.mass >= big.mass)) {
-    state.big = { id: heaviest.id, x: heaviest.pos.x, y: heaviest.pos.y, mass: heaviest.mass, at: time };
+    state.big = { id: heaviest.id, x: heaviest.pos.x, y: heaviest.pos.y, mass: heaviest.mass, at: time, d: heaviest.distance, vx: heaviest.vel.x, vy: heaviest.vel.y };
   } else if (big && (bigGone || time - big.at > hunt)) state.big = null;
   if (main) {
     state.last = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance };
@@ -263,9 +275,13 @@ function tick() {
   const b = state.big;
   const away = b && !t && time - b.at > 1;
   if (away) {
-    // The big one is out of sight: close in to `huntAt` m of where it was last.
+    // The big one is out of sight. Gone out of the radars' reach (seen last further than `huntFar`): close in to
+    // `huntAt` m of where it was last until the radars find it again. Vanished nearer (into a jammer's bubble or
+    // smoke): hold `hideAt` from where it was last, out of reach of guns it cannot see. (Closing in on one that only
+    // hid let Bastion's guns shoot the hull down from 600 m, then end its core on the ground: 6 losses of 6, where v1
+    // backed off to 1050 m and drew; at 880 m it was still shot down.)
     if (state.side === 0) state.side = sign(self.pos.x - b.x) || -state.dir;
-    want = b.x + state.side * huntAt;
+    want = b.x + state.side * (b.d > huntFar ? huntAt : hideAt);
   } else if (t) {
     if (state.side === 0) state.side = self.pos.x === t.pos.x ? -state.dir : sign(self.pos.x - t.pos.x);
     const held = Math.abs(clamp(t.pos.x + state.side * standoff, -edge, edge) - t.pos.x);
@@ -350,13 +366,17 @@ function tick() {
     if (r) aim = r;
     else if (g) aim = { x: g.pos.x, y: g.pos.y, vx: g.vel.x, vy: g.vel.y, id: g.id };
   } else if (going || time - state.lastSalvo >= blindGap) {
-    // Nothing tracked: the place it vanished (kept `memory` s, carried on by its speed for a moment), else, with
-    // nothing ever seen, the mirror of the start. Seen once and gone: no salvo.
+    // Nothing tracked: the place it vanished (kept `memory` s, carried on by its speed for a moment), else the place
+    // the big one hid if it stood still there (a fort under its own bubble does not move; titans v2, 2026-10: Bastion
+    // hid from the first seconds and got one volley in four minutes), else, with nothing ever seen, the mirror of the
+    // start. Seen once and gone off moving: no salvo.
     const l = state.last;
+    const b = state.big;
     if (l) {
       const age = Math.min(time - l.at, 2);
       aim = { x: l.x + l.vx * age, y: Math.max(1, l.y + l.vy * age), vx: 0, vy: 0, id: l.id };
-    } else if (!state.everSeen) aim = { x: -state.x0, y: groundY, vx: 0, vy: 0 };
+    } else if (b && b.d <= huntFar && Math.hypot(b.vx, b.vy) < still) aim = { x: b.x, y: b.y, vx: 0, vy: 0, id: b.id };
+    else if (!state.everSeen) aim = { x: -state.x0, y: groundY, vx: 0, vy: 0 };
     if (aim && Math.hypot(aim.x - self.pos.x, aim.y - self.pos.y) > reach + 200) aim = null;
   }
   if (!aim) return;
