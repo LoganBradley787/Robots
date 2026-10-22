@@ -175,7 +175,7 @@ function tick() {
   const speed = Math.hypot(self.vel.x - state.fix.vx, self.vel.y - state.fix.vy);
 
   // The charge arms once clear of the hull: it goes off only next to an enemy part or on a hard hit, never for a
-  // friend near it, and shot it breaks without a blast, so armed early it costs nothing and catches whatever enemy
+  // friend near it, and shot it breaks without a blast, so armed early it costs little and catches whatever enemy
   // the ghost runs into.
   if (out >= chargeAt) set('charge', 'arm', 1);
   if (!state.armed && out >= 20 && ((dist < armDist && !state.dead) || state.meet)) {
