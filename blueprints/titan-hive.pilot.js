@@ -60,9 +60,15 @@ const reserveS = param('reserve', 60, { min: 0, max: 3600 }); // s of hover kept
 const restAfter = param('restAfter', 20, { min: 1, max: 600 }); // s with no enemy seen or remembered before it lands to save energy
 const floorShare = param('floorShare', 0.15, { min: 0, max: 1 }); // share of the reserve it keeps sitting (sensors and turrets)
 const gunRange = param('gunRange', 0.85, { min: 0.1, max: 1 }); // share of `reach` it closes to when its turrets are all it has left
-const holdMargin = param('holdMargin', 1.05, { min: 0.5, max: 2 }); // it leans no further than leaves this many times its weight in lift
+const holdMargin = param('holdMargin', 1.2, { min: 0.5, max: 2 }); // it leans no further than leaves this many times its weight in lift
 const srcBack = param('srcBack', 0.3, { min: 0, max: 5 }); // s back along a new light enemy's path to where it came from
 const srcMemory = param('srcMemory', 20, { min: 0, max: 300 }); // s that place is worth darts with nothing else seen
+const threatRange = param('threatRange', 320, { min: 0, max: 1000 }); // m: enemies with a core this close are darted first
+const kiteRange = param('kiteRange', 330, { min: 0, max: 1000 }); // m: enemies with a core this close make it run
+const kiteSpeed = param('kiteSpeed', 55, { min: 1, max: 100 }); // m/s it runs at
+const turnRoom = param('turnRoom', 150, { min: 0, max: 900 }); // m short of its edge it turns back
+const runHold = param('runHold', 4, { min: 0, max: 60 }); // s it keeps running once nothing is close
+const groundY = param('groundY', 35, { min: 0, max: 200 }); // m: an enemy core under this is on the ground
 const restHeight = param('restHeight', 9, { min: 1, max: 50 }); // m from its core down to the ground when it sits (the belly turrets are under it)
 const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
@@ -195,6 +201,8 @@ function setup() {
   state.dodgeAt = -Infinity;
   state.busyAt = 0; // when it last had an enemy seen or remembered
   state.sitting = false; // landed with its propellers off (no arena only)
+  state.runDir = 0; // kiting: 1 right, -1 left, 0 not
+  state.runAt = -Infinity;
   state.ids = {}; // light enemies seen, by id: when first seen
   state.src = null; // where the last new light enemy came from: { x, y, at }
   recache();
@@ -429,15 +437,19 @@ function tick() {
     const mySide = Math.abs(dx) > 5 ? -Math.sign(dx) : state.side;
     // A ground enemy can drive under it, and a stream of shells pushes: it keeps further from the edges then, so
     // there is room before the push carries it out.
-    const limit = main.pos.y < 35 ? groundHalf : half;
+    const limit = main.pos.y < groundY ? groundHalf : half;
     let off = standoff;
     if (!darts && guns) off = gunRange * reach;
-    ram = !darts && !guns && main.mass < self.mass;
+    // Ramming only what is lighter, and only when it is alone: through a ring of guns it would only be taken apart.
+    let others = 0;
+    for (const c of foes) if (c !== main && c.mass >= followMass && c.distance <= kiteRange) others++;
+    ram = !darts && !guns && main.mass < self.mass && others === 0;
     wantX = ram ? main.pos.x : clamp(main.pos.x + mySide * off, midX - limit, midX + limit);
-    if (ram) wantY = main.pos.y;
+    if (ram) wantY = Math.max(main.pos.y, (state.ground || 0) + restHeight + 3); // level with it, never into the ground
     else if (main.mass >= heavyMass) {
-      const closing = -(dx * (main.vel.x - self.vel.x) + dy * (main.vel.y - self.vel.y)) / dist;
-      if (main.pos.y < 35) {
+      // Its own speed at us, not ours at it (titans v2): kiting at 50 m/s past something, it is not being rammed.
+      const closing = -(dx * main.vel.x + dy * main.vel.y) / dist;
+      if (main.pos.y < groundY) {
         if (Math.abs(dx) < under) wantY = high;
       } else if (closing > ramSpeed && dist < 650) {
         if (!state.dodge) state.dodge = main.pos.y + main.vel.y * Math.min(dist / closing, 6) >= self.pos.y ? -1 : 1;
@@ -447,6 +459,39 @@ function tick() {
   }
   if (state.dodge && time - state.dodgeAt > 2.5) state.dodge = 0;
   if (state.dodge && !ram) wantY = state.dodge > 0 ? high : low;
+  // Kiting (titans v2, 2026-10): with enemies that have a core and some weight within `kiteRange` m (their guns reach
+  // about 290 m), it does not hold its place and wait to be taken apart: it runs along the ground it keeps to, at up to
+  // `kiteSpeed` m/s (its push over drag allows about 90 m/s at its steepest lean; gun panels fly 32 m/s), away from
+  // them, and turns back past them `turnRoom` m short of the edge. Darts still go while it runs. Measured against the
+  // gun wall: it lived to 165 s, not 66, but turning back through the ring of panels cost it every bay in 5 s.
+  let speedCap = maxSpeed;
+  let near = 0;
+  let nearX = 0;
+  if (!ram) {
+    for (const c of foes) {
+      // Fliers only: a ground robot cannot be passed over (a mast may reach the ceiling), so running to the edge from one
+      // ends pinned there. Over one it holds its height instead.
+      if (c.mass < followMass || c.distance > kiteRange || c.pos.y < groundY) continue;
+      near++;
+      nearX += c.pos.x;
+    }
+  }
+  if (near > 0) {
+    const lo = midX - half;
+    const hi = midX + half;
+    let dir = state.runDir || (self.pos.x >= nearX / near ? 1 : -1);
+    if (dir > 0 && hi - self.pos.x < turnRoom) dir = -1;
+    else if (dir < 0 && self.pos.x - lo < turnRoom) dir = 1;
+    if (dir !== state.runDir) log('kiting ' + (dir > 0 ? 'right' : 'left') + ' from ' + near + ' close enemies');
+    state.runDir = dir;
+    state.runAt = time;
+    wantX = dir > 0 ? hi : lo;
+    speedCap = kiteSpeed;
+  } else if (state.runDir && time - state.runAt > runHold) state.runDir = 0;
+  else if (state.runDir) {
+    wantX = state.runDir > 0 ? midX + half : midX - half;
+    speedCap = kiteSpeed;
+  }
   if (!main && src) wantX = src.x + (Math.abs(src.x - self.pos.x) > 5 ? -Math.sign(src.x - self.pos.x) : state.side) * standoff;
   wantX = clamp(wantX, midX - half, midX + half);
   if (wantRest) {
@@ -471,7 +516,7 @@ function tick() {
     // Carried outward past its place (a stream of shells pushes, a ram shoves): lean much harder to get back. While it
     // is pushed up it needs little lift, so only a steep lean gives it sideways push.
     const carried = Math.abs(self.pos.x - midX) > Math.abs(wantX - midX) + 25 && (self.pos.x - midX) * self.vel.x > 0;
-    fly(wantY, clamp(0.3 * (wantX - self.pos.x), -maxSpeed, maxSpeed), carried ? hardLean : lean);
+    fly(wantY, clamp(0.3 * (wantX - self.pos.x), -speedCap, speedCap), carried || speedCap > maxSpeed ? hardLean : lean);
   }
 
   // Bays: let a finished dart go at the main enemy (or the place it should be).
@@ -484,7 +529,7 @@ function tick() {
   // Somewhere to send it: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
   // mirror of its own start (only in an arena: its middle is x 0; titans v2). With none of those it holds its darts.
   const someplace = main || last || src || (arena && !state.everSeen);
-  if (debug > 0.5 && frame % 120 === 0) log('darts: spare ' + spare + ' place ' + !!someplace + ' tilt ' + (self.angle * 57.3).toFixed(0) + ' vx ' + self.vel.x.toFixed(1) + ' vy ' + self.vel.y.toFixed(1) + ' steady ' + steady + ' bays ' + C.bays.length + ' energy ' + (stored / 1000).toFixed(0) + 'k' + (main ? ' main ' + main.id + ' at ' + main.pos.x.toFixed(0) + ',' + main.pos.y.toFixed(0) : ''));
+  if (debug > 0.5 && frame % 120 === 0) log('darts: spare ' + spare + ' place ' + !!someplace + ' tilt ' + (self.angle * 57.3).toFixed(0) + ' vx ' + self.vel.x.toFixed(1) + ' vy ' + self.vel.y.toFixed(1) + ' steady ' + steady + ' bays ' + C.bays.length + ' energy ' + (stored / 1000).toFixed(0) + 'k' + (main ? ' main ' + main.id + ' at ' + main.pos.x.toFixed(0) + ',' + main.pos.y.toFixed(0) : '') + (src ? ' darts from ' + src.x.toFixed(0) + ',' + src.y.toFixed(0) : ''));
   if (spare && someplace && time - state.lastRel >= gap && Math.abs(self.angle) < level && steady) {
     // The bay nearest the target goes first, so a dart never turns across one let go just before it.
     const toRight = (main ? main.pos.x : last ? last.x : src ? src.x : -state.home.x) >= self.pos.x;
@@ -494,7 +539,21 @@ function tick() {
       let msg;
       const clear = 30 + 8 * (state.sent % 5); // m straight up before it turns: neighbors turn at different heights
       let t = main;
-      if (state.sent % spreadEvery === spreadEvery - 1) {
+      // Close threats first (titans v2, 2026-10): robots with a core and some weight within `threatRange` m are the ones
+      // whose guns reach it (a ring of gun panels while their keep waits far off). The nearest few take turns; every
+      // `spreadEvery`th dart still goes to the main enemy.
+      let threats = 0;
+      for (const c of foes) if (c !== main && c.mass >= followMass && c.distance <= threatRange && threats < 3) threats++;
+      if (threats > 0 && (!main || state.sent % spreadEvery !== spreadEvery - 1)) {
+        let k = state.sent % threats;
+        for (const c of foes) {
+          if (c === main || c.mass < followMass || c.distance > threatRange) continue;
+          if (k-- === 0) {
+            t = c;
+            break;
+          }
+        }
+      } else if (state.sent % spreadEvery === spreadEvery - 1) {
         for (const c of foes) {
           if (c !== main && c.mass >= minMass) {
             t = c;
