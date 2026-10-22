@@ -25,6 +25,9 @@ const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const room = param('room', 16, { min: 0, max: 60 }); // m it keeps from friends (two gunships that touch can lock together and fall)
+const manyGuns = param('manyGuns', 30, { min: 1, max: 10000 }); // guns: a main enemy with this many is fought from outside their reach
+const standoff = param('standoff', 320, { min: 50, max: 1000 }); // m: the ring round such a robot (guns blast about 290 m)
+const recount = param('recount', 15, { min: 1, max: 240 }); // s between counts of its guns
 const seek = param('seek', 105, { min: 20, max: 300 }); // m: ring round a main enemy that vanished alive (within 150 m its bubble is seen through)
 const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no main enemy before a lighter one will do
 const heavyMass = param('heavyMass', 300, { min: 0, max: 100000 }); // kg: a robot this heavy is a main enemy before any lighter one
@@ -160,6 +163,8 @@ function setup() {
   // Searching, it spreads all round the last place: its own bearing from the slot, 13 degrees apart.
   state.bearing = ((slot * 137.5) % 360) * (Math.PI / 180);
   state.firing = { gunA: false, gunB: false };
+  state.guns = 0; // guns the main enemy carries, as last counted
+  state.countedAt = -100;
 }
 
 function lookAround() {
@@ -201,6 +206,16 @@ function lookAround() {
   // shows up). In a match it waits longer: a titan hidden from the first second is still out there somewhere.
   else if (!main && light && time - state.mainAt > (arena ? fallbackMatch : fallback)) main = light;
   if (main) {
+    // How many guns it carries, by a scan of its guns only (once a new main enemy is seen, then every `recount` s, and
+    // only of a robot this gunship's own radar sees): a gun titan is fought from outside its guns' reach.
+    if ((main.id !== root.id || time - state.countedAt > recount) && main.by && main.by.indexOf('radio') < 0) {
+      const g = scan(main.id, { of: ['gun'], most: 60 });
+      if (g) {
+        state.guns = g.length;
+        state.countedAt = time;
+      }
+    }
+    if (main.id !== root.id && time - state.countedAt > 0.5) state.guns = 0;
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance, size: sizeOf(main) };
     state.live = true;
     if (main.id !== root.id) state.hider = false;
@@ -317,7 +332,9 @@ function tick() {
   } else {
     // Its place: on a ring around the main robot, on its own side or the far side, well above it. Round one that
     // hides (it vanished once), the ring is tighter, inside the 150 m where its bubble is seen through.
-    const ring = state.hider ? seek + 0.25 * (state.ring - 150) : state.ring;
+    // Round a robot with `manyGuns` guns or more it keeps just outside their reach (titans v2): in reach, 60 guns
+    // against 140 lost the whole swarm in 30 s. Out there it still draws their darts and eyes off the king.
+    const ring = state.guns >= manyGuns ? standoff + 0.5 * (state.ring - 150) : state.hider ? seek + 0.25 * (state.ring - 150) : state.ring;
     const toward = state.home < root.x ? -1 : 1;
     const sideways = (state.side === 0 ? toward : -toward) * ring * Math.cos(state.elev);
     px = root.x + sideways;
