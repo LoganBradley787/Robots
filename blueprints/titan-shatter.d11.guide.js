@@ -1,4 +1,8 @@
 // titan-shatter dart guide: a copy of tech-missile.guide.js (made by tournaments/gen/titan-shatter.mjs), kept by hand since.
+// Arming (titans v2, 2026-10): it arms only once an enemy robot with a live core is near: within `armNear` m plus
+// twice the square root of its part count (a big robot's parts stand far from its core), by its radar or its radio.
+// Its distance charge then goes off on ANY enemy part it comes within 1.5 m of, not only its target's, and on any hit
+// over 10 m/s. Armed 14 to 46 m out of the rack, darts let go a tick apart set each other off 300 m over the king.
 // Its fuse fits the flight (titan-darts, 2026-10): `fuse` s at least, and the time to the launcher's point at
 // `fuseSpeed` plus `fuseSpare` when that is longer, up to `fuseMax`.
 // Seeker guide (M8): flies to the point its launcher sent it, and follows the robot its seeker tracks there.
@@ -27,6 +31,7 @@
 //   gives per radian off the air is 0.6 * area * speed^2 times its arm behind the center of mass. Angled toward the
 //   wanted heading instead, they sprang it back and forth (Logan: "constantly overcorrecting... a very wiggly path").
 
+const armNear = param('armNear', 150, { min: 0, max: 2000 }); // m: it arms once an enemy is this near (plus its size)
 const fuse = param('fuse', 12, { min: 0.5, max: 30 }); // s of flight before it detonates, at least (a far point gives it more)
 const fuseSpeed = param('fuseSpeed', 50, { min: 5, max: 500 }); // m/s: the fuse is at least the time to the launcher's point at this speed
 const fuseSpare = param('fuseSpare', 5, { min: 0, max: 30 }); // s added to that (the climb out, a target that moves away)
@@ -200,7 +205,16 @@ function tick() {
   // Armed (M10) once clear of its launcher, and only when it was launched at something (a message with a point) or
   // tracks an enemy: safe while it rides on a launcher and while it clears it, and a dart knocked loose by a hit
   // (no message) stays a dud unless it finds a target.
-  if (!state.armed && (state.launched || seen) && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
+  let enemyNear = false;
+  if (!state.armed) for (const c of contacts) {
+    if (c.side !== 'enemy' || !c.core) continue;
+    const reachOf = armNear + 2 * Math.sqrt(c.parts || 1);
+    if (c.distance < reachOf || Math.hypot(c.center.x - self.pos.x, c.center.y - self.pos.y) < reachOf) {
+      enemyNear = true;
+      break;
+    }
+  }
+  if (!state.armed && enemyNear && (state.launched || seen) && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
     set('warhead', 'arm', 1);
     set('heavywarhead', 'arm', 1);
     set('charge', 'arm', 1);
