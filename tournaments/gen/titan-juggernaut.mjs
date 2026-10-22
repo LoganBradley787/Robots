@@ -26,12 +26,27 @@ const RADARS = [{ x: 49, y: 8 }, { x: 51, y: 10 }];
 // Standing back from a roped base, the copies come down on the roof over the core instead: a hump of extra plates.
 const HUMP = { x0: 40, x1: 59, h: Number(process.env.JUG_HUMP ?? 24) };
 const BIN = 4; // guns per fire group
+// Two beam turrets (titans v2, 2026-10): a rotator with a laser near each end of the hull, low on the hull itself so
+// that losing the mast does not take them (darts cut the mast in the first 20 s against a fortress). Guns barely
+// scratch armor (a tenth of a shell's damage), so nothing the sled carried could end a core under armor once pushing
+// it out was off the table (a roped base, the sandbox with no edge). A beam burns armor in full. The front one sits on
+// a short pedestal on the roof near the nose and swings from straight down to straight up through the nose's way;
+// a line just over the nose reaches a ground core in front of it, and up to 84 degrees clears the deck overhead. The
+// back one hangs off the gun shelf's end and covers the tail's side the same way.
+// The front one is the one that ends fortresses, and the first a volley of darts finds: a heavy rotator carrying the
+// laser with a plate over and under both, so they turn with it and only its muzzle is bare. It stands on a pedestal
+// with an empty cell above and below its arm (anything touching the turret's plates would weld it to the hull).
+const FRONT_TURRET = { x: W - 4, y: H + 3 }; // the front rotator's cell
 
 const legend = {
   k: { part: 'booster', rot: 270, tags: ['fwd'], auto: false },
   j: { part: 'booster', rot: 90, tags: ['rev'], auto: false },
+  rf: { part: 'heavyrotator', rot: 270, tags: ['rotF'], auto: false },
+  lf: { part: 'laser', rot: 270, tags: ['laserF'], auto: false },
+  rb: { part: 'rotator', rot: 90, tags: ['rotB'], auto: false },
+  lb: { part: 'laser', rot: 90, tags: ['laserB'], auto: false },
 };
-const OX = SHELF; // grid column of hull x 0
+const OX = SHELF + 2; // grid column of hull x 0 (two more for the back turret)
 const GW = OX + Math.max(W, DECK.x1 + 1);
 const rows = []; // rows[y][x + OX], y 0 at the bottom
 for (let y = 0; y <= SPAR_TOP; y++) rows.push(new Array(GW).fill('.'));
@@ -71,6 +86,7 @@ for (const x of MAST_X) for (let y = H + 1; y < H + MAST - 1; y++) put(x, y, 'A'
 for (let x = DECK.x0; x <= DECK.x1; x++) {
   put(x, H + MAST - 1, 'A');
   put(x, H + MAST, 'A');
+  // the end guns would fire up into a turret swung upright
   if (!SPAR_X.includes(x)) gun(x, H + MAST + 1);
 }
 for (const x of SPAR_X) for (let y = H + MAST + 1; y <= SPAR_TOP; y++) put(x, y, 'F');
@@ -80,6 +96,13 @@ for (let x = 0; x < Math.min(W, DECK.x0); x++) {
   for (let y = H + 1; y <= H + hump; y++) put(x, y, 'A');
   gun(x, H + hump + 1);
 }
+for (let y = H + 1; y <= FRONT_TURRET.y; y++) put(FRONT_TURRET.x - 2, y, 'A'); // the pedestal
+put(FRONT_TURRET.x - 1, FRONT_TURRET.y, 'A'); // its arm
+put(FRONT_TURRET.x, FRONT_TURRET.y, 'rf');
+put(FRONT_TURRET.x + 1, FRONT_TURRET.y, 'lf');
+for (const dx of [0, 1]) for (const dy of [-1, 1]) put(FRONT_TURRET.x + dx, FRONT_TURRET.y + dy, 'A'); // its plates
+put(-SHELF - 1, H, 'rb');
+put(-SHELF - 2, H, 'lb');
 
 const width = Math.max(...Object.keys(legend).map((k) => k.length), 2);
 const grid = rows.map((r) => r.map((t) => t.padEnd(width)).join(' ').trimEnd()).reverse();
