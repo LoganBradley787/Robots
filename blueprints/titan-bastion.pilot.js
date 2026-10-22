@@ -14,8 +14,10 @@
 //   column. Otherwise the darts wait in their bays for a target.
 // - Hidden enemies (titans v2, 2026-10): a main enemy that vanished alive (most likely into its own jammer bubble)
 //   is not forgotten after `memory` s any more. Two clues say where it is now, both from what the radars see:
-//   * where our own darts end early (`ends`): a dart that stops being seen near the guess either blew up on
-//     something there, was blasted by its guns, or flew into its bubble. All three are next to it.
+//   * where our own darts end early (`ends`): a dart that stops being seen short of the point it was sent to,
+//     near the guess, either blew up on something there, was blasted by its guns, or flew into its bubble. All
+//     three are next to it. One that ends at its point (it hit the ground there) or past it (its fuse) says nothing:
+//     counted, those made the guess chase its own darts' craters.
 //   * where new enemy robots first show up (`origins`): darts and drones let go from its bays.
 //   * where new debris heavier than a dart first shows up far from us (`debris`): a piece our darts broke off it.
 //   Darts go round the middle of the recent debris, else origins, else ends (the least sure: a dart blasted by its
@@ -54,7 +56,8 @@ const originKeep = param('originKeep', 25, { min: 1, max: 300 }); // s an enemy 
 const originAfter = param('originAfter', 3, { min: 0, max: 60 }); // s into the match before first sightings count (at the start everything is new)
 const debrisMass = param('debrisMass', 12, { min: 0, max: 10000 }); // kg: new debris at least this heavy (more than a dart) far off is a clue
 const sweep = param('sweep', 30, { min: 1, max: 200 }); // m between the lines of the sweep round a hidden enemy's last place
-const endNear = param('endNear', 200, { min: 10, max: 1000 }); // m: a dart of ours that ends this close to the guess is a clue
+const endNear = param('endNear', 250, { min: 10, max: 1000 }); // m: a dart of ours that ends this close to the guess is a clue
+const maxFlying = param('maxFlying', 40, { min: 1, max: 1000 }); // darts in flight at most: each runs a script, and 90 at once against a hidden mirage made the tick much dearer
 const hiddenGap = param('hiddenGap', 1.5, { min: 0.05, max: 30 }); // s between darts to a hidden enemy's last place, with no fresher clue
 const debug = param('debug', 0, { min: 0, max: 1 }); // 1 logs the way in and the hidden enemy's guess
 const wayParts = param('wayParts', 300, { min: 1, max: 100000 }); // parts: a main enemy this big gets a way in picked
@@ -185,16 +188,32 @@ function watchOrigins() {
 function watchDarts() {
   for (const c of contacts) {
     if (c.side !== 'friend' || c.mass >= mainMass) continue;
-    state.darts[c.id] = { x: c.pos.x, y: c.pos.y, f: frame };
+    const d = state.darts[c.id];
+    if (d) {
+      d.x = c.pos.x;
+      d.y = c.pos.y;
+      d.f = frame;
+    } else {
+      // New: the dart let go last (one a tick at most), with the point it was sent to.
+      state.darts[c.id] = { x: c.pos.x, y: c.pos.y, f: frame, aim: state.sent };
+      state.sent = null;
+    }
   }
   // Near its last place, not near the latest guess: measured against the hive, ends near the guess walked the guess
   // 120 m off in a minute.
   const g = state.hidden || state.guess;
+  state.flying = 0;
   for (const id in state.darts) {
     const d = state.darts[id];
-    if (d.f === frame) continue;
+    if (d.f === frame) {
+      state.flying++;
+      continue;
+    }
     delete state.darts[id];
-    if (g && Math.hypot(d.x - g.x, d.y - g.y) < endNear && Math.hypot(d.x - state.home.x, d.y - state.home.y) > 100) state.ends.push({ x: d.x, y: d.y, at: time });
+    const a = d.aim;
+    // Short of its point: more than 30 m from it, on our side of it.
+    const short = a && Math.hypot(d.x - a.x, d.y - a.y) > 30 && (a.x - state.home.x) * (d.x - a.x) + (a.y - state.home.y) * (d.y - a.y) < 0;
+    if (g && short && Math.hypot(d.x - g.x, d.y - g.y) < endNear && Math.hypot(d.x - state.home.x, d.y - state.home.y) > 100) state.ends.push({ x: d.x, y: d.y, at: time });
   }
   while (state.ends.length > 0 && (state.ends.length > 10 || time - state.ends[0].at > originKeep)) state.ends.shift();
 }
@@ -346,11 +365,14 @@ function tick() {
     const o = middle(state.debris) || middle(state.origins) || middle(state.ends);
     const h = o || state.hidden;
     if (h) {
-      // The sweep: a 3 by 5 grid of points round the middle (no heights for one on the ground), in turn.
+      // The sweep: a 3 by 5 grid of points round the middle, in turn: three heights round it and one on the ground
+      // under it (no heights for one on the ground). Measured: the mirage, hidden, came down to the ground while
+      // the darts kept looking for it in the air.
       const k = state.sweepK % 15;
       const dx = ((k % 3) - 1) * 2 * sweep;
-      const dy = h.y > 30 ? (Math.floor(k / 3) - 2) * sweep : 0;
-      aim = { x: h.x + dx, y: Math.max(1, h.y + dy), vx: 0, vy: 0, at: time };
+      const row = Math.floor(k / 3);
+      const y = h.y <= 30 || row === 4 ? 1 : h.y + (row - 1.5) * sweep;
+      aim = { x: h.x + dx, y: Math.max(1, y), vx: 0, vy: 0, at: time };
       // With a clue, as fast as for a robot in view; with only its last place, slower.
       wait = o ? gap : hiddenGap;
     }
@@ -371,7 +393,7 @@ function tick() {
     // Over the top onto the mirror column: from 60 m over the ground, or from 60 m over 150 and on down.
     aim = { x: state.mirrorX, y: state.blind % 2 === 0 ? 1 : 150, vx: 0, vy: 0, at: time };
   }
-  if (time - state.released < wait) return;
+  if (time - state.released < wait || state.flying >= maxFlying) return;
   // One bay per tick, round robin.
   for (let i = 0; i < state.bays.length; i++) {
     const tag = state.bays[(state.next + i) % state.bays.length];
@@ -381,6 +403,7 @@ function tick() {
     if (t && state.way && state.way.id === t.id && state.way.via && Math.hypot(t.vel.x, t.vel.y) < wayStill) msg.via = state.way.via;
     if (blind) state.blind++;
     if (guess) state.sweepK++;
+    state.sent = { x: aim.x, y: aim.y };
     send(tag + get(tag, 'built'), msg);
     set(tag, 'release', 1);
     state.released = time;
