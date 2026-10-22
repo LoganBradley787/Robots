@@ -125,6 +125,23 @@ const dartBlueprint = (file) => ({
   scripts: [{ id: 'guide', source: { file } }],
 });
 
+// Flares (titans v2, 2026-10): a burning flare let go is taken for this titan by every sensor that sees it, so a dart
+// or gun steering by contacts goes for the flare. They stand as far from the keep as the base reaches: a column at each
+// end (flare outside, its grip inside, the grips stacked on the roof), as tall as the keep. Nowhere nearer: a grip
+// beside a dart would hold it on. Tags: flare `f<n>`, grip `fg<n>`.
+let flares = 0;
+const addFlare = (fx, fy, gx, gy, rot) => {
+  flares++;
+  legend[`q${flares}`] = { part: 'flare', rot, tags: ['flare', `f${flares}`] };
+  legend[`r${flares}`] = { part: 'decoupler', rot, tags: ['fgrip', `fg${flares}`] };
+  put(gx, gy, `r${flares}`);
+  put(fx, fy, `q${flares}`);
+};
+for (let y = ROOF + 1; y < KEEP_H; y++) {
+  addFlare(0, y, 1, y, 90);
+  addFlare(W - 1, y, W - 2, y, 270);
+}
+
 const blueprint = {
   format: 1,
   name: NAME,
@@ -142,4 +159,4 @@ fs.writeFileSync(bp(`${NAME}.json`), JSON.stringify(blueprint, null, 1) + '\n');
 const { format: dartFormat, name: dartName, ...dartRest } = dartBlueprint(`${NAME}-dart.guide.js`);
 fs.writeFileSync(bp(`${NAME}-dart.json`), JSON.stringify({ format: dartFormat, name: dartName, kind: 'yours', ...dartRest }, null, 1) + '\n');
 if (fs.existsSync(bp(`${NAME}.dart.guide.js`))) fs.copyFileSync(bp(`${NAME}.dart.guide.js`), bp(`${NAME}-dart.guide.js`));
-console.log(`${NAME}: ${W} wide, ${dart} darts, ${bay} bays, ${anchors} anchors`);
+console.log(`${NAME}: ${W} wide, ${dart} darts, ${bay} bays, ${anchors} anchors, ${flares} flares`);
