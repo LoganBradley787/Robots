@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FramePace, frameSimBudget, runsText, ScriptScheduler, scriptBudget, SMOOTH_FLOOR, SMOOTH_MARGIN_MS, ticksPerWindow } from '../src/app/scriptScheduler';
+import { FramePace, frameSimBudget, loadSmooth, runsText, saveSmooth, ScriptScheduler, scriptBudget, SMOOTH_FLOOR, SMOOTH_MARGIN_MS, ticksPerWindow } from '../src/app/scriptScheduler';
 import { FixedStepper } from '../src/app/FixedStepper';
 
 const costs = (m: Record<number, number>) => (id: number): number | undefined => m[id];
@@ -128,5 +128,31 @@ describe('Smooth: the time budget', () => {
     // The time it had no room for is dropped, not owed.
     expect(s.advance(1000 / 60, 1, 2)).toBe(1);
     expect(s.advance(200, 1)).toBe(12);
+  });
+});
+
+describe('Smooth: kept across reloads', () => {
+  it('is off for a new visitor, remembered once toggled, and off on garbage or blocked storage', () => {
+    const data = new Map<string, string>();
+    const store = { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) };
+    expect(loadSmooth(store)).toBe(false);
+    saveSmooth(store, true);
+    expect(data.get('robots.smooth')).toBe('on');
+    expect(loadSmooth(store)).toBe(true);
+    saveSmooth(store, false);
+    expect(loadSmooth(store)).toBe(false);
+    data.set('robots.smooth', 'yes please');
+    expect(loadSmooth(store)).toBe(false);
+    const blocked = {
+      getItem: (): string | null => {
+        throw new Error('blocked');
+      },
+      setItem: (): void => {
+        throw new Error('blocked');
+      },
+    };
+    expect(loadSmooth(blocked)).toBe(false);
+    expect(() => saveSmooth(blocked, true)).not.toThrow();
+    expect(loadSmooth(undefined)).toBe(false);
   });
 });
