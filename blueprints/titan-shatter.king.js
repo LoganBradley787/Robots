@@ -236,6 +236,7 @@ function tick() {
   if (main) {
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance, parts: main.parts || 0 };
     state.foe = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time };
+    state.foeParts = main.parts || 0;
     state.everSeen = true;
   } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
     state.root = null;
@@ -256,7 +257,10 @@ function tick() {
     // Never two darts closer than `spacing` s apart, however late a wave is (let go a tick apart, they collided).
     const gap = state.root && state.root.parts >= bigParts ? arcSpacing : spacing;
     if (t >= due && time - state.lastDart >= gap) {
-      const r = state.root;
+      // With no fresh sighting, the main enemy's id and last place will do: the darts hear where it is by radio from
+      // the gunships round it (titans v2; the king lapsed its bubble to look, was seen by it, and its darts found it).
+      const fo2 = state.foe;
+      const r = state.root || (fo2 ? { id: fo2.id, x: fo2.x, y: fo2.y, vx: 0, vy: 0, at: fo2.at, parts: state.foeParts || 0 } : null);
       if (r) {
         if (state.next === 0) state.firstWave = t;
         const k = state.order[state.next];
@@ -285,9 +289,11 @@ function tick() {
   const f = fo ? { x: fo.x + fo.vx * ca, y: Math.max(0, fo.y + fo.vy * ca) } : state.everSeen ? null : state.guess;
   const fd = f ? Math.hypot(f.x - self.pos.x, f.y - self.pos.y) : Infinity;
   const exposed = near < far || fd < far;
-  // Listening: when the pod burns out the bubble lapses `lookFor` s, if darts wait or what it knows is stale.
+  // Listening: when the pod burns out the bubble lapses `lookFor` s, if darts wait or what it knows is stale, but only
+  // while it knows of no main enemy (titans v2): lapsing within the enemy's radar reach let it be seen, and its darts
+  // came 10 s later. Knowing one, it keeps hidden and goes by where it was last seen.
   const stale = time - state.heard > refresh;
-  const listen = (state.looking || stale) && state.jamUntil > 0;
+  const listen = (state.looking || stale) && state.jamUntil > 0 && !state.foe;
   if (exposed && t > 1.2 && time >= (listen ? state.jamUntil + lookFor : state.jamUntil - 0.05)) {
     while (state.jam < pods && !hasPod(state.jam)) state.jam++;
     if (state.jam < pods) {
