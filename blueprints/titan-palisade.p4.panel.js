@@ -4,17 +4,19 @@
 // - Flight is level: propellers hold the height and the tilt (the side groups `pa` and `pb` throttled apart, `pd`
 //   pushing down on the keep), thrusters `ta` (toward the t1 guns' side) and `tb` (away) move it sideways. Left, right
 //   and front are worked out from where the parts are, so it flies the same flipped.
-// - The enemy's main robot is the one robot of the other side with id 1 or 2 (the two titans spawn first). While the
+// - The enemy's main robot (titan-darts, 2026-10, Logan): picked from what the radar reports, never by id: the heaviest
+//   enemy with a live core of `mainMass` kg or more (nearest first on a tie), kept while it is seen unless one twice
+//   as heavy shows up, and forgotten when it is seen as debris (no live core). While the
 //   radar sees it, the panels hold a ring around it, `ring` meters off, panel `slot` at its own angle (low slots low);
 //   Every few seconds a panel scans it: where its guns are, and
 //   how far it reaches from its core. A ground robot with a tall mast gets the mast cut first (the cheapest band). Hidden (a jammer, smoke), they close to `near` meters of where it was last
 //   seen (at first: the mirror of their own start) and blast that place for `fresh` seconds; with nothing there they
 //   search: one over the other, walking to the enemy's end with the batteries sweeping. Every gun blasts whenever its
-//   own sight reads an enemy, and a sight that reads the main robot (sightId 1 or 2) gives its place.
+//   own sight reads an enemy, and a sight that reads the main robot gives its place (until one is known, a sight on any robot not seen lighter than `mainMass`).
 // - Batteries take the main robot when it is in reach: its guns first, one after another (25 health each, and they
 //   are what hurts), then its core. Else the nearest enemy they can swing to. The keep's guns take the nearest.
 //   Aim leads the target and allows for the drop.
-// - The last `guards` panels stay by the keep (the friend with id 1 or 2) and blast whatever comes near it.
+// - The last `guards` panels stay by the keep (the heaviest friend with a live core) and blast whatever comes near it.
 // - The keep fires every link on the first ticks, then waits at its own end of the arena, high up. From a heavy main
 //   robot (a ram) it runs: away along the arena, and near the end, or with the ram close, it steps over or under it
 //   (whichever has room) and runs the other way.
@@ -40,6 +42,7 @@ const fresh = param('fresh', 8, { min: 0, max: 100 }); // s a sighting of the hi
 const wait = param('wait', 5, { min: 0, max: 100 }); // s in place with nothing seen before a search
 const pace = param('pace', 12, { min: 1, max: 40 }); // m/s of a search
 const debug = param('debug', 0, { min: 0, max: 1 });
+const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main robot is never lighter (darts, pods)
 const guards = param('guards', 2, { min: 0, max: 100 }); // panels that stay by the keep while no ram is about
 const guard = role < 0.5 && slot >= count - guards;
 const HALF = Math.PI / 2;
@@ -142,6 +145,8 @@ function setup() {
   state.run = 0;
   state.pass = 0;
   state.ram = false;
+  state.mainId = -1;
+  state.light = {}; // ids of enemy robots seen lighter than `mainMass`
   index();
   if (state.facing === undefined) state.facing = self.pos.x < 0 ? 1 : -1;
 }
@@ -319,7 +324,7 @@ function runTurret(e, main, list, spot) {
     let fire = 0;
     if (side === 3) {
       fire = 1;
-      if (o.sightId <= 2 && !main) {
+      if (!main && (state.mainId >= 0 ? o.sightId === state.mainId : !state.light[o.sightId])) {
         // A sight found the hidden main robot: that is where it is.
         state.last = { x: guns[i].pos.x + o.sight * Math.cos(o.aim), y: guns[i].pos.y + o.sight * Math.sin(o.aim) };
         state.seen = time;
@@ -394,15 +399,25 @@ function tick() {
   if (role > 0.5 && state.ticks <= 3) set('decoupler', 'fire', 1);
   if (parts.length !== state.n) index();
   // What the radar shows: the main robot, and the nearest few in reach.
-  let main = null;
+  // `mine`, the keep the guard panels stay by: the heaviest friend with a live core. The panels split off the keep, and
+  // none can tell which robot it was part of (a script does not know its own robot's number), but the keep is three
+  // times any panel (about 480 kg to 150) and nothing else of its side is on the field. Contacts come nearest first,
+  // so a tie goes to the nearer.
   let mine = null;
+  let heaviest = null;
+  let kept = null;
   const list = [];
   for (const c of contacts) {
-    if (c.side === 'friend' && c.id <= 2) mine = c;
+    if (c.side === 'friend' && c.core && (!mine || c.mass > mine.mass)) mine = c;
+    if (c.id === state.mainId && (c.side !== 'enemy' || !c.core)) state.mainId = -1; // seen as debris: forgotten
     if (c.side !== 'enemy' || !c.core) continue;
-    if (c.id <= 2) main = c;
+    if (c.id === state.mainId) kept = c;
+    if (c.mass < mainMass) state.light[c.id] = true;
+    else if (!heaviest || c.mass > heaviest.mass) heaviest = c;
     if (c.distance < 300 && list.length < 8) list.push(c);
   }
+  const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  if (main) state.mainId = main.id;
   if (main) {
     // A ram is a heavy main robot that moves; one that sits still (a fortress) is not run from.
     if (!state.ram && main.mass >= ram && Math.hypot(main.vel.x, main.vel.y) > 10) state.ram = true;

@@ -4,11 +4,17 @@
 // the thinnest one, again and again on the same spot. From the side it flies level through the core's row; from
 // below it climbs into the core's column with its roof (gravity stops the climb, so that is safe at the arena's
 // edge). A robot known only from gun sights (it hides from radar) is taken from below, across its whole length.
+// - The main enemy (titan-darts, 2026-10, Logan): picked from what the radar reports, never by id: the heaviest enemy
+//   with a live core of `mainMass` kg or more (nearest first on a tie), kept unless one twice as heavy shows up. One
+//   seen as debris (no live core) is done with: the brick lands. One that vanished alive stays the main enemy, and
+//   gun sights that read its id keep touching it. Until a main enemy is known, sights count unless they read a robot
+//   seen lighter than `mainMass`.
 // Something much heavier is not rammed: the brick waits high behind its tail, at the arena's edge.
 // It never turns: boosters on each side push it left or right, the lift rows hold its height and keep it level.
 // Guns on every face blast what their sights show. Everything goes by `side` and by where its own parts are, so it
 // works flipped.
 
+const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
 const vmax = param('vmax', 60, { min: 10, max: 90 }); // fastest ram, m/s
 const ownDv = param('ownDv', 20, { min: 5, max: 30 }); // the most its own speed may change in a hit, m/s
 const heavy = param('heavy', 1.3, { min: 0.1, max: 5 }); // an enemy over this share of its own mass is not rammed
@@ -97,6 +103,8 @@ function setup() {
   state.pushRight = 1;
   state.pushLeft = 1;
   state.mainId = -1;
+  state.mainMass = 0;
+  state.light = {}; // ids of enemy robots seen lighter than `mainMass`
   state.last = null;
   state.shape = null;
   state.shapeAt = -100;
@@ -153,7 +161,7 @@ function runGuns() {
     if (p.out.sightSide === 3) {
       set(p.id, 'fire', 1);
       const id = p.out.sightId;
-      if (state.mainId >= 0 ? id === state.mainId : id <= 2) {
+      if (state.mainId >= 0 ? id === state.mainId : !state.light[id]) {
         const d = p.out.sight;
         const px = p.pos.x + Math.cos(p.out.aim) * d;
         const py = p.pos.y + Math.sin(p.out.aim) * d;
@@ -215,14 +223,28 @@ function tick() {
   const vx = self.vel.x;
   const vy = self.vel.y;
 
-  // The two titans are the first two robots of a match (numbers 1 and 2), and a robot that comes apart keeps its
-  // number with its main core: the enemy numbered 1 or 2 is the one whose core decides the match.
-  let main = null;
+  // The main enemy: the one it had (unless one twice as heavy shows up), else the heaviest enemy with a live core of
+  // `mainMass` or more (contacts come nearest first, so a tie goes to the nearer). One that vanished alive (a jammer's
+  // bubble hides a shatter king for the whole match) stays the main enemy, since the pieces and darts around it
+  // would pull the brick off it; seen as debris, it is won and forgotten.
+  let heaviest = null;
+  let kept = null;
   for (const c of contacts) {
-    if (state.mainId < 0 && c.side === 'enemy' && c.core && c.id <= 2) state.mainId = c.id;
-    if (c.id !== state.mainId) continue;
-    if (c.side === 'enemy' && c.core) main = c;
-    else if (!c.core) state.won = true;
+    if (c.id === state.mainId) {
+      if (c.side === 'enemy' && c.core) kept = c;
+      else if (!c.core) {
+        state.won = true;
+        state.mainId = -1;
+      }
+    }
+    if (c.side !== 'enemy' || !c.core) continue;
+    if (c.mass < mainMass) state.light[c.id] = true;
+    else if (!heaviest || c.mass > heaviest.mass) heaviest = c;
+  }
+  const main = state.mainId < 0 || (heaviest && heaviest.mass > 2 * state.mainMass) ? heaviest : kept;
+  if (main) {
+    state.mainId = main.id;
+    state.mainMass = main.mass;
   }
   runGuns();
   if (main && time - state.shapeAt > 2) measure(main);
