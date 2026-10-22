@@ -3,12 +3,16 @@ import type { SettingsStore } from './deploySettings';
 /**
  * Removing robots by hand (M16, Logan: a long fight leaves the world slow, and Clear debris keeps every robot that
  * still has a core). The screen picks the robots, by a click, a distance or a team; the world only takes the ids
- * (`World.removeRobots`), so a replay removes the same ones.
+ * (`World.removeRobots`), so a replay removes the same ones. Remove far away measures from the camera, which is not
+ * part of the sim: the replay holds the ids it picked, never the distance.
  */
 
-/** The distances Remove far away offers, in meters from the middle of the world. */
-export const FAR_DISTANCES = [250, 500, 1000] as const;
-export const DEFAULT_FAR = 500;
+/**
+ * The distances Remove far away offers, in meters from the middle of the screen (Logan, 2026-10-22: for runaway
+ * missiles and robots that left the arena, so far enough never to catch the fight you are watching).
+ */
+export const FAR_DISTANCES = [1000, 2000, 5000] as const;
+export const DEFAULT_FAR = 2000;
 
 const FAR_KEY = 'robots.removeFar';
 
@@ -19,9 +23,12 @@ export interface RobotSpot {
   y: number;
 }
 
-/** Robots farther than `distance` from the middle of the world (x 0 on the ground), however they got there. */
-export function farIds(spots: readonly RobotSpot[], distance: number): number[] {
-  return spots.filter((s) => Math.hypot(s.x, s.y) > distance).map((s) => s.id);
+/**
+ * Robots farther than `distance` from `from` (the camera's center), however they got there. Measured from the camera
+ * and not the middle of the world, so the fight you watch off to one side stays (Logan, 2026-10-22).
+ */
+export function farIds(spots: readonly RobotSpot[], distance: number, from: { x: number; y: number }): number[] {
+  return spots.filter((s) => Math.hypot(s.x - from.x, s.y - from.y) > distance).map((s) => s.id);
 }
 
 /** A team's robots, the pieces that broke off them included: a piece keeps the team of what it came off. */
@@ -41,7 +48,10 @@ export function robotsText(n: number): string {
   return `${n} ${n === 1 ? 'robot' : 'robots'}`;
 }
 
-/** The saved distance for Remove far away, or the default when there is none or it is not one of the choices. */
+/**
+ * The saved distance for Remove far away, or the default when there is none or it is not one of the choices (an old
+ * 250 or 500 reads as the default; 1000 is still a choice and keeps).
+ */
 export function loadFarDistance(store: SettingsStore | undefined): number {
   try {
     const v = Number(store?.getItem(FAR_KEY));

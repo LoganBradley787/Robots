@@ -364,7 +364,7 @@ async function boot(): Promise<void> {
     toggleRemoving: () => worldScreen.toggleRemoving(),
     removeFar: () => {
       const n = worldScreen.removeFar();
-      notify(store, n === 0 ? 'Nothing is that far away.' : `Removed ${robotsText(n)} far away.`);
+      notify(store, n === 0 ? 'Nothing is that far from the camera.' : `Removed ${robotsText(n)} far from the camera.`);
     },
     setFarDistance: (meters) => worldScreen.setFarDistance(meters),
     removeTeam: (team) => {

@@ -21,7 +21,7 @@ export interface WorldActions {
   clearDebris(): void;
   /** M16: arms or disarms the remove cursor (a click removes the robot under it). */
   toggleRemoving(): void;
-  /** M16: removes every robot past Remove far away's distance, and picks that distance (meters). */
+  /** M16: removes every robot past Remove far away's distance from the camera, and picks that distance (meters). */
   removeFar(): void;
   setFarDistance(meters: number): void;
   /** M16: removes every robot of a team, with the pieces that broke off them. */
@@ -152,7 +152,7 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
               }}
               title="Removes every robot nobody can control: debris, robots that lost their core, spent pieces"
             />
-            <div class="wrow farrow" title="Removes every robot farther than this from the middle of the world: a missile that flew off, a drone that wandered away">
+            <div class="wrow farrow" title="Removes every robot farther than this from the camera (the middle of the screen): a missile that flew off, a robot that left the arena. What you are looking at stays.">
               <button
                 type="button"
                 class="mi danger far-go"
@@ -162,7 +162,7 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
                   actions.removeFar();
                 }}
               >
-                Remove far away
+                Remove far from camera
               </button>
               <span class="seg" role="radiogroup" aria-label="how far">
                 {FAR_DISTANCES.map((d) => (

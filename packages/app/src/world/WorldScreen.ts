@@ -85,7 +85,7 @@ export interface WorldView {
   removing: boolean;
   /** M16: robots per team, for the Sandbox menu's Remove all rows; teams with none are left out. */
   teams: { team: number; count: number }[];
-  /** M16: Remove far away's distance (meters from the middle of the world), and how many robots are past it now. */
+  /** M16: Remove far away's distance (meters from the camera's center), and how many robots are past it now. */
   far: { distance: number; count: number };
   /**
    * M16, the live readout of the robot you control or watch: its scripts and, while the readout is open, what they
@@ -360,21 +360,28 @@ export class WorldScreen {
     return robot.primaryCoreId !== undefined ? { id: robot.id, x: s.coreX, y: s.coreY } : { id: robot.id, x: s.comX, y: s.comY };
   }
 
-  /** How many robots are past Remove far away's distance, for its row: worked out again every quarter second, not every frame. */
+  /**
+   * How many robots are past Remove far away's distance, for its row: worked out again every quarter second (or when
+   * the camera has moved 50 m), not every frame.
+   */
   private farCount(present: readonly Robot[], stepped: boolean): number {
     const had = this.farAt;
     const tick = this.world.tick;
-    if (had && had.distance === this.farDistance && had.robots === present.length && (!stepped || tick - had.tick < 15)) return had.count;
-    const count = farIds(present.map((r) => this.spot(r)), this.farDistance).length;
-    this.farAt = { tick, robots: present.length, distance: this.farDistance, count };
+    const moved = had ? Math.hypot(this.cam.x - had.camX, this.cam.y - had.camY) : 0;
+    if (had && had.distance === this.farDistance && had.robots === present.length && moved < 50 && (!stepped || tick - had.tick < 15)) return had.count;
+    const count = farIds(present.map((r) => this.spot(r)), this.farDistance, this.cam).length;
+    this.farAt = { tick, robots: present.length, distance: this.farDistance, count, camX: this.cam.x, camY: this.cam.y };
     return count;
   }
 
-  private farAt: { tick: number; robots: number; distance: number; count: number } | undefined;
+  private farAt: { tick: number; robots: number; distance: number; count: number; camX: number; camY: number } | undefined;
 
-  /** M16, the Sandbox menu: every robot farther than the chosen distance from the middle of the world. */
+  /**
+   * M16, the Sandbox menu: every robot farther than the chosen distance from the camera's center. The camera is not
+   * part of the sim: the world (and so the replay) gets only the ids picked here.
+   */
   removeFar(): number {
-    return this.removeRobots(farIds(this.present().map((r) => this.spot(r)), this.farDistance));
+    return this.removeRobots(farIds(this.present().map((r) => this.spot(r)), this.farDistance, this.cam));
   }
 
   setFarDistance(distance: number): void {
