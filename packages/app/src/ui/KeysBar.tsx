@@ -14,14 +14,19 @@ function label(key: string): string {
 }
 
 /**
- * The controlled robot's energy and keys (`11`), as key caps just above the transport: letters only, no descriptions. Lit while held; toggle keys show a dot when on.
- * Pressing a button holds its key until the pointer lets go or leaves, so a click taps and a press holds.
+ * The followed robot's energy and, when you control it, its keys (`11`), as key caps just above the transport: letters
+ * only, no descriptions. Lit while held; toggle keys show a dot when on. A robot you only watch (an enemy) shows its
+ * energy and no keys: it cannot be driven. Pressing a button holds its key until the pointer lets go or leaves, so a
+ * click taps and a press holds.
  */
 export function KeysBar({ store, actions }: { store: Store<AppState>; actions: KeysBarActions }) {
   const c = useStore(store, (s) => s.world?.controlled);
+  const e = useStore(store, (s) => s.world?.energy);
   const unlimited = useStore(store, (s) => s.world?.unlimitedEnergy ?? false);
-  if (!c || (c.keys.length === 0 && c.scriptKeys.length === 0 && !c.energy)) return null;
-  const e = c.energy;
+  const keys = c?.keys ?? [];
+  const scriptKeys = c?.scriptKeys ?? [];
+  if (keys.length === 0 && scriptKeys.length === 0 && !e) return null;
+  const name = c?.name ?? e?.name ?? '';
   const press = (key: string) => ({
     onPointerDown: (ev: PointerEvent) => {
       ev.preventDefault();
@@ -39,7 +44,7 @@ export function KeysBar({ store, actions }: { store: Store<AppState>; actions: K
   });
   const pct = e?.percent ?? 0;
   return (
-    <div class="keys-bar plate" title={`${c.name}'s energy and keys. Click a key to tap it, press to hold it.`}>
+    <div class="keys-bar plate" title={c ? `${name}'s energy and keys. Click a key to tap it, press to hold it.` : `${name}'s energy. You only watch it: it cannot be driven from here.`}>
       {e && (
         <div class="energy" title={unlimited ? 'unlimited energy is on' : `${pct}% of ${e.capacity} energy`}>
           <span class="h">Energy</span>
@@ -49,14 +54,14 @@ export function KeysBar({ store, actions }: { store: Store<AppState>; actions: K
           <span class="energy-text">{unlimited ? 'no limit' : e.capacity === 0 ? 'none' : `${pct}%`}</span>
         </div>
       )}
-      {c.keys.map((k) => (
+      {keys.map((k) => (
         <button key={k.key} tabIndex={-1} class={`robot-key${k.held ? ' held' : ''}`} {...press(k.key)}>
           {label(k.key)}
           {k.toggle && <span class={k.on ? 'toggle-dot on' : 'toggle-dot'} />}
         </button>
       ))}
-      {c.scriptKeys.length > 0 && <span class="keys-divider" title="keys its running scripts read" />}
-      {c.scriptKeys.map((k) => (
+      {scriptKeys.length > 0 && <span class="keys-divider" title="keys its running scripts read" />}
+      {scriptKeys.map((k) => (
         <button key={`script-${k.key}`} tabIndex={-1} class={`robot-key script-key${k.held ? ' held' : ''}`} title="read by a running script" {...press(k.key)}>
           {label(k.key)}
         </button>

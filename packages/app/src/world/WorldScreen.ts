@@ -37,9 +37,10 @@ import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 import { buildReadout, type ReadoutView } from './readout';
+import { buildInspect, type InspectView } from './inspect';
 import { farIds, loadFarDistance, outlineEdges, saveFarDistance, teamCounts, teamIds, type Edge, type RobotSpot } from './removal';
 
-const HELP = 'wheel zoom   drag pan   click a robot to control it   (time controls in the panel above, the rest on the bar below)';
+const HELP = 'wheel zoom   drag pan   click a robot to control it (yours) or watch it (any)   (time controls in the panel above, the rest on the bar below)';
 
 /** One key of the controlled robot, for the keys bar. */
 export interface KeyView {
@@ -64,18 +65,23 @@ export interface WorldView {
   deployTeam: number;
   /** M15: the sound controls. `awake` is false until a first click or key press lets the browser start audio. */
   sound: { muted: boolean; volume: number; delay: boolean; awake: boolean };
-  /** The robot under your control, its keys, and its energy (whole units), or undefined. */
+  /** The robot under your control and its keys, or undefined. */
   controlled?: {
     name: string;
     keys: KeyView[];
     /** Keys its running scripts read (M7): no binding, but they do something. */
     scriptKeys: { key: string; held: boolean }[];
-    energy?: { percent: number; capacity: number };
-    /** The robot's scripts: running, off, or stopped with an error. */
-    scripts: { id: string; state: 'on' | 'off' | 'crashed'; error?: string }[];
-    /** Its latest `log()` lines, oldest first. */
-    logs: string[];
   };
+  /**
+   * The energy of the robot the camera follows, driven or only watched (an enemy's too), in whole percent so the view
+   * changes a hundred times over a full store at most. Absent when no robot is followed or it has no store.
+   */
+  energy?: { name: string; percent: number; capacity: number; driving: boolean };
+  /**
+   * The robot the camera follows, any robot: where it is, how fast, its energy, team and parts, for the left panel.
+   * Made with the readout, a few times a second.
+   */
+  inspect?: InspectView;
   unlimitedEnergy: boolean;
   /** Smooth: slow scripts may sit out ticks so the frame rate holds (`app/scriptScheduler.ts`). */
   smooth: boolean;
@@ -149,7 +155,7 @@ export class WorldScreen {
   /** M16: whether the live readout is open. Only then does the world keep a trace. Kept in the browser. */
   private readoutOpen = false;
   /** The readout as last worked out, and for which tick of which robot: it is made a few times a second, not every frame. */
-  private readoutAt: { robot: number; tick: number; open: boolean; held: string; view: ReadoutView } | undefined;
+  private readoutAt: { robot: number; tick: number; open: boolean; held: string; view: ReadoutView; inspect: InspectView } | undefined;
   /** Keys each script source reads, cached by source (it only changes when the robot is redeployed). */
   private readonly readCache = new Map<string, Set<string>>();
   /** A blueprint waiting to be dropped, following the cursor. */
@@ -517,7 +523,7 @@ export class WorldScreen {
    * The readout of the followed robot. The trace is asked for only while the readout is open and only for that robot;
    * the text is made again every sixth tick (and at once on a step while paused), so it can be read.
    */
-  private readout(focus: Robot | undefined, controlled: boolean, stepped: boolean): ReadoutView | undefined {
+  private readout(focus: Robot | undefined, controlled: boolean, stepped: boolean): { view: ReadoutView; inspect: InspectView } | undefined {
     this.world.setTrace(this.readoutOpen && focus ? focus.id : undefined);
     if (!focus) {
       this.readoutAt = undefined;
@@ -531,7 +537,7 @@ export class WorldScreen {
     const held = controller ? (key: string): boolean => controller.isHeld(key) || this.keys.isDown(key) : undefined;
     const heldNow = held ? [...new Set(scripts.flatMap((s) => (s.enabled ? (s.reads ?? []) : [])))].filter(held).join(',') : '';
     const due = !had || had.robot !== focus.id || had.open !== this.readoutOpen || had.held !== heldNow || (had.tick !== tick && (tick - had.tick >= 6 || (stepped && this.time.paused)));
-    if (had && !due) return had.view;
+    if (had && !due && had.inspect.driving === controlled) return had;
     const trace = this.readoutOpen ? this.world.trace(focus.id) : undefined;
     const registry = this.world.registry;
     const view = buildReadout({
@@ -539,15 +545,31 @@ export class WorldScreen {
       watching: !controlled,
       scripts,
       ...(held ? { held } : {}),
-      logs: this.readoutOpen ? this.world.scriptLogs.filter((l) => l.robot === focus.id) : [],
+      // Its own last lines (`World.logsOf`), kept for every robot, so an enemy's show as well as yours.
+      logs: this.readoutOpen ? this.world.logsOf(focus.id) : [],
       ...(trace ? { trace } : {}),
       ...(this.costs.cost(focus.id) !== undefined ? { cost: this.costs.cost(focus.id) as number } : {}),
       ...(this.smooth && this.scheduler.rate(focus.id) ? { rate: this.scheduler.rate(focus.id) as { ran: number; of: number } } : {}),
       typeOf: (id) => focus.parts.get(id)?.def.id,
       typeName: (type) => (registry.has(type) ? registry.get(type).name.toLowerCase() : type),
     });
-    this.readoutAt = { robot: focus.id, tick, open: this.readoutOpen, held: heldNow, view };
-    return view;
+    const s = sampleRobot(this.world, focus);
+    const e = this.world.energy(focus.id);
+    const at = focus.primaryCoreId !== undefined ? { x: s.coreX, y: s.coreY } : { x: s.comX, y: s.comY };
+    const inspect = buildInspect({
+      name: focus.name,
+      team: focus.team,
+      driving: controlled,
+      x: at.x,
+      y: at.y,
+      speed: s.speed,
+      ...(e ? { energy: { stored: e.stored, capacity: e.capacity } } : {}),
+      parts: s.parts,
+      massKg: s.massKg,
+    });
+    const made = { robot: focus.id, tick, open: this.readoutOpen, held: heldNow, view, inspect };
+    this.readoutAt = made;
+    return made;
   }
 
   /** The debug overlay's slowest scripts, by robot: "slowest scripts: Anvil 3.1 ms, enemy drone (4) 0.40 ms". */
@@ -878,7 +900,8 @@ export class WorldScreen {
       drawSensors(this.renderer.debug, this.sensorOverlays());
     } else this.renderer.debug.clear();
 
-    const s = focus ? sampleRobot(this.world, focus) : undefined;
+    // Only the debug overlay's line uses it; the panel's numbers come with the readout.
+    const s = focus && this.debugVisible ? sampleRobot(this.world, focus) : undefined;
     // Robots waiting to be removed (a removal while paused goes on the next tick) are not counted.
     const present = this.present();
     const controlled = this.keys.robot === undefined ? undefined : this.world.robots.find((r) => r.id === this.keys.robot);
@@ -921,7 +944,14 @@ export class WorldScreen {
       readoutOpen: this.readoutOpen,
     };
     const readout = this.readout(focus, focus !== undefined && focus.id === controlled?.id, ticks > 0);
-    if (readout) view.readout = readout;
+    if (readout) {
+      view.readout = readout.view;
+      view.inspect = readout.inspect;
+    }
+    // The followed robot's energy, an enemy's included. Whole percent only: the view is compared every frame, and a
+    // finer number would re-render the UI every tick.
+    const fe = focus ? this.world.energy(focus.id) : undefined;
+    if (focus && fe) view.energy = { name: focus.name, percent: fe.capacity > 0 ? Math.ceil((100 * fe.stored) / fe.capacity) : 0, capacity: fe.capacity, driving: focus.id === controlled?.id };
     for (; this.eventCursor < this.world.events.length; this.eventCursor++) {
       const ev = this.world.events[this.eventCursor];
       const who = this.world.robots.find((r) => r.id === ev?.robot);
@@ -979,16 +1009,8 @@ export class WorldScreen {
       // Keys the running scripts read themselves (a hover's W and S): shown after the bound keys, marked as script keys.
       const running = activeControls(controlled).scripts.filter((sc) => scripts.some((r) => r.id === sc.id && r.enabled && !r.crashed));
       const read = [...this.scriptKeysOf(running)].filter((k) => !controller.keys.includes(k)).sort((a, b) => rank(a) - rank(b));
-      const e = this.world.energy(controlled.id);
       view.controlled = {
         name: controlled.name,
-        // Whole percent only: the view is compared every frame, and a finer number would re-render the UI every tick.
-        ...(e ? { energy: { percent: e.capacity > 0 ? Math.ceil((100 * e.stored) / e.capacity) : 0, capacity: e.capacity } } : {}),
-        scripts: scripts.map((s) => ({ id: s.id, state: s.enabled ? 'on' : s.crashed ? 'crashed' : 'off', ...(s.crashed ? { error: s.crashed.message } : {}) })),
-        logs: this.world.scriptLogs
-          .filter((l) => l.robot === controlled.id)
-          .slice(-5)
-          .map((l) => `${l.script}: ${l.text}`),
         keys: keys.map(({ key }) => ({
           key,
           // Lit as soon as it is pressed, even while paused; the sim catches up on the next tick.

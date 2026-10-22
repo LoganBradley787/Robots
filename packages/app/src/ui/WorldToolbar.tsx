@@ -166,8 +166,8 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
               </button>
               <span class="seg" role="radiogroup" aria-label="how far">
                 {FAR_DISTANCES.map((d) => (
-                  <button type="button" key={d} class={d === v.far.distance ? 'on' : ''} role="radio" aria-checked={d === v.far.distance} onClick={() => actions.setFarDistance(d)}>
-                    {d === FAR_DISTANCES[FAR_DISTANCES.length - 1] ? `${d} m` : d}
+                  <button type="button" key={d} class={d === v.far.distance ? 'on' : ''} role="radio" aria-checked={d === v.far.distance} title={`${d} m from the camera`} onClick={() => actions.setFarDistance(d)}>
+                    {d === FAR_DISTANCES[FAR_DISTANCES.length - 1] ? `${d / 1000} km` : d / 1000}
                   </button>
                 ))}
               </span>

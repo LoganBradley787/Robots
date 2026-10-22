@@ -658,7 +658,7 @@ async function boot(): Promise<void> {
       const right = await load(b, true);
       setMode(enterWorld({ ...modes, paused: true, pausedBeforeBuilder: true }));
       // Teams and order as `pnpm sim duel` gives them, so the fight is the same one: the left one first (robot 1,
-      // team 0: yours, so the camera follows it and its script log shows), then the right one (robot 2, team 1).
+      // team 0: yours, so the camera follows it), then the right one (robot 2, team 1).
       // M14: `&xa=` and `&xb=` move them (the default 800 m apart is past a laser's reach).
       const at = (given: string | null, fallback: number): number => (given !== null && Number.isFinite(Number(given)) ? Number(given) : fallback);
       const xa = at(query.get('xa'), -400);
@@ -696,7 +696,7 @@ async function boot(): Promise<void> {
           notify(store, 'Draw: 240 s gone with both main cores alive. The world runs on.');
         }
       };
-      notify(store, `${a} (left, yours: its script log shows) against ${b} (right), ${Math.abs(xb - xa)} m apart. Paused: press play to start.`);
+      notify(store, `${a} (left, yours) against ${b} (right), ${Math.abs(xb - xa)} m apart. Click either to follow it and read its panel. Paused: press play to start.`);
     };
     go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
   }
