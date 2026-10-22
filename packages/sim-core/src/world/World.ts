@@ -228,6 +228,12 @@ export interface ScriptLog {
 /** Log lines kept, oldest dropped first, and lines a robot may log per second. */
 const LOG_KEEP = 200;
 const LOG_PER_SECOND = 20;
+/**
+ * Log lines kept for each robot (`logsOf`), oldest dropped first. The shared list above is for tests and tools; in a
+ * fight of many scripted robots it turns over in a fraction of a second, so the screen reads each robot's own lines
+ * here. Bounded, so hundreds of robots keep at most a few thousand short lines.
+ */
+const LOG_KEEP_PER_ROBOT = 20;
 
 /**
  * A host's watch on one robot's scripts for one tick (`World.watchScripts`): `run` runs them, and the watch may time
@@ -388,6 +394,8 @@ export class World {
   private readonly runners = new Map<number, ScriptRunner>();
   /** Recent `log()` lines from scripts, oldest first (at most LOG_KEEP). */
   readonly scriptLogs: ScriptLog[] = [];
+  /** The last LOG_KEEP_PER_ROBOT of `scriptLogs` for each robot still in the world, oldest first (`logsOf`). */
+  private readonly robotLogs = new Map<number, ScriptLog[]>();
   /** Log lines per robot in the current second, for rate limiting. */
   private readonly logBudget = new Map<number, { second: number; count: number }>();
   /** Pools that have already reported running dry, by `robot:chunk`. */
@@ -880,6 +888,7 @@ export class World {
     this.grown.delete(robot);
     this.used.delete(robot.id);
     this.logBudget.delete(robot.id);
+    this.robotLogs.delete(robot.id);
     this.seen.delete(robot.id);
     this.seenDecoys.delete(robot.id);
     this.decoyCache = undefined;
@@ -2122,8 +2131,24 @@ export class World {
     if (budget.count >= LOG_PER_SECOND) return;
     budget.count++;
     this.logBudget.set(robot, budget);
-    this.scriptLogs.push({ tick: this.tickCount, robot, script, text });
+    const line = { tick: this.tickCount, robot, script, text };
+    this.scriptLogs.push(line);
     if (this.scriptLogs.length > LOG_KEEP) this.scriptLogs.splice(0, this.scriptLogs.length - LOG_KEEP);
+    let own = this.robotLogs.get(robot);
+    if (!own) {
+      own = [];
+      this.robotLogs.set(robot, own);
+    }
+    own.push(line);
+    if (own.length > LOG_KEEP_PER_ROBOT) own.shift();
+  }
+
+  /**
+   * One robot's latest `log()` lines, oldest first, at most LOG_KEEP_PER_ROBOT, whatever the other robots logged since
+   * (the screen shows them for any robot it follows, an enemy included). Empty for a robot that logged nothing or is gone.
+   */
+  logsOf(robotId: number): readonly ScriptLog[] {
+    return this.robotLogs.get(robotId) ?? [];
   }
 
   /** Starts a robot's scripts. Each gets its own random stream from the world seed, the robot, and its place in the list. */
