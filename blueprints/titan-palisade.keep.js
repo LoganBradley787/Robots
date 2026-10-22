@@ -28,10 +28,10 @@
 // - A panel with no guns left rams: it flies through the nearest enemy (titans v2, 2026-10).
 // - The last `guards` panels stay by the keep (the heaviest friend with a live core) and blast whatever comes near it.
 // - The keep fires every link on the first ticks, then waits high up and far back: in an arena at its own end, in the
-//   open `standoff` m back from the main robot on the panels' side. With nothing seen for `restAfter` s in the open
-//   it sets down and waits on the ground (its batteries are what limit it). From a heavy main robot that moves (a
-//   ram) it runs: away, and near the edge, or with the ram close, it goes over or under it (whichever has room) and
-//   runs the other way.
+//   open `standoff` m back from the main robot on the panels' side (with nothing seen for `restAfter` s, where it
+//   is). There it sets down and waits on the ground, propellers off: its batteries do not last a match hovering.
+//   From a heavy main robot that moves (a ram) it takes off and runs: away, and near the edge, or with the ram
+//   close, it goes over or under it (whichever has room and is not a strip its fixed guns blast) and runs back.
 const role = param('role', 0, { min: 0, max: 1 });
 const slot = param('slot', 0, { min: 0, max: 100 });
 const count = param('count', 12, { min: 1, max: 100 });
@@ -174,6 +174,7 @@ function setup() {
   state.shiftAt = -100;
   state.lift = 0; // 1 while the keep rests on the ground
   state.down = 0; // s the keep has been sinking without moving
+  state.landX = 0; // where it set down
   index();
   if (state.facing === undefined) state.facing = self.pos.x < 0 ? 1 : -1;
 }
@@ -543,15 +544,22 @@ function keepFlight(main) {
       wx = state.home.x;
       wy = state.home.y;
     }
-    if (!arena && !main && (state.seen === undefined ? time : time - state.seen) > restAfter) {
-      // Nothing seen for a long while in the open: set down where it is and wait (energy runs the propellers).
-      if (state.lift === 1) {
-        idle();
-        return;
+    // Nothing seen for a long while in the open: it waits where it is.
+    if (!arena && !main && (state.seen === undefined ? time : time - state.seen) > restAfter) wx = state.lift === 1 ? state.landX : self.pos.x;
+    wx = safe(main, wx, wy, 14);
+    // At its spot it sets down and waits on the ground with its propellers off (titans v2, 2026-10: hovering the
+    // whole match ran its batteries dry before the end). It takes off again for a ram, or a spot moved far off.
+    if (state.lift === 1 && Math.abs(wx - state.landX) < 200) {
+      idle();
+      return;
+    }
+    if (Math.abs(wx - self.pos.x) < 60) {
+      fly(wx, self.pos.y - 15, 5, false, 0.1);
+      state.down = self.vel.y > -0.5 ? state.down + dt : 0;
+      if (state.down > 1.5) {
+        state.lift = 1;
+        state.landX = self.pos.x;
       }
-      fly(self.pos.x, self.pos.y - 6, 5, false, 0.1);
-      state.down = self.vel.y > -0.4 ? state.down + dt : 0;
-      if (state.down > 2) state.lift = 1;
       return;
     }
     state.lift = 0;
@@ -705,7 +713,7 @@ function tick() {
     }
     if (guard && mine && !state.ram) {
       // The last `guards` panels stay by the keep, one over the other on the enemy's side of it.
-      fly(mine.pos.x + state.facing * 45, mine.pos.y + 14 - 34 * (count - 1 - slot), 45, false, 0.3);
+      fly(mine.pos.x + state.facing * 45, mine.pos.y + 20 + 34 * (count - 1 - slot), 45, false, 0.3);
     } else fly(wx, wy, top, top > vmax, 0.5, main ? main.vel.x : 0);
   }
 
