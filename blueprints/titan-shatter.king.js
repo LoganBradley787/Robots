@@ -103,7 +103,11 @@ function fly(tx, ty, vmax, maxLean, vclimb, brake) {
   const vside = brake ? vmax : vmax * clamp(1 - (Math.abs(ey) - 15) / 60, 0.3, 1);
   const vdx = Math.sign(ex) * Math.min(vside, 0.5 * Math.abs(ex), Math.sqrt(2 * hard * Math.abs(ex)));
   const vc = vclimb || 12;
-  const vdy = clamp(Math.sign(ey) * Math.min(0.8 * Math.abs(ey), Math.sqrt(6 * Math.abs(ey))), -Math.max(10, vc), vc);
+  // Going down no faster than it can stop with the lift it has to spare (titans v2): an armored gunship has about
+  // 2 m/s2 of it, came down at 11 m/s and hit the ground before it could stop.
+  const up = Math.max(0.5, ((na + nb) * LIFT * Math.cos(maxLean)) / m - G);
+  const down = Math.min(Math.sqrt(6 * Math.abs(ey)), Math.sqrt(1.4 * up * Math.abs(ey)));
+  const vdy = clamp(ey > 0 ? Math.min(0.8 * ey, Math.sqrt(6 * ey)) : -Math.min(0.8 * -ey, down), -Math.max(10, vc), vc);
   const ax = clamp(1.2 * (vdx - self.vel.x), brake ? -14 : -7, brake ? 14 : 7);
   const ay = clamp(2 * (vdy - self.vel.y), -5, 6);
   const want = clamp(Math.atan2(-ax, G + ay), -maxLean, maxLean);
