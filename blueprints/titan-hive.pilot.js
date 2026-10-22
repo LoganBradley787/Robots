@@ -9,7 +9,12 @@
 //   under its ceiling); with no arena (the open sandbox) within `roam` m of where it started.
 // - Sandbox (titans v2): with no arena there is no match to plan its energy to. It keeps `reserve` s of hover back,
 //   lands and sits with its propellers off when nothing has been seen for `restAfter` s or it is under that reserve,
-//   and takes off again for a new enemy. After a win it goes after the next enemy with a live core.
+//   and takes off again for a new enemy. After a win it goes after the next enemy with a live core; in an arena it
+//   waits over the middle, where its radars see all of it.
+// - Kiting (titans v2): fliers with a core within `kiteRange` m (whose guns reach it) make it run along its ground at
+//   up to `kiteSpeed` m/s, turning back `turnRoom` m short of the edge. It never leans past what still holds it up.
+// - Hidden enemies (titans v2): where a new, moving light enemy (a dart) is first seen is about where its launcher
+//   is; with nothing heavier seen or remembered, darts go there for `srcMemory` s.
 // - What it fights with (titans v2): darts while it has bays and energy; with none, it closes to its turrets' reach;
 //   with no turrets either it rams anything lighter than itself.
 // - Hiding (round 2): two small bays on the middle block build jammer pods; the pilot lights them in turn, so the
@@ -17,6 +22,8 @@
 //   hull, outside the bubble.
 // - Bays: every fabricator bay with a tag starting `bay`. A finished dart is sent the main enemy's place, speed and
 //   id and let go at once, at most one per `gap` s; every `spreadEvery`th goes to the nearest other enemy instead.
+//   Titans v2: enemies with a core within `threatRange` m take turns first (every `spreadEvery`th still goes to the
+//   main one). Held while the ship speeds up, slows or turns hard (not while it is merely fast), `driftWait` s at most.
 // - The main enemy (titan-darts, 2026-10, Logan): picked from what the radars report, by the situation, never by id:
 //   the heaviest enemy with a live core of `followMass` kg or more (a titan over its darts and drones), kept while it
 //   is seen unless one twice as heavy shows up, and given up the moment it dies. A robot that dies stays in the radar's
@@ -28,8 +35,10 @@
 //   propellers need to hold the ship up to the end of the match (`match` s, `keep` times the hover's draw; in an arena
 //   only): since armor plates weigh 20 kg the ship hovers on more power, and a full match of darts would leave it little.
 // - Turrets: parts tagged `turN.rot` (rotator) and `turN.gun`. Each takes the nearest enemy it can swing to within
-//   `track` m, leads it, and blasts within `reach` m while its sight shows nothing of ours in the way. It never
-//   scans: a scan of a titan costs too much.
+//   `track` m, leads it, and blasts within `reach` m while its sight shows nothing of ours in the way. Titans v2: a
+//   turret whose own sight reads an enemy part within reach blasts it too, and a heavy enemy close by is scanned for
+//   its 3 parts nearest the core every `touchEvery` s (`near`/`most`, never whole): what presses on the hull becomes
+//   the turrets' first target, a mast aimed at `cutUnder` m under the core.
 
 const cruiseAt = param('cruise', 222, { min: 20, max: 1000 }); // m, the height it holds (under the arena's ceiling less `cruiseRoom`)
 const highAt = param('high', 238, { min: 20, max: 1000 }); // m, the height it takes over a ground enemy or to go over a ram (under the ceiling less `highRoom`)
