@@ -26,6 +26,7 @@ const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vani
 const room = param('room', 16, { min: 0, max: 60 }); // m it keeps from friends (two gunships that touch can lock together and fall)
 const seek = param('seek', 105, { min: 20, max: 300 }); // m: ring round a main enemy that vanished alive (within 150 m its bubble is seen through)
 const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no main enemy before a lighter one will do
+const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
 const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must be slower than this (not a dart)
 const widen = param('widen', 12, { min: 0, max: 100 }); // m/s the search ring grows while nothing is found
 const wide = param('wide', 420, { min: 50, max: 1000 }); // m: the search ring starts over past this
@@ -160,7 +161,10 @@ function lookAround() {
     }
     if (c.id === root.id && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side !== 'enemy' || !c.core) continue;
-    if (c.mass >= mainMass) {
+    // Never a fast one as the main enemy (titans v2): a titan's darts weigh over 30 kg too, and while the titan hid,
+    // the swarm took its darts for it.
+    const quick = Math.hypot(c.vel.x, c.vel.y) > fast;
+    if (c.mass >= mainMass && !quick) {
       if (c.id === root.id) kept = c;
       if (!heaviest || c.mass > heaviest.mass) heaviest = c;
     } else if (Math.hypot(c.vel.x, c.vel.y) < slow && (!light || c.mass > light.mass)) light = c;

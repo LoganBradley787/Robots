@@ -25,6 +25,7 @@ const roam = param('roam', 25, { min: 1, max: 240 }); // s between moves to a ne
 const ram = param('ram', 1500, { min: 0, max: 100000 }); // kg: an enemy this heavy is a ram to get out of the way of
 const threat = param('threat', 550, { min: 0, max: 1000 }); // m: a ram this close makes it move
 const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
+const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const lookFor = param('lookFor', 0.2, { min: 0.02, max: 2 }); // s its bubble lapses to listen
@@ -185,7 +186,7 @@ function tick() {
     // a seeker) only within `seeker` m.
     if ((c.mass >= mainMass ? c.distance : c.distance + far - seeker) < near) near = c.mass >= mainMass ? c.distance : c.distance + far - seeker;
     if (c.mass >= ram && c.distance < threat && !big) big = c;
-    if (c.mass < mainMass) continue;
+    if (c.mass < mainMass || Math.hypot(c.vel.x, c.vel.y) > fast) continue; // not a dart (a titan's weigh over 30 kg)
     if (mem && c.id === mem.id) kept = c;
     if (!heaviest || c.mass > heaviest.mass) heaviest = c;
   }

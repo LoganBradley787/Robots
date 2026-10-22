@@ -24,7 +24,8 @@ const NAME = 'titan-shatter';
 const COLS = 3; // gunship columns under the king
 const ROWS = Number(process.env.SHATTER_ROWS ?? 10); // gunships per column (16 in round 1: too slow a tick against itself)
 const PAIRS = 8; // dart pairs on the deck (two darts each)
-const W = 40; // king width
+const OFF = 3; // titans v2 (2026-10): three more propellers each side of the king's propeller row, so it lifts its darts
+const W = 40 + 2 * OFF; // grid width; the king's deck is 40 wide, from OFF
 const SHIP_W = 11;
 
 // ---- grid of cells: cells[y][x] = { part, rot, tags, auto } ----
@@ -38,7 +39,7 @@ const cores = {};
 
 // ---- gunships ----
 const yP = 3 * ROWS; // the king's propeller row
-const shipX = [3, 14, 26]; // left edge of each column (the core sits 5 in: columns 8, 19, 31)
+const shipX = [3 + OFF, 14 + OFF, 26 + OFF]; // left edge of each column (the core sits 5 in: columns 8, 19, 31, plus OFF)
 let slot = 0;
 for (let r = 0; r < ROWS; r++) {
   for (let c = 0; c < COLS; c++) {
@@ -79,31 +80,33 @@ const yB = yP + 1; // body row
 const yA = yP + 2; // attic row: more jammer pods between frame posts
 const yD = yP + 3; // deck row
 const yG = yP + 4; // grips and dart boosters
-const propFrames = new Set([0, 4, 8, 13, 19, 25, 31, 35, 39]);
+const propFrames = new Set([0, 4, 8, 13, 19, 25, 31, 35, 39].map((x) => x + OFF));
 for (let x = 0; x < W; x++) {
+  // The extra propellers out at the ends hang off the end frames by their sides.
   if (propFrames.has(x)) put(x, yP, 'frame');
-  else put(x, yP, 'propeller', 0, [x < 19.5 ? 'lp' : 'rp'], { auto: false });
-  put(x, yD, 'frame');
+  else put(x, yP, 'propeller', 0, [x < 19.5 + OFF ? 'lp' : 'rp'], { auto: false });
+  if (x >= OFF && x < 40 + OFF) put(x, yD, 'frame');
 }
 // Titans v2 (2026-10): dense batteries at the ends in place of two armor plates: the king carries its darts until the
 // gunships find a target (no blind first wave), and with them it barely lifted; the batteries keep it flying longer.
-const body = { 13: 'densebattery', 14: 'densebattery', 15: 'densebattery', 16: 'densebattery', 17: 'densebattery', 18: 'radar', 19: 'core', 20: 'heavygyro', 21: 'densebattery', 22: 'densebattery', 23: 'densebattery', 24: 'densebattery', 25: 'densebattery' };
+const body0 = { 13: 'densebattery', 14: 'densebattery', 15: 'densebattery', 16: 'densebattery', 17: 'densebattery', 18: 'radar', 19: 'core', 20: 'heavygyro', 21: 'densebattery', 22: 'densebattery', 23: 'densebattery', 24: 'densebattery', 25: 'densebattery' };
+const body = Object.fromEntries(Object.entries(body0).map(([x, v]) => [Number(x) + OFF, v]));
 let pods = 0;
-for (let x = 0; x < W; x++) {
+for (let x = OFF; x < 40 + OFF; x++) {
   if (body[x]) put(x, yB, body[x], 0, body[x] === 'heavygyro' ? ['stab'] : body[x] === 'radar' ? ['eye'] : [], body[x] === 'heavygyro' ? { auto: false } : {});
   else if (propFrames.has(x)) put(x, yB, 'frame');
   else put(x, yB, 'jammer', 0, [`jam${pods++}`]);
 }
 // The attic: pods hang between frame posts (a spent pod is gone, so nothing may hold on through one).
-for (let x = 0; x < W; x++) {
+for (let x = OFF; x < 40 + OFF; x++) {
   if (propFrames.has(x)) put(x, yA, 'frame');
-  else if (x === 20) put(x, yA, 'radio', 0, ['ear']);
+  else if (x === 20 + OFF) put(x, yA, 'radio', 0, ['ear']);
   else put(x, yA, 'jammer', 0, [`jam${pods++}`]);
 }
 const PODS = pods;
 let dart = 0;
 for (let j = 0; j < PAIRS; j++) {
-  const x0 = 5 * j;
+  const x0 = 5 * j + OFF;
   for (const [gx, dx, rot] of [
     [x0, x0 + 1, 270],
     [x0 + 4, x0 + 3, 90],
@@ -123,7 +126,7 @@ for (let j = 0; j < PAIRS; j++) {
       scripts: [
         {
           id: 'guide',
-          params: { arc: 0, clear: 0.3, clearDist: Math.round(14 + 0.8 * (W - dx)), thrust: 400, gyroTorque: 200, fuse: 16, minMass: 30, passBy: 12, passMass: 20 },
+          params: { arc: 0, clear: 0.3, clearDist: Math.round(14 + 0.8 * (40 + OFF - dx)), thrust: 400, gyroTorque: 200, fuse: 16, minMass: 30, passBy: 12, passMass: 20 },
           source: { file: `${NAME}.d${dart}.guide.js` },
         },
       ],
@@ -509,7 +512,7 @@ const blueprint = {
   autoControls: false,
   grid,
   legend,
-  primaryCore: `core@19,${yB}`,
+  primaryCore: `core@${19 + OFF},${yB}`,
   bindings: [],
   scripts: [{ id: 'king', params: { pods: PODS, darts: DARTS }, source: { file: `${NAME}.king.js` } }],
   cores,
