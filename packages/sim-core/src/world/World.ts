@@ -197,12 +197,6 @@ const SHELL_SWEEP = 600;
 
 /** M15: the widest gap between the lines a wide bolt sweeps, m: under half a cell, so no part slips between two. */
 const BOLT_LANE = 0.45;
-/**
- * The most one bolt's shove may change the speed of a body it lands on in one tick, m/s (Claude's call, 2026-10-22):
- * a part's share moved off a broken part onto what is left can land on a 2 kg scrap. A 45 kg hunter takes some 10 m/s
- * from a cannon bolt and is untouched; the scrap is held to this.
- */
-const BOLT_MAX_DV = 15;
 
 /** A velocity for a new body's center of mass, and its spin. */
 interface Kick {
@@ -444,9 +438,7 @@ export class World {
    * Pushes (N s) waiting for the next physics step, by part: they land on whatever body holds the part by then, so a
    * robot rebuilt again before the step keeps them. Simulation state, hashed.
    */
-  private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true; shot?: { bolt: Bolt; n: number } }[] = [];
-  /** Numbers the bolt pushes of one tick by bolt (`shot` on a pending push), so each bolt's are capped together. */
-  private shotCount = 0;
+  private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true }[] = [];
   /** M13: shells in flight, oldest first. Simulation state, hashed. */
   private shells: Shell[] = [];
   /** Shells that hit on the last tick, for drawing only. Not hashed. */
@@ -1335,52 +1327,15 @@ export class World {
     const settle = (body: BodyId): void => this.unsettle(body);
     for (const body of this.launched) if (this.physics.hasBody(body)) settle(body);
     this.launched = [];
-    this.shotCount = 0;
     if (this.pendingPushes.length === 0) return;
     const owner = new Map<PartInstance, Robot>();
     for (const robot of this.robots) for (const part of robot.parts.values()) owner.set(part, robot);
-    // One bolt's pushes on one body change its speed by at most BOLT_MAX_DV, over the bolt's whole flight: what it gave
-    // the same robot on earlier ticks counts (`Bolt.kicks`; a piece that broke off is a robot of its own). Scaled down
-    // as one.
-    const shots = new Map<string, { jx: number; jy: number; body: BodyId; bolt: Bolt; robot: number }>();
-    for (const p of this.pendingPushes) {
-      if (p.shot === undefined) continue;
-      const robot = owner.get(p.part);
-      const group = robot?.groups[p.part.group];
-      if (!robot || !group) continue;
-      const key = `${p.shot.n}:${group.bodyId}`;
-      const sum = shots.get(key) ?? { jx: 0, jy: 0, body: group.bodyId, bolt: p.shot.bolt, robot: robot.id };
-      sum.jx += p.jx;
-      sum.jy += p.jy;
-      shots.set(key, sum);
-    }
-    const scale = new Map<string, number>();
-    const gave = new Map<Bolt, Map<number, number>>();
-    for (const [key, sum] of shots) {
-      const before = sum.bolt.kicks?.find((k) => k.robot === sum.robot)?.dv ?? 0;
-      const room = Math.max(0, BOLT_MAX_DV - before);
-      const dv = Math.sqrt(sum.jx * sum.jx + sum.jy * sum.jy) / this.physics.massProperties(sum.body).mass;
-      const k = dv > room ? room / dv : 1;
-      scale.set(key, k);
-      const g = gave.get(sum.bolt) ?? new Map<number, number>();
-      g.set(sum.robot, Math.max(g.get(sum.robot) ?? 0, dv * k));
-      gave.set(sum.bolt, g);
-    }
-    for (const [bolt, g] of gave) {
-      const kicks = bolt.kicks ?? (bolt.kicks = []);
-      for (const [robot, dv] of g) {
-        const k = kicks.find((x) => x.robot === robot);
-        if (k) k.dv += dv;
-        else kicks.push({ robot, dv });
-      }
-    }
     for (const p of this.pendingPushes) {
       const robot = owner.get(p.part);
       const group = robot?.groups[p.part.group];
       if (!robot || !group) continue;
       const pose = partWorldPose(this, robot, p.part.id);
-      const k = p.shot === undefined ? 1 : (scale.get(`${p.shot.n}:${group.bodyId}`) ?? 1);
-      this.physics.addForceAt(group.bodyId, (k * p.jx) / this.dt, (k * p.jy) / this.dt, pose.x, pose.y);
+      this.physics.addForceAt(group.bodyId, p.jx / this.dt, p.jy / this.dt, pose.x, pose.y);
       // A gun's kick and a shell's hit (M13) are too small to set off a fuze, and a robot under fire must keep its fuzes.
       if (!p.quiet) for (const g of robot.groups) settle(g.bodyId);
     }
@@ -1693,7 +1648,7 @@ export class World {
           break;
         }
       }
-      this.boltPushes(b, got, dx, dy);
+      this.boltPushes(got, dx, dy);
       if (stopped !== undefined) {
         const d = Math.max(0, stopped - back);
         b.x += dx * d;
@@ -1714,9 +1669,8 @@ export class World {
    * id; Claude's call, 2026-10-22: through a hunter a cannon bolt gave it nothing at all). A robot with nothing left
    * standing takes none. Not a crash either: a bolt just does its damage (Claude's call, the review's question 2).
    */
-  private boltPushes(bolt: Bolt, got: readonly { robot: Robot; part: PartInstance; push: number }[], dx: number, dy: number): void {
+  private boltPushes(got: readonly { robot: Robot; part: PartInstance; push: number }[], dx: number, dy: number): void {
     if (got.length === 0) return;
-    const n = ++this.shotCount;
     const standing = new Map<Robot, { part: PartInstance; x: number; y: number }[]>();
     for (const g of got) {
       let to: PartInstance | undefined = g.part;
@@ -1742,7 +1696,7 @@ export class World {
           }
         }
       }
-      if (to) this.pendingPushes.push({ part: to, jx: dx * g.push, jy: dy * g.push, shot: { bolt, n } });
+      if (to) this.pendingPushes.push({ part: to, jx: dx * g.push, jy: dy * g.push });
     }
   }
 
@@ -3224,12 +3178,6 @@ export class World {
       h.addF64(p.jx);
       h.addF64(p.jy);
       if (p.quiet) h.addInt(1);
-      if (p.shot !== undefined) {
-        h.addInt(p.shot.n);
-        h.addF64(p.shot.bolt.damage);
-        h.addF64(p.shot.bolt.left);
-        for (const k of p.shot.bolt.kicks ?? []) h.addF64(k.dv);
-      }
     }
     // Batch: bays waiting on loose pieces, bays watching a copy leave, and the parts of copies that never got out. None
     // adds nothing, so worlds without a blocked bay or a copy still in its bay hash as before.
@@ -3278,10 +3226,6 @@ export class World {
       h.addInt(this.bolts.length);
       for (const b of this.bolts) {
         for (const v of [b.x, b.y, b.vx, b.vy, b.damage, b.left, b.push, b.width]) h.addF64(v);
-        for (const k of b.kicks ?? []) {
-          h.addInt(k.robot);
-          h.addF64(k.dv);
-        }
         h.addInt(b.robot);
         h.addString(b.gun);
         h.addInt(b.ticks);

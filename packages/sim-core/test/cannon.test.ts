@@ -598,7 +598,7 @@ describe('charged guns (M15): the cannon and the lance', () => {
     w.dispose();
   });
 
-  it('one bolt changes a body\'s speed by 15 m/s at most: a lance through a car leaves no scrap flying off at 44 m/s', async () => {
+  it('no cap on a bolt\'s shove (Logan, 2026-10-22): a lance spent in a car throws its light scraps hard', async () => {
     const w = await space0();
     const rig = w.spawnBlueprint(LANCE, { x: 0, y: 100 });
     w.spawnBlueprint(shipped('car'), { x: 200, y: 100 }, { team: 1 });
@@ -607,15 +607,14 @@ describe('charged guns (M15): the cannon and the lance', () => {
     w.step(letGo(rig.id));
     steps(w, 60);
     const { bodies, px } = others(w, rig);
-    // The bolt is spent in the car and its 300 N s land on scraps of a few kg: uncapped one went at 44 m/s.
+    // The bolt is spent in the car and its 300 N s land on scraps of a few kg: momentum is momentum, so they fly.
     expect(px).toBeGreaterThan(20);
     expect(bodies.length).toBeGreaterThan(0);
-    for (const b of bodies) expect(b.speed).toBeLessThanOrEqual(15.05);
-    expect(Math.max(...bodies.map((b) => b.speed))).toBeGreaterThan(5);
+    expect(Math.max(...bodies.map((b) => b.speed))).toBeGreaterThan(30);
     w.dispose();
   });
 
-  it('the cap holds over the whole flight: a cannon orb spent in seven heavy plates over two ticks gives what is left 15 m/s', async () => {
+  it('a cannon orb spent in seven heavy plates over two ticks gives what is left its whole share, not capped', async () => {
     const w = await space0();
     const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
     w.spawnBlueprint({ format: 1, name: 'brick', grid: ['A A A A C A A'] }, { x: 200, y: 100 }, { team: 1 });
@@ -625,7 +624,7 @@ describe('charged guns (M15): the cannon and the lance', () => {
     steps(w, 60);
     const { bodies } = others(w, rig);
     expect(bodies).toHaveLength(1);
-    expect(bodies[0]?.speed).toBeCloseTo(15, 1);
+    expect(bodies[0]?.speed).toBeGreaterThan(20);
     w.dispose();
   });
 
