@@ -13,10 +13,16 @@
 //   top onto the mirror of its own start (a titan hidden from the first second starts about there), down the whole
 //   column. Otherwise the darts wait in their bays for a target.
 // - Hidden enemies (titans v2, 2026-10): a main enemy that vanished alive (most likely into its own jammer bubble)
-//   is not forgotten after `memory` s any more. Where new enemy robots first show up (darts and drones let go from
-//   its bays, `origins`) tells where it is now, so darts keep going to the middle of the recent ones; with none, a
-//   dart every `hiddenGap` s goes to its last place. The darts arm on the way (see the guide), so a hull they run
-//   into in the bubble is hit, seen or not. One seen dead is forgotten at once, as before.
+//   is not forgotten after `memory` s any more. Two clues say where it is now, both from what the radars see:
+//   * where our own darts end early (`ends`): a dart that stops being seen near the guess either blew up on
+//     something there, was blasted by its guns, or flew into its bubble. All three are next to it.
+//   * where new enemy robots first show up (`origins`): darts and drones let go from its bays.
+//   * where new debris heavier than a dart first shows up far from us (`debris`): a piece our darts broke off it.
+//   Darts go round the middle of the recent debris, else origins, else ends (the least sure: a dart blasted by its
+//   guns ends short of it), else its last place, in a sweep of heights and sides (`sweep` m apart; a hull in the
+//   bubble is hit by whichever line crosses it). Measured against the hive: the ends alone put the guess 60 m under
+//   it, where its turrets blast the darts. The darts arm on the way (see the guide), so
+//   a hull they run into in the bubble is hit, seen or not. One seen dead is forgotten at once, as before.
 // - Sandbox (titans v2, 2026-10): darts sent blind onto the mirror of its own start only in a match (`arena`); in an
 //   open world it waits for its radars. After a win it keeps watching, and the next enemy with a live core is the
 //   new main one.
@@ -46,6 +52,9 @@ const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
 const originKeep = param('originKeep', 25, { min: 1, max: 300 }); // s an enemy robot's first sighting counts as a clue to where a hidden one is
 const originAfter = param('originAfter', 3, { min: 0, max: 60 }); // s into the match before first sightings count (at the start everything is new)
+const debrisMass = param('debrisMass', 12, { min: 0, max: 10000 }); // kg: new debris at least this heavy (more than a dart) far off is a clue
+const sweep = param('sweep', 30, { min: 1, max: 200 }); // m between the lines of the sweep round a hidden enemy's last place
+const endNear = param('endNear', 200, { min: 10, max: 1000 }); // m: a dart of ours that ends this close to the guess is a clue
 const hiddenGap = param('hiddenGap', 1.5, { min: 0.05, max: 30 }); // s between darts to a hidden enemy's last place, with no fresher clue
 const debug = param('debug', 0, { min: 0, max: 1 }); // 1 logs the way in and the hidden enemy's guess
 const wayParts = param('wayParts', 300, { min: 1, max: 100000 }); // parts: a main enemy this big gets a way in picked
@@ -80,6 +89,11 @@ function setup() {
   state.hidden = null; // the main enemy that vanished alive: { x, y, id } of its last place, kept until it is seen again or dead
   state.known = {}; // ids of enemy robots seen so far, to tell a new one
   state.origins = []; // { x, y, at }: where new enemy robots were first seen, newest last
+  state.debris = []; // { x, y, at }: where new heavy debris first showed up far from us, newest last
+  state.ends = []; // { x, y, at }: where our darts stopped being seen near the guess, newest last
+  state.darts = {}; // our darts in flight by contact id: { x, y, f } (last place, the frame it was seen)
+  state.guess = null; // the last guess at a hidden enemy, for telling which dart ends count
+  state.sweepK = 0;
   state.way = null; // the way in for the main enemy: { id, via } (points from its core), or null for the usual arc
   state.look = null; // the look in progress: { id, k, cover: [], top }
   state.lit = -100;
@@ -151,16 +165,42 @@ function pick() {
  */
 function watchOrigins() {
   for (const c of contacts) {
-    if (c.side !== 'enemy' || !c.core || state.known[c.id]) continue;
-    state.known[c.id] = 1;
-    if (time >= originAfter) state.origins.push({ x: c.pos.x - c.vel.x * 0.3, y: c.pos.y - c.vel.y * 0.3, at: time });
+    if (state.known[c.id]) continue;
+    if (c.side === 'enemy' && c.core) {
+      state.known[c.id] = 1;
+      if (time >= originAfter) state.origins.push({ x: c.pos.x - c.vel.x * 0.3, y: c.pos.y - c.vel.y * 0.3, at: time });
+    } else if (c.side === 'none' && c.mass >= debrisMass) {
+      state.known[c.id] = 1;
+      if (time >= originAfter && Math.hypot(c.pos.x - state.home.x, c.pos.y - state.home.y) > 150) state.debris.push({ x: c.pos.x, y: c.pos.y, at: time });
+    }
   }
   while (state.origins.length > 0 && (state.origins.length > 12 || time - state.origins[0].at > originKeep)) state.origins.shift();
+  while (state.debris.length > 0 && (state.debris.length > 12 || time - state.debris[0].at > originKeep)) state.debris.shift();
 }
 
-/** The middle of the recent first sightings, or null with none. */
-function originMiddle() {
-  const o = state.origins;
+/**
+ * Our darts in flight (titans v2, 2026-10): friendly robots lighter than `mainMass` out past the roof. One no longer
+ * seen ended there (a blast, a hit, or a bubble); near the guess at a hidden enemy, that is a clue to it.
+ */
+function watchDarts() {
+  for (const c of contacts) {
+    if (c.side !== 'friend' || c.mass >= mainMass) continue;
+    state.darts[c.id] = { x: c.pos.x, y: c.pos.y, f: frame };
+  }
+  // Near its last place, not near the latest guess: measured against the hive, ends near the guess walked the guess
+  // 120 m off in a minute.
+  const g = state.hidden || state.guess;
+  for (const id in state.darts) {
+    const d = state.darts[id];
+    if (d.f === frame) continue;
+    delete state.darts[id];
+    if (g && Math.hypot(d.x - g.x, d.y - g.y) < endNear && Math.hypot(d.x - state.home.x, d.y - state.home.y) > 100) state.ends.push({ x: d.x, y: d.y, at: time });
+  }
+  while (state.ends.length > 0 && (state.ends.length > 10 || time - state.ends[0].at > originKeep)) state.ends.shift();
+}
+
+/** The middle of a list of clues, or null with none. */
+function middle(o) {
   if (o.length === 0) return null;
   let x = 0;
   let y = 0;
@@ -295,6 +335,7 @@ function tick() {
   castAnchors();
   turrets();
   watchOrigins();
+  watchDarts();
   const t = pick();
   wayIn(t);
   let aim = state.last;
@@ -302,13 +343,20 @@ function tick() {
   let guess = false;
   if (!t && !aim && (state.hidden || !state.everSeen)) {
     // Hidden (or never seen): the middle of where its new robots showed up, else its last place, more slowly.
-    const o = originMiddle();
-    if (o) aim = { x: o.x, y: o.y, vx: 0, vy: 0, at: time };
-    else if (state.hidden) {
-      aim = { x: state.hidden.x, y: state.hidden.y, vx: 0, vy: 0, at: time };
-      wait = hiddenGap;
+    const o = middle(state.debris) || middle(state.origins) || middle(state.ends);
+    const h = o || state.hidden;
+    if (h) {
+      // The sweep: a 3 by 5 grid of points round the middle (no heights for one on the ground), in turn.
+      const k = state.sweepK % 15;
+      const dx = ((k % 3) - 1) * 2 * sweep;
+      const dy = h.y > 30 ? (Math.floor(k / 3) - 2) * sweep : 0;
+      aim = { x: h.x + dx, y: Math.max(1, h.y + dy), vx: 0, vy: 0, at: time };
+      // With a clue, as fast as for a robot in view; with only its last place, slower.
+      wait = o ? gap : hiddenGap;
     }
     guess = aim !== null;
+    if (guess) state.guess = { x: aim.x, y: aim.y };
+    if (debug > 0 && guess && frame % 300 === 0) log('guess ' + Math.round(aim.x) + ',' + Math.round(aim.y) + ' from ' + state.debris.length + ' debris, ' + state.origins.length + ' origins, ' + state.ends.length + ' ends');
   }
   // Blind fire onto the mirror of its own start: only in a match, and only while it has never seen an enemy.
   const blind = !t && !aim && !state.everSeen && arena !== null && arena !== undefined;
@@ -332,6 +380,7 @@ function tick() {
     if (t) msg.id = t.id;
     if (t && state.way && state.way.id === t.id && state.way.via && Math.hypot(t.vel.x, t.vel.y) < wayStill) msg.via = state.way.via;
     if (blind) state.blind++;
+    if (guess) state.sweepK++;
     send(tag + get(tag, 'built'), msg);
     set(tag, 'release', 1);
     state.released = time;
