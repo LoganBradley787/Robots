@@ -1,50 +1,78 @@
 // titan-anvil pilot: a flying brick of armor that only rams.
 // A hard hit hurts what is near the contact (about 6 m deep), so the brick aims the contact at where the enemy's
 // main core is: it scans the enemy's main robot, works out how deep its core sits behind each face, and comes in on
-// the thinnest one, again and again on the same spot. From the side it flies level through the core's row; from
-// below it climbs into the core's column with its roof (gravity stops the climb, so that is safe at the arena's
-// edge). A robot known only from gun sights (it hides from radar) is taken from below, across its whole length.
+// the thinnest one. From the side it flies through the core's row; from below it climbs into the core's column with
+// its roof (gravity stops the climb, so that is safe at the arena's edge); from above it lines up over the core and
+// cuts its lift, dropping onto it. A robot known only from gun sights (it hides from radar) is taken from below,
+// across its whole length.
 // - The main enemy (titan-darts, 2026-10, Logan): picked from what the radar reports, never by id: the heaviest enemy
 //   with a live core of `mainMass` kg or more (nearest first on a tie), kept unless one twice as heavy shows up. One
-//   seen as debris (no live core) is done with: the brick lands. One that vanished alive stays the main enemy, and
-//   gun sights that read its id keep touching it. Until a main enemy is known, sights count unless they read a robot
-//   seen lighter than `mainMass`.
-// Something much heavier is not rammed: the brick waits high behind its tail, at the arena's edge.
-// It never turns: boosters on each side push it left or right, the lift rows hold its height and keep it level.
+//   seen as debris (no live core) is done with: the brick lands, and takes off again for the next enemy with a live
+//   core it sees. One that vanished alive stays the main enemy (inside an arena; in the open sandbox only for
+//   `forget` s), and gun sights that read its id keep touching it. Until a main enemy is known, sights count unless
+//   they read a robot seen lighter than `mainMass`.
+// - Ways in (titans v2, 2026-10): each ram is one try along one way in (its left face, its right face, from below,
+//   from above). A try that ends without a hit that broke parts off counts against that way, and after `tries` such
+//   in a row the brick picks the next best way, so a target that keeps slipping one approach meets another. While it
+//   closes it leads the target's height to the moment of contact (a target that dives is followed down at up to free
+//   fall: the lift is cut), and it leans into a long speed change (up to `tilt` degrees) so the lift rows push it
+//   along too, levelling out before the hit.
+// Something much heavier is not rammed: the brick waits high behind its tail.
+// It never turns round: boosters on each side push it left or right, the lift rows hold its height and its lean.
 // Guns on every face blast what their sights show. Everything goes by `side` and by where its own parts are, so it
 // works flipped.
+// - The edge (titans v2, 2026-10): every limit on where it goes comes from the global `arena` (`{ x, y }`, or null in
+//   the open sandbox, where it goes wherever its target goes). Time planning (`match`) only applies with an arena.
 
 const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
 const vmax = param('vmax', 60, { min: 10, max: 90 }); // fastest ram, m/s
 const ownDv = param('ownDv', 20, { min: 5, max: 30 }); // the most its own speed may change in a hit, m/s
 const heavy = param('heavy', 1.3, { min: 0.1, max: 5 }); // an enemy over this share of its own mass is not rammed
-const ceiling = param('ceiling', 225, { min: 50, max: 240 }); // the core never goes above this (the arena ends at 250)
+const roofGap = param('roofGap', 25, { min: 5, max: 200 }); // m the core keeps under the arena's ceiling
 const reserve = param('reserve', 0.05, { min: 0, max: 0.5 }); // share of energy kept for landing
-const edge = param('edge', 950, { min: 500, max: 970 }); // the core stays within this of the middle, m
+const edgeGap = param('edgeGap', 50, { min: 20, max: 500 }); // m the core keeps inside the arena's side edges
 const hideHeight = param('hideHeight', 200, { min: 50, max: 230 }); // m: where it waits out an enemy too heavy to ram
 const lapSpeed = param('lapSpeed', 30, { min: 5, max: 80 }); // m/s it flies end to end while waiting (a brick that sits still is worn down)
-const lapEnd = param('lapEnd', 700, { min: 100, max: 900 }); // m from the middle where a lap turns
+const lapEnd = param('lapEnd', 700, { min: 100, max: 900 }); // m from the middle (or from where it started, with no arena) where a lap turns
 const shove = param('shove', 5000, { min: 0, max: 100000 }); // kg: a ground enemy heavier than this with a deep core is not worth bumping
 const jamEvery = param('jamEvery', 4.7, { min: 1, max: 5 }); // s between jammer pods while it waits hidden (a pod jams 5 s)
-const match = param('match', 240, { min: 10, max: 10000 }); // s a match lasts: pushing a heavy enemy stops while the energy left still covers hovering to the end
+const match = param('match', 240, { min: 10, max: 10000 }); // s a match lasts (only with an arena): pushing a heavy enemy stops while the energy left still covers hovering to the end
+const hold = param('hold', 60, { min: 0, max: 10000 }); // s of hovering it keeps in hand against a heavy enemy in the open sandbox (no match end)
 const tall = param('tall', 60, { min: 10, max: 250 }); // m: a heavy enemy standing this far over its core is pushed over by its top
 const touch = param('touch', 12, { min: 1, max: 40 }); // m/s it closes on that top at
 const thin = param('thin', 5, { min: 0, max: 20 }); // m: a heavy enemy's core this near a side face is rammed there anyway
 const breach = param('breach', 78, { min: 10, max: 90 }); // m/s for that ram (it costs the face that hits)
-const pushEdge = param('pushEdge', 975, { min: 500, max: 985 }); // how far out its core may go while shoving such an enemy
+const pushGap = param('pushGap', 40, { min: 5, max: 500 }); // m inside the arena's edge its core may go while shoving
 const local = param('local', 1, { min: 0, max: 1 }); // 1: a crash only hurts near the contact (round 2), so `breach` rams are worth it
 const sweepSpeed = param('sweepSpeed', 40, { min: 5, max: 60 }); // m/s while searching with the gun sights
 const sweepHeight = param('sweepHeight', 110, { min: 30, max: 200 }); // m: from here the roof and floor guns' sights cover ground to ceiling
 const sweepHigh = param('sweepHigh', 185, { min: 30, max: 220 }); // m: the first pass, where the roof guns reach the ceiling
 const uppercut = param('uppercut', 32, { min: 5, max: 45 }); // m/s at most when ramming straight up
 const drop = param('drop', 75, { min: 20, max: 150 }); // m it sinks under a target before climbing into it
+const perch = param('perch', 40, { min: 10, max: 150 }); // m over a target's top it lines up before dropping onto it
+const fall = param('fall', 60, { min: 5, max: 90 }); // m/s at most when dropping onto something (it still brakes for the ground)
+const tries = param('tries', 2, { min: 1, max: 10 }); // tries in a row that break nothing before it changes its way in
+const tryTime = param('tryTime', 20, { min: 5, max: 120 }); // s a try may take before it counts as one that failed
+const hitParts = param('hitParts', 4, { min: 1, max: 100 }); // parts the enemy must lose in a try for it to count as a hit
+const tipSpin = param('tipSpin', 0.2, { min: 0.05, max: 2 }); // rad/s: the most spin a hit may give it (it rights about 0.5 rad of spin at 0.2)
+const giveUp = param('giveUp', 6, { min: 2, max: 100 }); // tries in a row that break nothing on a ground enemy before it regroups
+const regroup = param('regroup', 20, { min: 0, max: 120 }); // s it waits high, out of reach of ground guns, before trying again
+const stuckTime = param('stuckTime', 3, { min: 1, max: 30 }); // s going nowhere before it climbs out and backs off
+const tilt = param('tilt', 25, { min: 0, max: 40 }); // degrees it leans at most to speed up or slow down
+const forget = param('forget', 30, { min: 1, max: 10000 }); // s a main enemy that vanished alive is kept, with no arena
 const pingKeep = param('pingKeep', 15, { min: 1, max: 60 }); // s it keeps going for the place gun sights last touched the enemy
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
+
+// Limits from the arena (titans v2, 2026-10): none in the open sandbox.
+const edge = arena ? arena.x - edgeGap : Infinity; // the core stays within this of the middle, m
+const pushEdge = arena ? arena.x - pushGap : Infinity; // how far out its core may go while shoving
+const ceiling = arena ? arena.y - roofGap : Infinity; // the core never goes above this
 
 let guns = null;
 let pods = []; // jammer pods not yet used
 let gunParts = -1;
 let pings = []; // one entry per tick a sight touched the enemy's main robot: its reach that tick
+const WAYS = ['S', 'L', 'R', 'B', 'T']; // either side face (whichever it meets), its left face (going right), its right face, from below, from above
 
 function setup() {
   let m = 0;
@@ -104,6 +132,7 @@ function setup() {
   state.pushLeft = 1;
   state.mainId = -1;
   state.mainMass = 0;
+  state.mainSeen = -100; // when the main enemy was last on the radar
   state.light = {}; // ids of enemy robots seen lighter than `mainMass`
   state.last = null;
   state.shape = null;
@@ -112,6 +141,8 @@ function setup() {
   state.up = false;
   state.upAt = 0;
   state.upCount = 0;
+  state.down = false;
+  state.downAt = 0;
   state.stallAt = 0;
   state.backing = false;
   state.evade = false;
@@ -121,6 +152,21 @@ function setup() {
   state.push = 0;
   state.won = false;
   state.plan = '';
+  state.way = ''; // the way in of the try under way ('' for none)
+  state.wayAt = 0;
+  state.wayParts = 0; // the enemy's parts when the try started
+  state.wayHit = false; // it touched the enemy hard during the try
+  state.fails = { S: 0, L: 0, R: 0, B: 0, T: 0 };
+  state.prevVx = 0;
+  state.prevVy = 0;
+  state.tvx = 0; // the target's speed a tick ago, for its acceleration
+  state.tvy = 0;
+  state.tay = 0;
+  state.lostAt = -100; // when it last had a target
+  state.misses = 0; // tries in a row, any way, that broke nothing
+  state.regroupUntil = -100;
+  state.stillAt = 0; // since when it has been still (or the last time it moved)
+  state.unstick = -100; // until when it climbs out of where it got stuck
 }
 
 function plan(name) {
@@ -216,17 +262,37 @@ function measure(main) {
   state.shapeAt = time;
 }
 
+// A try along a way in ends: it counts against that way unless it broke enough off the enemy.
+function endTry(main) {
+  if (state.way === '') return;
+  const lost = main && state.wayParts >= 0 ? state.wayParts - main.parts : 0;
+  if (state.wayHit && lost >= hitParts) {
+    state.fails[state.way] = 0;
+    state.misses = 0;
+  } else {
+    state.fails[state.way]++;
+    state.misses++;
+  }
+  if (say > 0.5) log('try', state.way, lost >= hitParts && state.wayHit ? 'hit' : 'missed', 'lost', lost, 'fails', state.fails[state.way]);
+  state.way = '';
+}
+
 function tick() {
   const m = self.mass;
   const x = self.pos.x;
   const y = self.pos.y;
   const vx = self.vel.x;
   const vy = self.vel.y;
+  // A hit: its own speed jumped this tick (a touch of the ground does not count, it stays well above it then).
+  const jolt = Math.hypot(vx - state.prevVx, vy - state.prevVy);
+  state.prevVx = vx;
+  state.prevVy = vy;
 
   // The main enemy: the one it had (unless one twice as heavy shows up), else the heaviest enemy with a live core of
   // `mainMass` or more (contacts come nearest first, so a tie goes to the nearer). One that vanished alive (a jammer's
   // bubble hides a shatter king for the whole match) stays the main enemy, since the pieces and darts around it
-  // would pull the brick off it; seen as debris, it is won and forgotten.
+  // would pull the brick off it; seen as debris, it is won and forgotten, and the next enemy with a live core it sees
+  // (one placed later in the sandbox) brings it back up.
   let heaviest = null;
   let kept = null;
   for (const c of contacts) {
@@ -235,16 +301,31 @@ function tick() {
       else if (!c.core) {
         state.won = true;
         state.mainId = -1;
+        state.way = '';
       }
     }
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.mass < mainMass) state.light[c.id] = true;
     else if (!heaviest || c.mass > heaviest.mass) heaviest = c;
   }
+  // With no arena there is no match to wait out: a main enemy gone from the radar that long is let go.
+  if (!arena && state.mainId >= 0 && !kept && time - state.mainSeen > forget) state.mainId = -1;
   const main = state.mainId < 0 || (heaviest && heaviest.mass > 2 * state.mainMass) ? heaviest : kept;
   if (main) {
+    if (main.id !== state.mainId) {
+      state.way = '';
+      state.fails = { S: 0, L: 0, R: 0, B: 0, T: 0 };
+      state.shapeAt = -100;
+      state.evade = false; // a new main enemy is judged afresh
+    }
     state.mainId = main.id;
     state.mainMass = main.mass;
+    state.mainSeen = time;
+    if (state.won) {
+      state.won = false;
+      state.evade = false;
+      if (say > 0.5) log('a new enemy: taking off', main.id);
+    }
   }
   runGuns();
   if (main && time - state.shapeAt > 2) measure(main);
@@ -254,55 +335,111 @@ function tick() {
   const hoverPower = ((m * 9.81) / 400) * 60; // J/s the lift boosters draw holding its weight
   const floor = state.bottom + 0.3;
   const push = Math.min(state.pushRight, state.pushLeft);
+  const brake = Math.max(1, (0.85 * state.liftForce) / m - 9.81); // m/s² the lift rows can slow a fall by
   let wantVx = 0;
   let wantH = sweepHeight;
-  let ramVy = null; // a wanted climb rate when ramming straight up
+  let ramVy = null; // a wanted climb rate when ramming (up, down, or leading a target's height)
   let land = false;
+  let calm = false; // level, whatever the speed change: a hit is near
   let limit = edge; // how far from the middle the core may go this tick
 
   // What is known of the enemy's main robot: seen by radar (its core's place), or only touched by gun sights.
   let target = null;
   if (main) {
-    state.last = { x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, m: main.mass, t: time };
+    // Its vertical acceleration, smoothed: a target that starts a dive is led down at once.
+    const ay = clamp((main.vel.y - state.tvy) / Math.max(dt, 0.001), -15, 15);
+    state.tay = state.tay * 0.8 + ay * 0.2;
+    state.tvx = main.vel.x;
+    state.tvy = main.vel.y;
+    state.last = { x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, ay: state.tay, m: main.mass, parts: main.parts, t: time };
     target = state.last;
   } else if (state.last && time - state.last.t < 2) {
     const age = time - state.last.t;
-    target = { x: state.last.x + state.last.vx * age, y: Math.max(1, state.last.y + state.last.vy * age), vx: state.last.vx, vy: state.last.vy, m: state.last.m };
+    target = { x: state.last.x + state.last.vx * age, y: Math.max(1, state.last.y + state.last.vy * age), vx: state.last.vx, vy: state.last.vy, ay: 0, m: state.last.m };
   }
+  if (target || pings.length > 0) state.lostAt = time;
   const shape = main && state.shape && time - state.shapeAt < 6 ? state.shape : null;
+  if (state.way !== '' && state.wayParts < 0 && main) state.wayParts = main.parts;
+  if (state.way !== '' && jolt > 2 && target && Math.abs(target.x - x) < state.halfWidth + 120) state.wayHit = true;
 
   // Climbing into something from below: sink `drop` under its underside while lining up, then climb at full speed
   // until the climb stalls (the hit, or the ceiling), and start over.
   const fromBelow = (atX, underside, tvx, tvy) => {
     const start = Math.max(floor, underside - state.top - drop);
-    atX = clamp(atX, -edge, edge);
-    wantVx = tvx + clamp(0.8 * (atX - x), -vmax, vmax);
+    // It lines up where the target will be when the climb reaches it (it climbs at about `uppercut`).
+    const lead = state.up ? 0 : clamp((underside - y) / uppercut, 0, 4);
+    const aimX = clamp(atX + tvx * lead, -edge, edge);
+    wantVx = tvx + clamp(0.8 * (aimX - x), -vmax, vmax);
     if (!state.up) {
       wantH = start;
-      if (Math.abs(atX - x) < 8 && y - start < 8) {
+      if (Math.abs(aimX - x) < 8 && y - start < 8) {
         state.up = true;
         state.upAt = time;
       }
     } else {
+      calm = true;
       ramVy = tvy + uppercut;
       const age = time - state.upAt;
       if ((age > 2 && vy < 4) || age > 14) {
         state.up = false;
         state.upCount++;
+        return true; // the try is over
       }
     }
+    return false;
   };
-  // Flying level through a point. `prefer` (1 or -1, 0 for either) is the way it must be going when it hits: going
-  // the other way it passes over the top (`over`, a core height) and comes back.
+  // Dropping onto something from above (titans v2, 2026-10, Logan: "shut off its thrusters and drop like a rock"):
+  // line up `perch` over its top, leading where it goes, then cut the lift and fall onto it. The fall is held only to
+  // what the lift rows can still stop before the ground.
+  const fromAbove = (atX, top, tvx, tvy) => {
+    const start = Math.min(ceiling, top + state.bottom + perch);
+    const tFall = Math.sqrt((2 * Math.max(0, y - state.bottom - top)) / 9.81);
+    const aimX = clamp(atX + tvx * tFall, -edge, edge);
+    wantVx = tvx + clamp(0.8 * (aimX - x), -vmax, vmax);
+    if (!state.down) {
+      wantH = start;
+      if (Math.abs(aimX - x) < 10 && y > start - 15) {
+        state.down = true;
+        state.downAt = time;
+      }
+    } else {
+      calm = true;
+      ramVy = tvy - fall;
+      const age = time - state.downAt;
+      if ((age > 1.5 && vy > -2) || y + state.top < top - 5 || age > 10) {
+        state.down = false;
+        return true;
+      }
+    }
+    return false;
+  };
+  // Flying through a point from the side. `prefer` (1 or -1, 0 for either) is the way it must be going when it hits:
+  // going the other way it passes over the top (`over`, a core height) and comes back. Its height leads the
+  // target's to the moment of contact, at up to free fall.
   const fromSide = (t, prefer, over, fast) => {
     const dx = t.x - x;
-    const speed = fast || Math.min(vmax, (ownDv * (m + t.m)) / Math.max(t.m, 1));
-    const runup = clamp((speed * speed) / (2 * (push / m)), 40, 250);
+    // A hit far above or below its center of mass spins the brick (a hit low on a ground base rolled it onto its
+    // back, for good: titans v2, 2026-10). The speed is held to what leaves a spin of `tipSpin` it can stop: the
+    // contact is the middle of where the two overlap in height, the push is the speed times the pair's shared mass.
+    const tTop = t.y + (shape ? shape.high : 5);
+    const tLow = t.y + (shape ? shape.low : -5);
+    const contactY = (Math.max(y - state.bottom, tLow) + Math.min(y + state.top, tTop)) / 2;
+    const shared = (m * Math.max(t.m, 1)) / (m + Math.max(t.m, 1));
+    const tip = (tipSpin * state.inertia) / (Math.max(1, Math.abs(contactY - y)) * shared);
+    const speed = Math.max(12, Math.min(fast || Math.min(vmax, (ownDv * (m + t.m)) / Math.max(t.m, 1)), tip));
+    // The run-up past it before it comes again: enough to get back up to speed, but never so long that a target
+    // drifting the same way stays out of reach (titans v2, 2026-10: 250 m let a fleeing hive go for 20 s).
+    const runup = clamp((speed * speed) / (2 * (push / m)), 40, 120);
     if (state.dir === 0) state.dir = dx >= 0 ? 1 : -1;
     const ahead = state.dir > 0 ? limit - x : x + limit; // room left before the arena's edge
-    if (dx * state.dir < 0 && (dx * state.dir < -runup || ahead < 30)) {
+    let passed = false;
+    // The run-up counts from its face, not its core (titans v2, 2026-10: against a base 80 m wide it turned round
+    // still touching it, and every bump was a slow one).
+    const near = state.halfWidth + (shape ? Math.max(-shape.hullLo, shape.hullHi) : 0);
+    if (dx * state.dir < 0 && (dx * state.dir < -(runup + near) || ahead < 30)) {
       state.dir = -state.dir; // past it (or backed off far enough): come again
       state.backing = false;
+      passed = true;
     }
     // Pressed against it and going nowhere: back off for a run-up and bump it again. A bump shoves it much
     // further than a steady push, and a brick that sits still is an easy mark.
@@ -311,23 +448,43 @@ function tick() {
         state.dir = dx >= 0 ? -1 : 1;
         state.backing = true;
         state.stallAt = time;
+        passed = true;
       }
     } else state.stallAt = time;
     wantVx = t.vx + state.dir * speed;
     if (prefer !== 0 && state.dir !== prefer && over !== null && !state.backing) wantH = over;
+    else if (state.backing) wantH = shape && shape.ground ? t.y + shape.high + state.bottom + 3 : t.y; // off a ground base: clear of its roof
     else {
-      const closing = Math.max(5, Math.abs(vx - t.vx));
-      wantH = t.y + t.vy * clamp(Math.abs(dx) / closing, 0, 3);
+      const closing = Math.max(5, (vx - t.vx) * Math.sign(dx));
+      const reach = shape ? (dx > 0 ? -shape.hullLo : shape.hullHi) : 0;
+      const tc = clamp((Math.abs(dx) - state.halfWidth - reach) / closing, 0, 4);
+      const ay = Math.abs(t.ay || 0) > 1.5 ? clamp(t.ay, -6, 6) : 0; // only a clear dive or climb
+      const aimY = clamp(t.y + t.vy * tc + 0.5 * ay * tc * tc, floor, ceiling);
+      ramVy = t.vy + ay * tc + (aimY - y) / Math.max(0.7, tc);
+      if (tc < 2.5) calm = true;
     }
+    return passed;
+  };
+  // Starts a try along `way` (or goes on with the one under way).
+  const begin = (way) => {
+    if (state.way === way) return;
+    if (state.way !== '') endTry(main);
+    state.way = way;
+    state.wayAt = time;
+    state.wayParts = main ? main.parts : -1; // -1: taken from the first sight of it
+    state.wayHit = false;
+    state.up = false;
+    state.down = false;
   };
 
-  if (state.won) {
-    plan('done: landing');
+  const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
+  if (state.won && !target) {
+    plan('done: landing, watching for the next enemy');
     land = true;
   } else if (charge < reserve) {
     plan('low energy: landing');
     land = true;
-  } else if (state.evade || (target && target.m > heavy * m && self.energy.stored < Math.max(0, match - time) * hoverPower * 1.08)) {
+  } else if (state.evade || (target && target.m > heavy * m && self.energy.stored < timeLeft * hoverPower * 1.08)) {
     state.evade = true;
     // Nothing it can do to this enemy, so it only has to last: it hides in its own jammer bubbles (no sensor sees
     // it, its own radar included) and flies from end to end, high up, never sitting still.
@@ -337,8 +494,10 @@ function tick() {
       set(pod.id, 'ignite', 1);
       state.jamAt = time;
     }
-    if (state.hideSide === 0) state.hideSide = x >= 0 ? -1 : 1;
-    if (x * state.hideSide > lapEnd) state.hideSide = -state.hideSide;
+    const mid = arena ? 0 : state.home.x;
+    const end = arena ? Math.min(lapEnd, edge - 50) : lapEnd;
+    if (state.hideSide === 0) state.hideSide = x >= mid ? -1 : 1;
+    if ((x - mid) * state.hideSide > end) state.hideSide = -state.hideSide;
     wantVx = state.hideSide * lapSpeed;
     wantH = hideHeight;
   } else if (target && target.m > heavy * m) {
@@ -361,41 +520,101 @@ function tick() {
       plan('heavy: pushing its top over');
       const top = target.y + shape.high;
       const tx = target.x + shape.topX;
-      fromSide({ x: tx, y: Math.min(top - 14, ceiling), vx: target.vx, vy: 0, m: 0 }, 0, null, Math.abs(tx - x) > 150 ? vmax : touch);
+      fromSide({ x: tx, y: Math.min(top - 14, ceiling), vx: target.vx, vy: 0, ay: 0, m: 0 }, 0, null, Math.abs(tx - x) > 150 ? vmax : touch);
     } else {
       // Nothing to take hold of.
       state.evade = true;
       wantH = hideHeight;
     }
   } else if (target) {
-    // Seen by radar: come in on the face its core is nearest to.
-    const side = shape ? Math.min(shape.L, shape.R) : 0;
+    // Seen by radar: pick the way in. Each way costs how deep the core sits behind that face, plus a penalty for
+    // each try along it in a row that broke nothing; ways it cannot fly are left out.
     const under = shape ? target.y - shape.B : target.y;
-    // Near the arena's edge there is no room for a run-up from the side (a hiding core waits right at the edge):
-    // anything in the air there is taken from below, which needs no room sideways.
-    const cornered = edge - Math.abs(target.x) < 100 && target.y > 60;
-    if (((shape && !shape.ground && shape.B + 3 < side) || cornered) && under - state.top - 30 > floor) {
-      plan('ramming from below');
-      fromBelow(target.x, under, target.vx, target.vy);
-    } else {
-      plan('ramming from the side');
-      let prefer = 0;
-      let over = null;
-      if (shape) {
-        const reachable = Math.min(shape.L, shape.R) <= 6; // a crash reaches about 6 m in
-        if (reachable && Math.abs(shape.L - shape.R) > 3) prefer = shape.L < shape.R ? 1 : -1; // going right hits its left face
-        else if (!reachable && shape.ground) {
-          prefer = target.x >= 0 ? 1 : -1; // too deep: bump it out over the nearer edge
-          if (target.m > shove) state.evade = true; // unless it is too heavy for bumps to move it that far
-        }
-        if (prefer !== 0) {
-          over = target.y + shape.high + state.bottom + 10;
-          if (over > ceiling) over = shape.ground ? null : target.y + shape.low - state.top - 10;
-          if (over !== null && over < floor) over = null;
-          if (!reachable) limit = pushEdge;
+    const topY = shape ? target.y + shape.T : target.y;
+    const cornered = edge - Math.abs(target.x) < 100 && target.y > 60; // no room for a run-up from the side
+    const air = shape ? !shape.ground : target.y > 30;
+    const can = {
+      S: true,
+      L: true,
+      R: true,
+      B: air && under - state.top - 30 > floor,
+      T: air && topY + state.bottom + perch < ceiling && topY - state.top > 25,
+    };
+    // A ground enemy whose core is too deep is bumped out over the nearer edge (with an arena), unless it is too heavy
+    // for bumps to move it that far: then it is waited out, hidden. Grinding at such a base was tried (titans v2,
+    // 2026-10): an anchored dart base does not move, a hit low enough to reach its core rolls the brick over, and its
+    // darts find the brick the moment it stops hiding (it lost at 138 s instead of drawing).
+    let pushOut = 0;
+    if (shape && Math.min(shape.L, shape.R) > 6 && shape.ground) {
+      if (target.m > shove) state.evade = true;
+      else if (arena) pushOut = target.x >= 0 ? 1 : -1;
+    }
+    if (state.way !== '' && !can[state.way]) endTry(main);
+    if (state.way !== '' && time - state.wayAt > tryTime) endTry(main);
+    if (state.way !== '' && state.wayHit && main && state.wayParts - main.parts >= hitParts) {
+      // It works: keep at it, counting a new try from here.
+      state.fails[state.way] = 0;
+      state.wayAt = time;
+      state.wayParts = main.parts;
+      state.wayHit = false;
+    }
+    // Nothing it tries breaks anything off a ground enemy (an anchored base with its core deep and low, where a fast
+    // hit would roll the brick over): it climbs out of reach of its guns for a while, then starts over.
+    if (state.misses >= giveUp && shape && shape.ground) {
+      state.regroupUntil = time + regroup;
+      state.misses = 0;
+      state.way = '';
+      for (const w of WAYS) state.fails[w] = 0;
+    }
+    if (time < state.regroupUntil) {
+      plan('regrouping out of reach');
+      wantVx = clamp(0.5 * (clamp(target.x - Math.sign(target.x - x || 1) * 250, -edge, edge) - x), -sweepSpeed, sweepSpeed);
+      wantH = hideHeight;
+    }
+    let way = state.way;
+    if (time < state.regroupUntil) way = '';
+    else if (way === '' || state.fails[way] >= tries) {
+      let best = '';
+      let cost = 1e9;
+      for (const w of WAYS) {
+        if (!can[w]) continue;
+        // Either side face counts as the deeper of the two (it may meet either).
+        let depth = shape ? (w === 'S' ? Math.max(shape.L, shape.R) : shape[w]) : w === 'B' || w === 'T' ? 30 : 10;
+        if (cornered && (w === 'B' || w === 'T')) depth -= 20;
+        if (pushOut !== 0 && w !== 'B' && w !== 'T') depth = (w === 'L') === pushOut > 0 ? 0 : 100;
+        // The face toward it needs no pass over the top first.
+        const turn = (w === 'L' && target.x < x) || (w === 'R' && target.x > x) ? 4 : 0;
+        const c = depth + turn + 15 * state.fails[w] + (w === state.way ? 5 : 0);
+        if (c < cost) {
+          cost = c;
+          best = w;
         }
       }
-      fromSide(target, prefer, over);
+      if (state.fails[best] >= tries) for (const w of WAYS) state.fails[w] = Math.max(0, state.fails[w] - 1); // all tried: forgive a little
+      way = best;
+    }
+    if (way !== '') begin(way);
+    if (way === '') {
+      // regrouping (above)
+    } else if (way === 'B') {
+      plan('ramming from below');
+      if (fromBelow(target.x, under, target.vx, target.vy)) endTry(main);
+    } else if (way === 'T') {
+      plan('dropping on it from above');
+      if (fromAbove(target.x, topY, target.vx, target.vy)) endTry(main);
+    } else {
+      plan(way === 'L' ? 'ramming its left face' : way === 'R' ? 'ramming its right face' : 'ramming a side face');
+      const prefer = way === 'L' ? 1 : way === 'R' ? -1 : 0;
+      let over = null;
+      if (shape) {
+        over = target.y + shape.high + state.bottom + 10;
+        if (over > ceiling) over = shape.ground ? null : target.y + shape.low - state.top - 10;
+        if (over !== null && over < floor) over = null;
+        // Only as far as puts its core over the line: its core sits that face's depth behind the face it hits.
+        if (pushOut !== 0) limit = Math.min(pushEdge, arena.x - (pushOut > 0 ? shape.L : shape.R) - state.halfWidth + 20);
+      }
+      if (fromSide(target, prefer, over) && state.dir !== prefer) endTry(main); // it flew on past (or backs off): that run is over
+      else if (prefer !== 0 && (target.x - x) * prefer < 0 && Math.abs(target.x) > limit - 60 && target.x * prefer > 0) state.fails[way] = tries; // on its far side with no room to come round: another way
     }
   } else if (pings.length > 0) {
     // Hidden from radar, touched by gun sights. In the air: climb into it from below, at the middle of what the
@@ -420,56 +639,104 @@ function tick() {
       state.evade = true;
       wantH = hideHeight;
     } else {
-      // On the ground and hidden: its core is likely deep, so bump it out over the nearer edge.
+      // On the ground and hidden: its core is likely deep, so bump it (out over the nearer edge, with an arena).
       plan('ramming a hidden one from the side');
       const mid = (lo + hi) / 2;
-      limit = pushEdge;
-      fromSide({ x: mid, y: Math.max(ylo, floor), vx: 0, vy: 0, m: mass }, mid >= 0 ? 1 : -1, Math.min(ceiling, 60 + state.bottom));
+      if (arena) limit = pushEdge;
+      fromSide({ x: mid, y: Math.max(ylo, floor), vx: 0, vy: 0, ay: 0, m: mass }, mid >= 0 ? 1 : -1, Math.min(ceiling, 60 + state.bottom));
     }
+  } else if (!arena && (state.won || state.mainId < 0 || time - state.lostAt > forget)) {
+    // The open sandbox with nothing to go after: rest on the ground, guns watching, until something shows up.
+    plan('resting, watching for an enemy');
+    land = true;
   } else {
     // Nothing known (it hides from the radar): fly level at a height from where the roof and floor guns' sights
-    // reach from the ground to the ceiling, and sweep the enemy's half to its edge, then the whole arena.
+    // reach from the ground to the ceiling, and sweep the enemy's half to its edge, then the whole arena (with no
+    // arena, `lapEnd` either way of where it last saw the enemy).
     // The first pass is high (a hiding core mostly waits high up at its own end) and fast until the enemy's start.
     plan('searching');
     state.up = false;
+    state.down = false;
     const far = state.home.x < 0 ? 1 : -1;
-    const legs = [far * (edge - 10), 0, far * (edge - 10), -far * (edge - 10)];
+    const mid = arena ? 0 : state.last ? state.last.x : state.home.x;
+    const reach = arena ? edge - 10 : lapEnd;
+    const legs = [mid + far * reach, mid, mid + far * reach, mid - far * reach];
     const to = legs[state.leg % legs.length];
     if (Math.abs(to - x) < 10) state.leg++;
-    const hurry = state.leg === 0 && (x + state.home.x * 0.5) * far < 0; // not yet halfway to the enemy's start
+    const hurry = arena && state.leg === 0 && (x + state.home.x * 0.5) * far < 0; // not yet halfway to the enemy's start
     wantVx = clamp(0.5 * (to - x), -(hurry ? vmax : sweepSpeed), hurry ? vmax : sweepSpeed);
     wantH = state.leg === 0 ? sweepHigh : sweepHeight;
   }
 
-  // Height: a wanted climb rate toward the height, never sinking faster than it can stop before the ground.
+  // Stuck (titans v2, 2026-10): wedged on or into the enemy (a ground base's empty dart pits held it 20 s), it is
+  // going nowhere whatever it wants. Still for `stuckTime` s while not landing: climb out and back off for a while,
+  // and the try it was on counts as failed.
+  if (!land && Math.hypot(vx, vy) < 1.5) {
+    if (time - state.stillAt > stuckTime) {
+      state.unstick = time + 2.5;
+      state.stillAt = time;
+      if (state.way !== '') {
+        state.fails[state.way] = tries - 1;
+        endTry(main);
+      }
+      if (say > 0.5) log('stuck: climbing out', 'charge', charge.toFixed(2), 'angle', self.angle.toFixed(2), 'mass', m.toFixed(0), 'lifts', (state.liftForce / 400).toFixed(0));
+    }
+  } else state.stillAt = time;
+  if (time < state.unstick) {
+    ramVy = 15;
+    wantVx = target ? (target.x > x ? -15 : 15) : 0;
+    calm = true;
+  }
+
+  // Height: a wanted climb rate toward the height, never sinking faster than the lift rows can stop before the
+  // ground. Ramming may sink at up to that (a free fall while far up: the lift is cut).
   if (land) {
     wantVx = 0;
     wantH = floor;
   }
   wantH = clamp(wantH, floor, ceiling);
   const room = Math.max(0, y - floor);
-  const sink = Math.max(1, Math.sqrt(2 * 3 * room));
+  const sink = Math.max(1, Math.sqrt(2 * brake * 0.8 * room));
   const rise = Math.sqrt(2 * 8 * Math.max(0, ceiling + 15 - y)); // gravity alone stops a climb before the arena's roof
-  const wantVy = ramVy !== null && !land ? clamp(ramVy, -sink, rise) : clamp(1.0 * (wantH - y), -Math.min(16, sink), Math.min(12, rise));
+  const wantVy = ramVy !== null && !land ? clamp(ramVy, -Math.min(fall, sink), Math.min(uppercut + 10, rise)) : clamp(1.0 * (wantH - y), -Math.min(16, sink), Math.min(12, rise));
   const ay = clamp(2.5 * (wantVy - vy), -9.81, 6);
+
+  // Lean (titans v2, 2026-10, Logan: "tilt to accelerate faster"): when the wanted speed change is more than the
+  // push boosters give, it leans the lift rows that way, up to `tilt` degrees, and levels out before a hit.
+  // Leaning takes seconds (a 12 t brick turns slowly), so only big changes lean.
+  if (land) wantVx = 0;
+  const dvx = wantVx - vx;
+  let lean = 0;
+  // Never near the ground or the target: a leaning brick that scrapes something rolls over.
+  const clear = y - floor > 25 && (!target || Math.abs(target.x - x) > state.halfWidth + 60);
+  if (!land && !calm && clear && tilt > 0) {
+    const pushA = (dvx > 0 ? state.pushRight : state.pushLeft) / m;
+    const need = 0.25 * Math.abs(dvx) - pushA;
+    if (need > 0) lean = -Math.sign(dvx) * Math.min((tilt * Math.PI) / 180, Math.atan(need / 9.81));
+  }
   let lift = (m * (9.81 + ay)) / state.liftForce / Math.max(0.5, Math.cos(self.angle));
   if (land && room < 0.4 && Math.abs(vy) < 1) lift = 0; // sitting on the ground
 
-  // Level: a spring and damper on the tilt, through the difference between the two lift halves, plus what cancels
-  // the push boosters' own turning.
-  const w = 2;
-  const torque = state.inertia * (-w * w * self.angle - 2 * w * self.angVel) + state.pushArm * state.push;
-  const diff = clamp(torque / state.leanTorque, -0.35, 0.35);
-  lift = clamp(lift, 0, 1 - Math.abs(diff));
+  // Level (or the lean): a spring and damper on the tilt, through the difference between the two lift halves, plus
+  // what cancels the push boosters' own turning.
+  const w = 1.4;
+  const torque = state.inertia * (-w * w * (self.angle - lean) - 2 * w * self.angVel) + state.pushArm * state.push;
+  // The difference between the halves comes out of spare lift only, so leaning never costs height (a level-out
+  // from a big tilt may take a little more). In a free fall it keeps just enough lift on one half to steer the tilt.
+  // Tipping over (a spin from a hit, or a tilt well past the lean): all it has goes into righting, height or not.
+  const tipping = Math.abs(self.angle) > Math.abs(lean) + 0.2 || Math.abs(self.angVel) > 0.12;
+  const cap = tipping ? 0.5 : Math.abs(self.angle - lean) > 0.3 ? 0.35 : clamp(1 - lift, 0.12, 0.35);
+  const diff = clamp(torque / state.leanTorque, -cap, cap);
+  lift = clamp(lift, Math.abs(diff), 1 - Math.abs(diff));
   const leftLift = lift > 0 ? clamp(lift - diff, 0, 1) : 0;
   const rightLift = lift > 0 ? clamp(lift + diff, 0, 1) : 0;
   set('la', 'throttle', state.laLeft ? leftLift : rightLift);
   set('lb', 'throttle', state.laLeft ? rightLift : leftLift);
 
-  // The arena ends at x 1000 either way: never faster toward an edge than it can stop before `edge`.
+  // Never faster toward an arena's edge than it can stop before `limit` (no edge in the open sandbox).
   // Going right is stopped by the boosters that push left, and the other way round: count what is left of each.
-  const stopRight = (0.8 * state.pushLeft) / m;
-  const stopLeft = (0.8 * state.pushRight) / m;
+  const stopRight = (0.6 * state.pushLeft) / m;
+  const stopLeft = (0.6 * state.pushRight) / m;
   wantVx = clamp(wantVx, -Math.sqrt(2 * stopLeft * Math.max(0, x + limit)), Math.sqrt(2 * stopRight * Math.max(0, limit - x)));
 
   // Sideways: the boosters on one side or the other.
