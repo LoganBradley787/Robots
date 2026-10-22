@@ -295,6 +295,11 @@ export class PhysicsWorld {
     this.kicks.set(id, { vx, vy, w });
   }
 
+  /** The kicks waiting for the next step, in the order they were given (the world hashes them: `World.hash`). */
+  waitingKicks(): ReadonlyMap<BodyId, { vx: number; vy: number; w: number }> {
+    return this.kicks;
+  }
+
   /** A body's velocity as the world should see it: a waiting kick's, else Rapier's. */
   private velocity(id: BodyId, body: RAPIER.RigidBody): { x: number; y: number; w: number } {
     const k = this.kicks.get(id);
@@ -965,13 +970,6 @@ export class PhysicsWorld {
       h.addF64(f.x);
       h.addF64(f.y);
       h.addF64(b.userTorque());
-    }
-    // Kicks waiting for the next step (a body rebuilt in the damage phase gets its kick on the next tick).
-    for (const [id, k] of this.kicks) {
-      h.addInt(id);
-      h.addF64(k.vx);
-      h.addF64(k.vy);
-      h.addF64(k.w);
     }
     // Batch: a slider's learned load shapes the future. Worlds without a slider add nothing.
     for (const sl of this.sliders.values()) h.addF64(sl.integral);

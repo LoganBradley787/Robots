@@ -3209,7 +3209,15 @@ export class World {
       h.addF64(b.y);
       for (const v of [b.spec.radius, b.spec.damage, b.spec.pushRadius, b.spec.push, b.spec.lift]) h.addF64(v);
     }
-    // Pushes waiting for the next step (kicks are in the physics hash).
+    // Kicks (a body rebuilt in the damage phase gets its kick on the next tick) and pushes waiting for the next step.
+    const kicks = this.physics.waitingKicks();
+    h.addInt(kicks.size);
+    for (const [body, k] of kicks) {
+      h.addInt(body);
+      h.addF64(k.vx);
+      h.addF64(k.vy);
+      h.addF64(k.w);
+    }
     h.addInt(this.pendingPushes.length);
     for (const p of this.pendingPushes) {
       h.addString(p.part.id);
