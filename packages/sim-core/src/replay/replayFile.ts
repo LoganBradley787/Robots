@@ -2,6 +2,7 @@ import { InputLog, type LoggedTick } from './InputLog';
 import { parseWorldFile, type WorldFile } from '../world/WorldFile';
 import { World, type SpawnRecord } from '../world/World';
 import type { ScriptHost } from '../script/types';
+import type { Arena } from '../world/arena';
 
 /**
  * Everything needed to rerun a session exactly (`11`, Replays): the world, the seed, every spawn, every key edge,
@@ -11,6 +12,8 @@ export interface ReplayFile {
   format: 1;
   world: WorldFile;
   seed: number;
+  /** The match's edge scripts read (`WorldOptions.arena`); absent when the world had none. */
+  arena?: Arena;
   spawns: SpawnRecord[];
   inputs: LoggedTick[];
   endTick: number;
@@ -25,6 +28,7 @@ export function buildReplay(world: World): ReplayFile {
     format: 1,
     world: world.file,
     seed: world.seed,
+    ...(world.arena ? { arena: { ...world.arena } } : {}),
     spawns: world.spawnLog.map((s) => ({ tick: s.tick, name: s.name, at: { ...s.at }, blueprint: s.blueprint, ...(s.team ? { team: s.team } : {}) })),
     inputs: world.inputLog.toJSON(),
     endTick: world.tick,
@@ -100,7 +104,13 @@ export function parseReplay(raw: unknown): ReplayFile {
   });
   if (typeof r.endHash !== 'string') throw new ReplayError('replay endHash must be a string');
   const seed = int(r.seed, 'seed');
-  return { format: 1, world, seed, spawns, inputs, endTick: int(r.endTick, 'endTick'), endHash: r.endHash };
+  let arena: Arena | undefined;
+  if (r.arena !== undefined && r.arena !== null) {
+    const a = obj(r.arena, 'arena');
+    if (typeof a.x !== 'number' || typeof a.y !== 'number' || !Number.isFinite(a.x) || !Number.isFinite(a.y) || a.x <= 0) throw new ReplayError('replay arena needs numbers x (above 0) and y');
+    arena = { x: a.x, y: a.y };
+  }
+  return { format: 1, world, seed, ...(arena ? { arena } : {}), spawns, inputs, endTick: int(r.endTick, 'endTick'), endHash: r.endHash };
 }
 
 /**
@@ -113,7 +123,7 @@ export async function runReplay(
   onTick?: (world: World) => void,
   scripts?: ScriptHost,
 ): Promise<{ world: World; hash: string; matches: boolean }> {
-  const world = await World.create({ seed: replay.seed, ...(scripts ? { scripts } : {}) }, replay.world);
+  const world = await World.create({ seed: replay.seed, ...(replay.arena ? { arena: replay.arena } : {}), ...(scripts ? { scripts } : {}) }, replay.world);
   const log = InputLog.fromJSON(replay.inputs);
   const spawns = [...replay.spawns];
   let next = 0;

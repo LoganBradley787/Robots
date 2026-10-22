@@ -11,6 +11,7 @@ import { drainContainers, fillContainers, grantFactor, poolTotals, type Containe
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner, type ScriptTickOutput } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
+import type { Arena } from './arena';
 import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { partSpec, partSpecsJson } from '../script/partSpec';
 import { scanAsks, selectScanned, type ScanOptions } from '../script/scanOptions';
@@ -256,6 +257,11 @@ export interface WorldOptions {
    * (`script/frame.ts`, `layoutPatch`). What a script sees must be the same either way; a test runs both and compares.
    */
   fullLayouts?: boolean;
+  /**
+   * The edge of a match's ground, for scripts to read (the global `arena`, `04`). The world itself does nothing with
+   * it: whoever runs the match judges a robot out (the CLI's `duel`). Absent or null in a plain sandbox world.
+   */
+  arena?: Arena | null;
 }
 
 /** A body's state with the cosine and sine of its angle, read once per tick for all its parts. */
@@ -350,6 +356,8 @@ export class World {
   readonly physics: PhysicsWorld;
   readonly inputLog = new InputLog();
   readonly file: WorldFile;
+  /** The match's edge scripts read (`WorldOptions.arena`), or null. A replay carries it. */
+  readonly arena: Arena | null;
   readonly registry: PartRegistry;
   /** Spawned robots in spawn order. Render and UI read these; only the sim mutates them. */
   readonly robots: Robot[] = [];
@@ -518,6 +526,9 @@ export class World {
     this.registry = registry;
     this.dt = opts.dt ?? 1 / 60;
     this.seed = opts.seed;
+    const arena = opts.arena ?? null;
+    if (arena && !(Number.isFinite(arena.x) && Number.isFinite(arena.y) && arena.x > 0)) throw new Error(`arena must have a finite x above 0 and a finite y, got ${JSON.stringify(arena)}`);
+    this.arena = arena ? { x: arena.x, y: arena.y } : null;
     this.scriptHost = opts.scripts;
     if (opts.scriptProbe) this.scriptProbe = opts.scriptProbe;
     this.fullRebuild = opts.fullRebuild === true;
@@ -2130,7 +2141,7 @@ export class World {
   private startScripts(robot: Robot, scripts: readonly ScriptSpec[]): void {
     if (scripts.length === 0) return;
     const seed = (i: number): number => (Math.imul(this.seed ^ 0x9e3779b9, 31) + Math.imul(robot.id, 65537) + i * 7919) >>> 0;
-    this.runners.set(robot.id, new ScriptRunner(scripts, this.scriptHost, seed));
+    this.runners.set(robot.id, new ScriptRunner(scripts, this.scriptHost, seed, this.arena));
   }
 
   /**

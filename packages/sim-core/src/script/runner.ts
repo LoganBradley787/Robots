@@ -1,5 +1,6 @@
 import type { ScriptSpec } from '../blueprint/types';
 import type { ScriptFrame } from './frame';
+import type { Arena } from '../world/arena';
 import type { ScriptError, ScriptHost, ScriptInstance, ScriptMark, ScriptResult, ScriptServices, ScriptWrite } from './types';
 
 /** One script on one robot: its source, whether it runs, and why it stopped if it crashed. */
@@ -31,9 +32,12 @@ export interface ScriptTickOutput {
 export class ScriptRunner {
   private readonly slots: (Omit<ScriptSlot, 'reads'> & { source?: string; params: Record<string, number>; instance?: ScriptInstance; needsSetup: boolean; seed: number; name: string; reads: string[]; last: ScriptWrite[] })[];
   private readonly host: ScriptHost | undefined;
+  /** The world's arena, handed to every script it compiles (the global `arena`). */
+  private readonly arena: Arena | null;
 
-  constructor(specs: readonly ScriptSpec[], host: ScriptHost | undefined, seed: (index: number) => number) {
+  constructor(specs: readonly ScriptSpec[], host: ScriptHost | undefined, seed: (index: number) => number, arena: Arena | null = null) {
     this.host = host;
+    this.arena = arena;
     this.slots = specs.map((s, i) => ({
       id: s.id,
       enabled: false,
@@ -145,7 +149,7 @@ export class ScriptRunner {
     if (slot.source === undefined) return fail({ kind: 'compile', message: `the source of ${slot.name} was not loaded` });
     let r: ReturnType<ScriptHost['compile']>;
     try {
-      r = this.host.compile(slot.source, { name: slot.name, seed: slot.seed, params: slot.params });
+      r = this.host.compile(slot.source, { name: slot.name, seed: slot.seed, params: slot.params, arena: this.arena });
     } catch (e) {
       return fail({ kind: 'throw', message: e instanceof Error ? e.message : String(e) });
     }

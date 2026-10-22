@@ -4,10 +4,10 @@
  * captured before any user code runs. The expression's value is the host's entry object, which the host keeps a
  * handle to, so reassigning globals (`__tick = 5`, `JSON.stringify = ...`) can only break the script itself.
  * `Math.random` becomes a seeded sfc32 and cannot be redefined; `Date` is not created (no Date intrinsic).
- * `__seed`, `__params`, and `__inspect` are defined by the host just before this runs and are read once here.
+ * `__seed`, `__params`, `__inspect`, and `__arena` are defined by the host just before this runs and are read once here.
  */
 export const PRELUDE = String.raw`
-(function (seed, given, hostScan, hostSend, inspecting) {
+(function (seed, given, hostScan, hostSend, inspecting, arena) {
   delete globalThis.__scan;
   delete globalThis.__send;
   var stringify = JSON.stringify;
@@ -51,6 +51,9 @@ export const PRELUDE = String.raw`
   globalThis.parts = [];
   globalThis.contacts = [];
   globalThis.inbox = [];
+  // The match's edge, fixed for the whole run: { x, y } (frozen), or null. Not writable; configurable, so a script's own
+  // top level let or const named arena still compiles (and hides it).
+  Object.defineProperty(globalThis, 'arena', { value: arena ? Object.freeze({ x: arena.x, y: arena.y }) : null, writable: false, enumerable: true, configurable: true });
   globalThis.send = function (to, data) {
     if (sends >= 32 || !hostSend) return false;
     // Counted before the data is turned into text: a toJSON on it could call send() again.
@@ -418,5 +421,5 @@ export const PRELUDE = String.raw`
     inspect: function () { return seen; },
     hasTick: function () { return typeof globalThis.tick === 'function' ? 'true' : 'false'; }
   };
-})(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null, __inspect === true)
+})(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null, __inspect === true, typeof __arena === 'object' ? __arena : null)
 `;

@@ -19,6 +19,8 @@ export type { Container } from './resources/pools';
 export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
 export type { RobotInput, ControlledPart, ControlState, ControlTrace, TraceInput, TraceWrite } from './control/types';
 export { World, activeControls } from './world/World';
+export { MATCH_ARENA, inArena } from './world/arena';
+export type { Arena } from './world/arena';
 export type { WorldOptions, SpawnOptions, SpawnRecord, WorldEvent, ScriptLog, ScriptWatch } from './world/World';
 export { CRASH_REACH, CRASH_SAFE } from './world/crash';
 export type { Face, Rotation, FootprintCell, ChannelDef, JointSpec, ColliderSpec, SpriteSpec, SoundSpec, PartDef, AutoControlSpec } from './parts/types';
