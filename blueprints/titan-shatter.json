@@ -1233,7 +1233,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d0.guide.js"
@@ -1256,7 +1259,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d1.guide.js"
@@ -1279,7 +1285,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d2.guide.js"
@@ -1302,7 +1311,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d3.guide.js"
@@ -1325,7 +1337,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d4.guide.js"
@@ -1348,7 +1363,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d5.guide.js"
@@ -1371,7 +1389,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d6.guide.js"
@@ -1394,7 +1415,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d7.guide.js"
@@ -1417,7 +1441,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d8.guide.js"
@@ -1440,7 +1467,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d9.guide.js"
@@ -1463,7 +1493,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d10.guide.js"
@@ -1486,7 +1519,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d11.guide.js"
@@ -1509,7 +1545,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d12.guide.js"
@@ -1532,7 +1571,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d13.guide.js"
@@ -1555,7 +1597,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d14.guide.js"
@@ -1578,7 +1623,10 @@
       "fuse": 16,
       "minMass": 30,
       "passBy": 12,
-      "passMass": 20
+      "passMass": 20,
+      "height": 70,
+      "spread": 0.1,
+      "dive": 62
      },
      "source": {
       "file": "titan-shatter.d15.guide.js"

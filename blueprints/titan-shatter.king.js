@@ -30,6 +30,7 @@ const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no heavy 
 const fallbackMatch = param('fallbackMatch', 45, { min: 0, max: 240 }); // the same in a match
 const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must be slower than this
 const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
+const bigParts = param('bigParts', 300, { min: 1, max: 100000 }); // parts: a robot this big gets darts diving from above
 const spacing = param('spacing', 0.2, { min: 0, max: 5 }); // s at least between two darts let go
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
@@ -226,7 +227,7 @@ function tick() {
   // No heavy one for a while (longer in a match: a titan hidden from the first second is out there): a light, slow one.
   else if (!main && light && time - state.heavyAt > (arena ? fallbackMatch : fallback)) main = light;
   if (main) {
-    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance };
+    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance, parts: main.parts || 0 };
     state.foe = { id: main.id, x: main.pos.x, y: main.pos.y, at: time };
     state.everSeen = true;
   } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
@@ -248,11 +249,14 @@ function tick() {
       const r = state.root;
       if (r) {
         const k = state.order[state.next];
-        if (main) send('d' + k, { x: r.x, y: r.y, vx: r.vx, vy: r.vy, id: r.id, arc: 0 });
+        // A big robot (`bigParts` parts or more) is dived on from above, every dart down the same shaft onto its core
+        // (titans v2): darts from the side each blew a hole in a different face of a core buried six cells deep.
+        const arc = r.parts >= bigParts ? 1 : 0;
+        if (main) send('d' + k, { x: r.x, y: r.y, vx: r.vx, vy: r.vy, id: r.id, arc: arc });
         else if (r) {
           // Vanished alive: where it was last seen, carried on by its speed for a moment.
           const age = Math.min(time - r.at, 2);
-          send('d' + k, { x: r.x + r.vx * age, y: Math.max(1, r.y + r.vy * age), vx: 0, vy: 0, id: r.id, arc: 0 });
+          send('d' + k, { x: r.x + r.vx * age, y: Math.max(1, r.y + r.vy * age), vx: 0, vy: 0, id: r.id, arc: arc });
         }
         set('g' + k, 'fire', 1);
         state.next++;
