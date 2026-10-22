@@ -102,6 +102,7 @@ function index() {
   let tauA = 0;
   let tauB = 0;
   let ngun = 0;
+  let nradar = 0;
   const byName = {};
   const turrets = [];
   for (const p of parts) {
@@ -117,7 +118,8 @@ function index() {
         ax += bx;
         na++;
       }
-    } else if (p.type === 'thruster') {
+    } else if (p.type === 'radar') nradar++;
+    else if (p.type === 'thruster') {
       // How much it turns the robot at full push (counterclockwise), from where it sits and the way it pushes.
       const a = p.angle + ((p.rot + p.spec.acts) * Math.PI) / 180;
       const tau = 160 * (dx * Math.sin(a) - dy * Math.cos(a));
@@ -157,6 +159,7 @@ function index() {
   state.tauA = tauA;
   state.tauB = tauB;
   state.ngun = ngun;
+  state.nradar = nradar;
   state.turrets = turrets;
 }
 
@@ -206,27 +209,34 @@ function fly(wx, wy, top, agile, lean, vref) {
   const lift = 120 * state.nprop;
   const lim = agile ? 60 : 12;
   const ey = clamp(wy - self.pos.y, -lim, lim);
-  const ay = agile ? clamp(3 * ey - 3.5 * self.vel.y, -9, 40) : 2.25 * ey - 3 * self.vel.y;
+  // Agile: the climb or drop it can still stop from (planned on 5 m/s^2 of braking; a climb brakes on gravity
+  // alone, and one planned harder overshot the arena's ceiling).
+  const vyWant = sign(ey) * Math.min(40, Math.sqrt(10 * Math.abs(ey)), 3 * Math.abs(ey));
+  const ay = agile ? clamp(3 * (vyWant - self.vel.y), -9, 40) : 2.25 * ey - 3 * self.vel.y;
   const need = Math.max(0, m * (G + ay));
   const ex = wx - self.pos.x;
   // `vref`: how fast the spot itself moves (a ring round a moving robot), matched before closing on it.
   const v0 = vref || 0;
   const wantV = clamp(v0 + sign(ex) * Math.min(top, Math.sqrt(brake * Math.abs(ex)), 2 * Math.abs(ex)), -top, top);
   const axWant = clamp(2 * (wantV - self.vel.x), -20, 20);
-  // Leaning first, as far as the lift left over from holding height allows (height before speed); the thrusters
-  // only for the rest. A propeller pushes 12 N for each watt, a thruster 8: running on thrusters alone, the keep
+  // The keep leans first, as far as the lift left over from holding height allows (height before speed); the
+  // thrusters only for the rest. A propeller pushes 12 N for each watt, a thruster 8: running on thrusters alone, the keep
   // emptied its batteries in 90 s of running from a ram.
   const spare = lift > 0 ? Math.acos(clamp(Math.max(need, m * G * 1.05) / (0.9 * lift), 0, 1)) : 0;
   const most = Math.min(lean, spare);
   const leanAcc = (G + Math.max(0, ay)) * Math.tan(most);
-  const want = -clamp(Math.atan2(axWant, G + Math.max(0, ay)), -most, most);
+  // A panel the other way round: thrusters first, leaning only past them, so its batteries are not swung about
+  // while it holds its place in the ring (its batteries hold plenty).
+  const thrAcc = (160 * (axWant * state.facing > 0 ? state.nta : state.ntb)) / m;
+  const leanPart = role > 0.5 ? axWant : Math.abs(axWant) > thrAcc ? axWant - sign(axWant) * thrAcc : 0;
+  const want = -clamp(Math.atan2(leanPart, G + Math.max(0, ay)), -most, most);
   // The lean it holds swings over gently: a lean thrown from one side to the other at once overshot and rolled the
   // keep over.
   state.tilt += clamp(want - state.tilt, -0.6 * dt, 0.6 * dt);
   const err = wrap(th - state.tilt);
   // Leaning far past what it asked for: no push sideways and no climb until it is righted.
   const righting = Math.abs(err) > 0.25;
-  const ath = Math.abs(axWant) > leanAcc ? axWant - sign(axWant) * leanAcc : 0;
+  const ath = role < 0.5 ? axWant : Math.abs(axWant) > leanAcc ? axWant - sign(axWant) * leanAcc : 0;
   const f = righting ? 0 : m * ath * state.facing;
   const fa = state.nta > 0 ? clamp(f / (160 * state.nta), 0, 1) : 0;
   const fb = state.ntb > 0 ? clamp(-f / (160 * state.ntb), 0, 1) : 0;
@@ -585,6 +595,16 @@ function keepFlight(main) {
       wx = state.home.x;
       wy = state.home.y;
     }
+    // A ram seen lately but not now (its radar shot off, or out of its reach): no setting down near where it was.
+    // Up, and away from where it was last seen (titans v2, 2026-10: with its radar gone the keep landed, and
+    // Juggernaut drove into it).
+    if (state.last && state.lastRam !== undefined && (time - state.lastRam < 40 || state.nradar === 0)) {
+      const from = state.last.x;
+      const dir = self.pos.x >= from ? 1 : -1;
+      fly(clamp(from + dir * 700, -(EDGE - room), EDGE - room), Math.min(CEIL - 40, state.last.y + 200), keepSpeed, true, 0.45);
+      state.lift = 0;
+      return;
+    }
     // Nothing seen for a long while in the open: it waits where it is.
     if (!arena && !main && (state.seen === undefined ? time : time - state.seen) > restAfter) wx = state.lift === 1 ? state.landX : self.pos.x;
     wx = safe(main, wx, wy, 14);
@@ -725,6 +745,7 @@ function tick() {
       if ((closing > 12 && dist < 1200) || dist - size < 150) state.ramUntil = time + ramFor;
     }
     state.ram = time < state.ramUntil;
+    if (state.ram) state.lastRam = time;
     state.last = { x: main.pos.x, y: main.pos.y };
     state.seen = time;
     state.stale = 0;

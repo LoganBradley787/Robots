@@ -100,7 +100,7 @@ function panel(index, y0, link) {
 }
 
 /**
- * The keep (round 2): the main core over a belly of batteries and armor, propellers pushing up, eight thrusters each way, six
+ * The keep (round 2): the main core over a belly of armor, propellers pushing up, eight thrusters each way, six
  * single guns. Titans v2 (2026-10): the three rows that pushed down (`pd`) push up now, hung between the decks on a
  * frame at each end: with 44 propellers lifting 479 kg it could barely hover (lift 1.1 times its weight), and a lean
  * in its first seconds took it to the ground for the whole match. Cutting the lift drops it at 9.8 m/s^2 anyway.
@@ -115,16 +115,16 @@ function keep(y0, link) {
     put(15, y0 + y, token);
   }
   const rows = {
-    // Titans v2 (2026-10): eight of the eleven belly plates are dense batteries now, three plates left under the
-    // core. Flying the whole match (it rests on the ground no longer when a ram is about) it ran dry at 90 s.
-    0: 'z z z z a a a z z z z',
+    0: 'a a a a a a a a a a a',
     1: 'z z z z a c a z z z o',
     2: 'z z z z f a f z z z f',
   };
   for (const [dy, row] of Object.entries(rows)) row.split(' ').forEach((k, i) => put(4 + i, y0 + Number(dy), t[k]));
   for (const dy of [3, 6, 9, 12]) {
     for (let x = 4; x <= 14; x++) {
-      put(x, y0 + dy, t.f);
+      // Titans v2 (2026-10): eight more dense batteries in the two middle decks. Running from a ram, it flies the
+      // whole match and ran dry at 90 s; batteries in its belly in place of plates let darts through to the core.
+      put(x, y0 + dy, (dy === 6 || dy === 9) && x >= 5 && x <= 8 ? t.z : t.f);
       put(x, y0 + dy + 1, t.prop(x <= 9 ? 'pa' : 'pb'));
       if (dy > 3 && x >= 6 && x <= 12) put(x, y0 + dy - 1, t.prop(x <= 9 ? 'pa' : 'pb'));
       if (dy > 3 && (x === 5 || x === 13)) put(x, y0 + dy - 1, t.f);
