@@ -15,7 +15,7 @@
 // - The rack: darts stand nose up on the roof in pairs around a shared gap, each held by a grip (a decoupler) beside
 //   its booster: `D> K . K D<`, five columns a pair. Grip `g<n>` holds dart `d<n>`.
 // - The bays: fabricator bays (hollow 1 by 8) at both ends, each making the same dart. Tags `b<n>x`. (Titans v2: moved
-//   beside the keep for a while; there the guns aimed at the keep broke them all within 75 s.)
+//   beside the keep for a while; there the guns and darts aimed at the keep broke them.)
 // - A dart (round 2): booster, heavy gyro, radio, cell, core, two blast heads at the very nose (nothing in front of
 //   them to soak up the blast). It has no sensor of its own: it steers by what the keep's radar shares over the radio.
 import fs from 'node:fs';
@@ -38,9 +38,8 @@ const BAY_H = BAY_DART.length;
 const MID_HALF = 7; // the keep is 15 wide
 const CORE_Y = 4; // the main core's row: four plates under it, eleven over it
 const ANCHOR_EVERY = 8; // one anchor in the floor every this many columns
-const END = 0; // columns of base beyond the bays (2 until titans v2: the flare columns took their place)
-const FP = Number(process.argv[5] ?? 6); // rack pairs between the bays and the flare column, each side
-const W = 2 * (END + BAYS * 3 + PAIRS * 5 + 2) + 2 * MID_HALF + 1;
+const END = 2; // columns of base beyond the bays: the flare columns stand on them
+const W = 2 * (END + BAYS * 3 + PAIRS * 5) + 2 * MID_HALF + 1;
 const CX = (W - 1) / 2;
 const ROOF = 2;
 const H = ROOF + 1 + BAY_H + 1;
@@ -118,7 +117,7 @@ const addDart = (x, gripX) => {
   });
 };
 for (let i = 0; i < PAIRS; i++) {
-  for (const x0 of [END + BAYS * 3 + i * 5 + (i >= FP ? 2 : 0), CX + MID_HALF + 1 + i * 5 + (i >= PAIRS - FP ? 2 : 0)]) {
+  for (const x0 of [END + BAYS * 3 + i * 5, CX + MID_HALF + 1 + i * 5]) {
     addDart(x0 + 1, x0);
     addDart(x0 + 3, x0 + 4);
   }
@@ -134,10 +133,10 @@ const dartBlueprint = (file) => ({
 });
 
 // Flares (titans v2, 2026-10): a burning flare let go is taken for this titan by every sensor that sees it, so a dart
-// or gun steering by contacts goes for the flare. A tall thin column on each side, in the middle of the rack, about
-// 40 m from the keep and 30 m from the bays (flare outward, its grip inward, the grips stacked on the roof, a pair's
-// grip on either side so no grip of theirs touches a dart). Not at the ends: there the blasts they drew caught the bays'
-// darts as they left; not by the keep: guns aimed at a flare there still hit the keep. Tags: flare `f<n>`, grip `fg<n>`.
+// or gun steering by contacts goes for the flare. A tall thin column at each end, about 84 m from the keep (flare
+// outside, its grip inside, the grips stacked on the roof and held by the end bay's wall). Tried and dropped: columns
+// in the middle of each half of the rack (40 m from the keep) drew the blasts onto the thin base there, which broke
+// through it and the whole end, bays and batteries, fell away. Tags: flare `f<n>`, grip `fg<n>`.
 let flares = 0;
 const addFlare = (fx, fy, gx, gy, rot) => {
   flares++;
@@ -146,11 +145,9 @@ const addFlare = (fx, fy, gx, gy, rot) => {
   put(gx, gy, `r${flares}`);
   put(fx, fy, `q${flares}`);
 };
-const FLARE_L = END + BAYS * 3 + FP * 5; // the left column's flares (their grips one to the right)
-const FLARE_R = CX + MID_HALF + 1 + (PAIRS - FP) * 5 + 1; // the right column's flares (their grips one to the left)
 for (let y = ROOF + 1; y < FLARE_TOP; y++) {
-  addFlare(FLARE_L, y, FLARE_L + 1, y, 90);
-  addFlare(FLARE_R, y, FLARE_R - 1, y, 270);
+  addFlare(0, y, 1, y, 90);
+  addFlare(W - 1, y, W - 2, y, 270);
 }
 
 const blueprint = {

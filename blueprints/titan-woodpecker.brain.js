@@ -317,7 +317,7 @@ function hurt() {
   const sy = self.pos.y;
   let n = 0;
   for (const p of parts) if (Math.abs(p.pos.x - sx) < keepHalf && Math.abs(p.pos.y - sy) < keepTall) n++;
-  if (n < state.keepParts) state.hurtAt = time;
+  if (n < state.keepParts && state.keepParts !== Infinity) state.hurtAt = time;
   state.keepParts = n;
 }
 
