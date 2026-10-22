@@ -118,9 +118,17 @@ function fly(tx, ty, vmax, maxLean, vclimb, brake) {
     const arm = (Math.abs(sa) + Math.abs(sb)) / (na + nb);
     const most = 0.4 * lift * arm;
     const pq = clamp(torque - tg, -most, most) / LIFT;
-    const q = push / LIFT;
-    ta = (pq * nb - q * sb) / det;
-    tb = (q * sa - pq * na) / det;
+    let q = push / LIFT;
+    // Keeping level comes before lift (titans v2): a push both groups cannot give on top of the turn would clip the
+    // turn, and a gunship asked to climb hard while leaning rolled over and fell. The push is cut to what leaves room.
+    const a0 = (pq * nb) / det;
+    const a1 = -sb / det;
+    const b0 = (-pq * na) / det;
+    const b1 = sa / det;
+    if (a1 > 1e-9 && a0 + a1 * q > 1) q = Math.max(0, (1 - a0) / a1);
+    if (b1 > 1e-9 && b0 + b1 * q > 1) q = Math.max(0, (1 - b0) / b1);
+    ta = a0 + a1 * q;
+    tb = b0 + b1 * q;
   }
   set('lp', 'throttle', clamp(ta, 0, 1));
   set('rp', 'throttle', clamp(tb, 0, 1));
