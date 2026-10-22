@@ -15,8 +15,9 @@
 //   stops with the nose (or the tail) against a ground enemy, or parks under a flier, and lets the beams end its core.
 // - Siege (titans v2): whenever it pushes hard and does not move (a roped base), it backs off and runs at it once. If
 //   that does not move it either, it stays with its nose against it and burns down to its core with the beams. (It
-//   used to retire to the far corner for good, and those fights were draws.) With both beams gone it keeps running at
-//   it every `rerun` seconds: something is better than nothing.
+//   used to retire to the far corner for good, and those fights were draws.) With no beam left on that side it does
+//   retire, to the far corner or `standBack` m off: beside a fortress its darts tunnel to the core in about 20 s, and a
+//   run at something roped only breaks its own nose.
 // - Not seen (hidden, jammed): with an edge it patrols the whole arena, corner to corner. Without one it patrols
 //   `roam` m either side of where it last saw an enemy, and after `rest` s with nothing seen it stops to save energy
 //   (a radar sees 1000 m). Gun sights are not sensors: when one reads the main enemy overhead, it parks the deck
@@ -53,16 +54,27 @@ const stall = param('stall', 2.5, { min: 0.5, max: 60 }); // s pushing without m
 const tiltMax = param('tiltMax', 10, { min: 1, max: 90 }); // degrees: tilted more than this (riding up on something), it stops pushing
 const low = param('low', 0.1, { min: 0, max: 1 }); // under this share of its energy it stops driving
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole, only its extremes
-const gap = param('gap', 3, { min: 0, max: 50 }); // m between its nose (or tail) and a ground enemy it besieges
-const rerun = param('rerun', 25, { min: 5, max: 600 }); // s between runs at a besieged enemy once both beams are gone
+const gap = param('gap', 30, { min: 0, max: 200 }); // m between its nose (or tail) and a ground enemy it besieges (clear of what it launches from its edge)
+const standBack = param('standBack', 700, { min: 100, max: 2000 }); // m it keeps from a ground enemy it cannot move nor burn, with no arena edge
 const roam = param('roam', 300, { min: 0, max: 2000 }); // m either side of the last sighting it patrols with no arena edge
 const rest = param('rest', 60, { min: 0, max: 3600 }); // s with nothing seen before it stops to save energy (no arena edge)
 const forget = param('forget', 90, { min: 5, max: 3600 }); // s unseen before a main enemy that vanished alive is let go
 const memory = param('memory', 10, { min: 0, max: 60 }); // s the beams keep burning where the main enemy was last seen
 const beamReach = param('beamReach', 295, { min: 10, max: 300 }); // m: the laser's range (the laser part's is 300)
-const swing = (param('swing', 88, { min: 1, max: 90 }) * Math.PI) / 180; // degrees either way a turret turns (the rotator's range is 90)
+const margin2 = (param('swingMargin', 2, { min: 0, max: 30 }) * Math.PI) / 180; // degrees short of a rotator's full range a turret turns
 const gain = param('gain', 8, { min: 0.1, max: 50 }); // turret turn rate per radian off the aim
-const rate = param('rate', 2, { min: 0.1, max: 20 }); // rad/s, the rotator's fastest turn
+const guard = param('guard', 220, { min: 0, max: 300 }); // m: light things coming at it within this are burnt first
+const incoming = param('incoming', 15, { min: 0, max: 200 }); // m/s: closing at least this fast counts as coming at it
+const repick = param('repick', 0.5, { min: 0.1, max: 10 }); // s between choosing which part of the main enemy a beam burns
+// A rotator's reach either way and fastest turn (the rotator and heavyrotator parts).
+const ROT = { rotator: { range: Math.PI / 2, rate: 2 }, heavyrotator: { range: 2.0944, rate: 1 } };
+// What a beam goes for first: what launches darts or carries a blast (burning one still on its robot sets it off
+// there), then the main core (ending it ends the fight), each over the health to burn through to it, its own and that
+// of everything in front of it on the line. A fortress's bays sit in open wells and cost a few hundred; its core under
+// 20 plates costs 5000, so the bays go first and the darts stop coming.
+const WORTH = { fabbay: 5, heavywarhead: 6, warhead: 4, charge: 4, laser: 6, cannon: 6, lance: 4, core: 2 };
+const MAIN_CORE = 40;
+const PICK = Object.keys(WORTH);
 const reserve = param('reserve', 0.03, { min: 0, max: 1 }); // share of energy the beams never burn into (driving stops at `low`, so the beams get the last of it)
 const SIGHT_ENEMY = 3;
 const SIGHT_NONE = 4;
@@ -82,7 +94,7 @@ function survey() {
       else if (t0 === 'rev') nr++;
       continue;
     }
-    if (p.type === 'rotator') {
+    if (p.type === 'rotator' || p.type === 'heavyrotator') {
       if (t0 === 'rotF') rotF = p;
       else if (t0 === 'rotB') rotB = p;
       continue;
@@ -182,6 +194,58 @@ function toward(err, a, cap) {
 }
 
 /**
+ * Where on the main enemy a beam burns: every `repick` s (one turret a tick, and only with a scan to spare) the part
+ * worth most per health burnt, scanned from the barrel with the health in front of each part; kept as an offset from
+ * the enemy's core, so between picks it follows the enemy. `at` is the core, led a tick.
+ */
+function pickPoint(st, at, from) {
+  if (at.id !== st.id) {
+    st.id = at.id;
+    st.off = null;
+    st.picked = -1e9;
+  }
+  if (!at.ghost && time - st.picked >= repick && state.pickFrame !== frame && state.scanFrame !== frame) {
+    state.pickFrame = frame;
+    st.picked = time;
+    const list = scan(at.id, { of: PICK, from, wide: 0.6, most: 40 });
+    st.off = null;
+    if (list && list.length > 1) {
+      let core = null;
+      let dc = 1e9;
+      for (const p of list) {
+        if (p.type !== 'core') continue;
+        const d = Math.hypot(p.pos.x - at.x, p.pos.y - at.y);
+        if (d < dc) {
+          dc = d;
+          core = p;
+        }
+      }
+      if (!core || dc >= 2) {
+        // Its main core was not among the nearest: ask for the part at the core's place on its own.
+        const one = scan(at.id, { near: { x: at.x, y: at.y }, most: 1, from, wide: 0.6 });
+        if (one && one.length && one[0].type === 'core') {
+          core = one[0];
+          dc = 0;
+          list.push(core);
+        }
+      }
+      let best = null;
+      let bs = 0;
+      for (const p of list) {
+        const w = p === core && dc < 2 ? MAIN_CORE : WORTH[p.type] || 1;
+        const sc = w / (Math.max(1, p.health) + (p.cover || 0));
+        if (sc > bs) {
+          bs = sc;
+          best = p;
+        }
+      }
+      if (best) st.off = { x: best.pos.x - at.x, y: best.pos.y - at.y, type: best.type };
+    }
+  }
+  return st.off ? { x: at.x + st.off.x, y: at.y + st.off.y, id: at.id } : at;
+}
+
+/**
  * Points one turret at `at` (a point, or null for none) and burns when the line is right. A turret turns `swing`
  * either way from how it was built; a point outside that is left alone (the other turret may have it).
  */
@@ -189,9 +253,32 @@ function aimTurret(t, at, charged) {
   const laser = t.laser;
   const aim = laser.out.aim;
   const turned = t.rot.out.angle; // -1 to 1 of its range
-  const restAim = aim - turned * (Math.PI / 2);
-  const st = state.beam[t.key] || (state.beam[t.key] = { want: null });
+  const spec = ROT[t.rot.type] || ROT.rotator;
+  const swing = spec.range - margin2;
+  const rate = spec.rate;
+  const restAim = aim - turned * spec.range;
+  const st = state.beam[t.key] || (state.beam[t.key] = { want: null, picked: -1e9, off: null, id: -1 });
   const from = { x: laser.pos.x + 0.5 * Math.cos(aim), y: laser.pos.y + 0.5 * Math.sin(aim) };
+  // Point defense first: something light coming at us fast (a dart, a drone bomb) within `guard` m that this turret
+  // can swing to, soonest to arrive first. A fortress's first volley took the front turret before it got in range.
+  let threat = null;
+  let soonest = 1e9;
+  for (const c of contacts) {
+    if (c.side !== 'enemy' || !c.core || c.mass >= minMass || c.distance > guard) continue;
+    const rx = c.pos.x - from.x;
+    const ry = c.pos.y - from.y;
+    const d = Math.max(0.5, Math.hypot(rx, ry));
+    const rvx = c.vel.x - self.vel.x;
+    const rvy = c.vel.y - self.vel.y;
+    const closing = -(rx * rvx + ry * rvy) / d;
+    if (closing < incoming || Math.abs(wrap(Math.atan2(ry, rx) - restAim)) > swing) continue;
+    if (d / closing < soonest) {
+      soonest = d / closing;
+      threat = { x: c.pos.x + rvx * dt, y: c.pos.y + rvy * dt, id: -1 };
+    }
+  }
+  if (threat) at = threat;
+  else if (at && at.id >= 0) at = pickPoint(st, at, from);
   let fire = 0;
   if (!at) {
     st.want = null;
@@ -270,6 +357,7 @@ function tick() {
   }
   if (T) {
     if (T.id !== state.tid || frame - state.scanAt >= 30) {
+      state.scanFrame = frame; // the beams leave their pick for another tick
       const s = T.parts > huge ? extremes(T) : scan(T.id);
       if (s && s.length) {
         let lx = 1e9, hx = -1e9, ly = 1e9, hy = -1e9;
@@ -326,11 +414,21 @@ function tick() {
     if (ground && (open || state.siege === T.id)) {
       // Siege: stop with the nose (or the tail) against it and let the beams burn down to its core. Nothing is won by
       // pushing it with no edge, and something roped does not move.
-      besiege = true;
       const s = tmid >= mid ? 1 : -1; // which way it is
-      const goal = s > 0 ? tl - gap - (s === dir ? front : back) : tr + gap + (s === dir ? front : back);
-      vdes = Math.abs(goal - me.x) < 1 ? tvx : tvx + toward(goal - me.x, a, ramTop);
-      say('besiege robot ' + T.id);
+      // Only with a beam that can reach that side: standing still beside a fortress lets its darts tunnel down to the
+      // core in about 20 s, so with no beam there it stands back far off, out of their way, as the sled always did.
+      let beam = false;
+      for (const t of turrets) if ((t.key === 'F' ? dir : -dir) === s) beam = true;
+      if (beam) {
+        besiege = true;
+        const goal = s > 0 ? tl - gap - (s === dir ? front : back) : tr + gap + (s === dir ? front : back);
+        vdes = Math.abs(goal - me.x) < 1 ? tvx : tvx + toward(goal - me.x, a, ramTop);
+        say('besiege robot ' + T.id);
+      } else {
+        const far = open ? T.pos.x - s * standBack : -s * edgeX;
+        vdes = toward(far - me.x, a, patrolTop);
+        say('stand back from robot ' + T.id);
+      }
     } else if (ground) {
       // Level with the hull: ram it and push it out of the arena.
       const s = tmid >= mid ? 1 : -1;
@@ -403,13 +501,6 @@ function tick() {
     vdes = state.ramDir * ramTop;
     if ((me.x - state.ramX) * state.ramDir > -8) state.ram = 0;
     say('run at it');
-  } else if (besiege && turrets.length === 0 && time - state.lastRun > rerun && T) {
-    // No beams left: run at it now and then rather than sit idle.
-    state.lastRun = time;
-    state.ramDir = T.pos.x >= mid ? 1 : -1;
-    state.ram = 1;
-    state.ramX = me.x;
-    state.ramSince = time;
   }
 
   // Stay inside the arena: never faster toward an edge than the bank that brakes that way can stop it from.
@@ -454,12 +545,13 @@ function tick() {
   const charged = state.lowBeam ? share > reserve + 0.02 : share > reserve;
   if (charged === state.lowBeam) log(charged ? 'beams back on' : 'beams low on energy: holding fire');
   state.lowBeam = !charged;
-  const at = T ? { x: T.pos.x + (T.vel.x - vx) * dt, y: T.pos.y + (T.vel.y - self.vel.y) * dt } : null;
+  const at = T ? { x: T.pos.x + (T.vel.x - vx) * dt, y: T.pos.y + (T.vel.y - self.vel.y) * dt, id: T.id, ghost: !!T.ghost } : null;
   let burning = 0;
   for (const t of turrets) burning += aimTurret(t, at, charged);
   if (burning > 0 && time - (state.burnSaid || -1e9) > 10) {
     state.burnSaid = time;
-    log('beams on robot ' + state.tid);
+    const f = state.beam.F || state.beam.B;
+    log('beams on robot ' + state.tid + (f && f.off ? ' (' + f.off.type + ')' : ''));
   }
 
   // Guns, a group at a time: on when one of its sights reads an enemy, when the target is over it, or when it

@@ -33,12 +33,15 @@ const BIN = 4; // guns per fire group
 // a short pedestal on the roof near the nose and swings from straight down to straight up through the nose's way;
 // a line just over the nose reaches a ground core in front of it, and up to 84 degrees clears the deck overhead. The
 // back one hangs off the gun shelf's end and covers the tail's side the same way.
-const FRONT_TURRET = { x: W - 4, y: H + 2 }; // the front rotator's cell; the pedestal fills the two columns behind it
+// The front one is the one that ends fortresses, and the first a volley of darts finds: a heavy rotator carrying the
+// laser with a plate over and under both, so they turn with it and only its muzzle is bare. It stands on a pedestal
+// with an empty cell above and below its arm (anything touching the turret's plates would weld it to the hull).
+const FRONT_TURRET = { x: W - 4, y: H + 3 }; // the front rotator's cell
 
 const legend = {
   k: { part: 'booster', rot: 270, tags: ['fwd'], auto: false },
   j: { part: 'booster', rot: 90, tags: ['rev'], auto: false },
-  rf: { part: 'rotator', rot: 270, tags: ['rotF'], auto: false },
+  rf: { part: 'heavyrotator', rot: 270, tags: ['rotF'], auto: false },
   lf: { part: 'laser', rot: 270, tags: ['laserF'], auto: false },
   rb: { part: 'rotator', rot: 90, tags: ['rotB'], auto: false },
   lb: { part: 'laser', rot: 90, tags: ['laserB'], auto: false },
@@ -93,9 +96,11 @@ for (let x = 0; x < Math.min(W, DECK.x0); x++) {
   for (let y = H + 1; y <= H + hump; y++) put(x, y, 'A');
   gun(x, H + hump + 1);
 }
-for (const dx of [1, 2]) for (const y of [H + 1, H + 2]) put(FRONT_TURRET.x - dx, y, 'A');
+for (let y = H + 1; y <= FRONT_TURRET.y; y++) put(FRONT_TURRET.x - 2, y, 'A'); // the pedestal
+put(FRONT_TURRET.x - 1, FRONT_TURRET.y, 'A'); // its arm
 put(FRONT_TURRET.x, FRONT_TURRET.y, 'rf');
 put(FRONT_TURRET.x + 1, FRONT_TURRET.y, 'lf');
+for (const dx of [0, 1]) for (const dy of [-1, 1]) put(FRONT_TURRET.x + dx, FRONT_TURRET.y + dy, 'A'); // its plates
 put(-SHELF - 1, H, 'rb');
 put(-SHELF - 2, H, 'lb');
 
