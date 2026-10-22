@@ -64,6 +64,7 @@ const still = param('still', 12, { min: 0.1, max: 50 }); // m/s up or down: fast
 const launchSpeed = param('launchSpeed', 12, { min: 1, max: 100 }); // m/s: a bay moving faster than this keeps its dart (a hit this hard hurts no part)
 const kiteHold = param('kiteHold', 6, { min: 0, max: 60 }); // s it holds ready darts while kiting before it slows for them anyway
 const bayTime = param('bayTime', 1.2, { min: 0, max: 5 }); // s a dart takes to climb out of its bay: the ship stays slow that long after the last
+const rushTime = param('rushTime', 4, { min: 0, max: 30 }); // s: a heavy enemy closing to touch it within this keeps it from slowing for a volley
 const windowMax = param('windowMax', 8, { min: 1, max: 60 }); // s at most it stays slowed for one volley
 const spreadEvery = param('spreadEvery', 4, { min: 1, max: 100 }); // every this many darts, one goes to the nearest other enemy
 const match = param('match', 240, { min: 0, max: 100000 }); // s, how long it must stay up in an arena (a match's length)
@@ -557,7 +558,17 @@ function tick() {
   const waiting = spare && someplace && anyReady && !state.sitting;
   if (!waiting) state.readyAt = -1;
   else if (state.readyAt < 0) state.readyAt = time;
-  if (state.window < 0 && waiting && (!state.runDir || time - state.readyAt >= kiteHold)) state.window = time;
+  // Never beside something that could shove it (titans v2 fix, 2026-10): with an enemy over half its weight within
+  // `touchReach` m, or closing to touch it within `rushTime` s, it does not slow (a slowed ship beside titan-anvil was
+  // pushed out of the arena at 101 s). Its darts then go only when it happens to fly slower than `launchSpeed`.
+  let shove = false;
+  for (const c of foes) {
+    if (c.mass < 0.5 * self.mass) continue;
+    const closing = -((c.pos.x - self.pos.x) * (c.vel.x - self.vel.x) + (c.pos.y - self.pos.y) * (c.vel.y - self.vel.y)) / Math.max(1, c.distance);
+    if (c.distance < touchReach || (closing > 0 && c.distance < closing * rushTime)) shove = true;
+  }
+  if (shove) state.window = -1;
+  else if (state.window < 0 && waiting && (!state.runDir || time - state.readyAt >= kiteHold)) state.window = time;
   else if (state.window >= 0 && ((!waiting && time - state.lastRel > bayTime) || time - state.window > windowMax)) {
     state.window = -1;
     if (waiting) state.readyAt = time; // a volley it could not slow for: wait again before the next try
