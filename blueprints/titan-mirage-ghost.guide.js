@@ -16,8 +16,12 @@
 //   enemy part (1.5 m).
 // - A target that died (it stays in view as debris, with no live core) is forgotten: the ghost takes another live
 //   enemy it sees near there, and with none it never goes off at the dead one's spot; it flies on until its life ends.
-// - It arms only within `armDist` m of where it is going, and ends itself `life` s after letting go at the latest
-//   (sized from the distance it was sent: the flight at `lifeSpeed` plus `lifeSpare`, up to `lifeMax`).
+// - It arms as late as still works (titans v2, 2026-10, Logan): within `armDist` m of where it is going, or the
+//   moment it will reach ANY enemy it sees within `armTime` s (its middle, padded by the robot's size from its part
+//   count), so a ghost that meets a small gun panel or the near end of a big hull on its way goes off there instead of
+//   breaking. Armed early, ghosts of one salvo that touch set each other off (armed 200 m out, they did), so it arms
+//   only that close. It ends itself `life` s after letting go at the latest (sized from the distance it was sent: the
+//   flight at `lifeSpeed` plus `lifeSpare`, up to `lifeMax`).
 // Let go with no point (knocked loose), it does nothing and stays safe.
 const thrust = param('thrust', 800, { min: 1, max: 100000 }); // N, both boosters
 const clear = param('clear', 14, { min: 0, max: 100 }); // m straight out of the bay before it turns
@@ -43,6 +47,9 @@ const life = param('life', 10, { min: 1, max: 120 }); // s after letting go it e
 const lifeSpeed = param('lifeSpeed', 60, { min: 5, max: 1000 }); // m/s: its life is at least the flight to its point at this speed
 const lifeSpare = param('lifeSpare', 5, { min: 0, max: 60 }); // s added to that
 const lifeMax = param('lifeMax', 30, { min: 1, max: 120 }); // s at most
+const armTime = param('armTime', 0.4, { min: 0, max: 5 }); // s: it arms when it will reach any enemy this soon
+const armPad = param('armPad', 4, { min: 0, max: 50 }); // m: an enemy's reach is this plus `armSize` per square root of its parts
+const armSize = param('armSize', 1, { min: 0, max: 10 }); // m (its parts as a round blob would be 0.56)
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -72,6 +79,7 @@ function setup() {
   state.dead = false; // what it was sent at died, and nothing else was found
   state.best = Infinity;
   state.armed = false;
+  state.meet = false; // it is about to reach an enemy (arms then)
   for (const msg of inbox) {
     const d = msg.data;
     if (!d || typeof d.x !== 'number' || typeof d.y !== 'number') continue;
@@ -92,13 +100,39 @@ function here(f) {
   return { x: f.x + f.vx * age, y: Math.max(0, f.y + f.vy * age) };
 }
 
-/** What it follows this tick: the robot named while alive, else the heaviest live enemy near where the point would be. */
-function follow() {
+/**
+ * Whether it will reach enemy `c` within `armTime` s: its closest pass to the robot's middle over that time, against the
+ * robot's reach (titans v2, 2026-10).
+ */
+function meets(c) {
+  const rx = c.center.x - self.pos.x;
+  const ry = c.center.y - self.pos.y;
+  const vx = self.vel.x - c.vel.x;
+  const vy = self.vel.y - c.vel.y;
+  const v2 = vx * vx + vy * vy;
+  const s = v2 > 0 ? clamp((rx * vx + ry * vy) / v2, 0, armTime) : 0;
+  return Math.hypot(rx - vx * s, ry - vy * s) < armPad + armSize * Math.sqrt(c.parts);
+}
+
+/**
+ * What it follows this tick: the robot named while alive, else the heaviest live enemy near where the point would be.
+ * Not yet armed, it also looks at every enemy for one it is about to reach (`state.meet`).
+ */
+function follow(arming) {
   const p = state.fix ? here(state.fix) : null;
   let best = null;
+  let named = null;
   for (const c of contacts) {
+    if (arming && c.side === 'enemy' && !state.meet && meets(c)) state.meet = true;
+    if (named) {
+      if (!arming) break;
+      continue;
+    }
     if (state.id !== undefined && c.id === state.id) {
-      if (c.side === 'enemy' && c.core) return c;
+      if (c.side === 'enemy' && c.core) {
+        named = c;
+        continue;
+      }
       // It died: forget it (it stays in view as debris).
       state.id = undefined;
       state.dead = true;
@@ -108,7 +142,7 @@ function follow() {
     if (Math.hypot(c.pos.x - p.x, c.pos.y - p.y) > acquire) continue;
     if (!best || c.mass > best.mass) best = c;
   }
-  return best;
+  return named || best;
 }
 
 function tick() {
@@ -120,7 +154,7 @@ function tick() {
   }
   const out = Math.hypot(self.pos.x - state.lx, self.pos.y - state.ly);
 
-  const c = follow();
+  const c = follow(!state.armed && out >= 20);
   if (c) {
     state.fix = { x: c.pos.x, y: c.pos.y, vx: c.vel.x, vy: c.vel.y, t: time };
     state.id = c.id;
@@ -132,7 +166,7 @@ function tick() {
   const dist = Math.hypot(p.x - self.pos.x, p.y - self.pos.y);
   const speed = Math.hypot(self.vel.x - state.fix.vx, self.vel.y - state.fix.vy);
 
-  if (!state.armed && out >= 20 && dist < armDist && !state.dead) {
+  if (!state.armed && out >= 20 && ((dist < armDist && !state.dead) || state.meet)) {
     set('charge', 'arm', 1);
     set('heavywarhead', 'arm', 1);
     state.armed = true;

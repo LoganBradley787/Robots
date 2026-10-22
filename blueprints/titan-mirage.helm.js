@@ -17,14 +17,18 @@ const pods = param('pods', 55, { min: 1, max: 500 });
 const bays = param('bays', 20, { min: 1, max: 64 });
 const period = param('period', 4.5, { min: 1, max: 5 }); // s between pods (a pod jams 5 s)
 const height = param('height', 200, { min: 5, max: 240 }); // m the core flies at
-const roof = param('roof', 215, { min: 5, max: 245 }); // m the core never asks to fly above (250 is out of bounds, and a ram from below lifts it)
+const roof = param('roof', 215, { min: 5, max: 10000 }); // m the core never asks to fly above (in an arena also `roofIn` under its ceiling: a ram from below lifts it)
 const heavy = param('heavy', 300, { min: 0, max: 100000 }); // kg: an enemy this heavy may be a ram
 const danger = param('danger', 380, { min: 0, max: 1000 }); // m: a heavy enemy this close is stepped over or under
 const step = param('step', 110, { min: 0, max: 250 }); // m of height kept from it
 const standoff = param('standoff', 880, { min: 100, max: 1500 }); // m kept from the tracked robot (inside radar reach, outside a search around its own start)
 const cornered = param('cornered', 250, { min: 0, max: 1000 }); // m: held closer than this against the edge, it takes the other side
 const backoff = param('backoff', 250, { min: 0, max: 600 }); // m it backs away from its start with nothing tracked
-const edge = param('edge', 650, { min: 100, max: 990 }); // it never flies its core past this x either way (well inside: shells push, and a wreck that drifts over x 1000 has lost)
+const edgeIn = param('edgeIn', 350, { min: 0, max: 900 }); // m: it never flies its core nearer the arena's side edge than this (well inside: shells push, and a wreck that drifts over the edge has lost)
+const roofIn = param('roofIn', 35, { min: 5, max: 200 }); // m: and never asks to fly nearer the arena's ceiling than this
+// The arena (titans v2, 2026-10): its edges come from the global `arena` (null in an open sandbox: no edge, no ceiling).
+const edge = arena ? Math.max(50, arena.x - edgeIn) : Infinity;
+const ceiling = arena ? Math.min(roof, arena.y - roofIn) : roof;
 const cruise = param('cruise', 24, { min: 1, max: 60 }); // m/s sideways at most
 const reach = param('reach', 960, { min: 50, max: 1000 }); // m: a salvo only at something this close
 const salvo = param('salvo', 20, { min: 1, max: 64 }); // ready bays that make a salvo
@@ -35,6 +39,7 @@ const close = param('close', 320, { min: 0, max: 1000 }); // m: at something thi
 const level = (param('level', 25, { min: 1, max: 90 }) * Math.PI) / 180; // lets go only this level
 const minMass = param('minMass', 40, { min: 0, max: 100000 }); // kg: lighter robots are never the main target
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and a salvo may go to its last place
+const awake = param('awake', 20, { min: 1, max: 600 }); // s: in an open sandbox it keeps its cloak up this long after it last saw an enemy
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
 
 function measure() {
@@ -107,6 +112,9 @@ function setup() {
   state.dodge = 0;
   state.dodgeAt = -100;
   state.side = 0; // which side of the tracked robot it keeps to (-1 left, 1 right)
+  state.pod = 0; // the next jammer pod to light
+  state.podAt = 0; // when it may
+  state.seen = -1000; // when it last saw an enemy
   measure();
 }
 
@@ -122,7 +130,9 @@ function target() {
   let gone = false;
   for (const c of contacts) {
     if (mem && c.id === mem.id && (c.side !== 'enemy' || !c.core)) gone = true;
-    if (c.side !== 'enemy' || !c.core || c.mass < minMass) continue;
+    if (c.side !== 'enemy' || !c.core) continue;
+    state.seen = time;
+    if (c.mass < minMass) continue;
     if (mem && c.id === mem.id) kept = c;
     if (!heaviest || c.mass > heaviest.mass) heaviest = c;
   }
@@ -137,11 +147,18 @@ function target() {
 }
 
 function tick() {
-  set('j' + Math.min(pods - 1, Math.floor(time / period)), 'ignite', 1);
   if (frame % 30 === 0) measure();
 
   // what it goes after, and where that was last
   const t = target();
+
+  // The cloak: in a match, a pod every `period` s from the start, as before. In an open sandbox (no arena) only while
+  // an enemy was seen in the last `awake` s, so its pods are not spent on an empty world (titans v2, 2026-10).
+  if (state.pod < pods && time >= state.podAt && (arena || time - state.seen < awake)) {
+    set('j' + state.pod, 'ignite', 1);
+    state.pod++;
+    state.podAt = time + period;
+  }
 
   // height: its own, or well over or under a heavy enemy that is close (a ram flies level)
   let high = height;
@@ -161,7 +178,7 @@ function tick() {
   } else if (time - state.dodgeAt > 4) {
     state.dodge = 0;
   }
-  high = clamp(high, 25, roof);
+  high = clamp(high, 25, ceiling);
   const vyWant = clamp(1.0 * (high - self.pos.y), -Math.min(22, Math.sqrt(2 * 6 * Math.max(0, self.pos.y - 15))), 22);
   const az = clamp(2.5 * (vyWant - self.vel.y), -8, 10);
   const lift = state.m * (9.81 + az);
