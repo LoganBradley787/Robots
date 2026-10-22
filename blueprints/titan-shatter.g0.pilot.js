@@ -177,7 +177,7 @@ function lookAround() {
   } else if (state.live && (gone || time - root.t > memory || root.d > lostAt)) {
     state.live = false;
   }
-  if (gone) state.dead = true;
+  if (gone && !main) state.dead = true;
   state.friends = friends;
   const pick = small || near;
   state.near = pick ? { x: pick.pos.x, y: pick.pos.y, vx: pick.vel.x, vy: pick.vel.y, t: time, small: pick === small } : null;

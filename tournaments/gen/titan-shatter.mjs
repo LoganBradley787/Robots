@@ -121,7 +121,7 @@ for (let j = 0; j < PAIRS; j++) {
       scripts: [
         {
           id: 'guide',
-          params: { arc: 0, clear: 0.3, clearDist: Math.round(14 + 0.8 * (W - dx)), thrust: 400, gyroTorque: 200, fuse: 16, minMass: 10, passBy: 12, passMass: 20 },
+          params: { arc: 0, clear: 0.3, clearDist: Math.round(14 + 0.8 * (W - dx)), thrust: 400, gyroTorque: 200, fuse: 16, minMass: 30, passBy: 12, passMass: 20 },
           source: { file: `${NAME}.d${dart}.guide.js` },
         },
       ],

@@ -5,36 +5,47 @@
  "autoControls": false,
  "grid": [
   ".    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .    .    q0   .    q0   .",
-  ".    q1   .    q2   .    .    q3   .    q4   .    .    q5   .    q6   .    .    q7   .    q8   .    .    q9   .    q10  .    .    q11  .    q12  .    .    q13  .    q14  .    .    q15  .    q16  .",
-  ".    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .    .    q17  .    q17  .",
-  ".    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .",
+  ".    q1   .    q1   .    .    q1   .    q1   .    .    q1   .    q1   .    .    q1   .    q1   .    .    q1   .    q1   .    .    q1   .    q1   .    .    q1   .    q1   .    .    q1   .    q1   .",
+  ".    q2   .    q3   .    .    q4   .    q5   .    .    q6   .    q7   .    .    q8   .    q9   .    .    q10  .    q11  .    .    q12  .    q13  .    .    q14  .    q15  .    .    q16  .    q17  .",
   ".    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .    .    q18  .    q18  .",
   ".    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .",
-  "q20  q21  .    q21  q22  q23  q21  .    q21  q24  q25  q21  .    q21  q26  q27  q21  .    q21  q28  q29  q21  .    q21  q30  q31  q21  .    q21  q32  q33  q21  .    q21  q34  q35  q21  .    q21  q36",
-  "q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37  q37",
-  "q37  q38  q39  q40  q37  q41  q42  q43  q37  q44  q45  q46  q47  q37  q48  q49  q50  q51  q52  q37  q53  q54  q55  q56  q57  q37  q58  q59  q60  q61  q62  q37  q63  q64  q65  q37  q66  q67  q68  q37",
-  "q37  q69  q70  q71  q37  q72  q73  q74  q37  q75  q76  q77  q78  q79  q80  q80  q80  q80  q81  q82  q83  q80  q80  q80  q80  q79  q84  q85  q86  q87  q88  q37  q89  q90  q91  q37  q92  q93  q94  q37",
-  "q37  q95  q95  q95  q37  q95  q95  q95  q37  q95  q95  q95  q95  q37  q95  q95  q95  q95  q95  q37  q96  q96  q96  q96  q96  q37  q96  q96  q96  q96  q96  q37  q96  q96  q96  q37  q96  q96  q96  q37",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    .",
-  ".    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q97  q96  q96  q96  .    .    .    .    .",
-  ".    .    .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    q98  q99  q79  q80  q83  q82  q81  q80  q79  q100 q101 .    .    ."
+  ".    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .    .    q19  .    q19  .",
+  ".    q20  .    q20  .    .    q20  .    q20  .    .    q20  .    q20  .    .    q20  .    q20  .    .    q20  .    q20  .    .    q20  .    q20  .    .    q20  .    q20  .    .    q20  .    q20  .",
+  "q21  q22  .    q22  q23  q24  q22  .    q22  q25  q26  q22  .    q22  q27  q28  q22  .    q22  q29  q30  q22  .    q22  q31  q32  q22  .    q22  q33  q34  q22  .    q22  q35  q36  q22  .    q22  q37",
+  "q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38  q38",
+  "q38  q39  q40  q41  q38  q42  q43  q44  q38  q45  q46  q47  q48  q38  q49  q50  q51  q52  q53  q38  q54  q55  q56  q57  q58  q38  q59  q60  q61  q62  q63  q38  q64  q65  q66  q38  q67  q68  q69  q38",
+  "q38  q70  q71  q72  q38  q73  q74  q75  q38  q76  q77  q78  q79  q80  q81  q81  q81  q81  q82  q83  q84  q81  q81  q81  q81  q80  q85  q86  q87  q88  q89  q38  q90  q91  q92  q38  q93  q94  q95  q38",
+  "q38  q96  q96  q96  q38  q96  q96  q96  q38  q96  q96  q96  q96  q38  q96  q96  q96  q96  q96  q38  q97  q97  q97  q97  q97  q38  q97  q97  q97  q97  q97  q38  q97  q97  q97  q38  q97  q97  q97  q38",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    .",
+  ".    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .    .    .    .    q98  .    .    .    .    .    .    .    .",
+  ".    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .    q96  q96  q96  q54  q97  q97  q97  .    .    .    .    .",
+  ".    .    .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    q99  q100 q80  q81  q84  q83  q82  q81  q80  q101 q102 .    .    ."
  ],
  "legend": {
   "q0": {
@@ -42,558 +53,562 @@
    "rot": 0
   },
   "q1": {
+   "part": "radio",
+   "rot": 0
+  },
+  "q2": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d0"
    ]
   },
-  "q2": {
+  "q3": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d1"
    ]
   },
-  "q3": {
+  "q4": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d2"
    ]
   },
-  "q4": {
+  "q5": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d3"
    ]
   },
-  "q5": {
+  "q6": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d4"
    ]
   },
-  "q6": {
+  "q7": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d5"
    ]
   },
-  "q7": {
+  "q8": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d6"
    ]
   },
-  "q8": {
+  "q9": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d7"
    ]
   },
-  "q9": {
+  "q10": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d8"
    ]
   },
-  "q10": {
+  "q11": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d9"
    ]
   },
-  "q11": {
+  "q12": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d10"
    ]
   },
-  "q12": {
+  "q13": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d11"
    ]
   },
-  "q13": {
+  "q14": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d12"
    ]
   },
-  "q14": {
+  "q15": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d13"
    ]
   },
-  "q15": {
+  "q16": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d14"
    ]
   },
-  "q16": {
+  "q17": {
    "part": "core",
    "rot": 0,
    "tags": [
     "d15"
    ]
   },
-  "q17": {
+  "q18": {
    "part": "radar",
    "rot": 0
   },
-  "q18": {
+  "q19": {
    "part": "cell",
    "rot": 0
   },
-  "q19": {
+  "q20": {
    "part": "heavygyro",
    "rot": 0,
    "auto": false
   },
-  "q20": {
+  "q21": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g0"
    ]
   },
-  "q21": {
+  "q22": {
    "part": "booster",
    "rot": 0,
    "auto": false
   },
-  "q22": {
+  "q23": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g1"
    ]
   },
-  "q23": {
+  "q24": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g2"
    ]
   },
-  "q24": {
+  "q25": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g3"
    ]
   },
-  "q25": {
+  "q26": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g4"
    ]
   },
-  "q26": {
+  "q27": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g5"
    ]
   },
-  "q27": {
+  "q28": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g6"
    ]
   },
-  "q28": {
+  "q29": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g7"
    ]
   },
-  "q29": {
+  "q30": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g8"
    ]
   },
-  "q30": {
+  "q31": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g9"
    ]
   },
-  "q31": {
+  "q32": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g10"
    ]
   },
-  "q32": {
+  "q33": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g11"
    ]
   },
-  "q33": {
+  "q34": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g12"
    ]
   },
-  "q34": {
+  "q35": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g13"
    ]
   },
-  "q35": {
+  "q36": {
    "part": "decoupler",
    "rot": 270,
    "tags": [
     "g14"
    ]
   },
-  "q36": {
+  "q37": {
    "part": "decoupler",
    "rot": 90,
    "tags": [
     "g15"
    ]
   },
-  "q37": {
+  "q38": {
    "part": "frame",
    "rot": 0
   },
-  "q38": {
+  "q39": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam21"
    ]
   },
-  "q39": {
+  "q40": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam22"
    ]
   },
-  "q40": {
+  "q41": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam23"
    ]
   },
-  "q41": {
+  "q42": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam24"
    ]
   },
-  "q42": {
+  "q43": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam25"
    ]
   },
-  "q43": {
+  "q44": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam26"
    ]
   },
-  "q44": {
+  "q45": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam27"
    ]
   },
-  "q45": {
+  "q46": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam28"
    ]
   },
-  "q46": {
+  "q47": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam29"
    ]
   },
-  "q47": {
+  "q48": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam30"
    ]
   },
-  "q48": {
+  "q49": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam31"
    ]
   },
-  "q49": {
+  "q50": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam32"
    ]
   },
-  "q50": {
+  "q51": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam33"
    ]
   },
-  "q51": {
+  "q52": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam34"
    ]
   },
-  "q52": {
+  "q53": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam35"
    ]
   },
-  "q53": {
-   "part": "jammer",
-   "rot": 0,
-   "tags": [
-    "jam36"
-   ]
-  },
   "q54": {
-   "part": "jammer",
+   "part": "radio",
    "rot": 0,
    "tags": [
-    "jam37"
+    "ear"
    ]
   },
   "q55": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam38"
+    "jam36"
    ]
   },
   "q56": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam39"
+    "jam37"
    ]
   },
   "q57": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam40"
+    "jam38"
    ]
   },
   "q58": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam41"
+    "jam39"
    ]
   },
   "q59": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam42"
+    "jam40"
    ]
   },
   "q60": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam43"
+    "jam41"
    ]
   },
   "q61": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam44"
+    "jam42"
    ]
   },
   "q62": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam45"
+    "jam43"
    ]
   },
   "q63": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam46"
+    "jam44"
    ]
   },
   "q64": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam47"
+    "jam45"
    ]
   },
   "q65": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam48"
+    "jam46"
    ]
   },
   "q66": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam49"
+    "jam47"
    ]
   },
   "q67": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam50"
+    "jam48"
    ]
   },
   "q68": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam51"
+    "jam49"
    ]
   },
   "q69": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam0"
+    "jam50"
    ]
   },
   "q70": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam1"
+    "jam0"
    ]
   },
   "q71": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam2"
+    "jam1"
    ]
   },
   "q72": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam3"
+    "jam2"
    ]
   },
   "q73": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam4"
+    "jam3"
    ]
   },
   "q74": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam5"
+    "jam4"
    ]
   },
   "q75": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam6"
+    "jam5"
    ]
   },
   "q76": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam7"
+    "jam6"
    ]
   },
   "q77": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam8"
+    "jam7"
    ]
   },
   "q78": {
    "part": "jammer",
    "rot": 0,
    "tags": [
-    "jam9"
+    "jam8"
    ]
   },
   "q79": {
+   "part": "jammer",
+   "rot": 0,
+   "tags": [
+    "jam9"
+   ]
+  },
+  "q80": {
    "part": "armorplate",
    "rot": 0
   },
-  "q80": {
+  "q81": {
    "part": "densebattery",
    "rot": 0
   },
-  "q81": {
+  "q82": {
    "part": "radar",
    "rot": 0,
    "tags": [
     "eye"
    ]
   },
-  "q82": {
+  "q83": {
    "part": "core",
    "rot": 0
   },
-  "q83": {
+  "q84": {
    "part": "heavygyro",
    "rot": 0,
    "tags": [
@@ -601,84 +616,84 @@
    ],
    "auto": false
   },
-  "q84": {
+  "q85": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam10"
    ]
   },
-  "q85": {
+  "q86": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam11"
    ]
   },
-  "q86": {
+  "q87": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam12"
    ]
   },
-  "q87": {
+  "q88": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam13"
    ]
   },
-  "q88": {
+  "q89": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam14"
    ]
   },
-  "q89": {
+  "q90": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam15"
    ]
   },
-  "q90": {
+  "q91": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam16"
    ]
   },
-  "q91": {
+  "q92": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam17"
    ]
   },
-  "q92": {
+  "q93": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam18"
    ]
   },
-  "q93": {
+  "q94": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam19"
    ]
   },
-  "q94": {
+  "q95": {
    "part": "jammer",
    "rot": 0,
    "tags": [
     "jam20"
    ]
   },
-  "q95": {
+  "q96": {
    "part": "propeller",
    "rot": 0,
    "tags": [
@@ -686,7 +701,7 @@
    ],
    "auto": false
   },
-  "q96": {
+  "q97": {
    "part": "propeller",
    "rot": 0,
    "tags": [
@@ -694,21 +709,21 @@
    ],
    "auto": false
   },
-  "q97": {
+  "q98": {
    "part": "decoupler",
    "rot": 0,
    "tags": [
     "split"
    ]
   },
-  "q98": {
+  "q99": {
    "part": "gun",
    "rot": 90,
    "tags": [
     "gunA"
    ]
   },
-  "q99": {
+  "q100": {
    "part": "rotator",
    "rot": 90,
    "tags": [
@@ -716,7 +731,7 @@
    ],
    "auto": false
   },
-  "q100": {
+  "q101": {
    "part": "rotator",
    "rot": 270,
    "tags": [
@@ -724,7 +739,7 @@
    ],
    "auto": false
   },
-  "q101": {
+  "q102": {
    "part": "gun",
    "rot": 270,
    "tags": [
@@ -732,13 +747,13 @@
    ]
   }
  },
- "primaryCore": "core@19,21",
+ "primaryCore": "core@19,31",
  "bindings": [],
  "scripts": [
   {
    "id": "king",
    "params": {
-    "pods": 52,
+    "pods": 51,
     "darts": 16
    },
    "source": {
@@ -747,7 +762,7 @@
   }
  ],
  "cores": {
-  "core@8,18": {
+  "core@8,27": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -762,7 +777,7 @@
     }
    ]
   },
-  "core@19,18": {
+  "core@19,27": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -777,7 +792,7 @@
     }
    ]
   },
-  "core@31,18": {
+  "core@31,27": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -792,7 +807,7 @@
     }
    ]
   },
-  "core@8,16": {
+  "core@8,24": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -807,7 +822,7 @@
     }
    ]
   },
-  "core@19,16": {
+  "core@19,24": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -822,7 +837,7 @@
     }
    ]
   },
-  "core@31,16": {
+  "core@31,24": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -837,7 +852,7 @@
     }
    ]
   },
-  "core@8,14": {
+  "core@8,21": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -852,7 +867,7 @@
     }
    ]
   },
-  "core@19,14": {
+  "core@19,21": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -867,7 +882,7 @@
     }
    ]
   },
-  "core@31,14": {
+  "core@31,21": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -882,7 +897,7 @@
     }
    ]
   },
-  "core@8,12": {
+  "core@8,18": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -897,7 +912,7 @@
     }
    ]
   },
-  "core@19,12": {
+  "core@19,18": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -912,7 +927,7 @@
     }
    ]
   },
-  "core@31,12": {
+  "core@31,18": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -927,7 +942,7 @@
     }
    ]
   },
-  "core@8,10": {
+  "core@8,15": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -942,7 +957,7 @@
     }
    ]
   },
-  "core@19,10": {
+  "core@19,15": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -957,7 +972,7 @@
     }
    ]
   },
-  "core@31,10": {
+  "core@31,15": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -972,7 +987,7 @@
     }
    ]
   },
-  "core@8,8": {
+  "core@8,12": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -987,7 +1002,7 @@
     }
    ]
   },
-  "core@19,8": {
+  "core@19,12": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1002,7 +1017,7 @@
     }
    ]
   },
-  "core@31,8": {
+  "core@31,12": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1017,7 +1032,7 @@
     }
    ]
   },
-  "core@8,6": {
+  "core@8,9": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1032,7 +1047,7 @@
     }
    ]
   },
-  "core@19,6": {
+  "core@19,9": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1047,7 +1062,7 @@
     }
    ]
   },
-  "core@31,6": {
+  "core@31,9": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1062,7 +1077,7 @@
     }
    ]
   },
-  "core@8,4": {
+  "core@8,6": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1077,7 +1092,7 @@
     }
    ]
   },
-  "core@19,4": {
+  "core@19,6": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1092,7 +1107,7 @@
     }
    ]
   },
-  "core@31,4": {
+  "core@31,6": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1107,7 +1122,7 @@
     }
    ]
   },
-  "core@8,2": {
+  "core@8,3": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1122,7 +1137,7 @@
     }
    ]
   },
-  "core@19,2": {
+  "core@19,3": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1137,7 +1152,7 @@
     }
    ]
   },
-  "core@31,2": {
+  "core@31,3": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1197,7 +1212,7 @@
     }
    ]
   },
-  "core@1,29": {
+  "core@1,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1210,7 +1225,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1220,7 +1235,7 @@
     }
    ]
   },
-  "core@3,29": {
+  "core@3,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1233,7 +1248,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1243,7 +1258,7 @@
     }
    ]
   },
-  "core@6,29": {
+  "core@6,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1256,7 +1271,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1266,7 +1281,7 @@
     }
    ]
   },
-  "core@8,29": {
+  "core@8,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1279,7 +1294,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1289,7 +1304,7 @@
     }
    ]
   },
-  "core@11,29": {
+  "core@11,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1302,7 +1317,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1312,7 +1327,7 @@
     }
    ]
   },
-  "core@13,29": {
+  "core@13,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1325,7 +1340,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1335,7 +1350,7 @@
     }
    ]
   },
-  "core@16,29": {
+  "core@16,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1348,7 +1363,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1358,7 +1373,7 @@
     }
    ]
   },
-  "core@18,29": {
+  "core@18,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1371,7 +1386,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1381,7 +1396,7 @@
     }
    ]
   },
-  "core@21,29": {
+  "core@21,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1394,7 +1409,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1404,7 +1419,7 @@
     }
    ]
   },
-  "core@23,29": {
+  "core@23,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1417,7 +1432,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1427,7 +1442,7 @@
     }
    ]
   },
-  "core@26,29": {
+  "core@26,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1440,7 +1455,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1450,7 +1465,7 @@
     }
    ]
   },
-  "core@28,29": {
+  "core@28,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1463,7 +1478,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1473,7 +1488,7 @@
     }
    ]
   },
-  "core@31,29": {
+  "core@31,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1486,7 +1501,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1496,7 +1511,7 @@
     }
    ]
   },
-  "core@33,29": {
+  "core@33,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1509,7 +1524,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1519,7 +1534,7 @@
     }
    ]
   },
-  "core@36,29": {
+  "core@36,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1532,7 +1547,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
@@ -1542,7 +1557,7 @@
     }
    ]
   },
-  "core@38,29": {
+  "core@38,39": {
    "autoControls": false,
    "bindings": [],
    "scripts": [
@@ -1555,7 +1570,7 @@
       "thrust": 400,
       "gyroTorque": 200,
       "fuse": 16,
-      "minMass": 10,
+      "minMass": 30,
       "passBy": 12,
       "passMass": 20
      },
