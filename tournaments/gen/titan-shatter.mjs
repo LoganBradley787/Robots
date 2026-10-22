@@ -27,6 +27,7 @@ const PAIRS = 8; // dart pairs on the deck (two darts each)
 const OFF = 3; // titans v2 (2026-10): three more propellers each side of the king's propeller row, so it lifts its darts
 const W = 40 + 2 * OFF; // grid width; the king's deck is 40 wide, from OFF
 const SHIP_W = 11;
+const SCOUT_ROWS = 2; // gunship rows at the bottom built as light scouts
 
 // ---- grid of cells: cells[y][x] = { part, rot, tags, auto } ----
 const H = 3 * ROWS + 12; // three rows a gunship (joint, roof, body), the king's four, and darts eight tall
@@ -48,15 +49,20 @@ for (let r = 0; r < ROWS; r++) {
     const yTop = yJoin - 1;
     const yBody = yTop - 1;
     // body row: gun, rotator, armor, battery, gyro, core, radar, battery, armor, rotator, gun
+    // Scouts (titans v2, 2026-10): the bottom SCOUT_ROWS rows carry dense batteries in place of their armor. At 30 kg
+    // they fly fast and long (an armored gunship at 64 kg uses 87 percent of its lift just to hover, and crawled), and
+    // they weigh under the 30 kg most robots take for a main enemy, so they are left alone while they look.
+    const scout = r >= ROWS - SCOUT_ROWS;
+    const plate = scout ? 'densebattery' : 'armorplate';
     put(x0 + 0, yBody, 'gun', 90, ['gunA']);
     put(x0 + 1, yBody, 'rotator', 90, ['rotA'], { auto: false });
-    put(x0 + 2, yBody, 'armorplate');
+    put(x0 + 2, yBody, plate);
     put(x0 + 3, yBody, 'densebattery');
     put(x0 + 4, yBody, 'heavygyro', 0, ['stab'], { auto: false });
     put(x0 + 5, yBody, 'core');
     put(x0 + 6, yBody, 'radar', 0, ['eye']);
     put(x0 + 7, yBody, 'densebattery');
-    put(x0 + 8, yBody, 'armorplate');
+    put(x0 + 8, yBody, plate);
     put(x0 + 9, yBody, 'rotator', 270, ['rotB'], { auto: false });
     put(x0 + 10, yBody, 'gun', 270, ['gunB']);
     // roof row: three propellers, the radio over the core, three propellers; on the radio the decoupler that holds it
@@ -68,7 +74,7 @@ for (let r = 0; r < ROWS; r++) {
     cores[`core@${x0 + 5},${yBody}`] = {
       autoControls: false,
       bindings: [],
-      scripts: [{ id: 'pilot', params: { slot }, source: { file: `${NAME}.g${slot}.pilot.js` } }],
+      scripts: [{ id: 'pilot', params: scout ? { slot, scout: 1 } : { slot }, source: { file: `${NAME}.g${slot}.pilot.js` } }],
     };
     slot++;
   }

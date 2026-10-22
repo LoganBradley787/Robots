@@ -42,10 +42,10 @@
   ".    .    .    .    .    .    q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 .    q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 .    .    .    .    .    .",
   ".    .    .    .    .    .    .    .    .    .    .    q97  .    .    .    .    .    .    .    .    .    .    q97  .    .    .    .    .    .    .    .    .    .    .    q97  .    .    .    .    .    .    .    .    .    .    .",
   ".    .    .    .    .    .    .    .    q95  q95  q95  q54  q96  q96  q96  .    .    .    .    q95  q95  q95  q54  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q54  q96  q96  q96  .    .    .    .    .    .    .    .",
-  ".    .    .    .    .    .    q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 .    q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 .    .    .    .    .    .",
+  ".    .    .    .    .    .    q98  q99  q80  q80  q83  q82  q81  q80  q80  q101 q102 q98  q99  q80  q80  q83  q82  q81  q80  q80  q101 q102 .    q98  q99  q80  q80  q83  q82  q81  q80  q80  q101 q102 .    .    .    .    .    .",
   ".    .    .    .    .    .    .    .    .    .    .    q97  .    .    .    .    .    .    .    .    .    .    q97  .    .    .    .    .    .    .    .    .    .    .    q97  .    .    .    .    .    .    .    .    .    .    .",
   ".    .    .    .    .    .    .    .    q95  q95  q95  q54  q96  q96  q96  .    .    .    .    q95  q95  q95  q54  q96  q96  q96  .    .    .    .    .    q95  q95  q95  q54  q96  q96  q96  .    .    .    .    .    .    .    .",
-  ".    .    .    .    .    .    q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 .    q98  q99  q100 q80  q83  q82  q81  q80  q100 q101 q102 .    .    .    .    .    ."
+  ".    .    .    .    .    .    q98  q99  q80  q80  q83  q82  q81  q80  q80  q101 q102 q98  q99  q80  q80  q83  q82  q81  q80  q80  q101 q102 .    q98  q99  q80  q80  q83  q82  q81  q80  q80  q101 q102 .    .    .    .    .    ."
  ],
  "legend": {
   "q0": {
@@ -1129,7 +1129,8 @@
     {
      "id": "pilot",
      "params": {
-      "slot": 24
+      "slot": 24,
+      "scout": 1
      },
      "source": {
       "file": "titan-shatter.g24.pilot.js"
@@ -1144,7 +1145,8 @@
     {
      "id": "pilot",
      "params": {
-      "slot": 25
+      "slot": 25,
+      "scout": 1
      },
      "source": {
       "file": "titan-shatter.g25.pilot.js"
@@ -1159,7 +1161,8 @@
     {
      "id": "pilot",
      "params": {
-      "slot": 26
+      "slot": 26,
+      "scout": 1
      },
      "source": {
       "file": "titan-shatter.g26.pilot.js"
@@ -1174,7 +1177,8 @@
     {
      "id": "pilot",
      "params": {
-      "slot": 27
+      "slot": 27,
+      "scout": 1
      },
      "source": {
       "file": "titan-shatter.g27.pilot.js"
@@ -1189,7 +1193,8 @@
     {
      "id": "pilot",
      "params": {
-      "slot": 28
+      "slot": 28,
+      "scout": 1
      },
      "source": {
       "file": "titan-shatter.g28.pilot.js"
@@ -1204,7 +1209,8 @@
     {
      "id": "pilot",
      "params": {
-      "slot": 29
+      "slot": 29,
+      "scout": 1
      },
      "source": {
       "file": "titan-shatter.g29.pilot.js"

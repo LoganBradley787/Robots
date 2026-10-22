@@ -16,6 +16,7 @@
 // - No typed-in edges: the ceiling comes from the global `arena` (none in the open sandbox), and with nothing ever
 //   seen it waits where it woke (or, in a match, flies to the mirror of its start, where the other side began).
 const slot = param('slot', 0, { min: 0, max: 999 });
+const scout = param('scout', 0, { min: 0, max: 1 }); // 1: a light scout (no armor), which searches the outer part of the ring
 const look = param('look', 10, { min: 2, max: 60 }); // ticks between radar looks
 const reach = param('reach', 285, { min: 10, max: 300 }); // m, how far the guns blast
 const speed = param('speed', 30, { min: 1, max: 80 }); // m/s, its fastest sideways
@@ -282,8 +283,10 @@ function tick() {
     // was ever seen (it hid from the first second: its start is the mirror of ours). Each gunship takes its own bearing
     // round the last place, on a ring that starts `seek` m out (its radar sees through a bubble within 150 m) and
     // grows while nothing is found, so the swarm sweeps the sky round it. One gunship seeing it tells them all.
+    // Gunships start spread over the ring's width (scouts on the outer half), so the whole disc is looked over at once.
     const lost = time - Math.max(state.seenAt, 0);
-    const r = seek + ((widen * Math.max(0, lost - 1)) % (wide - seek));
+    const band = (wide - seek) / 2;
+    const r = seek + ((((slot * 53) % band) + scout * band + widen * Math.max(0, lost - 1)) % (wide - seek));
     const b = -0.35 + ((state.bearing % Math.PI) / Math.PI) * (Math.PI + 0.7); // from a little under level on one side to the other
     px = root.x + r * Math.cos(b);
     py = root.y + r * Math.sin(b) + 15;
@@ -310,7 +313,10 @@ function tick() {
     px += dx * push;
     py += dy * push + (d < 0.5 ? (slot % 2 ? 6 : -6) : 0);
   }
-  fly(px, Math.max(py, 20), speed, lean);
+  // No more lean than its lift allows while still holding its height (an armored gunship has little to spare).
+  if (!state.body || state.body.n !== parts.length) measure();
+  const spare = (state.body.m * G * 1.04) / Math.max(1, (state.body.na + state.body.nb) * LIFT);
+  fly(px, Math.max(py, 20), speed, Math.min(lean, Math.acos(clamp(spare, 0, 1))));
 
   // What the guns blast at: something small and close first, then the main robot's core, then whatever is nearest.
   let target = null;
