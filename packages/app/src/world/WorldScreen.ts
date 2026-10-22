@@ -35,7 +35,7 @@ import { msText, ScriptCosts } from '../app/scriptCosts';
 import { FramePace, frameSimBudget, loadSmooth, saveSmooth, ScriptScheduler, scriptBudget, ticksPerWindow } from '../app/scriptScheduler';
 import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
-import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
+import { AUTO_KEYS, buildReplay, type Arena, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 import { buildReadout, type ReadoutView } from './readout';
 import { farIds, loadFarDistance, outlineEdges, saveFarDistance, teamCounts, teamIds, type Edge, type RobotSpot } from './removal';
 
@@ -221,13 +221,20 @@ export class WorldScreen {
     );
   }
 
-  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[], debug?: boolean): void }, scripts: ScriptHost, clock?: ScriptClock): Promise<WorldScreen> {
-    const screen = new WorldScreen(renderer, textures, file, await World.create({ seed: 1, scripts }, file), hud);
+  /**
+   * `arena` is the match's edge scripts read (the global `arena`): the `?duel=` page gives the CLI duel's, a plain
+   * sandbox none. Reset world keeps it, as it keeps the world file.
+   */
+  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[], debug?: boolean): void }, scripts: ScriptHost, clock?: ScriptClock, arena: Arena | null = null): Promise<WorldScreen> {
+    const screen = new WorldScreen(renderer, textures, file, await World.create({ seed: 1, scripts, arena }, file), hud);
+    screen.arena = arena;
     screen.scriptHost = scripts;
     screen.clock = clock;
     return screen;
   }
 
+  /** The match's edge the world was made with (`create`), for Reset world. */
+  private arena: Arena | null = null;
   /** Time spent in scripts (M9: the script host is wrapped in a timer), and the readout it feeds. */
   private clock: ScriptClock | undefined;
   private readonly perf = new PerfMeter();
@@ -292,7 +299,7 @@ export class WorldScreen {
 
   /** Terrain only, no robots. Keeps the camera and time settings. */
   async reset(): Promise<void> {
-    const next = await World.create({ seed: 1, ...(this.scriptHost ? { scripts: this.scriptHost } : {}) }, this.file);
+    const next = await World.create({ seed: 1, arena: this.arena, ...(this.scriptHost ? { scripts: this.scriptHost } : {}) }, this.file);
     this.world.dispose();
     this.world = next;
     next.watchScripts(this.watch);

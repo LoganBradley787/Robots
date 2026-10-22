@@ -52,6 +52,8 @@ export interface TournamentOptions {
   world?: string;
   /** The bounds in place of the default; false for none. */
   bounds?: Bounds | false;
+  /** `--add` texts, passed as they are to every duel (speed checks too). */
+  add?: readonly string[];
 }
 
 export interface TournamentResult {
@@ -62,12 +64,13 @@ export interface TournamentResult {
   only?: string;
   world?: string;
   bounds?: Bounds | false;
+  add?: string[];
   wallSeconds: number;
   speed: MatchResult[];
   matches: MatchResult[];
 }
 
-export type MatchRunner = (m: MatchSpec, opts: Pick<TournamentOptions, 'seconds' | 'world' | 'bounds'>) => Promise<MatchResult>;
+export type MatchRunner = (m: MatchSpec, opts: Pick<TournamentOptions, 'seconds' | 'world' | 'bounds' | 'add'>) => Promise<MatchResult>;
 
 /** `{ "titans": [ { "name": "titan-x", "y": 40 }, ... ] }`; `y` may be left out. */
 export function parseRoster(raw: unknown): Titan[] {
@@ -111,6 +114,7 @@ export const childDuel: MatchRunner = (m, opts) => {
   const args = ['--import', 'tsx', MAIN, 'duel', m.a.name, m.b.name, '--seed', String(m.seed), '--seconds', String(opts.seconds), '--json'];
   if (opts.world !== undefined) args.push('--world', opts.world);
   if (opts.bounds !== undefined) args.push('--bounds', opts.bounds === false ? 'off' : `${opts.bounds.x},${opts.bounds.y}`);
+  for (const add of opts.add ?? []) args.push('--add', add);
   if (m.a.y !== undefined) args.push('--ya', String(m.a.y));
   if (m.b.y !== undefined) args.push('--yb', String(m.b.y));
   const started = performance.now();
@@ -186,6 +190,7 @@ export async function runTournament(titans: readonly Titan[], opts: TournamentOp
     ...(opts.only !== undefined ? { only: opts.only } : {}),
     ...(opts.world !== undefined ? { world: opts.world } : {}),
     ...(opts.bounds !== undefined ? { bounds: opts.bounds } : {}),
+    ...(opts.add !== undefined && opts.add.length > 0 ? { add: [...opts.add] } : {}),
     wallSeconds: (performance.now() - started) / 1000,
     speed,
     matches,
@@ -305,7 +310,7 @@ export function formatResults(result: TournamentResult): string {
   const lines = [
     '# Tournament results',
     '',
-    `${names.length} titans, seeds ${result.seeds.join(', ')}, up to ${result.seconds} s a match, ${result.matches.length} matches${result.only !== undefined ? ` (only those with ${result.only})` : ''}, ${result.jobs} at once${result.world !== undefined ? `, on ${result.world}` : ''}. Took ${result.wallSeconds.toFixed(0)} s.`,
+    `${names.length} titans, seeds ${result.seeds.join(', ')}, up to ${result.seconds} s a match, ${result.matches.length} matches${result.only !== undefined ? ` (only those with ${result.only})` : ''}, ${result.jobs} at once${result.world !== undefined ? `, on ${result.world}` : ''}${result.add !== undefined ? `, with robots added (${result.add.map((a) => `--add ${a}`).join(' ')})` : ''}. Took ${result.wallSeconds.toFixed(0)} s.`,
     '',
     '## Ranking',
     '',

@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite, UPDATE_PRIORITY } from 'pixi.js';
-import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
+import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, inArena, MATCH_ARENA, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, renameScript, updateScript } from './builder/scripts';
@@ -60,7 +60,8 @@ async function boot(): Promise<void> {
   // `&xa=` and `&xb=` their x (-400 and 400 when left out).
   const query = new URLSearchParams(window.location.search);
   const duel = (query.get('duel') ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '');
-  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock);
+  // A duel's scripts read the same edge as `pnpm sim duel` gives them (the global `arena`); a plain sandbox has none.
+  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock, duel.length === 2 ? MATCH_ARENA : null);
 
   const registry = defaultRegistry();
   // The hotbar and the recent row live in the browser (M16). A browser with storage switched off just forgets them.
@@ -665,8 +666,8 @@ async function boot(): Promise<void> {
       const xb = at(query.get('xb'), 400);
       const ra = worldScreen.spawn(left, { x: xa, y: height(left, xa, query.get('ya')) }, 0);
       const rb = worldScreen.spawn(right, { x: xb, y: height(right, xb, query.get('yb')) }, 1);
-      // The match as `pnpm sim duel` judges it: a titan loses when its main core is destroyed or goes past x 1000 or
-      // above y 250; both lost within 2 s, or 240 s gone with both alive, is a draw. The world runs on after the result.
+      // The match as `pnpm sim duel` judges it: a titan loses when its main core is destroyed or leaves the arena (past
+      // x 1000 or above y 250, MATCH_ARENA); both lost within 2 s, or 240 s gone with both alive, is a draw. The world runs on after the result.
       const world = worldScreen.world;
       const sides = [ra, rb].map((robot, i) => ({ name: i === 0 ? a : b, main: robot.parts.get(robot.primaryCoreId ?? ''), holder: robot, lost: undefined as string | undefined, tick: 0 }));
       let over = false;
@@ -681,7 +682,7 @@ async function boot(): Promise<void> {
             side.lost = `its main core was destroyed at ${t} s`;
           } else {
             const pose = partWorldPose(world, holder, main.id);
-            if (Math.abs(pose.x) > 1000 || pose.y > 250) side.lost = `its main core went out of bounds at ${t} s, at (${pose.x.toFixed(0)}, ${pose.y.toFixed(0)})`;
+            if (!inArena(MATCH_ARENA, pose)) side.lost = `its main core went out of bounds at ${t} s, at (${pose.x.toFixed(0)}, ${pose.y.toFixed(0)})`;
           }
           if (side.lost !== undefined) side.tick = world.tick;
         }

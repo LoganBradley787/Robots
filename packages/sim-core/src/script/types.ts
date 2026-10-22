@@ -1,6 +1,7 @@
 import type { ScriptFrame } from './frame';
 import type { ScriptPartSpec } from './partSpec';
 import type { ScanOptions } from './scanOptions';
+import type { Arena } from '../world/arena';
 
 /** Why a script stopped. Uniform across backends, so the UI, replays, and reports never learn which one ran it. */
 export interface ScriptError {
@@ -175,6 +176,8 @@ export interface CompileOptions {
   limits?: ScriptLimits;
   /** Tests only (M9 parity): keep what the script sees on each call for `inspect()`. Costs a JSON text per call. */
   inspect?: boolean;
+  /** The world's arena, which the script reads as the global `arena` (null when absent or null). */
+  arena?: Arena | null;
 }
 
 export type CompileResult = { ok: true; instance: ScriptInstance } | { ok: false; error: ScriptError };
