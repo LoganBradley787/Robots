@@ -57,6 +57,7 @@ const tiltMax = param('tiltMax', 10, { min: 1, max: 90 }); // degrees: tilted mo
 const low = param('low', 0.1, { min: 0, max: 1 }); // under this share of its energy it stops driving
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole, only its extremes
 const gap = param('gap', 30, { min: 0, max: 200 }); // m between its nose (or tail) and a ground enemy it besieges (clear of what it launches from its edge)
+const holdMax = param('holdMax', 25, { min: 1, max: 600 }); // s it holds under one place a sight reads, with nothing on radar
 const weaveAmp = param('weaveAmp', 12, { min: 0, max: 200 }); // m either way it drifts while parked under something
 const weavePeriod = param('weavePeriod', 30, { min: 2, max: 120 }); // s for one drift there and back
 const standBack = param('standBack', 1150, { min: 100, max: 3000 }); // m it keeps from a ground enemy it cannot move nor burn, with no arena edge: past a radar's 1000 m, where nothing is sent after it
@@ -173,6 +174,10 @@ function setup() {
   state.leg = 0;
   state.holdX = null;
   state.holdSeen = -1000;
+  state.holdArea = null; // where it has been holding under a sight, and for how long in all
+  state.holdTime = 0;
+  state.skipX = 0; // a place whose sights it ignores until `skipUntil`
+  state.skipUntil = -1;
   state.idleSince = 0;
   state.beam = {};
   state.lowBeam = false;
@@ -486,6 +491,7 @@ function tick() {
         if (p.out.sightSide !== 3) continue;
         const id = p.out.sightId;
         if (state.tid >= 0 ? id !== state.tid : light(id)) continue;
+        if (time < state.skipUntil && Math.abs(p.pos.x - state.skipX) < 60) continue;
         seenAt = p.pos.x;
         // Where the sight ends is a part of that robot: the beams burn there.
         state.holdPt = { x: p.pos.x, y: p.pos.y + p.out.sight + 1, t: time };
@@ -493,7 +499,16 @@ function tick() {
       }
     }
     if (seenAt !== null) {
-      if (state.holdX === null || Math.abs(seenAt - state.holdX) > 6) state.holdX = seenAt;
+      if (state.holdX === null || Math.abs(seenAt - state.holdX) > 6) {
+        // A new place, or the same few tens of meters again: holding there over `holdMax` s in all, with no main enemy
+        // ever on radar, it is a pod or a dart (a trickster kept it under one for three minutes, 400 m from itself): patrol
+        // on and leave that place alone for a minute.
+        if (state.holdArea === null || Math.abs(seenAt - state.holdArea) > 60) {
+          state.holdArea = seenAt;
+          state.holdTime = 0;
+        }
+        state.holdX = seenAt;
+      }
       state.holdSeen = time;
       state.idleSince = time;
     }
@@ -501,6 +516,13 @@ function tick() {
     if (state.holdX !== null) {
       err = clamp(state.holdX - dir * deck + weave(), -edgeX, edgeX) - me.x;
       held = state.holdX;
+      state.holdTime += dt;
+      if (state.holdTime > holdMax && state.tid < 0) {
+        state.skipX = state.holdArea;
+        state.skipUntil = time + 60;
+        state.holdArea = null;
+        state.holdX = null;
+      }
       const quiet = time - state.holdSeen;
       if ((Math.abs(err) < 8 + weaveAmp && quiet > wait) || quiet > 45) state.holdX = null;
       say('hold under x ' + Math.round(held));
