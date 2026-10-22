@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import type { Robot } from '../src/world/Robot';
@@ -105,6 +106,35 @@ describe('a kicked multibody link has its velocity from the start of its first s
     }
     expect(dart.parts.size).toBe(parts);
     expect(w.events.filter((e) => e.kind === 'impact')).toEqual([]);
+    w.dispose();
+  });
+
+  it('a rebuild elsewhere leaves a heavy robot resting awake on the ground alone (review: a 2^-16 s kick step threw it)', { timeout: 60_000 }, async () => {
+    const flat = parseWorldFile({ name: 'flat', ground: { width: 400, thickness: 2 }, spawn: { x: 0, y: 5 }, boxes: [] });
+    const w = await World.create({ seed: 1 }, flat);
+    const anvil = w.spawnBlueprint(JSON.parse(readFileSync(new URL('../../../blueprints/titan-anvil.json', import.meta.url), 'utf8')), { x: -60, y: 8 });
+    const turret = w.spawnBlueprint({ ...SHIP, parts: SHIP.parts.filter((p) => p.part !== 'fabbay'), recipes: undefined, bindings: [] }, { x: 90, y: 2 });
+    const body = anvil.groups[0]?.bodyId as number;
+    let worst = 0;
+    let rebuilt = false;
+    for (let t = 0; t < 460; t++) {
+      // A whisper of a push keeps it awake, so the solver works on its contacts every step.
+      w.physics.addForceAt(body, 0, 1e-3, w.physics.state(body).x, w.physics.state(body).y);
+      if (t === 420) {
+        const lost = turret.parts.get('frame@0,-1');
+        if (lost) lost.health = 0;
+      }
+      const before = w.physics.state(body);
+      const groups = turret.groups;
+      w.step();
+      if (turret.groups !== groups && t >= 420) rebuilt = true;
+      const after = w.physics.state(body);
+      if (t > 380) worst = Math.max(worst, Math.abs(after.vx - before.vx), Math.abs(after.vy - before.vy));
+    }
+    expect(rebuilt).toBe(true);
+    expect(w.physics.isLinked(coreBody(turret))).toBe(true);
+    expect(worst).toBeLessThan(0.05);
+    expect(w.events.filter((e) => e.tick > 380 && e.robot === anvil.id && (e.kind === 'impact' || e.kind === 'partDestroyed'))).toEqual([]);
     w.dispose();
   });
 });

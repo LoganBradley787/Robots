@@ -123,9 +123,7 @@ describe('M13 guns, done when', () => {
         else if (team.get(e.robot) === team.get(e.by)) friendly++;
       }
     }
-    // Enough shells for the rest to mean something. The count swings with the fight (seeds 1 to 4: 37 to 80 hits before
-    // the 2026-10-22 kick fix, 38 to 105 after; seed 1 went from 47 to 38).
-    expect(hits).toBeGreaterThan(30);
+    expect(hits).toBeGreaterThan(40);
     expect(own).toBe(0);
     // Shells spread up to 0.5 degrees (Logan): a stray now and then may clip a friend near the line. Batch: and a shell
     // already in flight may meet a friend that moved into its path (the sight only sees now): at least one allowed.

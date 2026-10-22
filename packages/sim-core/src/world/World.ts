@@ -470,13 +470,7 @@ export class World {
   private spentBoltList: Bolt[] = [];
   /** M15: shots and backfires of each robot's charged guns, and the damage their bolts did. Reporting only. */
   private readonly cannonTotals = new Map<number, { shots: number; backfires: number; damage: number }>();
-  /**
-   * Velocities for new bodies with joints, given as kicks after the tick's structural changes (`applyKicks`). Until
-   * then Rapier reports them at rest, so anything that reads one (a script, a second rebuild) reads the velocity from
-   * here (M6 review). Simulation state, hashed.
-   */
-  private readonly pendingKicks = new Map<BodyId, Kick>();
-  /** Bodies given their velocity outright since the last step (`launch`): unsettled like a kicked one. Not hashed. */
+  /** Bodies given their velocity (`launch`, `kickRobot`) since the last step, to unsettle. Not hashed. */
   private launched: BodyId[] = [];
   /**
    * Bodies whose velocity jumps for a reason other than a hit (a kick after a rebuild, a blast push), by the last tick
@@ -668,8 +662,6 @@ export class World {
     // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
     this.runBehaviors(true);
     if (this.dirty.size > 0) this.rebuildDirty();
-    // Before anything reads or pushes a new body: from here on Rapier has each one's velocity right.
-    this.applyKicks();
     this.runBehaviors(false);
     this.applyPendingForces();
     this.grapples.sync(this.gh());
@@ -837,7 +829,10 @@ export class World {
    * (the impact check ignores it). For tests and tools; a raw physics kick reads as a crash.
    */
   kickRobot(robot: Robot, vx: number, vy: number, w = 0): void {
-    for (const g of robot.groups) this.pendingKicks.set(g.bodyId, { vx, vy, w });
+    for (const g of robot.groups) {
+      this.physics.kick(g.bodyId, vx, vy, w);
+      this.launched.push(g.bodyId);
+    }
   }
 
   /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
@@ -887,7 +882,6 @@ export class World {
   private removeRobot(robot: Robot): void {
     this.debrisRest.delete(robot.id);
     for (const g of robot.groups) {
-      this.pendingKicks.delete(g.bodyId);
       this.physics.removeBody(g.bodyId);
     }
     robot.groups = [];
@@ -1204,7 +1198,6 @@ export class World {
           tick: this.tickCount,
           motion: (body) => this.motion(body),
           kick: (body, vx, vy, w) => this.launch(body, { vx, vy, w }),
-          forget: (body) => this.pendingKicks.delete(body),
           newRobotId: () => this.nextRobotId++,
           full: this.fullRebuild,
           tally: this.rebuilds,
@@ -1259,41 +1252,21 @@ export class World {
   /**
    * Gives a new body (a rebuilt piece's) its velocity. A body with no joints has it set outright, so it is the body's
    * velocity at once and everything that acts on it in the next step counts (review S1). A multibody link cannot be
-   * written to: it gets a kick (`applyKicks`), before the next step. Either way the body is unsettled for that step and
-   * the one after.
+   * written to: it gets a kick, in the first substep of the next step (`PhysicsWorld.applyKicks`), and reads as moving
+   * so until then. Either way the body is unsettled for that step and the one after.
    */
   private launch(body: BodyId, kick: Kick): void {
-    if (this.physics.isLinked(body)) {
-      this.pendingKicks.set(body, kick);
-      return;
-    }
-    this.physics.setVelocity(body, kick.vx, kick.vy, kick.w);
+    if (this.physics.isLinked(body)) this.physics.kick(body, kick.vx, kick.vy, kick.w);
+    else this.physics.setVelocity(body, kick.vx, kick.vy, kick.w);
     this.launched.push(body);
   }
 
   /**
-   * A body's state with its true velocity (review S2: a new body read as standing still for a tick). Rapier does not
-   * know a kick until `applyKicks` gives it, so until then the velocity is the kick's.
+   * A body's state with its true velocity (review S2: a new body read as standing still for a tick). The physics
+   * wrapper answers for a kick it has not applied yet (`PhysicsWorld.state`).
    */
   private bodyState(body: BodyId): BodyState {
-    const s = this.physics.state(body);
-    const k = this.pendingKicks.get(body);
-    return k ? { ...s, vx: k.vx, vy: k.vy, w: k.w } : s;
-  }
-
-  /**
-   * Gives every waiting kick (from rebuilds since the last step, `kickRobot`) to its body now (`PhysicsWorld.applyKicks`):
-   * after the tick's structural changes, before behaviors read velocities or add forces. The kicked bodies are
-   * unsettled for this step and the next: their velocity jumps for a reason other than a hit.
-   */
-  private applyKicks(): void {
-    if (this.pendingKicks.size === 0) return;
-    for (const [body, k] of this.pendingKicks) {
-      this.physics.kick(body, k.vx, k.vy, k.w);
-      this.unsettle(body);
-    }
-    this.pendingKicks.clear();
-    this.physics.applyKicks();
+    return this.physics.state(body);
   }
 
   /** The impact check ignores the body this step and the next. */
@@ -3236,14 +3209,7 @@ export class World {
       h.addF64(b.y);
       for (const v of [b.spec.radius, b.spec.damage, b.spec.pushRadius, b.spec.push, b.spec.lift]) h.addF64(v);
     }
-    // Kicks and pushes waiting for the next step.
-    h.addInt(this.pendingKicks.size);
-    for (const [body, k] of this.pendingKicks) {
-      h.addInt(body);
-      h.addF64(k.vx);
-      h.addF64(k.vy);
-      h.addF64(k.w);
-    }
+    // Pushes waiting for the next step (kicks are in the physics hash).
     h.addInt(this.pendingPushes.length);
     for (const p of this.pendingPushes) {
       h.addString(p.part.id);
