@@ -548,10 +548,14 @@ function tick() {
     // for bumps to move it that far: then it is waited out, hidden. Grinding at such a base was tried (titans v2,
     // 2026-10): an anchored dart base does not move, a hit low enough to reach its core rolls the brick over, and its
     // darts find the brick the moment it stops hiding (it lost at 138 s instead of drawing).
+    // One already near the edge is bumped over it whatever its depth (titans v2, 2026-10: a palisade's core piece
+    // lay 6 m inside the line, out of reach of a brick held at `edge`, while the rest of it wore the brick down).
     let pushOut = 0;
-    if (shape && Math.min(shape.L, shape.R) > 6 && shape.ground) {
-      if (target.m > shove) state.evade = true;
-      else if (arena) pushOut = target.x >= 0 ? 1 : -1;
+    if (shape && shape.ground) {
+      const deep = Math.min(shape.L, shape.R) > 6;
+      const nearEdge = arena && edge - Math.abs(target.x) < 100;
+      if (deep && target.m > shove) state.evade = true;
+      else if (arena && (deep || nearEdge)) pushOut = target.x >= 0 ? 1 : -1;
     }
     if (state.way !== '' && !can[state.way]) endTry(main);
     if (state.way !== '' && time - state.wayAt > tryTime) endTry(main);
@@ -615,7 +619,7 @@ function tick() {
         if (over > ceiling) over = shape.ground ? null : target.y + shape.low - state.top - 10;
         if (over !== null && over < floor) over = null;
         // Only as far as puts its core over the line: its core sits that face's depth behind the face it hits.
-        if (pushOut !== 0) limit = Math.min(pushEdge, arena.x - (pushOut > 0 ? shape.L : shape.R) - state.halfWidth + 20);
+        if (pushOut !== 0) limit = Math.min(arena.x - pushGap / 2, arena.x - (pushOut > 0 ? shape.L : shape.R) - state.halfWidth + 20);
       }
       if (fromSide(target, prefer, over) && state.dir !== prefer) endTry(main); // it flew on past (or backs off): that run is over
       else if (prefer !== 0 && (target.x - x) * prefer < 0 && Math.abs(target.x) > limit - 60 && target.x * prefer > 0) state.fails[way] = tries; // on its far side with no room to come round: another way
