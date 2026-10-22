@@ -18,6 +18,18 @@ export const CRASH_HALF_CELL = 0.5;
 /** How well a contact's push must line up with a body's velocity change to be where its hit landed (the cosine of 60 degrees), so the ground under a robot rammed from the side does not count. */
 export const CRASH_AGREE = 0.5;
 
+/**
+ * Review S3: a velocity change (m/s in one step) under which no part takes anything (the softest fuze is 5 m/s), so a
+ * body that touches nothing is looked at no further. A part def with a lower threshold needs this lowered with it.
+ */
+export const CRASH_FLOOR = 2;
+
+/** A velocity change (m/s, gravity aside) as a hit: its size, and the unit direction it came from (the change points away from it). */
+export function crashHit(dvx: number, dvy: number): { dv: number; ux: number; uy: number } {
+  const dv = Math.sqrt(dvx * dvx + dvy * dvy);
+  return { dv, ux: dv > 0 ? -dvx / dv : 0, uy: dv > 0 ? -dvy / dv : 0 };
+}
+
 /** The fraction of a part's health a hit of `dv` costs before weighting: 0 at or under safe, 1 at safe + range, squared between. */
 export function crashFraction(dv: number, spec: CrashSpec | undefined): number {
   const safe = spec?.safe ?? CRASH_SAFE;

@@ -19,7 +19,7 @@ import { jammed, jamNear, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, smokeBlocks, type SmokeCloud } from '../sensors/smoke';
 import type { TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
-import { crashDistance, crashFraction, crashWeight, type CrashTouch } from './crash';
+import { CRASH_FLOOR, crashDistance, crashFraction, crashHit, crashWeight, type CrashTouch } from './crash';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -918,27 +918,60 @@ export class World {
    *
    * Batch: every other part takes crash damage from the same measure (`crash` on its def, default safe 12 m/s), scaled
    * by how near it is to where the hit landed (Titans): see `world/crash.ts`. The fuzes above feel the jolt anywhere
-   * on the body. Bodies in `unsettled` (kicks, blast pushes) never count.
+   * on the body. Bodies in `unsettled` (kicks, blast pushes) never count. Review S3: a body that touches nothing feels
+   * its robot's velocity change instead of its own, so a fast-spinning robot does not crash its own wheels.
    */
   private checkImpacts(): void {
     for (const [body, until] of this.unsettled) if (until < this.tickCount) this.unsettled.delete(body);
     for (const robot of this.robots) {
       // Each body's velocity change this step (gravity aside), read once: undefined for a body that was just kicked.
       const hits = new Map<number, { dv: number; ux: number; uy: number } | undefined>();
-      const hitOf = (index: number): { dv: number; ux: number; uy: number } | undefined => {
+      const ownHit = (index: number): { dv: number; ux: number; uy: number } | undefined => {
         if (hits.has(index)) return hits.get(index);
         const group = robot.groups[index];
         let hit: { dv: number; ux: number; uy: number } | undefined;
         if (group && !this.unsettled.has(group.bodyId)) {
           const s = this.physics.state(group.bodyId);
           const p = this.physics.prevState(group.bodyId);
-          const dvx = s.vx - p.vx;
-          const dvy = s.vy - p.vy - this.gravityY * this.dt;
-          const dv = Math.sqrt(dvx * dvx + dvy * dvy);
-          // The impact is on the side the velocity change points away from.
-          hit = { dv, ux: dv > 0 ? -dvx / dv : 0, uy: dv > 0 ? -dvy / dv : 0 };
+          hit = crashHit(s.vx - p.vx, s.vy - p.vy - this.gravityY * this.dt);
         }
         hits.set(index, hit);
+        return hit;
+      };
+      // Review S3: the robot's velocity change, its bodies' weighted by mass, gravity aside. What its joints do between
+      // its own bodies cancels out of it, so a wheel or a turret swung round by a spinning robot (`w * w * r * dt` a
+      // step, with nothing touching it) feels only what the whole robot does. Undefined while any body is unsettled.
+      let whole: { dv: number; ux: number; uy: number } | undefined | null = null;
+      const wholeHit = (): { dv: number; ux: number; uy: number } | undefined => {
+        if (whole !== null) return whole;
+        let mass = 0;
+        let mx = 0;
+        let my = 0;
+        for (const g of robot.groups) {
+          if (this.unsettled.has(g.bodyId)) return (whole = undefined);
+          const m = this.physics.massProperties(g.bodyId).mass;
+          const s = this.physics.state(g.bodyId);
+          const p = this.physics.prevState(g.bodyId);
+          mass += m;
+          mx += m * (s.vx - p.vx);
+          my += m * (s.vy - p.vy - this.gravityY * this.dt);
+        }
+        return (whole = mass > 0 ? crashHit(mx / mass, my / mass) : undefined);
+      };
+      // The hit a body's parts feel: its own when it touches something (terrain, another robot, debris, its own
+      // robot's other bodies), so a wheel landing or driven into a wall still takes its crash; else the robot's. A
+      // single body is its robot, and a step that jolted nothing past `CRASH_FLOOR` either way breaks nothing.
+      const chosen = new Map<number, { dv: number; ux: number; uy: number } | undefined>();
+      const hitOf = (index: number): { dv: number; ux: number; uy: number } | undefined => {
+        if (chosen.has(index)) return chosen.get(index);
+        const own = ownHit(index);
+        let hit = own;
+        const group = robot.groups[index];
+        if (own && group && robot.groups.length > 1) {
+          const all = wholeHit();
+          if (Math.max(own.dv, all?.dv ?? Infinity) > CRASH_FLOOR && this.physics.contactPoints(group.bodyId).length === 0) hit = all;
+        }
+        chosen.set(index, hit);
         return hit;
       };
       // Titans: crash damage is local (`world/crash.ts`): it falls off with a part's distance from where the hit landed
