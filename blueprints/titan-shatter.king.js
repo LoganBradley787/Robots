@@ -25,6 +25,10 @@ const roam = param('roam', 25, { min: 1, max: 240 }); // s between moves to a ne
 const ram = param('ram', 1500, { min: 0, max: 100000 }); // kg: an enemy this heavy is a ram to get out of the way of
 const threat = param('threat', 550, { min: 0, max: 1000 }); // m: a ram this close makes it move
 const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
+const heavyMass = param('heavyMass', 300, { min: 0, max: 100000 }); // kg: a robot this heavy is a main enemy before any lighter one
+const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no heavy one before a lighter one will do
+const fallbackMatch = param('fallbackMatch', 45, { min: 0, max: 240 }); // the same in a match
+const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must be slower than this
 const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
@@ -132,6 +136,8 @@ function setup() {
   state.root = null; // the main enemy: { id, x, y, vx, vy, at, d }, its last place while seen, kept a while once it vanishes
   state.foe = null; // the main enemy's last place, kept until it is seen dead (where to keep away from)
   state.everSeen = false;
+  state.heavyAt = 0; // when a heavy enemy was last seen
+  state.quick = {}; // ids of robots seen faster than `fast` (darts)
   state.looking = false;
   state.hold = { x: self.pos.x, y: self.pos.y };
   state.jit = random(); // where in its band of hiding places it sits, picked again when it may have been seen
@@ -177,6 +183,8 @@ function tick() {
   let big = null;
   let heaviest = null;
   let kept = null;
+  let keptLight = null;
+  let light = null;
   let gone = false;
   const mem = state.root;
   for (const c of contacts) {
@@ -186,12 +194,24 @@ function tick() {
     // a seeker) only within `seeker` m.
     if ((c.mass >= mainMass ? c.distance : c.distance + far - seeker) < near) near = c.mass >= mainMass ? c.distance : c.distance + far - seeker;
     if (c.mass >= ram && c.distance < threat && !big) big = c;
-    if (c.mass < mainMass || Math.hypot(c.vel.x, c.vel.y) > fast) continue; // not a dart (a titan's weigh over 30 kg)
-    if (mem && c.id === mem.id) kept = c;
-    if (!heaviest || c.mass > heaviest.mass) heaviest = c;
+    // Never one seen fast (a titan's darts weigh over 30 kg too; one let go is slow for a moment, so once fast is
+    // fast for good). A heavy one (`heavyMass`) comes before any lighter one.
+    const v = Math.hypot(c.vel.x, c.vel.y);
+    if (v > fast) state.quick[c.id] = 1;
+    if (c.mass < mainMass || state.quick[c.id]) continue;
+    if (c.mass >= heavyMass) {
+      if (mem && c.id === mem.id) kept = c;
+      if (!heaviest || c.mass > heaviest.mass) heaviest = c;
+    } else if (v < slow) {
+      if (mem && c.id === mem.id) keptLight = c;
+      if (!light || c.mass > light.mass) light = c;
+    }
   }
   if (!jammed && t > 0.05) state.heard = time;
-  const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  let main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  if (main) state.heavyAt = time;
+  // No heavy one for a while (longer in a match: a titan hidden from the first second is out there): a light, slow one.
+  else if (light && time - state.heavyAt > (arena ? fallbackMatch : fallback)) main = keptLight || light;
   if (main) {
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance };
     state.foe = { id: main.id, x: main.pos.x, y: main.pos.y, at: time };
@@ -200,6 +220,7 @@ function tick() {
     state.root = null;
   }
   if (gone && state.foe && mem && state.foe.id === mem.id) state.foe = null;
+  if (gone && !main) state.heavyAt = -1e9; // it is dead: no reason to wait before going at a lighter one
 
   // Darts: one every 0.12 s within a wave, told the main enemy's place and id. A wave waits while it has no main enemy
   // to go at (titans v2: never blind at the mirror of the start any more; the darts flew past an enemy hidden from the

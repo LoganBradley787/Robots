@@ -26,6 +26,8 @@ const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vani
 const room = param('room', 16, { min: 0, max: 60 }); // m it keeps from friends (two gunships that touch can lock together and fall)
 const seek = param('seek', 105, { min: 20, max: 300 }); // m: ring round a main enemy that vanished alive (within 150 m its bubble is seen through)
 const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no main enemy before a lighter one will do
+const heavyMass = param('heavyMass', 300, { min: 0, max: 100000 }); // kg: a robot this heavy is a main enemy before any lighter one
+const fallbackMatch = param('fallbackMatch', 45, { min: 0, max: 240 }); // s with no heavy one, in a match, before a lighter one will do
 const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
 const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must be slower than this (not a dart)
 const widen = param('widen', 12, { min: 0, max: 100 }); // m/s the search ring grows while nothing is found
@@ -131,7 +133,8 @@ function setup() {
   state.dead = false; // whether the root was seen dead (debris)
   state.hider = false; // whether the main enemy has vanished alive once (it hides in a bubble): the ring comes closer
   state.seenAt = -100; // when anyone last saw the root (its own radar or a friend's over the radio)
-  state.mainAt = -100; // when a main enemy (`mainMass` or more) was last seen
+  state.mainAt = 0; // when a heavy enemy (`heavyMass` or more) was last seen
+  state.quick = {}; // ids of robots seen faster than `fast` (darts)
   state.home = self.pos.x;
   state.friends = [];
   state.near = null;
@@ -152,6 +155,7 @@ function lookAround() {
   let heaviest = null;
   let light = null;
   let kept = null;
+  let keptLight = null;
   let gone = false;
   const root = state.root;
   for (const c of contacts) {
@@ -161,21 +165,27 @@ function lookAround() {
     }
     if (c.id === root.id && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side !== 'enemy' || !c.core) continue;
-    // Never a fast one as the main enemy (titans v2): a titan's darts weigh over 30 kg too, and while the titan hid,
-    // the swarm took its darts for it.
-    const quick = Math.hypot(c.vel.x, c.vel.y) > fast;
-    if (c.mass >= mainMass && !quick) {
-      if (c.id === root.id) kept = c;
-      if (!heaviest || c.mass > heaviest.mass) heaviest = c;
-    } else if (Math.hypot(c.vel.x, c.vel.y) < slow && (!light || c.mass > light.mass)) light = c;
+    // Never one seen fast as the main enemy (titans v2): a titan's darts weigh over 30 kg too, and while the titan
+    // hid, the swarm took its darts for it (one let go is slow for a moment, so once fast is fast for good).
+    const v = Math.hypot(c.vel.x, c.vel.y);
+    if (v > fast) state.quick[c.id] = 1;
+    if (c.mass >= mainMass && !state.quick[c.id]) {
+      if (c.mass >= heavyMass) {
+        if (c.id === root.id) kept = c;
+        if (!heaviest || c.mass > heaviest.mass) heaviest = c;
+      } else if (v < slow) {
+        if (c.id === root.id) keptLight = c;
+        if (!light || c.mass > light.mass) light = c;
+      }
+    }
     if (!near) near = c;
     if (!small && c.mass < 60 && c.distance < 140) small = c;
   }
   let main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
   if (main) state.mainAt = time;
-  // No main enemy for a while: a lighter, slow one with a live core is chased instead (until a heavy one shows up).
-  // Never a fast one: an enemy's darts are light too, and the swarm chased one across the sky.
-  else if (light && time - state.mainAt > fallback && (!state.live || root.id === light.id)) main = light;
+  // No heavy enemy (`heavyMass` or more) for a while: a lighter, slow one with a live core will do (until a heavy one
+  // shows up). In a match it waits longer: a titan hidden from the first second is still out there somewhere.
+  else if (light && time - state.mainAt > (arena ? fallbackMatch : fallback)) main = keptLight || light;
   if (main) {
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance };
     state.live = true;
@@ -185,7 +195,10 @@ function lookAround() {
   } else if (state.live && (gone || time - root.t > memory || root.d > lostAt)) {
     state.live = false;
   }
-  if (gone && !main) state.dead = true;
+  if (gone && !main) {
+    state.dead = true;
+    state.mainAt = -1e9; // it is dead: no reason to wait before chasing a lighter one
+  }
   state.friends = friends;
   const pick = small || near;
   state.near = pick ? { x: pick.pos.x, y: pick.pos.y, vx: pick.vel.x, vy: pick.vel.y, t: time, small: pick === small } : null;
