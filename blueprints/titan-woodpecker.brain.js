@@ -14,8 +14,12 @@
 // - Anchors: grapples in the floor, cast at the ground once the base rests. Each rope holds the base where it stands
 //   against a push toward the arena's edge. One that lost its rope is cast again.
 const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts leaving the rack
+const wave = param('wave', 8, { min: 1, max: 200 }); // rack darts in one wave
+const waveGap = param('waveGap', 150, { min: 1, max: 6000 }); // ticks between two waves of the rack (longer than a flare burns)
 const bayGap = param('bayGap', 4, { min: 1, max: 120 }); // ticks between two bays letting go
 const minMass = param('minMass', 30, { min: 0, max: 100000 }); // kg: lighter robots (darts, pods) are never the target
+const smallMass = param('smallMass', 3, { min: 0, max: 100000 }); // kg: with nothing heavier, enemies down to this are the target
+const smallSpeed = param('smallSpeed', 45, { min: 1, max: 1000 }); // m/s: a light one faster than this is a dart, never the target
 const rescan = param('rescan', 180, { min: 30, max: 6000 }); // ticks between two looks at the target's size
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole, only its extremes
 const memory = param('memory', 15, { min: 0, max: 240 }); // s a target that vanished alive is remembered and darts fly to its last place
@@ -31,6 +35,8 @@ const debug = param('debug', 0, { min: 0, max: 1 }); // 1 logs the probes, the h
 const ghostLow = param('ghostLow', 50, { min: 0, max: 250 }); // m: a guess lower than this is a ground robot, hit from above
 const stillSpeed = param('stillSpeed', 1.5, { min: 0, max: 50 }); // m/s: a target that vanished slower than this is kept at its last place
 const useApp = param('useApp', 1, { min: 0, max: 1 }); // 1: the darts come in along the thinnest line the probes found
+const appCover = param('appCover', 1000, { min: 0, max: 100000 }); // health in front of the core on the thinnest line, at least, for the darts to take the way in
+const appSpeed = param('appSpeed', 3, { min: 0, max: 100 }); // m/s: a target faster than this is hit straight
 const flareLate = param('flareLate', 1.1, { min: 0.2, max: 6 }); // s: a flare goes when something will pass the keep within this (as late as works, so one flare covers more)
 const flareSoon = param('flareSoon', 0.35, { min: 0, max: 3 }); // s: and not sooner than this (already here: too late)
 const flareMiss = param('flareMiss', 30, { min: 1, max: 200 }); // m from the main core: a pass this close counts
@@ -94,11 +100,17 @@ function pick() {
   let best = null;
   let kept = null;
   let gone = false;
+  let small = null; // the heaviest light enemy that is not flying like a dart (a gunship, a pod)
+  let keptSmall = null;
   for (const c of contacts) {
     if (c.id === state.tid && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.mass < minMass) {
       if (!state.known[c.id]) launched(c);
+      if (c.mass >= smallMass && Math.hypot(c.vel.x, c.vel.y) < smallSpeed) {
+        if (c.id === state.tid) keptSmall = c;
+        if (!small || c.mass > small.mass) small = c;
+      }
       continue;
     }
     if (c.id === state.tid) kept = c;
@@ -111,6 +123,9 @@ function pick() {
   // seen dead: it is most likely still there.
   const still = s && Math.hypot(s.vx, s.vy) < stillSpeed;
   if (!t && s && (gone || (time - s.at > memory && !still) || s.d > lostAt)) state.last = null;
+  // Nothing heavy left in view and nothing remembered (titans v2, 2026-10): the light ones are the enemy now. A split
+  // titan's last gunships kept a woodpecker idle for the last 160 s of a match.
+  if (!t && (!state.last || state.last.small)) return keptSmall || small;
   return t;
 }
 
@@ -244,7 +259,9 @@ function message(t) {
     const top = b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0;
     const msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, l: b.l, r: b.r, d: b.d, u: b.u, top };
     const a = state.app;
-    if (useApp > 0.5 && a && a.tid === t.id) {
+    // Only for a robot worth going around (armor on every line) that keeps still: a small or moving one is hit
+    // straight, and the bend only made darts miss it (a gun drone lasted 56 s, not 11).
+    if (useApp > 0.5 && a && a.tid === t.id && a.cover >= appCover && Math.hypot(t.vel.x, t.vel.y) < appSpeed) {
       msg.ax = a.ax;
       msg.ay = a.ay;
     }
@@ -257,7 +274,7 @@ function message(t) {
     const b = state.box;
     const msg = { x: s.x, y: s.y, vx: 0, vy: 0, id: s.id, l: b.l, r: b.r, d: b.d, u: b.u, top: b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0 };
     const a = state.app;
-    if (useApp > 0.5 && a && a.tid === s.id) {
+    if (useApp > 0.5 && a && a.tid === s.id && a.cover >= appCover) {
       msg.ax = a.ax;
       msg.ay = a.ay;
     }
@@ -377,7 +394,7 @@ function tick() {
       state.tid = t.id;
       state.boxAt = -100000; // another robot: measure it again
     }
-    state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id };
+    state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id, small: t.mass < minMass };
   }
   if (t) measure(t);
   fire(t);
@@ -387,7 +404,11 @@ function tick() {
 // The rack and the bays.
 function fire(t) {
   // The rack.
-  if (state.next < state.grips.length && frame - state.lastFire >= gap && frame >= 2) {
+  // In waves (titans v2, 2026-10): `wave` darts, then `waveGap` ticks of rest. The whole rack in one stream arrived
+  // within 2 s, so a single flare (it burns 2 s) took every dart of it; waves further apart than a flare burns make a
+  // robot spend a flare on each, and the waves after its last flare get through.
+  const rest = state.next > 0 && state.next % wave === 0 ? waveGap : gap;
+  if (state.next < state.grips.length && frame - state.lastFire >= rest && frame >= 2) {
     const grip = state.grips[state.next++];
     state.lastFire = frame;
     if (get('g' + grip.n, 'armed') > 0) {
