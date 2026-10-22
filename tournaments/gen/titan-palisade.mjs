@@ -122,9 +122,10 @@ function keep(y0, link) {
   for (const [dy, row] of Object.entries(rows)) row.split(' ').forEach((k, i) => put(4 + i, y0 + Number(dy), t[k]));
   for (const dy of [3, 6, 9, 12]) {
     for (let x = 4; x <= 14; x++) {
-      // Titans v2 (2026-10): eight more dense batteries in the two middle decks. Running from a ram, it flies the
-      // whole match and ran dry at 90 s; batteries in its belly in place of plates let darts through to the core.
-      put(x, y0 + dy, (dy === 6 || dy === 9) && x >= 5 && x <= 8 ? t.z : t.f);
+      // Titans v2 (2026-10): eight more dense batteries at the ends of its decks. Running from a ram, it flies the
+      // whole match and ran dry at 90 s. Not in its belly in place of plates, nor over the core (a battery has half
+      // a frame's health): there they let darts through to the core.
+      put(x, y0 + dy, x === 4 || x === 14 ? t.z : t.f);
       put(x, y0 + dy + 1, t.prop(x <= 9 ? 'pa' : 'pb'));
       if (dy > 3 && x >= 6 && x <= 12) put(x, y0 + dy - 1, t.prop(x <= 9 ? 'pa' : 'pb'));
       if (dy > 3 && (x === 5 || x === 13)) put(x, y0 + dy - 1, t.f);

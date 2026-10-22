@@ -69,7 +69,11 @@ const G = 9.81;
 // The ground (titans v2, 2026-10): the edge and the ceiling of a match's arena, none in the open sandbox.
 const EDGE = arena ? arena.x : Infinity;
 const CEIL = arena ? arena.y : Infinity;
-const WEAPONS = ['gun', 'laser', 'cannon', 'lance', 'core'];
+const SHOOTERS = ['gun', 'laser', 'cannon', 'lance'];
+// What else hurts (titans v2, 2026-10): warheads and charges (a rack of darts not yet let go) and the bays that make
+// more. Woodpecker carries no gun at all: its weapon is the 96 darts on its roof.
+const HURTS = ['warhead', 'heavywarhead', 'charge', 'fabbay'];
+const WEAPONS = SHOOTERS.concat(HURTS, ['core']);
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -193,6 +197,8 @@ function setup() {
   state.lift = 0; // 1 while the keep rests on the ground
   state.down = 0; // s the keep has been sinking without moving
   state.landX = 0; // where it set down
+  state.threatAt = -100; // when a light enemy (a dart) last came at the keep
+  state.sprint = 0; // which way it sprints from darts: 1 or -1
   state.tilt = 0; // the lean it holds now, radians
   index();
   if (state.facing === undefined) state.facing = self.pos.x < 0 ? 1 : -1;
@@ -209,9 +215,10 @@ function fly(wx, wy, top, agile, lean, vref) {
   const lift = 120 * state.nprop;
   const lim = agile ? 60 : 12;
   const ey = clamp(wy - self.pos.y, -lim, lim);
-  // Agile: the climb or drop it can still stop from (planned on 5 m/s^2 of braking; a climb brakes on gravity
-  // alone, and one planned harder overshot the arena's ceiling).
-  const vyWant = sign(ey) * Math.min(40, Math.sqrt(10 * Math.abs(ey)), 3 * Math.abs(ey));
+  // Agile: the climb or drop it can still stop from. A climb brakes on gravity alone (planned on 8 m/s^2: one
+  // planned harder overshot the arena's ceiling), a drop on what its lift has over its weight.
+  const brakeY = ey > 0 ? 8 : Math.max(2, 0.8 * ((120 * state.nprop) / m - G));
+  const vyWant = sign(ey) * Math.min(40, Math.sqrt(2 * brakeY * Math.abs(ey)), 3 * Math.abs(ey));
   const ay = agile ? clamp(3 * (vyWant - self.vel.y), -9, 40) : 2.25 * ey - 3 * self.vel.y;
   const need = Math.max(0, m * (G + ay));
   const ex = wx - self.pos.x;
@@ -283,6 +290,7 @@ function study(main) {
     const list = big ? scan(main.id, { of: WEAPONS, acts: true }) : scan(main.id, { acts: true });
     if (!list) return;
     const guns = [];
+    const others = [];
     const fixed = [];
     const dirs = {};
     // Its angle: the core nearest where the radar puts it.
@@ -307,7 +315,11 @@ function study(main) {
         if (dy > topY) topY = dy;
         else if (dy < botY) botY = dy;
       }
-      if (p.type === 'core' || p.acts === undefined || WEAPONS.indexOf(p.type) < 0) continue;
+      if (HURTS.indexOf(p.type) >= 0) {
+        if (others.length < 100) others.push({ dx, dy });
+        continue;
+      }
+      if (p.acts === undefined || SHOOTERS.indexOf(p.type) < 0) continue;
       if (guns.length < 200) guns.push({ dx, dy });
       // The same way as last time, from its core: it blasts a strip that stays put while the robot does.
       const rel = wrap(p.acts - ang);
@@ -323,7 +335,7 @@ function study(main) {
     }
     state.dirs = dirs;
     state.fixed = fixed;
-    state.next = guns;
+    state.next = guns.concat(others);
     if (big) {
       const t = far(main, 0, 1e5);
       const b = far(main, 0, -1e5);
@@ -605,6 +617,21 @@ function keepFlight(main) {
       state.lift = 0;
       return;
     }
+    // Darts coming at it: sprint low over the ground from one end of its stretch to the other and back, flat out,
+    // until none has come for a while. A volley that digs one spot, or leads its target by its speed, lands behind a
+    // keep that keeps going (titans v2, 2026-10: waiting still, in the air or on the ground, Woodpecker's volley ended
+    // it in 15 to 25 s; the round 2 keep, which had fallen and slid along the ground, lived).
+    if (time - state.threatAt < 6) {
+      if (state.sprint === 0) state.sprint = arena ? end : self.pos.x >= wx ? 1 : -1;
+      const span = arena ? Math.min(250, EDGE - room - Math.abs(wx)) : 250;
+      const goal = wx + state.sprint * span;
+      if ((goal - self.pos.x) * state.sprint < 30) state.sprint = -state.sprint;
+      fly(goal, Math.max(12, Math.min(25, self.pos.y)), keepSpeed, true, 0.45);
+      state.lift = 0;
+      state.down = 0;
+      return;
+    }
+    state.sprint = 0;
     // Nothing seen for a long while in the open: it waits where it is.
     if (!arena && !main && (state.seen === undefined ? time : time - state.seen) > restAfter) wx = state.lift === 1 ? state.landX : self.pos.x;
     wx = safe(main, wx, wy, 14);
@@ -615,7 +642,9 @@ function keepFlight(main) {
       return;
     }
     if (Math.abs(wx - self.pos.x) < 60) {
-      fly(wx, self.pos.y - 15, 5, false, 0.1);
+      // Down briskly (about 12 m/s, which its armor belly takes): a dart volley caught the keep on its way down at
+      // 5 m/s. On the ground its decks are a roof over the core; in the air its sides and belly are open.
+      fly(wx, self.pos.y - 15, 5, true, 0.1);
       state.down = self.vel.y > -0.5 ? state.down + dt : 0;
       if (state.down > 1.5) {
         state.lift = 1;
@@ -625,7 +654,8 @@ function keepFlight(main) {
     }
     state.lift = 0;
     state.down = 0;
-    fly(wx, wy, keepSpeed, true, 0.45);
+    // On its way, low over the ground and fast, as it sets down there anyway.
+    fly(wx, arena ? 15 : wy, keepSpeed, true, 0.45);
     return;
   }
   state.lift = 0;
@@ -639,8 +669,10 @@ function keepFlight(main) {
   const botY = main.pos.y + ext.bot;
   const over = topY + clearance;
   const under = botY - clearance;
-  const hiY = Math.min(CEIL - 12, main.pos.y + 500);
   const grounded = botY < 8;
+  // Over a flier, never near the ceiling: one that comes up under the keep carries it out through the top (Anvil
+  // rams from below for that reason).
+  const hiY = Math.min(grounded ? CEIL - 12 : CEIL - 45, main.pos.y + 500);
   // Room over or under it, and whether going that way crosses a strip its fixed guns blast (Juggernaut's roof guns
   // reach past the ceiling: running only along it is how the keep lives; titans v2, 2026-10).
   const roomOver = over < hiY;
@@ -685,6 +717,11 @@ function keepFlight(main) {
     // From a flier, the middle of the air there is: room to go over or under it when it comes.
     wy = arena ? (hiY + 14) / 2 : Math.max(main.pos.y, 100);
   }
+  if (!grounded && self.pos.y > main.pos.y && Math.abs(self.pos.x - main.pos.x) < ext.hx + 25 && main.vel.y > 3) {
+    // Right over a flier coming up: out sideways at once, no higher.
+    wx = self.pos.x + (self.pos.x >= main.pos.x ? 1 : -1) * 300;
+    wy = Math.min(self.pos.y, hiY);
+  }
   fly(wx, clamp(wy, 12, hiY + 2), keepSpeed, true, 0.45);
 }
 
@@ -709,6 +746,12 @@ function tick() {
     if (c.id === state.mainId) kept = c;
     if (c.mass < mainMass) {
       if (!state.light[c.id] && (!fresh1 || c.distance > fresh1.distance)) fresh1 = c;
+      if (role > 0.5 && c.distance < 900) {
+        // Coming at the keep?
+        const rx = self.pos.x - c.pos.x;
+        const ry = self.pos.y - c.pos.y;
+        if (((c.vel.x - self.vel.x) * rx + (c.vel.y - self.vel.y) * ry) / Math.max(1, c.distance) > 20) state.threatAt = time;
+      }
       state.light[c.id] = true;
     } else if (!heaviest || c.mass > heaviest.mass) heaviest = c;
     if (c.distance < 300 && list.length < 8) list.push(c);
@@ -740,7 +783,8 @@ function tick() {
       const rx = k.pos.x - main.pos.x;
       const ry = k.pos.y - main.pos.y;
       const dist = Math.hypot(rx, ry);
-      const closing = ((main.vel.x - k.vel.x) * rx + (main.vel.y - k.vel.y) * ry) / Math.max(1, dist);
+      // Its own speed toward the keep (the keep's own moving must not make a fortress a ram).
+      const closing = (main.vel.x * rx + main.vel.y * ry) / Math.max(1, dist);
       const size = state.ext ? state.ext.hx : 40;
       if ((closing > 12 && dist < 1200) || dist - size < 150) state.ramUntil = time + ramFor;
     }
