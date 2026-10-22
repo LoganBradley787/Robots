@@ -30,6 +30,7 @@ const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no heavy 
 const fallbackMatch = param('fallbackMatch', 45, { min: 0, max: 240 }); // the same in a match
 const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must be slower than this
 const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
+const spacing = param('spacing', 0.2, { min: 0, max: 5 }); // s at least between two darts let go
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const lookFor = param('lookFor', 0.2, { min: 0.02, max: 2 }); // s its bubble lapses to listen
@@ -147,6 +148,7 @@ function setup() {
   // side go first, and the ones behind climb higher before they turn (their clearDist), so their paths do not cross.
   state.order = [15, 14, 9, 8, 7, 6, 1, 0, 13, 12, 11, 10, 5, 4, 3, 2];
   state.next = 0;
+  state.lastDart = -100;
   state.jam = 0;
   state.jamUntil = -1;
   state.evade = -100;
@@ -230,7 +232,8 @@ function tick() {
   state.looking = false;
   if (state.next < darts && state.next < state.order.length) {
     const due = state.next < half ? 0.15 + 0.12 * state.next : waveGap + 0.12 * (state.next - half);
-    if (t >= due) {
+    // Never two darts closer than `spacing` s apart, however late a wave is (let go a tick apart, they collided).
+    if (t >= due && time - state.lastDart >= spacing) {
       const r = state.root;
       if (r) {
         const k = state.order[state.next];
@@ -242,6 +245,7 @@ function tick() {
         }
         set('g' + k, 'fire', 1);
         state.next++;
+        state.lastDart = time;
       } else state.looking = true;
     }
   }
