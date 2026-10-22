@@ -57,7 +57,7 @@ const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot big
 const gap = param('gap', 30, { min: 0, max: 200 }); // m between its nose (or tail) and a ground enemy it besieges (clear of what it launches from its edge)
 const weaveAmp = param('weaveAmp', 25, { min: 0, max: 200 }); // m either way it drifts while parked under something
 const weavePeriod = param('weavePeriod', 14, { min: 2, max: 120 }); // s for one drift there and back
-const standBack = param('standBack', 700, { min: 100, max: 2000 }); // m it keeps from a ground enemy it cannot move nor burn, with no arena edge
+const standBack = param('standBack', 1150, { min: 100, max: 3000 }); // m it keeps from a ground enemy it cannot move nor burn, with no arena edge: past a radar's 1000 m, where nothing is sent after it
 const roam = param('roam', 300, { min: 0, max: 2000 }); // m either side of the last sighting it patrols with no arena edge
 const rest = param('rest', 60, { min: 0, max: 3600 }); // s with nothing seen before it stops to save energy (no arena edge)
 const forget = param('forget', 90, { min: 5, max: 3600 }); // s unseen before a main enemy that vanished alive is let go
@@ -441,7 +441,9 @@ function tick() {
         vdes = Math.abs(goal - me.x) < 1 ? tvx : tvx + toward(goal - me.x, a, ramTop);
         say('besiege robot ' + T.id);
       } else {
-        const far = open ? T.pos.x - s * standBack : -s * edgeX;
+        // Out of its radar's reach (1000 m): the far corner did that in the arena. Standing still 700 m off, a fortress's
+        // darts found the core in 80 s. Drifting all the same.
+        const far = open ? T.pos.x - s * standBack + weave() : clamp(-s * edgeX + weave(), -edgeX, edgeX);
         vdes = toward(far - me.x, a, patrolTop);
         say('stand back from robot ' + T.id);
       }
