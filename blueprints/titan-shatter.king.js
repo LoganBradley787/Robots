@@ -32,6 +32,7 @@ const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must
 const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
 const bigParts = param('bigParts', 300, { min: 1, max: 100000 }); // parts: a robot this big gets darts diving from above
 const arcSpacing = param('arcSpacing', 0.6, { min: 0, max: 5 }); // s between darts diving down one shaft (they met over the top)
+const flee = param('flee', 300, { min: 0, max: 1000 }); // m: any robot of mainMass or more this close is flown away from
 const coast = param('coast', 5, { min: 0, max: 60 }); // s an unseen main enemy is taken to keep its speed
 const spacing = param('spacing', 0.2, { min: 0, max: 5 }); // s at least between two darts let go
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
@@ -199,6 +200,7 @@ function tick() {
 
   let near = Infinity;
   let big = null;
+  let closest = null;
   let heaviest = null;
   let kept = null;
   let light = null;
@@ -212,6 +214,8 @@ function tick() {
     // a seeker) only within `seeker` m.
     if ((c.mass >= mainMass ? c.distance : c.distance + far - seeker) < near) near = c.mass >= mainMass ? c.distance : c.distance + far - seeker;
     if (c.mass >= ram && c.distance < threat && !big) big = c;
+    // Anything of `mainMass` or more this close (a gun panel that found it in its bubble) is flown away from too.
+    if (c.mass >= mainMass && c.distance < flee && !closest && Math.hypot(c.vel.x, c.vel.y) <= fast) closest = c;
     // Never one seen fast (a titan's darts weigh over 30 kg too; one let go is slow for a moment, so once fast is
     // fast for good). A heavy one (`heavyMass`) comes before any lighter one.
     const v = Math.hypot(c.vel.x, c.vel.y);
@@ -303,6 +307,7 @@ function tick() {
   let place = f ? hidePlace(f) : state.hold;
   if (!f) state.hold = { x: state.hold.x, y: arena ? arena.y - 60 : Math.max(state.hold.y, 30) };
   // A ram coming (seen only when it is not hiding): off to the far side of it, and to the other end of the sky.
+  if (!big && closest) big = closest;
   if (big) {
     state.evade = time;
     const away = self.pos.x >= big.pos.x ? 1 : -1;
