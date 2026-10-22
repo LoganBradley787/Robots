@@ -201,7 +201,7 @@ function lookAround() {
   // shows up). In a match it waits longer: a titan hidden from the first second is still out there somewhere.
   else if (!main && light && time - state.mainAt > (arena ? fallbackMatch : fallback)) main = light;
   if (main) {
-    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance };
+    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance, size: sizeOf(main) };
     state.live = true;
     if (main.id !== root.id) state.hider = false;
     state.seenAt = time;
@@ -215,14 +215,20 @@ function lookAround() {
   }
   state.friends = friends;
   const pick = small || near;
-  state.near = pick ? { x: pick.pos.x, y: pick.pos.y, vx: pick.vel.x, vy: pick.vel.y, t: time, small: pick === small } : null;
+  state.near = pick ? { x: pick.pos.x, y: pick.pos.y, vx: pick.vel.x, vy: pick.vel.y, t: time, small: pick === small, size: sizeOf(pick) } : null;
+}
+
+// About how far a robot's parts reach round its core, for how close a shell must go (titans v2): a quarter of the
+// square root of its part count, at most 12 m (a titan of 1400 parts: 9 m; a walker of 87: 2 m).
+function sizeOf(c) {
+  return Math.min(12, 0.25 * Math.sqrt(c.parts || 1));
 }
 
 // Where a remembered robot is now (it keeps its speed for a second, then is taken as still).
 function now(r) {
   const age = time - r.t;
   const k = age < 1 ? age : 0;
-  return { x: r.x + r.vx * k, y: r.y + r.vy * k, vx: age < 1 ? r.vx : 0, vy: age < 1 ? r.vy : 0 };
+  return { x: r.x + r.vx * k, y: r.y + r.vy * k, vx: age < 1 ? r.vx : 0, vy: age < 1 ? r.vy : 0, size: r.size || 0 };
 }
 
 function turret(gunTag, rotTag, target) {
@@ -260,9 +266,11 @@ function turret(gunTag, rotTag, target) {
   // The barrel turns with the body too: take the body's turn out, then close the gap.
   set(rotTag, 'turn', clamp((6 * err - self.angVel) / 2, -1, 1));
   const sight = gun.out.sightSide;
-  // On the aim point within 1.5 m (twice that once blasting, so a barrel on the edge does not stutter).
-  const tol = Math.max(0.012, 1.5 / Math.max(dist, 1)) * (state.firing[gunTag] ? 2 : 1);
-  let ok = Math.abs(err) < tol && sight !== 1 && sight !== 2;
+  // On the aim point within 1.5 m, or within the target's size: any part of a big robot hit is damage done (titans
+  // v2; at 1.5 m the guns stayed quiet beside a titan most of the time). Twice that once blasting, so a barrel on the
+  // edge does not stutter. And whatever the aim, an enemy part on the gun's own sight line is worth a shell.
+  const tol = Math.max(0.012, Math.max(1.5, target.size || 0) / Math.max(dist, 1)) * (state.firing[gunTag] ? 2 : 1);
+  let ok = (Math.abs(err) < tol || (sight === 3 && Math.abs(err) < 0.2)) && sight !== 1 && sight !== 2;
   if (ok) {
     const ux = Math.cos(aim);
     const uy = Math.sin(aim);
