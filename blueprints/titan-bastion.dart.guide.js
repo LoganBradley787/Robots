@@ -5,6 +5,14 @@
 // - It arms only within `armDist` m of the point it flies to (the robot it tracks, else the launcher's point), as the
 //   hive's darts do. Armed 15 m out of its bay, darts let go 0.05 s apart bumped each other over the fortress and blew
 //   up there (a third of them); unarmed, a bump or a shell on the way only breaks one.
+// - (titans v2, 2026-10) It also arms the moment its seeker sees ANY enemy robot close ahead (`armNear` m plus a
+//   size from its part count, measured to its core), so a dart that runs into a panel or a drone on its way goes off
+//   instead of breaking. And once it is clear of its own volley (`armOut` m from where it was let go and no friendly
+//   robot within `armSafe` m) it arms anyway: a robot hidden in a jammer bubble is never seen, and its hull is hit
+//   on the way to the guessed point. Darts of one volley still touching each other stay safe.
+// - (titans v2, 2026-10) A way in: the launcher may send `via`, a list of points given from the robot it follows (so
+//   they move with it). The dart flies through them in turn at `viaSpeed` (slow enough to turn round), then straight
+//   at the robot, led as usual. The base uses it to come in on the robot's thinnest side, its back most often.
 // Seeker guide (M8): flies to the point its launcher sent it, and follows the robot its seeker tracks there.
 // Starts when the missile wakes (its decoupler lets go) or on deploy. G turns it off and on.
 // - setup() reads the launcher's point from inbox (and `arc` if the launcher chose the path for this shot). With none,
@@ -48,7 +56,14 @@ const passBy = param('passBy', 15, { min: 0, max: 50 }); // m it keeps over a fr
 const passMass = param('passMass', 25, { min: 0, max: 1000 }); // kg: friendly robots this heavy or more are flown over (drones, not other missiles)
 const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
+const viaSpeed = param('viaSpeed', 45, { min: 5, max: 200 }); // m/s it holds on its way through the `via` points
+const viaReach = param('viaReach', 25, { min: 2, max: 200 }); // m: this close to a `via` point it goes on to the next
+const viaSpread = param('viaSpread', 8, { min: 0, max: 50 }); // m each `via` point is moved at random, so darts of a volley do not meet there
+const viaMax = param('viaMax', 25, { min: 1, max: 120 }); // s at most on the `via` points, then straight in
 const armDist = param('armDist', 200, { min: 5, max: 2000 }); // m from the point it flies to: it arms inside this
+const armNear = param('armNear', 40, { min: 0, max: 500 }); // m (plus the robot's size): an enemy seen this close arms it
+const armOut = param('armOut', 60, { min: 0, max: 2000 }); // m from where it was let go: past this, clear of its volley, it arms
+const armSafe = param('armSafe', 7, { min: 0, max: 50 }); // m: a friendly robot (a dart of its volley) this close keeps it safe
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -126,12 +141,36 @@ function setup() {
     if (typeof d.id === 'number') state.id = d.id;
     // The launcher may choose the path for this shot: `arc: 1` over the top, `arc: 0` straight in.
     if (typeof d.arc === 'number') state.phase = d.arc > 0.5 ? 'climb' : 'direct';
+    // A way in (titans v2, 2026-10): points given from the robot, flown through in turn before going in.
+    state.via = undefined;
+    if (Array.isArray(d.via) && d.via.length > 0) {
+      state.via = [];
+      // Each dart's points shifted a little (seeded), so a volley does not meet itself at them.
+      for (const v of d.via) if (v && typeof v.x === 'number' && typeof v.y === 'number' && state.via.length < 4) state.via.push({ x: v.x + viaSpread * (2 * random() - 1), y: v.y + viaSpread * (2 * random() - 1) });
+      if (state.via.length > 0) {
+        state.phase = 'via';
+        state.viaK = 0;
+      } else state.via = undefined;
+    }
   }
   // The fuse fits the flight: a dart sent far gets the time to get there (titans let go from 900 m).
   state.fuse = fuse;
   if (state.point) {
     const far = Math.hypot(state.point.x - self.pos.x, state.point.y - self.pos.y);
-    state.fuse = clamp(fuseSpare + far / fuseSpeed, fuse, Math.max(fuse, fuseMax));
+    let path = far / fuseSpeed;
+    if (state.via) {
+      // Through the points first: the whole way at `viaSpeed` (titans v2, 2026-10).
+      let x = self.pos.x;
+      let y = self.pos.y;
+      path = 0;
+      for (const v of state.via) {
+        path += Math.hypot(state.point.x + v.x - x, state.point.y + v.y - y);
+        x = state.point.x + v.x;
+        y = state.point.y + v.y;
+      }
+      path = (path + Math.hypot(state.point.x - x, state.point.y - y)) / viaSpeed;
+    }
+    state.fuse = clamp(fuseSpare + path, fuse, Math.max(fuse, fuseMax));
   }
 }
 
@@ -157,6 +196,7 @@ function pick() {
         state.id = undefined;
         state.point = undefined;
         state.aim = Math.atan2(self.vel.y, self.vel.x);
+        if (state.phase === 'via') state.phase = 'direct';
         break;
       }
     }
@@ -176,6 +216,21 @@ function pick() {
   return best;
 }
 
+/**
+ * Arming by what the seeker sees (titans v2, 2026-10): any enemy robot close ahead (its core within `armNear` plus a
+ * size from its part count, a 100 part panel about 10 m, a 3000 part titan about 55), or, once `armOut` m out, no
+ * friendly robot within `armSafe` m. Contacts come nearest first, so the loop stops early.
+ */
+function armByContacts(out) {
+  let friendNear = false;
+  for (const c of contacts) {
+    if (c.side === 'enemy' && c.distance < armNear + Math.sqrt(c.parts)) return true;
+    if (c.side === 'friend' && c.distance < armSafe) friendNear = true;
+    if (c.distance > armNear + 100) break;
+  }
+  return out >= armOut && !friendNear;
+}
+
 function tick() {
   if (time - state.start > state.fuse) boom();
 
@@ -191,7 +246,8 @@ function tick() {
   // (no message) stays a dud unless it finds a target. Only near where it is going (`armDist`).
   const to = seen ? seen.pos : state.point ? here() : null;
   const nearPoint = to && Math.hypot(to.x - self.pos.x, to.y - self.pos.y) < armDist;
-  if (!state.armed && (state.launched || seen) && nearPoint && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
+  const out = Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y);
+  if (!state.armed && (state.launched || seen) && time - state.start >= clear && out >= clearDist && (nearPoint || armByContacts(out))) {
     set('warhead', 'arm', 1);
     set('heavywarhead', 'arm', 1);
     state.armed = true;
@@ -243,7 +299,16 @@ function tick() {
     let gx = p.x + lead * state.vel.x * tgo;
     // Never under the ground: led by a falling or sinking robot's speed, darts flew into the ground short of it.
     let gy = Math.max(floor, p.y + lead * state.vel.y * tgo);
-    if (state.phase === 'climb') {
+    if (state.phase === 'via') {
+      // Through the way-in points (titans v2, 2026-10), each carried with the robot, never under the ground; no lead.
+      const v = state.via[state.viaK];
+      gx = p.x + v.x;
+      gy = Math.max(floor + 2, p.y + v.y);
+      if (Math.hypot(gx - self.pos.x, gy - self.pos.y) < viaReach || time - state.start > viaMax) {
+        state.viaK++;
+        if (state.viaK >= state.via.length) state.phase = 'direct';
+      }
+    } else if (state.phase === 'climb') {
       // Up toward `height` above the point, then down: once the point is steeply enough below it, or once the ground
       // left is about what it needs to stop moving sideways (v^2 / 2a with its sideways push, plus the ground it covers
       // while its nose swings round), whichever comes first.
@@ -282,9 +347,10 @@ function tick() {
   // turning: slower means a tighter turn over the top.
   // Some push always goes along: with none, which way it points would depend only on which way it drifts, and it
   // would flip between two headings. Diving, it pushes at full.
-  if (state.phase === 'climb') {
+  if (state.phase === 'climb' || state.phase === 'via') {
     const speed = Math.hypot(self.vel.x, self.vel.y);
-    along = clamp(self.mass * (2 * (arcSpeed - speed) + 9.81 * Math.sin(aim)), Math.min(along, 0.4 * thrust), along);
+    // On the way-in points it may ease off further (titans v2, 2026-10): at 0.4 it went 90 m/s and could not turn round.
+    along = clamp(self.mass * (2 * ((state.phase === 'via' ? viaSpeed : arcSpeed) - speed) + 9.81 * Math.sin(aim)), Math.min(along, (state.phase === 'via' ? 0.1 : 0.4) * thrust), along);
   }
   // Right after release, only hold the aim: swinging the nose would swing the tail into the launcher.
   const clearing = time - state.start < clear || Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) < clearDist;
