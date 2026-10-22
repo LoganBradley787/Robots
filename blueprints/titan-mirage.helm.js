@@ -31,6 +31,7 @@ const roofIn = param('roofIn', 35, { min: 5, max: 200 }); // m: and never asks t
 // The arena (titans v2, 2026-10): its edges come from the global `arena` (null in an open sandbox: no edge, no ceiling).
 const edge = arena ? Math.max(50, arena.x - edgeIn) : Infinity;
 const ceiling = arena ? Math.min(roof, arena.y - roofIn) : roof;
+const tilt = (param('tilt', 10, { min: 0, max: 20 }) * Math.PI) / 180; // degrees it leans its lift to move sideways (titans v2, 2026-10)
 const cruise = param('cruise', 24, { min: 1, max: 60 }); // m/s sideways at most
 const reach = param('reach', 960, { min: 50, max: 1000 }); // m: a salvo only at something this close
 const salvo = param('salvo', 20, { min: 1, max: 64 }); // ready bays that make a salvo
@@ -45,6 +46,7 @@ const wave = param('wave', 4, { min: 1, max: 64 }); // ghosts let go together in
 const waveGap = param('waveGap', 0.4, { min: 0, max: 5 }); // s between waves
 const guardAt = param('guardAt', 450, { min: 0, max: 1000 }); // m: an enemy ship this close gets every other wave
 const minGuard = param('minGuard', 30, { min: 0, max: 100000 }); // kg: lighter ones (darts) never do
+const cutBelow = param('cutBelow', 35, { min: 0, max: 200 }); // m under its height where it cuts what reaches up from below
 const hunt = param('hunt', 60, { min: 0, max: 600 }); // s the heaviest enemy is remembered out of sight
 const huntAt = param('huntAt', 700, { min: 100, max: 1000 }); // m from its last place the hull closes to (inside radar reach)
 const awake = param('awake', 20, { min: 1, max: 600 }); // s: in an open sandbox it keeps its cloak up this long after it last saw an enemy
@@ -173,6 +175,10 @@ function setup() {
   state.dodgeAt = -100;
   state.lastWave = -100; // when the last wave went
   state.waves = 0; // waves let go so far
+  state.reachAt = -1000; // when it last looked for a part reaching up (frame)
+  state.reachId = -1;
+  state.reach = null; // that part, from its robot's core
+  state.tip = 0; // the angle it leans to
   state.side = 0; // which side of the tracked robot it keeps to (-1 left, 1 right)
   state.pod = 0; // the next jammer pod to light
   state.podAt = 0; // when it may
@@ -250,15 +256,6 @@ function tick() {
     state.dodge = 0;
   }
   high = clamp(high, 25, ceiling);
-  const vyWant = clamp(1.0 * (high - self.pos.y), -Math.min(22, Math.sqrt(2 * 6 * Math.max(0, self.pos.y - 15))), 22);
-  // Over the arena's ceiling by more than `roofIn` / 2 (pushed up by something below): no lift at all.
-  const az = arena && self.pos.y > ceiling + roofIn / 2 ? -9.81 : clamp(2.5 * (vyWant - self.vel.y), -8, 10);
-  const lift = state.m * (9.81 + az);
-  const w = 1.3;
-  const torque = state.inertia * (-(w * w) * self.angle - 2 * w * self.angVel);
-  const th = share(lift, torque);
-  for (let k = 0; k < strips; k++) if (state.cap[k] > 0) set('l' + k, 'throttle', th[k]);
-
   // place: standoff from the tracked robot, on the side it is on unless only the other side has the room
   let want = state.x0 - state.dir * backoff;
   const b = state.big;
@@ -277,13 +274,37 @@ function tick() {
     if (arena && state.side === -state.dir) want = state.side * Math.max(state.side * want, state.side * state.x0);
   }
   want = clamp(want, -edge, edge);
-  // No faster than it can still stop in the room left (its boosters are small for its weight).
-  const stop = (0.6 * Math.min(state.ff, state.fr)) / Math.max(state.m, 1);
+  // No faster than it can still stop in the room left. Its boosters are small for its weight, so it also leans its
+  // lift the way it must go, up to `tilt` (titans v2, 2026-10): shells and rams that shoved it out of the arena before
+  // are now pushed back against with a good part of its lift.
+  const lean = Math.tan(tilt);
+  const stop = (0.6 * Math.min(state.ff, state.fr) + 0.3 * state.m * 9.81 * lean) / Math.max(state.m, 1);
   const room = Math.abs(want - self.pos.x);
-  const vWant = sign(want - self.pos.x) * Math.min(cruise, Math.sqrt(2 * stop * room));
-  const ax = clamp(1.5 * (vWant - self.vel.x), -3, 3) * state.dir; // along the bow
-  set('pf', 'throttle', clamp((ax * state.m) / Math.max(state.ff, 1e-9), 0, 1));
-  set('pr', 'throttle', clamp((-ax * state.m) / Math.max(state.fr, 1e-9), 0, 1));
+  const vWant = sign(want - self.pos.x) * Math.min(cruise, Math.sqrt(2 * stop * room), 0.25 * room);
+  const axWorld = clamp(1.5 * (vWant - self.vel.x), -4, 4);
+  const ax = axWorld * state.dir; // along the bow
+  const pf = clamp((ax * state.m) / Math.max(state.ff, 1e-9), 0, 1);
+  const pr = clamp((-ax * state.m) / Math.max(state.fr, 1e-9), 0, 1);
+  set('pf', 'throttle', pf);
+  set('pr', 'throttle', pr);
+  // What the boosters leave of it, from the lift: tipping by angle a pushes sideways by g tan(a) (counterclockwise is +).
+  const rest = axWorld - (state.dir * (pf * state.ff - pr * state.fr)) / Math.max(state.m, 1);
+  // Small errors are the boosters' (a 170 m hull swings slowly: leaning for every meter rocked it), and the lean
+  // follows what is asked over about a second.
+  const lack = Math.abs(rest) > 0.4 ? rest - 0.4 * sign(rest) : 0;
+  state.tip += (clamp(-Math.atan2(lack, 9.81), -tilt, tilt) - state.tip) * 0.03;
+  const tip = state.tip;
+
+  // height and level (with the lean asked above)
+  const vyWant = clamp(1.0 * (high - self.pos.y), -Math.min(22, Math.sqrt(2 * 6 * Math.max(0, self.pos.y - 15))), 22);
+  // Over the arena's ceiling by more than `roofIn` / 2 (pushed up by something below): no lift at all.
+  const az = arena && self.pos.y > ceiling + roofIn / 2 ? -9.81 : clamp(2.5 * (vyWant - self.vel.y), -8, 10);
+  const lift = (state.m * (9.81 + az)) / Math.max(0.8, Math.cos(self.angle));
+  const w = 1.3;
+  const torque = state.inertia * (-(w * w) * (self.angle - tip) - 2 * w * self.angVel);
+  const th = share(lift, torque);
+  for (let k = 0; k < strips; k++) if (state.cap[k] > 0) set('l' + k, 'throttle', th[k]);
+
 
   // ghosts
   let ready = 0;
@@ -314,9 +335,13 @@ function tick() {
     const fore = (t.pos.x - self.pos.x) * state.dir; // m along the hull from the core toward the bow
     const under = t.pos.y < self.pos.y - 4 && fore > -40 && fore < 215;
     if (t.distance <= reach && !under) aim = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id };
-    // Every other wave goes at the nearest gun ship that has come close (it is what wears the hull down), not the main enemy.
-    const g = state.waves % 2 === 1 ? guard() : null;
-    if (g) aim = { x: g.pos.x, y: g.pos.y, vx: g.vel.x, vy: g.vel.y, id: g.id };
+    // What threatens the hull most comes first: the part of a heavy enemy below that reaches up to its height (a
+    // mast that would shove it) gets every wave until it is cut; else every other wave goes at the nearest gun ship
+    // come close (it is what wears the hull down).
+    const r = reaching(t);
+    const g = r || state.waves % 2 === 0 ? null : guard();
+    if (r) aim = r;
+    else if (g) aim = { x: g.pos.x, y: g.pos.y, vx: g.vel.x, vy: g.vel.y, id: g.id };
   } else if (going || time - state.lastSalvo >= blindGap) {
     // Nothing tracked: the place it vanished (kept `memory` s, carried on by its speed for a moment), else, with
     // nothing ever seen, the mirror of the start. Seen once and gone: no salvo.
@@ -344,6 +369,32 @@ function tick() {
   state.lastWave = time;
   if (!going) state.lastSalvo = time;
   state.firstReady = -1;
+}
+
+/**
+ * Where to cut a heavy enemy below that reaches up to the hull (titans v2, 2026-10): its part nearest a point `cutBelow`
+ * m under the hull's height, over it, if it has one there (a ground titan's mast). Juggernaut's mast pushed Mirage out
+ * of the arena from under it, and no lean holds 20 t; cut lower down, what is left no longer reaches. Found with one
+ * small scan every second; the ghost follows the robot and goes for that point on it (`ox`, `oy` from its core).
+ */
+function reaching(t) {
+  if (t.mass < heavy || t.pos.y > self.pos.y - 60) return null;
+  if (frame - state.reachAt >= 60 || state.reachId !== t.id) {
+    state.reachAt = frame;
+    state.reachId = t.id;
+    state.reach = null;
+    const at = { x: t.pos.x, y: self.pos.y - cutBelow };
+    const p = scan(t.id, { near: at, most: 1 });
+    if (p && p.length > 0 && p[0].pos.y > self.pos.y - cutBelow - 15) state.reach = { x: p[0].pos.x - t.pos.x, y: p[0].pos.y - t.pos.y };
+  }
+  const r = state.reach;
+  if (!r) return null;
+  const x = t.pos.x + r.x;
+  const y = t.pos.y + r.y;
+  // Not under the deck (a ghost would dive through its own hull).
+  const fore = (x - self.pos.x) * state.dir;
+  if (fore > -60 && fore < 235) return null;
+  return { x, y, vx: t.vel.x, vy: t.vel.y, id: t.id, ox: r.x, oy: r.y };
 }
 
 /**

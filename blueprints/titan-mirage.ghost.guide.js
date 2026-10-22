@@ -23,6 +23,8 @@
 //   that hits an armed warhead sets it off, so the warheads arm only that close. The charge arms `chargeAt` m out:
 //   it needs an enemy part within 1.5 m or a hard hit, and shot it only breaks. It ends itself `life` s after letting go at the latest (sized from the distance it was sent: the
 //   flight at `lifeSpeed` plus `lifeSpare`, up to `lifeMax`).
+// - Sent with an offset (`ox`, `oy`, titans v2, 2026-10), it goes for that point on the robot it follows, measured from
+//   its core, not the core: the hull sends such ghosts at the part of a tall enemy that would reach it.
 // Let go with no point (knocked loose), it does nothing and stays safe.
 const thrust = param('thrust', 800, { min: 1, max: 100000 }); // N, both boosters
 const clear = param('clear', 14, { min: 0, max: 100 }); // m straight out of the bay before it turns
@@ -77,6 +79,7 @@ function setup() {
   state.a0 = self.angle;
   state.fix = null; // { x, y, vx, vy, t }: the last known place and speed of what it goes after
   state.id = undefined;
+  state.off = null; // where on the robot it goes, from its core (none: the core)
   state.live = -100; // when it last had a live fix
   state.dead = false; // what it was sent at died, and nothing else was found
   state.best = Infinity;
@@ -87,6 +90,7 @@ function setup() {
     if (!d || typeof d.x !== 'number' || typeof d.y !== 'number') continue;
     state.fix = { x: d.x, y: d.y, vx: d.vx || 0, vy: d.vy || 0, t: time };
     if (typeof d.id === 'number') state.id = d.id;
+    if (typeof d.ox === 'number' && typeof d.oy === 'number') state.off = { x: d.ox, y: d.oy };
   }
   state.life = life;
   if (state.fix) {
@@ -99,7 +103,8 @@ function setup() {
 /** The fix carried on to now by its speed (for `fixAge` s at most), never under the ground. */
 function here(f) {
   const age = Math.min(time - f.t, fixAge);
-  return { x: f.x + f.vx * age, y: Math.max(0, f.y + f.vy * age) };
+  const o = state.off;
+  return { x: f.x + f.vx * age + (o ? o.x : 0), y: Math.max(0, f.y + f.vy * age + (o ? o.y : 0)) };
 }
 
 /**
