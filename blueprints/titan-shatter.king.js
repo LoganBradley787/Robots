@@ -202,7 +202,7 @@ function tick() {
   const mem = state.root;
   const keepId = mem ? mem.id : state.foe ? state.foe.id : -1;
   for (const c of contacts) {
-    if (mem && c.id === mem.id && (c.side !== 'enemy' || !c.core)) gone = true;
+    if (c.id === keepId && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side !== 'enemy' || !c.core) continue;
     // What could see it: a robot of `mainMass` or more within `far` (radars reach 1000 m), a lighter one (a dart with
     // a seeker) only within `seeker` m.
@@ -232,7 +232,7 @@ function tick() {
   } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
     state.root = null;
   }
-  if (gone && state.foe && mem && state.foe.id === mem.id) state.foe = null;
+  if (gone && state.foe && state.foe.id === keepId) state.foe = null;
   if (gone && !main) state.heavyAt = -1e9; // it is dead: no reason to wait before going at a lighter one
 
   // Darts: one every 0.12 s within a wave, told the main enemy's place and id. A wave waits while it has no main enemy
