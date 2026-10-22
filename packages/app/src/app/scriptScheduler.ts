@@ -5,6 +5,30 @@
  * the robots to skip go out, so it is testable without a clock. The world never sees any of this but the list.
  */
 
+import type { SettingsStore } from '../world/deploySettings';
+
+const SMOOTH_KEY = 'robots.smooth';
+
+/**
+ * Whether Smooth was left on (kept across reloads). Off when nothing is saved, the value is anything but 'on', or
+ * storage is blocked. Loading it on changes nothing for replays: the skips it makes are logged like any others.
+ */
+export function loadSmooth(store: SettingsStore | undefined): boolean {
+  try {
+    return store?.getItem(SMOOTH_KEY) === 'on';
+  } catch {
+    return false;
+  }
+}
+
+export function saveSmooth(store: SettingsStore | undefined, on: boolean): void {
+  try {
+    store?.setItem(SMOOTH_KEY, on ? 'on' : 'off');
+  } catch {
+    // Blocked storage: the setting still holds for this session.
+  }
+}
+
 /** Every robot's scripts run at least every this many ticks, over budget or not: a missile never flies blind for long. */
 export const SMOOTH_FLOOR = 4;
 

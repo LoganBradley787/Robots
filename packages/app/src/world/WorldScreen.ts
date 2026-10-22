@@ -32,7 +32,7 @@ import { canPossess, isClick, nextRobot } from '../control/possession';
 import { PerfMeter } from '../app/perfMeter';
 import type { ScriptClock } from '../app/timedHost';
 import { msText, ScriptCosts } from '../app/scriptCosts';
-import { FramePace, frameSimBudget, ScriptScheduler, scriptBudget, ticksPerWindow } from '../app/scriptScheduler';
+import { FramePace, frameSimBudget, loadSmooth, saveSmooth, ScriptScheduler, scriptBudget, ticksPerWindow } from '../app/scriptScheduler';
 import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
 import { AUTO_KEYS, buildReplay, type ReplayFile, type ScriptHost } from '@robots/sim-core';
@@ -195,6 +195,7 @@ export class WorldScreen {
     this.settingsStore = browserStorage();
     this.deploy = loadDeploySettings(this.settingsStore);
     this.farDistance = loadFarDistance(this.settingsStore);
+    this.smooth = loadSmooth(this.settingsStore);
     this.sound = new SoundScene(this.settingsStore);
     this.readoutOpen = this.settingsStore?.getItem(READOUT_KEY) === 'open';
     this.cam = createCamera(file.spawn.x, file.spawn.y - 3);
@@ -242,10 +243,10 @@ export class WorldScreen {
   /** Script time in the tick being stepped, so the rest of the tick can be told apart. */
   private stepScriptMs = 0;
   /**
-   * Smooth (the Sandbox menu): off by default, kept across Reset world but not across a reload. While it is on the
-   * scheduler picks, before each tick, which robots' scripts sit out; the budget comes from these smoothed times.
+   * Smooth (the Sandbox menu): off by default, kept across Reset world and across reloads (`loadSmooth`). While it is
+   * on the scheduler picks, before each tick, which robots' scripts sit out; the budget comes from these smoothed times.
    */
-  private smooth = false;
+  private smooth: boolean;
   private readonly scheduler = new ScriptScheduler();
   private readonly smoothed = { frameMs: 1000 / 60, viewMs: 0, restMs: 0 };
 
@@ -269,6 +270,7 @@ export class WorldScreen {
 
   toggleSmooth(): void {
     this.smooth = !this.smooth;
+    saveSmooth(this.settingsStore, this.smooth);
     this.scheduler.clear();
   }
 
