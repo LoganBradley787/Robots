@@ -541,7 +541,13 @@ function tick() {
         state.holdX = null;
       }
       const quiet = time - state.holdSeen;
-      if ((Math.abs(err) < 8 + weaveAmp && quiet > wait) || quiet > 45) state.holdX = null;
+      if ((Math.abs(err) < 8 + weaveAmp && quiet > wait) || quiet > 45) {
+        // Done there: patrol on past it. The sights read the place again two seconds later, and holding and patrolling
+        // took turns every few seconds, each turn a bank flat out for 10 s (that emptied the batteries by 2.5 min).
+        state.holdX = null;
+        state.skipX = held;
+        state.skipUntil = time + 20;
+      }
       say('hold under x ' + Math.round(held));
     } else if (open && time - state.idleSince > rest) {
       err = 0;
