@@ -397,6 +397,11 @@ function tick() {
     state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id, small: t.mass < minMass };
   }
   if (t) measure(t);
+  if (debug && frame % 300 === 0) {
+    let ready = 0;
+    for (const tag of state.bays) if (get(tag, 'ready') > 0) ready++;
+    log('status t', t ? t.id + ' ' + Math.round(t.mass) : '-', 'last', state.last ? state.last.id : '-', 'bays', parts.filter((p) => p.type === 'fabbay').length, 'built', state.bays.map((b) => get(b, 'built')).join(','), 'ready', ready, 'energy', Math.round(self.energy.stored), 'enemies', contacts.filter((c) => c.side === 'enemy' && c.core).map((c) => Math.round(c.mass) + '@' + Math.round(Math.hypot(c.vel.x, c.vel.y))).join(','));
+  }
   fire(t);
   if (t && useApp > 0.5) probe(t);
 }
