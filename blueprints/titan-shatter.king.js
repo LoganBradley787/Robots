@@ -37,7 +37,7 @@ const lookFor = param('lookFor', 0.2, { min: 0.02, max: 2 }); // s its bubble la
 const far = param('far', 1200, { min: 0, max: 1500 }); // m it keeps from the main enemy (radars reach 1000 m; a long robot's radar may stand 150 m from its core)
 const refresh = param('refresh', 20, { min: 1, max: 240 }); // s: hidden, it listens when what it knows is older than this
 const seeker = param('seeker', 400, { min: 0, max: 1500 }); // m: a light enemy (a dart) this close may see it
-const top = param('top', 236, { min: 20, max: 1000 }); // m it flies at with no arena (in a match: 14 under the ceiling)
+const top = param('top', 236, { min: 20, max: 1000 }); // m it flies at with no arena (in a match: 25 to 28 under the ceiling: a blast once lifted it over)
 const G = 9.81;
 const LIFT = 120;
 
@@ -176,7 +176,7 @@ function hasPod(k) {
 // match, inside the bounds (it cannot always get that far: then it stays as far as it can and hides).
 function hidePlace(f) {
   const edgeX = arena ? arena.x - 150 : Infinity;
-  const y = arena ? arena.y - 14 + 3 * state.jit : top;
+  const y = arena ? arena.y - 28 + 3 * state.jit : top;
   let dir = Math.sign(self.pos.x - f.x) || state.sgn;
   const dy = Math.max(0, y - f.y);
   const reach = Math.sqrt(Math.max(0, far * far - dy * dy)); // sideways it must be from it at that height
@@ -286,13 +286,13 @@ function tick() {
     state.jit = random();
   }
   let place = f ? hidePlace(f) : state.hold;
-  if (!f) state.hold = { x: state.hold.x, y: arena ? arena.y - 14 : Math.max(state.hold.y, 30) };
+  if (!f) state.hold = { x: state.hold.x, y: arena ? arena.y - 28 : Math.max(state.hold.y, 30) };
   // A ram coming (seen only when it is not hiding): off to the far side of it, and to the other end of the sky.
   if (big) {
     state.evade = time;
     const away = self.pos.x >= big.pos.x ? 1 : -1;
     const edgeX = arena ? arena.x - 180 : Infinity;
-    const hi = arena ? arena.y - 18 : top;
+    const hi = arena ? arena.y - 30 : top;
     state.dodge = { x: clamp(self.pos.x + away * 150, -edgeX, edgeX), y: big.pos.y > 120 ? 35 : hi };
   }
   if (time - state.evade < 8 && state.dodge) place = state.dodge;
