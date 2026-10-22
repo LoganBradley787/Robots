@@ -60,6 +60,9 @@ const reserveS = param('reserve', 60, { min: 0, max: 3600 }); // s of hover kept
 const restAfter = param('restAfter', 20, { min: 1, max: 600 }); // s with no enemy seen or remembered before it lands to save energy
 const floorShare = param('floorShare', 0.15, { min: 0, max: 1 }); // share of the reserve it keeps sitting (sensors and turrets)
 const gunRange = param('gunRange', 0.85, { min: 0.1, max: 1 }); // share of `reach` it closes to when its turrets are all it has left
+const holdMargin = param('holdMargin', 1.05, { min: 0.5, max: 2 }); // it leans no further than leaves this many times its weight in lift
+const srcBack = param('srcBack', 0.3, { min: 0, max: 5 }); // s back along a new light enemy's path to where it came from
+const srcMemory = param('srcMemory', 20, { min: 0, max: 300 }); // s that place is worth darts with nothing else seen
 const restHeight = param('restHeight', 9, { min: 1, max: 50 }); // m from its core down to the ground when it sits (the belly turrets are under it)
 const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
@@ -78,7 +81,7 @@ const gain = param('gain', 6, { min: 0.1, max: 50 }); // turret turn rate per ra
 const size = param('size', 1.2, { min: 0.1, max: 10 }); // m off the aim point that still counts as on target
 const clearPath = param('clearPath', 6, { min: 0, max: 50 }); // m: a friend this close to a turret's line holds its fire
 
-const debug = param('debug', 0, { min: 0, max: 1 }); // 1 logs the hover's numbers once a second
+const debug = param('debug', 0, { min: 0, max: 2 }); // 1 logs why darts go or wait every 2 s, 2 the hover's numbers once a second too
 const along = (param('along', 76, { min: 10, max: 90 }) * Math.PI) / 180; // degrees off its built aim a turret may still blast
 const g = 9.81;
 const SWING = Math.PI / 2;
@@ -192,6 +195,8 @@ function setup() {
   state.dodgeAt = -Infinity;
   state.busyAt = 0; // when it last had an enemy seen or remembered
   state.sitting = false; // landed with its propellers off (no arena only)
+  state.ids = {}; // light enemies seen, by id: when first seen
+  state.src = null; // where the last new light enemy came from: { x, y, at }
   recache();
 }
 
@@ -206,7 +211,11 @@ function fly(wantY, wantVx, leanMax) {
   const upward = clamp(5 * (climbing - self.vel.y), -g, rise);
   const throttle = clamp((self.mass * (g + upward)) / Math.max(up, 1e-9), 0, 1);
 
-  const want = clamp(0.05 * (self.vel.x - wantVx), -leanMax, leanMax);
+  // Never leaned past what still holds it up (titans v2, 2026-10): at 60 degrees its propellers lift half their push,
+  // under its weight, so a hard lean against a push made it sink, under a ground enemy's mast, which swept it out.
+  const holdUp = Math.acos(clamp((holdMargin * self.mass * g) / Math.max(n * lift, 1e-9), 0, 1));
+  const tilt = Math.min(leanMax, holdUp);
+  const want = clamp(0.05 * (self.vel.x - wantVx), -tilt, tilt);
   const off = want - self.angle;
   state.trim = clamp(state.trim + 0.05 * off * dt, -0.2, 0.2);
   const ccw = lift * C.right;
@@ -222,7 +231,7 @@ function fly(wantY, wantVx, leanMax) {
     const d = Math.abs(diff);
     base = d >= 0.5 ? 0.5 : clamp(throttle, d, 1 - d);
   }
-  if (debug > 0.5 && frame % 60 === 0) log('y ' + self.pos.y.toFixed(0) + ' x ' + self.pos.x.toFixed(0) + ' wantY ' + wantY.toFixed(0) + ' wantVx ' + wantVx.toFixed(1) + ' thr ' + throttle.toFixed(2) + ' base ' + base.toFixed(2) + ' diff ' + diff.toFixed(2) + ' props ' + n + ' mass ' + self.mass.toFixed(0) + ' up ' + up.toFixed(0));
+  if (debug > 1.5 && frame % 60 === 0) log('y ' + self.pos.y.toFixed(0) + ' x ' + self.pos.x.toFixed(0) + ' wantY ' + wantY.toFixed(0) + ' wantVx ' + wantVx.toFixed(1) + ' thr ' + throttle.toFixed(2) + ' base ' + base.toFixed(2) + ' diff ' + diff.toFixed(2) + ' props ' + n + ' mass ' + self.mass.toFixed(0) + ' up ' + up.toFixed(0));
   set('lprop', 'throttle', clamp(base - diff, 0, 1));
   set('rprop', 'throttle', clamp(base + diff, 0, 1));
 }
@@ -352,11 +361,17 @@ function tick() {
       if (c.mass >= followMass) {
         if (mem && c.id === mem.id) kept = c;
         if (!heaviest || c.mass > heaviest.mass) heaviest = c; // nearest first, so a tie goes to the nearer
+      } else if (state.ids[c.id] === undefined) {
+        // A light enemy seen for the first time (titans v2, 2026-10): just let go, or just out of a jammer's bubble
+        // (30 m), so where it came from is close by. A robot that hides its core in bubbles is found by its darts.
+        state.ids[c.id] = time;
+        state.src = { x: c.pos.x - c.vel.x * srcBack, y: Math.max(1, c.pos.y - c.vel.y * srcBack), at: time };
       }
       if (c.distance <= track && foes.length < 12) foes.push(c);
     } else if (c.side === 'friend' && c.distance < 170 && friends.length < 10) friends.push(c);
   }
   const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
+  if (main && (!mem || mem.id !== main.id)) log('main enemy: robot ' + main.id + ', ' + main.mass.toFixed(0) + ' kg, ' + main.distance.toFixed(0) + ' m off');
   if (main) {
     state.mem = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance };
     state.everSeen = true;
@@ -364,6 +379,9 @@ function tick() {
     state.mem = null;
   }
   const last = state.mem;
+  if (frame % 600 === 0) for (const id in state.ids) if (time - state.ids[id] > 120) delete state.ids[id];
+  // Where enemy darts come from, while nothing heavier is seen or remembered: their launcher is about there.
+  const src = !main && !last && state.src && time - state.src.at < srcMemory ? state.src : null;
 
   // The ground it keeps to (titans v2, 2026-10): inside the arena's edge and under its ceiling when there is one (the
   // global `arena`), else `roam` m either side of where it started, so in the open sandbox it never runs off for good.
@@ -385,7 +403,7 @@ function tick() {
   const hoverDraw = ((self.mass * g) / lift) * propDraw;
   const stored = self.energy.stored;
   const reserve = reserveS * hoverDraw;
-  if (main || last) state.busyAt = time;
+  if (main || last || src) state.busyAt = time;
   const wantRest = !arena && (time - state.busyAt > restAfter || stored < reserve);
   if (!wantRest) state.sitting = false;
   let spare;
@@ -429,6 +447,7 @@ function tick() {
   }
   if (state.dodge && time - state.dodgeAt > 2.5) state.dodge = 0;
   if (state.dodge && !ram) wantY = state.dodge > 0 ? high : low;
+  if (!main && src) wantX = src.x + (Math.abs(src.x - self.pos.x) > 5 ? -Math.sign(src.x - self.pos.x) : state.side) * standoff;
   wantX = clamp(wantX, midX - half, midX + half);
   if (wantRest) {
     // Down to the ground: where the belly turrets' sights meet it (pointing down at rest), else y 0.
@@ -464,10 +483,11 @@ function tick() {
   const steady = Math.abs(self.vel.y) < still && (Math.abs(self.vel.x) < drift || time - state.slowAt > driftWait);
   // Somewhere to send it: the main enemy, its last place for a while after it vanished, or (nothing ever seen) the
   // mirror of its own start (only in an arena: its middle is x 0; titans v2). With none of those it holds its darts.
-  const someplace = main || last || (arena && !state.everSeen);
+  const someplace = main || last || src || (arena && !state.everSeen);
+  if (debug > 0.5 && frame % 120 === 0) log('darts: spare ' + spare + ' place ' + !!someplace + ' tilt ' + (self.angle * 57.3).toFixed(0) + ' vx ' + self.vel.x.toFixed(1) + ' vy ' + self.vel.y.toFixed(1) + ' steady ' + steady + ' bays ' + C.bays.length + ' energy ' + (stored / 1000).toFixed(0) + 'k' + (main ? ' main ' + main.id + ' at ' + main.pos.x.toFixed(0) + ',' + main.pos.y.toFixed(0) : ''));
   if (spare && someplace && time - state.lastRel >= gap && Math.abs(self.angle) < level && steady) {
     // The bay nearest the target goes first, so a dart never turns across one let go just before it.
-    const toRight = (main ? main.pos.x : last ? last.x : -state.home.x) >= self.pos.x;
+    const toRight = (main ? main.pos.x : last ? last.x : src ? src.x : -state.home.x) >= self.pos.x;
     const order = C.bays.slice().sort((p, q) => (toRight ? q.p.pos.x - p.p.pos.x : p.p.pos.x - q.p.pos.x));
     for (const b of order) {
       if (!(b.p.out.ready > 0)) continue;
@@ -487,7 +507,8 @@ function tick() {
         // Where it was last seen, carried on by its speed for a moment (a mover is not where it vanished for long).
         const age = Math.min(time - last.at, 2);
         msg = { x: last.x + last.vx * age, y: Math.max(1, last.y + last.vy * age), vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
-      } else msg = { x: -state.home.x, y: [5, 80, 150][state.sent % 3], vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
+      } else if (src) msg = { x: src.x, y: src.y, vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
+      else msg = { x: -state.home.x, y: [5, 80, 150][state.sent % 3], vx: 0, vy: 0, arc: 0, clear, lvx: self.vel.x, lvy: self.vel.y };
       send(b.tag + b.p.out.built, msg);
       set(b.tag, 'release', 1);
       state.lastRel = time;
