@@ -200,6 +200,7 @@ function tick() {
   let light = null;
   let gone = false;
   const mem = state.root;
+  const keepId = mem ? mem.id : state.foe ? state.foe.id : -1;
   for (const c of contacts) {
     if (mem && c.id === mem.id && (c.side !== 'enemy' || !c.core)) gone = true;
     if (c.side !== 'enemy' || !c.core) continue;
@@ -211,7 +212,7 @@ function tick() {
     // fast for good). A heavy one (`heavyMass`) comes before any lighter one.
     const v = Math.hypot(c.vel.x, c.vel.y);
     if (v > fast) state.quick[c.id] = 1;
-    if (mem && c.id === mem.id && !state.quick[c.id]) kept = c; // kept however light it gets
+    if (c.id === keepId && !state.quick[c.id]) kept = c; // kept however light it gets, and after a while unseen
     if (c.mass < mainMass || state.quick[c.id]) continue;
     if (c.mass >= heavyMass) {
       if (!heaviest || c.mass > heaviest.mass) heaviest = c;
