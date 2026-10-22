@@ -239,6 +239,8 @@ function tick() {
     state.foeParts = main.parts || 0;
     state.everSeen = true;
   } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
+    // Vanished alive, not at the radar's edge: it hides in a bubble, and may see the king while unseen itself.
+    if (!gone && mem.d <= lostAt) state.foeHides = true;
     state.root = null;
   }
   if (gone && state.foe && state.foe.id === keepId) state.foe = null;
@@ -288,7 +290,9 @@ function tick() {
   const ca = fo ? Math.min(time - fo.at, coast) : 0;
   const f = fo ? { x: fo.x + fo.vx * ca, y: Math.max(0, fo.y + fo.vy * ca) } : state.everSeen ? null : state.guess;
   const fd = f ? Math.hypot(f.x - self.pos.x, f.y - self.pos.y) : Infinity;
-  const exposed = near < far || fd < far;
+  // A main enemy that hides is assumed to be able to see it from anywhere (its radars may stand outside its bubble,
+  // and it moves unseen): then the king stays in its bubble (51 pods last 255 s).
+  const exposed = near < far || fd < far || (state.foeHides && !!state.foe);
   // Listening: when the pod burns out the bubble lapses `lookFor` s, if darts wait or what it knows is stale, but only
   // while it knows of no main enemy (titans v2): lapsing within the enemy's radar reach let it be seen, and its darts
   // came 10 s later. Knowing one, it keeps hidden and goes by where it was last seen.
