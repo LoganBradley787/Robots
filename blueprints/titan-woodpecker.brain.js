@@ -131,8 +131,12 @@ function pick() {
   const still = s && Math.hypot(s.vx, s.vy) < stillSpeed;
   if (!t && s && (gone || (time - s.at > memory && !still) || s.d > lostAt)) state.last = null;
   // Nothing heavy left in view and nothing remembered (titans v2, 2026-10): the light ones are the enemy now. A split
-  // titan's last gunships kept a woodpecker idle for the last 160 s of a match.
-  if (!t && (!state.last || state.last.small)) return keptSmall || small;
+  // titan's last gunships kept a woodpecker idle for the last 160 s of a match. Not while light robots keep being let
+  // go from somewhere hidden: then the launcher is the enemy (the darts went at a hidden trickster's darts instead).
+  if (!t && (!state.last || state.last.small)) {
+    if (!ghost()) return keptSmall || small;
+    state.last = null;
+  }
   return t;
 }
 
