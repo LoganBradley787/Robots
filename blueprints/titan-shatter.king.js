@@ -32,6 +32,7 @@ const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must
 const fast = param('fast', 90, { min: 10, max: 1000 }); // m/s: a robot this fast is a dart, never the main enemy
 const bigParts = param('bigParts', 300, { min: 1, max: 100000 }); // parts: a robot this big gets darts diving from above
 const arcSpacing = param('arcSpacing', 0.6, { min: 0, max: 5 }); // s between darts diving down one shaft (they met over the top)
+const coast = param('coast', 5, { min: 0, max: 60 }); // s an unseen main enemy is taken to keep its speed
 const spacing = param('spacing', 0.2, { min: 0, max: 5 }); // s at least between two darts let go
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered and darts may go to its last place
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
@@ -39,7 +40,7 @@ const lookFor = param('lookFor', 0.2, { min: 0.02, max: 2 }); // s its bubble la
 const far = param('far', 1200, { min: 0, max: 1500 }); // m it keeps from the main enemy (radars reach 1000 m; a long robot's radar may stand 150 m from its core)
 const refresh = param('refresh', 20, { min: 1, max: 240 }); // s: hidden, it listens when what it knows is older than this
 const seeker = param('seeker', 400, { min: 0, max: 1500 }); // m: a light enemy (a dart) this close may see it
-const top = param('top', 236, { min: 20, max: 1000 }); // m it flies at with no arena (in a match: 25 to 28 under the ceiling: a blast once lifted it over)
+const top = param('top', 236, { min: 20, max: 1000 }); // m it flies at with no arena (in a match: 57 to 60 under the ceiling: rams and blasts lifted it over from 14 and from 28)
 const G = 9.81;
 const LIFT = 120;
 
@@ -179,7 +180,7 @@ function hasPod(k) {
 // match, inside the bounds (it cannot always get that far: then it stays as far as it can and hides).
 function hidePlace(f) {
   const edgeX = arena ? arena.x - 150 : Infinity;
-  const y = arena ? arena.y - 28 + 3 * state.jit : top;
+  const y = arena ? arena.y - 60 + 3 * state.jit : top;
   let dir = Math.sign(self.pos.x - f.x) || state.sgn;
   const dy = Math.max(0, y - f.y);
   const reach = Math.sqrt(Math.max(0, far * far - dy * dy)); // sideways it must be from it at that height
@@ -230,7 +231,7 @@ function tick() {
   else if (!main && light && time - state.heavyAt > (arena ? fallbackMatch : fallback)) main = light;
   if (main) {
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance, parts: main.parts || 0 };
-    state.foe = { id: main.id, x: main.pos.x, y: main.pos.y, at: time };
+    state.foe = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time };
     state.everSeen = true;
   } else if (mem && (gone || time - mem.at > memory || mem.d > lostAt)) {
     state.root = null;
@@ -273,7 +274,11 @@ function tick() {
 
   // Seen from where? An enemy in view within `far`, the main enemy's last place within `far`, or (in a match)
   // nothing seen yet: it hides.
-  const f = state.foe || (state.everSeen ? null : state.guess);
+  // Unseen, the main enemy is taken to carry on as it went for up to `coast` s (a ram coming while the king is blind
+  // in its bubble).
+  const fo = state.foe;
+  const ca = fo ? Math.min(time - fo.at, coast) : 0;
+  const f = fo ? { x: fo.x + fo.vx * ca, y: Math.max(0, fo.y + fo.vy * ca) } : state.everSeen ? null : state.guess;
   const fd = f ? Math.hypot(f.x - self.pos.x, f.y - self.pos.y) : Infinity;
   const exposed = near < far || fd < far;
   // Listening: when the pod burns out the bubble lapses `lookFor` s, if darts wait or what it knows is stale.
@@ -296,13 +301,13 @@ function tick() {
     state.jit = random();
   }
   let place = f ? hidePlace(f) : state.hold;
-  if (!f) state.hold = { x: state.hold.x, y: arena ? arena.y - 28 : Math.max(state.hold.y, 30) };
+  if (!f) state.hold = { x: state.hold.x, y: arena ? arena.y - 60 : Math.max(state.hold.y, 30) };
   // A ram coming (seen only when it is not hiding): off to the far side of it, and to the other end of the sky.
   if (big) {
     state.evade = time;
     const away = self.pos.x >= big.pos.x ? 1 : -1;
     const edgeX = arena ? arena.x - 180 : Infinity;
-    const hi = arena ? arena.y - 30 : top;
+    const hi = arena ? arena.y - 60 : top;
     state.dodge = { x: clamp(self.pos.x + away * 150, -edgeX, edgeX), y: big.pos.y > 120 ? 35 : hi };
   }
   if (time - state.evade < 8 && state.dodge) place = state.dodge;
