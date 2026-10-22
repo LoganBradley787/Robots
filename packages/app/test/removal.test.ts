@@ -7,16 +7,29 @@ function memoryStore(): { getItem(k: string): string | null; setItem(k: string, 
 }
 
 describe('removing robots (M16)', () => {
-  it('far away is measured from the middle of the world on the ground, up included', () => {
+  it('far away is measured from the camera, up included', () => {
     const spots = [
       { id: 1, x: 0, y: 3 },
-      { id: 2, x: -600, y: 2 },
-      { id: 3, x: 300, y: 400 },
-      { id: 4, x: 499, y: 0 },
+      { id: 2, x: -2600, y: 2 },
+      { id: 3, x: 1200, y: 1600 },
+      { id: 4, x: 1999, y: 0 },
     ];
-    expect(farIds(spots, 500)).toEqual([2]);
-    expect(farIds(spots, 250)).toEqual([2, 3, 4]);
-    expect(farIds(spots, 1000)).toEqual([]);
+    const middle = { x: 0, y: 0 };
+    expect(farIds(spots, 2000, middle)).toEqual([2]);
+    expect(farIds(spots, 1000, middle)).toEqual([2, 3, 4]);
+    expect(farIds(spots, 5000, middle)).toEqual([]);
+  });
+
+  it('a fight watched off to one side stays, and the middle of the world can be the far one', () => {
+    const spots = [
+      { id: 1, x: 0, y: 2 },
+      { id: 2, x: 3000, y: 5 },
+      { id: 3, x: 3400, y: 300 },
+    ];
+    // Logan watches the fight at x 3100: it stays, the robot back at the middle is 3100 m away.
+    expect(farIds(spots, 2000, { x: 3100, y: 10 })).toEqual([1]);
+    expect(farIds(spots, 1000, { x: 3100, y: 10 })).toEqual([1]);
+    expect(farIds(spots, 5000, { x: 3100, y: 10 })).toEqual([]);
   });
 
   it('a team is its robots and the pieces that broke off them, which keep its team', () => {
@@ -40,10 +53,18 @@ describe('removing robots (M16)', () => {
   it('the distance is remembered, and anything but a choice reads as the default', () => {
     const store = memoryStore();
     expect(loadFarDistance(store)).toBe(DEFAULT_FAR);
-    saveFarDistance(store, 1000);
-    expect(loadFarDistance(store)).toBe(1000);
+    expect(DEFAULT_FAR).toBe(2000);
+    saveFarDistance(store, 5000);
+    expect(loadFarDistance(store)).toBe(5000);
     store.setItem('robots.removeFar', '42');
     expect(loadFarDistance(store)).toBe(DEFAULT_FAR);
+    // The old choices: 250 and 500 are gone and read as the default, 1000 is still one and keeps.
+    store.setItem('robots.removeFar', '250');
+    expect(loadFarDistance(store)).toBe(DEFAULT_FAR);
+    store.setItem('robots.removeFar', '500');
+    expect(loadFarDistance(store)).toBe(DEFAULT_FAR);
+    store.setItem('robots.removeFar', '1000');
+    expect(loadFarDistance(store)).toBe(1000);
     expect(loadFarDistance(undefined)).toBe(DEFAULT_FAR);
   });
 

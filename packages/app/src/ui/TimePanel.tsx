@@ -36,7 +36,8 @@ export function TimePanel({ store, actions }: { store: Store<AppState>; actions:
           </span>
         )}
       </div>
-      <div class="tp-who" title={v.who}>
+      {/* Another team's robot (only watched, never driven) in that team's color. */}
+      <div class="tp-who" title={v.who} style={v.inspect && v.inspect.team !== 0 ? { color: v.inspect.color } : undefined}>
         {v.who}
       </div>
       <div class="tp-drop">

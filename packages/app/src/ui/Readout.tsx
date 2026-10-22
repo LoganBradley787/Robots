@@ -1,6 +1,7 @@
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
+import { energyText, massText, positionText, velocityText, type InspectView } from '../world/inspect';
 
 export interface ReadoutActions {
   /** Opens or folds the live readout. Folded, the world keeps no trace. */
@@ -8,8 +9,31 @@ export interface ReadoutActions {
 }
 
 /**
- * The live readout (M16), in the world, for the robot you control or watch: each script running, off or crashed with
- * the message and line, the keys it reads, its last log lines and what it set this tick; for each input a key or a
+ * Whose robot you are looking at, when it is not yours: the team's name in its color, and that you only watch it. Your
+ * own robots need no tag.
+ */
+function TeamTag({ i }: { i: InspectView }) {
+  if (i.team === 0) return null;
+  return (
+    <span class="team-tag" style={{ color: i.color, borderColor: i.color }} title={`${i.name} is on ${i.teamName === 'Enemy' ? 'the enemy side' : `team ${i.teamName}`}: you can watch it, not drive it`}>
+      {i.teamName}
+    </span>
+  );
+}
+
+/** Where the robot is and how fast it goes, always shown, folded or not. */
+function Where({ i }: { i: InspectView }) {
+  return (
+    <span class="where" title="Its core's position (x right, y up, meters from the middle of the world) and its speed">
+      {positionText(i)} <span class="sp">{velocityText(i)}</span>
+    </span>
+  );
+}
+
+/**
+ * The live readout (M16), in the world, for the robot you control or watch, any robot, an enemy's included (read-only):
+ * its position, speed, energy, parts and mass; each script running, off or crashed with the message and line, the
+ * keys it reads, its last log lines and what it set this tick; for each input a key or a
  * script drives, who is driving it right now ("W is held: the key's 100% beats hover's 54%"); and each held key a
  * script reads ("W is held: hover reads it"). Nothing here can be changed: settings are set in the builder. It folds to
  * a small tab, which still says when a script has stopped.
@@ -17,6 +41,8 @@ export interface ReadoutActions {
 export function Readout({ store, actions }: { store: Store<AppState>; actions: ReadoutActions }) {
   const r = useStore(store, (s) => s.world?.readout);
   const open = useStore(store, (s) => s.world?.readoutOpen === true);
+  const i = useStore(store, (s) => s.world?.inspect);
+  const unlimited = useStore(store, (s) => s.world?.unlimitedEnergy ?? false);
   if (!r) return null;
   const crashed = r.scripts.filter((s) => s.state === 'crashed');
   const on = r.scripts.filter((s) => s.state === 'on').length;
@@ -24,6 +50,8 @@ export function Readout({ store, actions }: { store: Store<AppState>; actions: R
     return (
       <button type="button" class={`readout-tab plate${crashed.length > 0 ? ' bad' : ''}`} onClick={() => actions.setReadout(true)} title="Open the live readout: what this robot's scripts and keys are doing right now">
         <span class="h">Readout</span>
+        {i && <TeamTag i={i} />}
+        {i && <Where i={i} />}
         {r.scripts.length === 0 ? (
           <span class="dim">no scripts</span>
         ) : crashed.length > 0 ? (
@@ -46,6 +74,7 @@ export function Readout({ store, actions }: { store: Store<AppState>; actions: R
     <div class="readout plate float">
       <div class="rhead">
         <span class="h">Readout</span>
+        {i && <TeamTag i={i} />}
         <span class="who">
           {r.watching ? 'watching' : 'controlling'} <b>{r.robot}</b>
         </span>
@@ -54,6 +83,20 @@ export function Readout({ store, actions }: { store: Store<AppState>; actions: R
           &#9662;
         </button>
       </div>
+      {i && (
+        <div class="rstats">
+          <Where i={i} />
+          <span title="Energy stored, of what its batteries and core hold">
+            <span class="lbl">energy</span> {i.energy ? energyText(i.energy, unlimited) : 'none'}
+          </span>
+          <span>
+            <span class="lbl">parts</span> {i.parts}
+          </span>
+          <span>
+            <span class="lbl">mass</span> {massText(i.massKg)}
+          </span>
+        </div>
+      )}
       <div class="rbody scroll">
         {r.scripts.length === 0 && r.inputs.length === 0 && <p class="dim">This robot has no scripts and no keys.</p>}
         {r.cost !== undefined && (
