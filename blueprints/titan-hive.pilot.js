@@ -74,6 +74,7 @@ const touchReach = param('touchReach', 320, { min: 0, max: 1000 }); // m: a heav
 const touchDist = param('touchDist', 90, { min: 0, max: 500 }); // m from its core: a part this close is the turrets' first target
 const touchEvery = param('touchEvery', 0.5, { min: 0.05, max: 10 }); // s between those scans
 const cutUnder = param('cutUnder', 28, { min: 0, max: 100 }); // m under its core it cuts a mast that presses on it (the belly is 9 m down; the belly turrets swing no closer than 76 degrees to level)
+const srcSpeed = param('srcSpeed', 10, { min: 0, max: 200 }); // m/s: a new light enemy slower than this tells nothing of a launcher
 const restHeight = param('restHeight', 9, { min: 1, max: 50 }); // m from its core down to the ground when it sits (the belly turrets are under it)
 const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
@@ -381,9 +382,10 @@ function tick() {
       if (c.mass >= followMass) {
         if (mem && c.id === mem.id) kept = c;
         if (!heaviest || c.mass > heaviest.mass) heaviest = c; // nearest first, so a tie goes to the nearer
-      } else if (state.ids[c.id] === undefined) {
+      } else if (state.ids[c.id] === undefined && c.vel.x * c.vel.x + c.vel.y * c.vel.y > srcSpeed * srcSpeed) {
         // A light enemy seen for the first time (titans v2, 2026-10): just let go, or just out of a jammer's bubble
         // (30 m), so where it came from is close by. A robot that hides its core in bubbles is found by its darts.
+        // Only a moving one: pieces of a broken robot lying about are not darts on their way.
         state.ids[c.id] = time;
         state.src = { x: c.pos.x - c.vel.x * srcBack, y: Math.max(1, c.pos.y - c.vel.y * srcBack), at: time };
       }
@@ -440,7 +442,10 @@ function tick() {
 
   // Where to be.
   let wantY = cruise;
-  let wantX = state.home.x + state.side * retreat;
+  // With nothing to fight it waits `retreat` m back from its start, until it has seen an enemy. After that (a win,
+  // or one that went quiet) it waits over the middle of the arena (titans v2, 2026-10): radars reach 1000 m, so from
+  // there they see the whole arena, and a new enemy anywhere in it is found.
+  let wantX = arena && state.everSeen ? midX : state.home.x + state.side * retreat;
   let ram = false;
   if (main && main.mass >= followMass) {
     const dx = main.pos.x - self.pos.x;
