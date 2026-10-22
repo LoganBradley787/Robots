@@ -44,7 +44,7 @@ const vmax = param('vmax', 32, { min: 1, max: 80 }); // m/s sideways
 const chase = param('chase', 65, { min: 1, max: 100 }); // m/s: a panel's fastest, keeping up with a fast main robot
 const keepSpeed = param('keepSpeed', 75, { min: 1, max: 100 }); // m/s, the keep's fastest
 const below = param('below', 35, { min: 5, max: 200 }); // m under the arena's ceiling where the keep waits (it loses above it)
-const back = param('back', 200, { min: 20, max: 900 }); // m in from the arena's edge where the keep waits with no ram about
+const back = param('back', 500, { min: 20, max: 900 }); // m in from the arena's edge where the keep waits with no ram about
 const room = param('room', 140, { min: 20, max: 900 }); // m in from the edge: as far as the keep runs from a ram
 const standoff = param('standoff', 650, { min: 300, max: 1000 }); // m back from the main robot the keep waits in the open
 const waitUp = param('waitUp', 120, { min: 20, max: 400 }); // m over the main robot the keep waits in the open
@@ -58,7 +58,7 @@ const cutMax = param('cutMax', 15000, { min: 0, max: 1000000 }); // the most a b
 const rescan = param('rescan', 3, { min: 0.5, max: 60 }); // s between studies of the main robot
 const fresh = param('fresh', 8, { min: 0, max: 100 }); // s a sighting of the hidden main robot is trusted
 const wait = param('wait', 5, { min: 0, max: 100 }); // s in place with nothing seen before a search
-const pace = param('pace', 12, { min: 1, max: 40 }); // m/s of a search
+const pace = param('pace', 25, { min: 1, max: 40 }); // m/s of a search
 const debug = param('debug', 0, { min: 0, max: 1 });
 const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main robot is never lighter (darts, pods)
 const guards = param('guards', 2, { min: 0, max: 100 }); // panels that stay by the keep while no ram is about
@@ -571,7 +571,9 @@ function keepFlight(main) {
     let wx;
     let wy;
     if (arena) {
-      // An arena: wait toward its own end, high up, with room behind it (a bump past the edge is a loss).
+      // An arena: wait on its own half, with room behind it (a bump past the edge is a loss), not so far back that
+      // what comes for it stays out of the panels' way (titans v2, 2026-10: at the very end, Hive stood off out of
+      // their sight all match).
       wx = end * (EDGE - back);
       wy = CEIL - below;
     } else if (main || state.last) {
@@ -678,14 +680,17 @@ function tick() {
   let mine = null;
   let heaviest = null;
   let kept = null;
+  let fresh1 = null; // a light enemy (a dart, a drone) seen for the first time this tick
   const list = [];
   for (const c of contacts) {
     if (c.side === 'friend' && c.core && (!mine || c.mass > mine.mass)) mine = c;
     if (c.id === state.mainId && (c.side !== 'enemy' || !c.core)) state.mainId = -1; // seen as debris: forgotten
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.id === state.mainId) kept = c;
-    if (c.mass < mainMass) state.light[c.id] = true;
-    else if (!heaviest || c.mass > heaviest.mass) heaviest = c;
+    if (c.mass < mainMass) {
+      if (!state.light[c.id] && (!fresh1 || c.distance > fresh1.distance)) fresh1 = c;
+      state.light[c.id] = true;
+    } else if (!heaviest || c.mass > heaviest.mass) heaviest = c;
     if (c.distance < 300 && list.length < 8) list.push(c);
   }
   const main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
@@ -708,8 +713,10 @@ function tick() {
     // A ram is a heavy main robot coming at the keep (or right by it), and it stays one for `ramFor` s after: one that
     // keeps its distance (a carrier) or sits still (a fortress) is not run from, and its propellers are not what the
     // batteries are for (titans v2, 2026-10: any heavy robot that moved counted, and Hive lived through the match).
+    // A panel goes by the keep when it sees it (the heaviest friend, far heavier than a panel), else by itself.
+    const keepSeen = mine && mine.mass > 1.5 * self.mass;
     if (main.mass >= ram) {
-      const k = role > 0.5 ? { pos: self.pos, vel: self.vel } : mine || { pos: self.pos, vel: self.vel };
+      const k = role > 0.5 || !keepSeen ? { pos: self.pos, vel: self.vel } : mine;
       const rx = k.pos.x - main.pos.x;
       const ry = k.pos.y - main.pos.y;
       const dist = Math.hypot(rx, ry);
@@ -724,6 +731,15 @@ function tick() {
     state.sx = undefined;
     if (state.step === 1 || (time - state.scanAt > rescan + 0.13 * slot && (role > 0.5 ? state.ram : main.distance < reach + 150))) study(main);
   } else state.step = 0;
+  if (!main && fresh1 && time > 2) {
+    // Darts and drones come from somewhere (titans v2, 2026-10): one just seen is near what let it go, a little back
+    // along its way. With the main robot hidden in a jammer's bubble, that is where to look (Hive hid all match).
+    const back = Math.min(1.5, 200 / Math.max(1, Math.hypot(fresh1.vel.x, fresh1.vel.y)));
+    state.last = { x: fresh1.pos.x - fresh1.vel.x * back, y: Math.max(10, fresh1.pos.y - fresh1.vel.y * back) };
+    state.seen = time;
+    state.stale = 0;
+    state.sx = undefined;
+  }
   // 0 the radar sees the main robot, 1 hidden but seen or hit in the last `fresh` s, 2 searching, 3 on the way.
   state.mode = main ? 0 : state.seen !== undefined && time - state.seen < fresh ? 1 : state.stale > wait ? 2 : 3;
   const spot = state.last || { x: state.home.x + state.facing * 800, y: 75 };
