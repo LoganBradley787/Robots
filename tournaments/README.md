@@ -10,6 +10,8 @@ How the commands read the rules where a rule left room (the constants are at the
 
 - **Main core.** The robot's primary core at spawn, followed as the same part wherever it goes. Destroyed means no robot in the world holds it any more.
 - **Bounds.** Checked on the main core's own position every tick. Pieces, copies, and the rest of the body may be anywhere.
+- **Scripts see the bounds** as the global `arena` (`{ x: 1000, y: 250 }`, or `null` with `--bounds off` and in the plain sandbox; `docs/design/04-control-and-scripting.md`).
+- **Added robots** (`--add <bp>@<x>[,<y>][,team=<a|b|0|1>][,at=<s>][,flip=<0|1>]`, repeatable, for testing): another robot for side a or b, at the start (placed before the main robots, so they are not robots 1 and 2) or later. They never decide the match and are left out of the sides' counts and stopped scripts; the report lists each one.
 - **Draws.** A match stops 2 s after the first loss; if the other side has lost by then, it is a draw. Time running out is a draw.
 - **Spawn.** On the ground means the lowest part touching y 0, so a tall titan's core may be far up. A height over 150 m, a spot below the ground, or one that overlaps something ends the duel with exit 1 and the reason. The tournament lists such a match under "Matches that did not run"; it counts for nobody.
 - **Scripts.** Every top level script is turned on (nobody presses the key that would start one). Scripts of other cores and of recipes run as written. Every script that stops is listed: which, on which robot, when, and why.

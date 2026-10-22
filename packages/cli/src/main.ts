@@ -17,7 +17,7 @@ import { parseTeam } from './spawnSpec';
 import { parseDrop } from './drops';
 import { flagProblem } from './flags';
 import { bench, BENCH_SCENES, formatBench, type BenchScene } from './commands/bench';
-import { duel, formatDuel, SpawnRefused, type Bounds, type DuelEntry } from './commands/duel';
+import { duel, formatDuel, parseAdd, SpawnRefused, type Bounds, type DuelAdd, type DuelEntry } from './commands/duel';
 import { formatResults, parseRoster, rankingTable, runTournament, speedTable } from './commands/tournament';
 import { compareTickHashes, formatTickHashes, HASH_SCENES, readTickHashes, sceneReplay, tickHashes, type HashScene, type TickHashes } from './commands/hashes';
 
@@ -62,7 +62,8 @@ commands
   mirror <bp> [--axis <half cells>] [--save <name>] [--force]
                      print the blueprint flipped left to right (x becomes axis - x; the default axis keeps it
                      in place). --save works as for place
-  duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>] [--seconds <n>] [--world <path>] [--bounds <x>,<y>] [--no-smoke-jam] [--json]
+  duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>] [--seconds <n>] [--world <path>] [--bounds <x>,<y>] [--no-smoke-jam]
+                     [--add <bp>@<x>[,<y>][,team=<a|b|0|1>][,at=<s>][,flip=<0|1>]] [--json]
                      a match between two robots that run themselves (the rules: tournaments/README.md), in
                      worlds/arena.json: <a> with its main core at x -400 on team 0, <b> at x 400 on team 1 and
                      flipped, every script on, no keys. --ya and --yb are the main cores' heights (default: on
@@ -72,16 +73,23 @@ commands
                      (default 240) or until 2 s after a loss; both lost by then is a draw, and so is time
                      running out. Prints a row every 10 s (starting cores alive, starting parts left, robots
                      with a core per team), who won and why, every script that stopped (which, on which robot,
-                     when, why), and ms per tick as bench does; exit 1 when a spawn spot is refused
+                     when, why), and ms per tick as bench does; exit 1 when a spawn spot is refused.
+                     Scripts read the bounds as the global arena ({ x, y }; null with --bounds off).
+                     --add places another robot for side a (team 0) or b (team 1, the default) with its core
+                     at x (and height y; on the ground without it), at seconds into the match (default 0),
+                     facing the middle unless flip= says (1 faces left). One at 0 is placed before the two
+                     main robots, so they are not robots 1 and 2. Repeat it for more. Added robots never
+                     decide the match and are left out of the sides' counts; the report lists each:
+                     --add enemy-gun-drone@-700,30,team=b,at=60
   tournament <roster.json> [--seeds 1,2,3] [--seconds 240] [--jobs <n>] [--out <dir>] [--only <name>]
-                     [--world <path>] [--bounds <x>,<y>] [--speed-seconds <n>]
+                     [--world <path>] [--bounds <x>,<y>] [--speed-seconds <n>] [--add <as for duel>]
                      every pair of the roster's titans ({ "titans": [{ "name": "titan-x", "y": 40 }] }, y
                      optional) duels on each seed, both ways round, --jobs at once (default: cores minus 2).
                      First each titan meets a copy of itself, one at a time, as its speed check (average at
                      most 16 ms per tick; a 95th percentile over 33 is a warning). Writes results.json and
                      results.md (ranking with 1 point a win and a half a draw, pair by pair, speed, what beat
                      each titan, scripts that stopped) to --out (default tournaments/out). --only <name> runs
-                     just that titan's pairings
+                     just that titan's pairings. --add (repeatable) is passed to every duel, speed checks too
 
 flags (for run and determinism unless a command lists its own; a flag a command does not read is refused, exit 2)
   --world <path>     world json (default: worlds/flat.json; for duel and tournament, worlds/arena.json)
@@ -105,20 +113,24 @@ flags (for run and determinism unless a command lists its own; a flag a command 
 /** Flags that never take a value, so `--json run` does not swallow the command. */
 const BOOLEAN_FLAGS = new Set(['json', 'unlimited', 'no-smoke-jam', 'mirror', 'force', 'help', 'flip']);
 
-function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string>; drops: string[] } {
+function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, string>; drops: string[]; adds: string[] } {
   const flags = new Map<string, string>();
   const positional: string[] = [];
   const drops: string[] = [];
+  const adds: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i] ?? '';
     if (a.startsWith('--')) {
       const next = argv[i + 1];
       if (!BOOLEAN_FLAGS.has(a.slice(2)) && next !== undefined && !next.startsWith('--')) {
         if (a === '--drop') drops.push(next);
+        else if (a === '--add') adds.push(next);
         else flags.set(a.slice(2), next);
         i++;
       } else if (a === '--drop') {
         throw new Error('--drop needs a value like bomb@2:3,6 (blueprint@seconds:x,y)');
+      } else if (a === '--add') {
+        throw new Error('--add needs a value like car@-600,team=b,at=60 (blueprint@x[,y][,team=a|b][,at=seconds][,flip=0|1])');
       } else {
         flags.set(a.slice(2), 'true');
       }
@@ -126,7 +138,7 @@ function parseArgs(argv: string[]): { positional: string[]; flags: Map<string, s
       positional.push(a);
     }
   }
-  return { positional, flags, drops };
+  return { positional, flags, drops, adds };
 }
 
 function numberFlag(flags: Map<string, string>, key: string, fallback: number): number {
@@ -155,14 +167,14 @@ function loadWorld(flags: Map<string, string>): WorldFile {
 }
 
 async function main(): Promise<number> {
-  const { positional, flags, drops: dropArgs } = parseArgs(process.argv.slice(2));
+  const { positional, flags, drops: dropArgs, adds } = parseArgs(process.argv.slice(2));
   const [command = '', bpArg] = positional;
   if (command === '' || command === 'help' || flags.has('help')) {
     console.log(USAGE);
     return 0;
   }
   // A flag the command does not read is refused, never ignored (review T3).
-  const problem = flagProblem(command, [...flags.keys(), ...(dropArgs.length > 0 ? ['drop'] : [])]);
+  const problem = flagProblem(command, [...flags.keys(), ...(dropArgs.length > 0 ? ['drop'] : []), ...(adds.length > 0 ? ['add'] : [])]);
   if (problem !== undefined) {
     console.error(`${problem}\npnpm sim help lists every command and flag`);
     return 2;
@@ -189,8 +201,8 @@ async function main(): Promise<number> {
   if (command === 'mirror') return mirror(positional, flags);
   if (command === 'bench') return benchCommand(positional, flags);
   if (command === 'hashes') return hashesCommand(positional, flags);
-  if (command === 'duel') return duelCommand(positional, flags);
-  if (command === 'tournament') return tournamentCommand(positional, flags);
+  if (command === 'duel') return duelCommand(positional, flags, adds);
+  if (command === 'tournament') return tournamentCommand(positional, flags, adds);
   if (!['run', 'show', 'validate', 'determinism'].includes(command)) {
     console.log(USAGE);
     return 2;
@@ -310,7 +322,15 @@ async function benchCommand(positional: string[], flags: Map<string, string>): P
   return 0;
 }
 
-async function duelCommand(positional: string[], flags: Map<string, string>): Promise<number> {
+/** Every `--add`, read and its blueprint loaded (a bad one stops the command before any duel). */
+function addFlags(adds: readonly string[]): DuelAdd[] {
+  return adds.map((raw) => {
+    const spec = parseAdd(raw);
+    return { ...spec, raw: loadBlueprintFile(spec.name) };
+  });
+}
+
+async function duelCommand(positional: string[], flags: Map<string, string>, adds: readonly string[]): Promise<number> {
   const [, aArg, bArg] = positional;
   if (aArg === undefined || bArg === undefined) {
     console.error('duel needs two blueprints: pnpm sim duel enemy-gun-drone enemy-walker');
@@ -326,8 +346,9 @@ async function duelCommand(positional: string[], flags: Map<string, string>): Pr
   };
   const bounds = boundsFlag(flags);
   if (bounds === null) return 2;
+  const add = addFlags(adds);
   try {
-    const r = await duel(entry(aArg, 'ya'), entry(bArg, 'yb'), { seed: seedFlag(flags), seconds, ...(flags.has('world') ? { file: loadWorld(flags) } : {}), ...(bounds !== undefined ? { bounds } : {}), ...(flags.has('no-smoke-jam') ? { noSmokeOrJam: true } : {}) });
+    const r = await duel(entry(aArg, 'ya'), entry(bArg, 'yb'), { seed: seedFlag(flags), seconds, ...(flags.has('world') ? { file: loadWorld(flags) } : {}), ...(bounds !== undefined ? { bounds } : {}), ...(flags.has('no-smoke-jam') ? { noSmokeOrJam: true } : {}), ...(add.length > 0 ? { add } : {}) });
     console.log(flags.has('json') ? JSON.stringify(r) : formatDuel(r));
     return 0;
   } catch (e) {
@@ -352,7 +373,7 @@ function boundsFlag(flags: Map<string, string>): Bounds | false | undefined | nu
   return { x, y };
 }
 
-async function tournamentCommand(positional: string[], flags: Map<string, string>): Promise<number> {
+async function tournamentCommand(positional: string[], flags: Map<string, string>, adds: readonly string[]): Promise<number> {
   const [, rosterArg] = positional;
   if (rosterArg === undefined) {
     console.error('tournament needs a roster file: pnpm sim tournament tournaments/titans.json');
@@ -383,8 +404,10 @@ async function tournamentCommand(positional: string[], flags: Map<string, string
   if (world !== undefined) loadWorld(flags);
   const bounds = boundsFlag(flags);
   if (bounds === null) return 2;
+  // Checked here so a bad one stops the run before any duel; every duel gets the same text.
+  addFlags(adds);
   const out = flags.has('out') ? resolveUserPath(flags.get('out') ?? '') : resolve(REPO_ROOT, 'tournaments/out');
-  const result = await runTournament(titans, { seeds, seconds, jobs, ...(speedSeconds !== undefined ? { speedSeconds } : {}), ...(only !== undefined ? { only } : {}), ...(world !== undefined ? { world } : {}), ...(bounds !== undefined ? { bounds } : {}) });
+  const result = await runTournament(titans, { seeds, seconds, jobs, ...(speedSeconds !== undefined ? { speedSeconds } : {}), ...(only !== undefined ? { only } : {}), ...(world !== undefined ? { world } : {}), ...(bounds !== undefined ? { bounds } : {}), ...(adds.length > 0 ? { add: [...adds] } : {}) });
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, 'results.json'), `${JSON.stringify(result, null, 2)}\n`);
   writeFileSync(resolve(out, 'results.md'), formatResults(result));

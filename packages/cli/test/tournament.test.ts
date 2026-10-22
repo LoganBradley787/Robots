@@ -99,6 +99,16 @@ describe('runTournament', () => {
     expect(tight.report).toMatchObject({ winner: 'draw', bounds: { x: 300, y: 250 }, a: { lostBy: 'bounds' }, b: { lostBy: 'bounds' } });
   });
 
+  it('hands every --add on to the duel', { timeout: 60_000 }, async () => {
+    const car = { name: 'car' };
+    const r = await childDuel({ kind: 'match', a: car, b: car, seed: 1 }, { seconds: 0.5, add: ['car@-700,team=a', 'car@700,at=0.2'] });
+    expect(r.report?.added?.map((d) => [d.side, d.robot, d.at])).toEqual([
+      ['a', 1, 0],
+      ['b', 4, 0.2],
+    ]);
+    expect(r.report).toMatchObject({ a: { robot: 2 }, b: { robot: 3 } });
+  });
+
   it('a duel that cannot start comes back with why', { timeout: 60_000 }, async () => {
     const r = await childDuel({ kind: 'match', a: { name: 'car', y: 0.2 }, b: { name: 'car' }, seed: 1 }, { seconds: 1 });
     expect(r.report).toBeUndefined();

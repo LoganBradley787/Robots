@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { orientRaw, parseWorldFile, partCells, partWorldPose, rootPartId, validateBlueprint, World, type PartInstance, type Robot, type WorldFile, type WorldOptions } from '@robots/sim-core';
+import { inArena, MATCH_ARENA, orientRaw, parseWorldFile, partCells, partWorldPose, rootPartId, validateBlueprint, World, type Arena, type PartInstance, type Robot, type WorldFile, type WorldOptions } from '@robots/sim-core';
 import { readJson, REPO_ROOT } from '../blueprintFiles';
 import { scriptHost } from '../scriptHost';
 import { timedHost } from '../timedHost';
@@ -11,12 +11,9 @@ export const ARENA_WORLD = resolve(REPO_ROOT, 'worlds/arena.json');
 export const DUEL_X = 400;
 /** The highest a main core may spawn, meters. */
 export const MAX_SPAWN_Y = 150;
-/** A main core past x -x or +x, or above y, has lost. */
-export interface Bounds {
-  x: number;
-  y: number;
-}
-export const DEFAULT_BOUNDS: Bounds = { x: 1000, y: 250 };
+/** A main core past x -x or +x, or above y, has lost. The world's arena too, so scripts can read it (`arena`). */
+export type Bounds = Arena;
+export const DEFAULT_BOUNDS: Bounds = { ...MATCH_ARENA };
 /** The match runs on this long after the first loss, seconds; the other side losing in that time makes it a draw. */
 export const GRACE_SECONDS = 2;
 
@@ -40,6 +37,8 @@ export interface DuelOptions {
   noSmokeOrJam?: boolean;
   /** Seconds between rows of the report (default 10). */
   sampleEverySeconds?: number;
+  /** More robots (`--add`), placed for side a or b; they never decide the match. */
+  add?: readonly DuelAdd[];
   /** Tests: half the distance between the main cores in place of DUEL_X. */
   x?: number;
   /** Tests: a script host in place of the default. */
@@ -47,6 +46,77 @@ export interface DuelOptions {
 }
 
 export type Side = 'a' | 'b';
+
+/** An added robot (`--add`): another robot for side a (team 0) or b (team 1), placed at the start or later. */
+export interface DuelAdd {
+  name: string;
+  /** The blueprint as read from its file, facing right. */
+  raw: unknown;
+  side: Side;
+  /** Where its core goes; resting on the ground when `y` is absent. */
+  x: number;
+  y?: number;
+  /** Seconds into the match it is placed at; at 0 it is placed before the two main robots. */
+  at: number;
+  /** Flipped to face left; by default it faces the middle (flipped when x > 0). */
+  flip?: boolean;
+}
+
+/** What became of an added robot. */
+export interface AddedReport {
+  name: string;
+  side: Side;
+  team: number;
+  at: number;
+  /** Its robot id and where its core went, once placed (absent too when the match ended before its time). */
+  robot?: number;
+  spot?: { x: number; y: number };
+  /** Why it could not be placed (the spot was taken when its time came). */
+  refused?: string;
+  /** Whether its core was alive at the end. */
+  alive: boolean;
+  /** Its scripts that stopped, and its pieces' (they are not in `scriptCrashes`, which is the main robots'). */
+  scriptStops: number;
+}
+
+/** `--add` text: `<blueprint>@<x>[,<y>][,team=<a|b|0|1>][,at=<seconds>][,flip=<0|1>]`; side b, at 0, and on the ground by default. */
+export function parseAdd(raw: string): Omit<DuelAdd, 'raw'> {
+  const usage = `--add must look like titan-anvil@-600,40,team=b,at=60 (blueprint@x[,y][,team=a|b|0|1][,at=seconds][,flip=0|1]); got ${raw}`;
+  const at = raw.lastIndexOf('@');
+  const name = raw.slice(0, at).trim();
+  if (at <= 0 || name === '') throw new Error(usage);
+  const num = (v: string | undefined): number => (v === undefined || v.trim() === '' ? Number.NaN : Number(v));
+  const [xs, ...rest] = raw.slice(at + 1).split(',');
+  const x = num(xs);
+  if (!Number.isFinite(x)) throw new Error(usage);
+  const out: Omit<DuelAdd, 'raw'> = { name, side: 'b', x, at: 0 };
+  rest.forEach((item, i) => {
+    const eq = item.indexOf('=');
+    if (eq < 0) {
+      const y = num(item);
+      if (i !== 0 || !Number.isFinite(y)) throw new Error(usage);
+      out.y = y;
+      return;
+    }
+    const key = item.slice(0, eq).trim();
+    const value = item.slice(eq + 1).trim();
+    if (key === 'team') {
+      if (value === 'a' || value === '0') out.side = 'a';
+      else if (value === 'b' || value === '1') out.side = 'b';
+      else throw new Error(`--add ${name}: team must be a, b, 0 or 1, got ${value}`);
+    } else if (key === 'at') {
+      const t = num(value);
+      if (!(t >= 0) || !Number.isFinite(t)) throw new Error(`--add ${name}: at must be seconds, 0 or more, got ${value}`);
+      out.at = t;
+    } else if (key === 'flip') {
+      if (value !== '0' && value !== '1') throw new Error(`--add ${name}: flip must be 0 or 1, got ${value}`);
+      out.flip = value === '1';
+    } else {
+      throw new Error(`--add ${name}: '${key}' is not team, at, or flip`);
+    }
+  });
+  return out;
+}
 
 export interface SideCount {
   /** Starting cores still alive (the main core and any others, such as those of its starting missiles). */
@@ -61,6 +131,8 @@ export interface SideCount {
 
 export interface SideReport extends SideCount {
   name: string;
+  /** The robot id it was placed with: 1 and 2 unless robots were added before it (`--add`). Absent from reports made before it was kept. */
+  robot?: number;
   team: number;
   at: { x: number; y: number };
   startCores: number;
@@ -102,6 +174,8 @@ export interface DuelReport {
   why: string;
   samples: { tick: number; t: number; a: SideCount; b: SideCount }[];
   bounds: Bounds | false;
+  /** The added robots (`--add`), in the order given; absent without any. */
+  added?: AddedReport[];
   /** Scripts that stopped, with whose they were. */
   scriptCrashes: ScriptStop[];
   /** Wall-clock milliseconds per tick on this machine, as `bench` measures them. */
@@ -120,6 +194,7 @@ export class SpawnRefused extends Error {}
  * `removed` and never `coreLost`, so the main core is looked for among the world's robots, not in that event.
  */
 export class SideWatch {
+  readonly robot: number;
   readonly team: number;
   readonly startParts: number;
   readonly startCores: number;
@@ -136,6 +211,7 @@ export class SideWatch {
   copies = 0;
 
   constructor(robot: Robot) {
+    this.robot = robot.id;
     this.team = robot.team;
     this.parts = new Set(robot.parts.values());
     this.cores = new Set([...robot.parts.values()].filter((p) => p.def.role === 'core'));
@@ -166,7 +242,7 @@ export class SideWatch {
     }
     if (bounds === false) return;
     const p = partWorldPose(world, this.holder, this.main.id);
-    if (Math.abs(p.x) <= bounds.x && p.y <= bounds.y) return;
+    if (inArena(bounds, p)) return;
     this.lostTick = world.tick;
     this.lostBy = 'bounds';
     this.lostWhere = { x: p.x, y: p.y };
@@ -179,12 +255,12 @@ export class SideWatch {
   }
 
   /** Walks every robot's parts (so only for a row of the report): a part counts while a live robot holds it. */
-  count(world: World): SideCount {
+  count(world: World, added?: { has(robot: number): boolean }): SideCount {
     let parts = 0;
     let cores = 0;
     let robots = 0;
     for (const robot of world.robots) {
-      if (robot.team === this.team && world.canControl(robot.id)) robots++;
+      if (robot.team === this.team && world.canControl(robot.id) && !added?.has(robot.id)) robots++;
       for (const p of robot.parts.values()) {
         if (p.health <= 0 || !this.parts.has(p)) continue;
         parts++;
@@ -226,9 +302,9 @@ function restingY(world: World, raw: unknown): number {
 }
 
 /** Where the entry's main core goes: its own height, or the lowest the world takes it at from resting on the ground up. */
-function spawnSpot(world: World, entry: DuelEntry, raw: unknown, x: number): { x: number; y: number } {
+function spawnSpot(world: World, entry: Pick<DuelEntry, 'name' | 'y'>, raw: unknown, x: number, maxY = MAX_SPAWN_Y): { x: number; y: number } {
   if (entry.y !== undefined) {
-    if (entry.y > MAX_SPAWN_Y) throw new SpawnRefused(`${entry.name} cannot spawn with its core at height ${entry.y}: the highest allowed is ${MAX_SPAWN_Y} m`);
+    if (entry.y > maxY) throw new SpawnRefused(`${entry.name} cannot spawn with its core at height ${entry.y}: the highest allowed is ${MAX_SPAWN_Y} m`);
     const at = { x, y: entry.y };
     const can = world.canPlace(raw, at);
     if (!can.ok) throw new SpawnRefused(`${entry.name} cannot spawn with its core at (${x}, ${entry.y}): ${can.reason ?? 'the world refused the spot'}`);
@@ -256,14 +332,41 @@ const pct = (share: number): string => `${(share * 100).toFixed(1)}%`;
 export async function duel(a: DuelEntry, b: DuelEntry, opts: DuelOptions): Promise<DuelReport> {
   const file = opts.file ?? parseWorldFile(readJson(ARENA_WORLD));
   const { host, clock } = timedHost(opts.world?.scripts ?? (await scriptHost()));
-  const world = await World.create({ seed: opts.seed, ...opts.world, scripts: host }, file);
+  const bounds = opts.bounds ?? DEFAULT_BOUNDS;
+  // The world knows the bounds only so its scripts can read them (`arena`); they are judged here.
+  const world = await World.create({ seed: opts.seed, ...opts.world, scripts: host, arena: bounds === false ? null : bounds }, file);
   try {
     const x = opts.x ?? DUEL_X;
     const entries: { entry: DuelEntry; raw: unknown; x: number; team: number }[] = [
       { entry: a, raw: scriptsOn(a.raw), x: -x, team: 0 },
       { entry: b, raw: orientRaw(scriptsOn(b.raw), { flip: true }, world.registry), x, team: 1 },
     ];
-    const bounds = opts.bounds ?? DEFAULT_BOUNDS;
+    // Added robots: checked before anything is placed, then those at 0 placed first, so the main robots are not 1 and 2.
+    const adds = (opts.add ?? []).map((d) => {
+      const raw = orientRaw(scriptsOn(d.raw), { flip: d.flip ?? d.x > 0 }, world.registry);
+      const v = validateBlueprint(raw, world.registry);
+      if (!v.ok) throw new InvalidBlueprint(v.issues);
+      const report: AddedReport = { name: d.name, side: d.side, team: d.side === 'a' ? 0 : 1, at: d.at, alive: false, scriptStops: 0 };
+      return { d, raw, report, tick: Math.round(d.at / world.dt), robot: undefined as Robot | undefined };
+    });
+    /** Added robots and their pieces, by robot id: never a main robot's, so they are kept out of its counts and stops. */
+    const added = new Map<number, AddedReport>();
+    const place = (one: (typeof adds)[number], strict: boolean): void => {
+      let at: { x: number; y: number };
+      try {
+        at = spawnSpot(world, { name: one.d.name, ...(one.d.y !== undefined ? { y: one.d.y } : {}) }, one.raw, one.d.x, Infinity);
+      } catch (e) {
+        if (strict || !(e instanceof SpawnRefused)) throw e;
+        one.report.refused = e.message;
+        return;
+      }
+      const robot = world.spawnBlueprint(one.raw, at, { team: one.report.team });
+      one.robot = robot;
+      one.report.robot = robot.id;
+      one.report.spot = at;
+      added.set(robot.id, one.report);
+    };
+    for (const one of adds) if (one.tick <= 0) place(one, true);
     const watches: SideWatch[] = [];
     const spots: { x: number; y: number }[] = [];
     const teamOf = new Map<number, number>();
@@ -291,6 +394,7 @@ export async function duel(a: DuelEntry, b: DuelEntry, opts: DuelOptions): Promi
     let stopAt = ticks;
     clock.take();
     while (world.tick < stopAt) {
+      for (const one of adds) if (one.tick > 0 && one.tick === world.tick) place(one, false);
       const t0 = performance.now();
       world.step();
       times.push(performance.now() - t0);
@@ -299,6 +403,12 @@ export async function duel(a: DuelEntry, b: DuelEntry, opts: DuelOptions): Promi
         if (!e) continue;
         // Every robot but the two that spawned is a piece of one of them, and is on its team.
         if (e.kind === 'split') for (const id of e.pieces) teamOf.set(id, teamOf.get(e.robot) ?? -1);
+        const extra = added.get(e.robot);
+        if (extra) {
+          if (e.kind === 'split') for (const id of e.pieces) added.set(id, extra);
+          if (e.kind === 'scriptCrashed') extra.scriptStops++;
+          continue;
+        }
         const w = watchOf(e.robot);
         if (!w) continue;
         if (e.kind === 'released') w.copies++;
@@ -311,16 +421,17 @@ export async function duel(a: DuelEntry, b: DuelEntry, opts: DuelOptions): Promi
       const before = wa.lost || wb.lost;
       for (const w of watches) w.check(world, bounds);
       if (!before && (wa.lost || wb.lost)) stopAt = Math.min(ticks, world.tick + grace);
-      if (world.tick % every === 0 || world.tick === stopAt) samples.push({ tick: world.tick, t: world.tick * world.dt, a: wa.count(world), b: wb.count(world) });
+      if (world.tick % every === 0 || world.tick === stopAt) samples.push({ tick: world.tick, t: world.tick * world.dt, a: wa.count(world, added), b: wb.count(world, added) });
     }
 
     const side = (w: SideWatch, entry: DuelEntry, at: { x: number; y: number }): SideReport => ({
       name: entry.name,
+      robot: w.robot,
       team: w.team,
       at,
       startCores: w.startCores,
       startParts: w.startParts,
-      ...w.count(world),
+      ...w.count(world, added),
       ...(w.lostTick !== undefined && w.lostBy !== undefined ? { lostAt: w.lostTick * world.dt, lostBy: w.lostBy } : {}),
       ...(w.lostWhere ? { lostWhere: w.lostWhere } : {}),
       spent: w.spent,
@@ -344,6 +455,7 @@ export async function duel(a: DuelEntry, b: DuelEntry, opts: DuelOptions): Promi
       ...verdict(ra, rb),
       samples,
       bounds,
+      ...(adds.length > 0 ? { added: adds.map((o) => ({ ...o.report, alive: o.robot !== undefined && world.robotById(o.robot.id) === o.robot && world.canControl(o.robot.id) })) } : {}),
       scriptCrashes: crashes,
       timing: {
         avgMs: avg,
@@ -400,7 +512,8 @@ export function formatStops(stops: readonly ScriptStop[], names: Record<Side, st
 /** The match as text: a row every 10 s, then who won, each side, stopped scripts, and how long a tick took. */
 export function formatDuel(r: DuelReport): string {
   const f = (v: number): string => v.toFixed(2);
-  const where = (s: SideReport): string => `core at (${s.at.x}, ${f(s.at.y)})`;
+  // With robots added the main ones may not be 1 and 2, so their ids are given.
+  const where = (s: SideReport): string => `${r.added && s.robot !== undefined ? `robot ${s.robot}, ` : ''}core at (${s.at.x}, ${f(s.at.y)})`;
   const lines = [
     `duel: a ${r.a.name} (team 0, ${where(r.a)}) against b ${r.b.name} (team 1, flipped, ${where(r.b)})   world ${r.world}   seed ${r.seed}   up to ${r.seconds} s   bounds ${r.bounds === false ? 'off' : `x ${r.bounds.x}, y ${r.bounds.y}`}`,
     '     t   tick   a: cores   parts  robots   b: cores   parts  robots',
@@ -413,6 +526,11 @@ export function formatDuel(r: DuelReport): string {
     const s = r[k];
     const spent = s.spent > 0 ? `, ${s.spent} more ended themselves` : '';
     lines.push(`${k} ${s.name}: ${s.parts} of ${s.startParts} starting parts alive${spent} (${pct(s.share)} left), ${s.cores} of ${s.startCores} starting cores, ${s.robots} robot${s.robots === 1 ? '' : 's'} with a core now, ${s.copies} cop${s.copies === 1 ? 'y' : 'ies'} released`);
+  }
+  for (const d of r.added ?? []) {
+    const when = d.at > 0 ? ` at t=${f(d.at)} s` : '';
+    const what = d.spot ? `robot ${d.robot ?? 0}${when}, core at (${d.spot.x}, ${f(d.spot.y)}), ${d.alive ? 'core alive at the end' : 'core gone at the end'}` : d.refused !== undefined ? `not placed${when}: ${d.refused}` : `not placed: the match ended before t=${f(d.at)} s`;
+    lines.push(`added for ${d.side} (team ${d.team}): ${d.name}, ${what}${d.scriptStops > 0 ? `, ${d.scriptStops} script stop${d.scriptStops === 1 ? '' : 's'}` : ''}`);
   }
   lines.push(...formatStops(r.scriptCrashes, { a: r.a.name, b: r.b.name }));
   lines.push(`length: ${f(r.length)} s (${r.ticks} ticks)${r.length < r.seconds ? `, stopped ${GRACE_SECONDS} s after the first loss` : ''}`);

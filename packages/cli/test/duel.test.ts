@@ -3,7 +3,7 @@ import { parseWorldFile, World, type Robot } from '@robots/sim-core';
 import arenaJson from '../../../worlds/arena.json';
 import flatJson from '../../../worlds/flat.json';
 import carJson from '../../../blueprints/car.json';
-import { DEFAULT_BOUNDS, duel, formatDuel, formatStops, GRACE_SECONDS, SideWatch, SpawnRefused, verdict, type ScriptStop, type SideReport } from '../src/commands/duel';
+import { DEFAULT_BOUNDS, duel, formatDuel, formatStops, GRACE_SECONDS, parseAdd, SideWatch, SpawnRefused, verdict, type ScriptStop, type SideReport } from '../src/commands/duel';
 import { InvalidBlueprint } from '../src/commands/run';
 import { readBlueprint, resolveBlueprint } from '../src/blueprintFiles';
 import { scriptHost } from '../src/scriptHost';
@@ -263,6 +263,59 @@ describe('formatStops', () => {
       '  b bee: script pilot on the robot with its main core (robot 2) at t=0.00 s (throw): x is not defined',
     ]);
     expect(formatStops([], { a: 'ant', b: 'bee' })).toEqual(['scripts stopped: none']);
+  });
+});
+
+// A lone core whose script stops at once, saying what `arena` is in its error.
+const teller = { name: 'teller', raw: { format: 1, name: 'teller', grid: ['C'], scripts: [{ id: 'tell', source: "function tick() { throw new Error('arena ' + JSON.stringify(arena)); }" }] } };
+const told = (r: { scriptCrashes: ScriptStop[] }): string => r.scriptCrashes[0]?.message ?? '';
+
+describe('duel arena for scripts', () => {
+  it('scripts read the bounds as arena, and null with the bounds off', { timeout: 30_000 }, async () => {
+    expect(told(await duel(car, teller, { seed: 1, seconds: 0.2 }))).toContain('arena {"x":1000,"y":250}');
+    expect(told(await duel(car, teller, { seed: 1, seconds: 0.2, bounds: { x: 800, y: 200 } }))).toContain('arena {"x":800,"y":200}');
+    expect(told(await duel(car, teller, { seed: 1, seconds: 0.2, bounds: false }))).toContain('arena null');
+  });
+});
+
+describe('duel --add', () => {
+  it('reads blueprint@x[,y][,team=][,at=][,flip=]', () => {
+    expect(parseAdd('car@-600')).toEqual({ name: 'car', side: 'b', x: -600, at: 0 });
+    expect(parseAdd('titan-anvil@-600,40,team=a,at=60,flip=1')).toEqual({ name: 'titan-anvil', side: 'a', x: -600, y: 40, at: 60, flip: true });
+    expect(parseAdd('car@300,team=0')).toMatchObject({ side: 'a', x: 300 });
+    expect(parseAdd('car@300,at=2.5,team=1')).toMatchObject({ side: 'b', at: 2.5 });
+    for (const bad of ['car', '@3', 'car@', 'car@x', 'car@1,2,3', 'car@1,team=c', 'car@1,at=-1', 'car@1,speed=3', 'car@1,flip=yes']) expect(() => parseAdd(bad), bad).toThrow();
+  });
+
+  it('places robots added at 0 before the main ones and later ones on time; they decide nothing and are counted apart', { timeout: 30_000 }, async () => {
+    const r = await duel(car, car, {
+      seed: 1,
+      seconds: 2,
+      add: [
+        { name: 'car', raw: carJson, side: 'a', x: -600, at: 0 },
+        { name: 'teller', raw: teller.raw, side: 'b', x: 600, y: 5, at: 1 },
+        // On top of b when its time comes: refused, and the match runs on.
+        { name: 'car', raw: carJson, side: 'a', x: 400, at: 0.5 },
+        { name: 'car', raw: carJson, side: 'b', x: 0, at: 5 },
+      ],
+    });
+    expect(r.a).toMatchObject({ robot: 2, team: 0, robots: 1, startParts: 8 });
+    expect(r.b).toMatchObject({ robot: 3, team: 1, robots: 1 });
+    expect(r.winner).toBe('draw');
+    expect(r.scriptCrashes).toEqual([]);
+    const [first, second, third, fourth] = r.added ?? [];
+    expect(first).toMatchObject({ name: 'car', side: 'a', team: 0, at: 0, robot: 1, spot: { x: -600, y: 1.45 }, alive: true, scriptStops: 0 });
+    expect(second).toMatchObject({ name: 'teller', side: 'b', team: 1, at: 1, robot: 4, spot: { x: 600, y: 5 }, alive: true, scriptStops: 1 });
+    expect(third?.refused).toContain('overlaps');
+    expect(third?.robot).toBeUndefined();
+    expect(fourth).toMatchObject({ alive: false });
+    expect(fourth?.robot).toBeUndefined();
+    const text = formatDuel(r);
+    expect(text).toContain('duel: a car (team 0, robot 2, core at (-400, 1.45)) against b car (team 1, flipped, robot 3, core at (400, 1.45))');
+    expect(text).toContain('added for a (team 0): car, robot 1, core at (-600, 1.45), core alive at the end');
+    expect(text).toContain('added for b (team 1): teller, robot 4 at t=1.00 s, core at (600, 5.00), core alive at the end, 1 script stop');
+    expect(text).toContain('added for a (team 0): car, not placed at t=0.50 s: car cannot spawn on the ground');
+    expect(text).toContain('added for b (team 1): car, not placed: the match ended before t=5.00 s');
   });
 });
 
