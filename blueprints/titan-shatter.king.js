@@ -199,8 +199,8 @@ function tick() {
     // fast for good). A heavy one (`heavyMass`) comes before any lighter one.
     const v = Math.hypot(c.vel.x, c.vel.y);
     if (v > fast) state.quick[c.id] = 1;
+    if (mem && c.id === mem.id && !state.quick[c.id]) kept = c; // kept however light it gets
     if (c.mass < mainMass || state.quick[c.id]) continue;
-    if (mem && c.id === mem.id) kept = c; // kept however light it gets
     if (c.mass >= heavyMass) {
       if (!heaviest || c.mass > heaviest.mass) heaviest = c;
     } else if (v < slow) {

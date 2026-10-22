@@ -170,9 +170,10 @@ function lookAround() {
     // hid, the swarm took its darts for it (one let go is slow for a moment, so once fast is fast for good).
     const v = Math.hypot(c.vel.x, c.vel.y);
     if (v > fast) state.quick[c.id] = 1;
+    // The one it has is kept however light it gets (a main enemy shot to pieces weighs less and less: a walker down to
+    // its core and a few plates lay 60 s under the gunships, forgotten at under 30 kg).
+    if (c.id === root.id && !state.quick[c.id]) kept = c;
     if (c.mass >= mainMass && !state.quick[c.id]) {
-      // The one it has is kept however light it gets (a main enemy shot to pieces weighs less and less).
-      if (c.id === root.id) kept = c;
       if (c.mass >= heavyMass) {
         if (!heaviest || c.mass > heaviest.mass) heaviest = c;
       } else if (v < slow) {
