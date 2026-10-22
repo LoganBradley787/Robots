@@ -3,9 +3,14 @@
 // Run: node tournaments/gen/titan-shatter.mjs   (writes blueprints/titan-shatter.json and its script files)
 //
 // The comb, top to bottom:
-// - the king: a wide deck with the main core, batteries, jammer pods, a row of propellers under it, and a rack of
-//   darts (booster, heavy gyro, cells, radar, core, distance charge) standing on top, each held by a grip;
-// - gunships hanging under the king in columns, each joined to the one above by a single decoupler on its roof.
+// - the king: a wide deck with the main core, batteries, jammer pods, a radio, a row of propellers under it, and a
+//   rack of darts (booster, heavy gyro, cells, radar, core, radio, distance charge) standing on top, each held by a
+//   grip;
+// - gunships hanging under the king in columns, each joined to the one above by a single decoupler standing on the
+//   radio on its roof.
+// Radios (titans v2, 2026-10): every piece shares what its radar sees with the others within 1500 m, so the king can
+// stay out of the enemy's radar reach (1000 m) and still know where it is, and a dart hears where a hidden enemy is
+// from the gunships close enough to see through its jammer's bubble.
 // On tick 0 the king fires every roof decoupler, so every gunship wakes with its own pilot. The king then lets its
 // darts go in two waves, hides in its jammer bubbles, and flies off to a quiet spot.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -23,7 +28,7 @@ const W = 40; // king width
 const SHIP_W = 11;
 
 // ---- grid of cells: cells[y][x] = { part, rot, tags, auto } ----
-const H = 2 * ROWS + 11;
+const H = 3 * ROWS + 12; // three rows a gunship (joint, roof, body), the king's four, and darts eight tall
 const cells = Array.from({ length: H }, () => Array.from({ length: W }, () => null));
 const put = (x, y, part, rot = 0, tags = [], extra = {}) => {
   if (cells[y][x]) throw new Error(`cell ${x},${y} used twice`);
@@ -32,13 +37,14 @@ const put = (x, y, part, rot = 0, tags = [], extra = {}) => {
 const cores = {};
 
 // ---- gunships ----
-const yP = 2 * ROWS; // the king's propeller row
+const yP = 3 * ROWS; // the king's propeller row
 const shipX = [3, 14, 26]; // left edge of each column (the core sits 5 in: columns 8, 19, 31)
 let slot = 0;
 for (let r = 0; r < ROWS; r++) {
   for (let c = 0; c < COLS; c++) {
     const x0 = shipX[c];
-    const yTop = yP - 1 - 2 * r;
+    const yJoin = yP - 1 - 3 * r;
+    const yTop = yJoin - 1;
     const yBody = yTop - 1;
     // body row: gun, rotator, armor, battery, gyro, core, radar, battery, armor, rotator, gun
     put(x0 + 0, yBody, 'gun', 90, ['gunA']);
@@ -52,10 +58,12 @@ for (let r = 0; r < ROWS; r++) {
     put(x0 + 8, yBody, 'armorplate');
     put(x0 + 9, yBody, 'rotator', 270, ['rotB'], { auto: false });
     put(x0 + 10, yBody, 'gun', 270, ['gunB']);
-    // roof row: three propellers, the decoupler that holds it to the piece above, three propellers
+    // roof row: three propellers, the radio over the core, three propellers; on the radio the decoupler that holds it
+    // to the piece above
     for (const dx of [2, 3, 4]) put(x0 + dx, yTop, 'propeller', 0, ['lp'], { auto: false });
-    put(x0 + 5, yTop, 'decoupler', 0, ['split']);
+    put(x0 + 5, yTop, 'radio', 0, ['ear']);
     for (const dx of [6, 7, 8]) put(x0 + dx, yTop, 'propeller', 0, ['rp'], { auto: false });
+    put(x0 + 5, yJoin, 'decoupler', 0, ['split']);
     cores[`core@${x0 + 5},${yBody}`] = {
       autoControls: false,
       bindings: [],
@@ -87,6 +95,7 @@ for (let x = 0; x < W; x++) {
 // The attic: pods hang between frame posts (a spent pod is gone, so nothing may hold on through one).
 for (let x = 0; x < W; x++) {
   if (propFrames.has(x)) put(x, yA, 'frame');
+  else if (x === 20) put(x, yA, 'radio', 0, ['ear']);
   else put(x, yA, 'jammer', 0, [`jam${pods++}`]);
 }
 const PODS = pods;
@@ -104,7 +113,8 @@ for (let j = 0; j < PAIRS; j++) {
     put(dx, yG + 3, 'cell');
     put(dx, yG + 4, 'radar');
     put(dx, yG + 5, 'core', 0, [`d${dart}`]);
-    put(dx, yG + 6, 'charge');
+    put(dx, yG + 6, 'radio');
+    put(dx, yG + 7, 'charge');
     cores[`core@${dx},${yG + 5}`] = {
       autoControls: false,
       bindings: [],
