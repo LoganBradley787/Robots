@@ -15,7 +15,11 @@
 //   believed however far it is from the point sent at launch: round 1's darts flew to where a rammer had been
 //   standing. One sent at a robot that has since died (in view as debris) goes after that heaviest one instead.
 // - It arms its heads within `armDist` m of the edge of the real robot (as last seen), or of the point it was sent to
-//   when it never saw one, so a shell that finds it on the way only breaks it.
+//   when it never saw one, so a shell that finds it on the way only breaks it. Titans v2 (2026-10): also within
+//   `anyArm` m of the guessed edge of any other enemy robot of `anyMass` kg or more (a gun panel or pod in the way), so
+//   a dart that hits any enemy part goes off; never near light ones (their darts), which it would only meet head on.
+// - Titans v2: a bay's dart has a nose seeker, on within `seekDist` m of its point: within 150 m it sees a robot
+//   hidden in a jammer's bubble. A dart sent with a way in (`ax`, `ay`) comes in along it near the end.
 // - It goes off when its heads pass within `prox` m of the core of the robot it tracks (titan-darts, 2026-10, as the
 //   hive's darts do), counting where both will be by the next tick: one that passed a small robot by a meter flew
 //   on past it.

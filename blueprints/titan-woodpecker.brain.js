@@ -1,16 +1,24 @@
-// Brain of titan-woodpecker: picks what the darts fly at, casts the anchors, lets the rack go in one long stream, and
-// then lets each bay's dart go as it is built. It runs on the main core, deep in the keep, all match.
+// Brain of titan-woodpecker: picks what the darts fly at, casts the anchors, lets the rack go in waves, then lets each
+// bay's dart go as it is built, and lets flares go to draw what comes at the keep. It runs on the main core, deep in
+// the keep, all match.
 // - Target (titan-darts, 2026-10, Logan): picked from what the radar reports, never by id: the heaviest robot on the
 //   other side with a live core, kept while it is seen unless one twice as heavy shows up. Its point is its core
 //   (`contacts[].pos`), so every dart lands on the same spot, one after another, each blast digging where the last
 //   one stopped. The darts keep following it by radio after they leave.
 // - A target that dies stays in the radar's view as debris (no live core), so it is forgotten at once and nothing more
 //   goes to its spot. One that vanished alive (into a jammer's bubble or smoke, most likely) has its last place kept
-//   `memory` s, and darts fly there and arm near it; then it is forgotten. Only while it has never seen an enemy at all
-//   do darts go to the point across the arena from where this titan started (a titan hidden from the first second
-//   starts about there), each at another height. Otherwise the darts wait for a target.
-// - Order: the rack's darts go nearest the enemy first, one every `gap` ticks, so no dart flies over one that is about
-//   to leave, and they arrive spaced out (a dart caught in the blast ahead of it would be wasted).
+//   `memory` s, and darts fly there and arm near it; then it is forgotten, unless it stood still (titans v2: a roped
+//   base in its bubble is kept as long as it is not seen dead). Only while it has never seen an enemy at all, and only
+//   inside an arena, do darts go to the point across the arena from where this titan started. Otherwise the darts wait.
+// - Titans v2 (2026-10), finding what hides: a launcher hidden in a bubble is guessed from where the light robots it
+//   lets go are first seen; with nothing heavy in view and nothing remembered, the heaviest light enemy that is not
+//   flying like a dart is the target; a hidden main enemy much heavier than anything in view stays the target.
+// - Titans v2, the way in: probes along a fan of lines into the target's core (`scan` with `from`, `cover`) find the
+//   thinnest one; darts sent at a still, armored target come in along it.
+// - Titans v2, flares: something closing fast on the keep gets a flare let go at the end of the base on its side; so
+//   does the keep losing parts with nothing seen coming (guns).
+// - Order: the rack's darts go nearest the enemy first, one every `gap` ticks, in waves of `wave` (titans v2), so no
+//   dart flies over one that is about to leave, and one flare cannot take the whole rack.
 // - Anchors: grapples in the floor, cast at the ground once the base rests. Each rope holds the base where it stands
 //   against a push toward the arena's edge. One that lost its rope is cast again.
 const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts leaving the rack
