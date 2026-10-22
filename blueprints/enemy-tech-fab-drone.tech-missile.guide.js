@@ -34,6 +34,8 @@ const sideMax = param('sideMax', 0.8, { min: 0.1, max: 0.95 }); // most of the p
 const clear = param('clear', 0.15, { min: 0, max: 2 }); // seconds flying straight before steering, to clear the launcher
 const clearDist = param('clearDist', 0, { min: 0, max: 50 }); // and meters from where it was let go (both must pass)
 const lead = param('lead', 1, { min: 0, max: 2 }); // 1 aims ahead of a tracked robot by its speed, 0 at where it is
+const minClose = param('minClose', 100, { min: 10, max: 1000 }); // m/s: the closing speed it counts on at least when leading
+const floor = param('floor', 0.5, { min: 0, max: 50 }); // m: it never aims lower than this (the ground is at 0)
 const arc = param('arc', 0, { min: 0, max: 1 }); // 1: climb above the point, then come down onto it
 const height = param('height', 40, { min: 5, max: 300 }); // m above the point it climbs to when arcing
 const spread = param('spread', 0.25, { min: 0, max: 1 }); // each arc's height varies by up to this share (seeded), so two arcs rarely meet
@@ -119,6 +121,7 @@ function setup() {
   state.phase = arc > 0.5 ? 'climb' : 'direct';
   state.height = height * (1 + spread * (2 * random() - 1));
   state.seenAt = -1;
+  state.fixAt = time; // when the point and speed were last known (the launcher's message, then each sighting)
   // The launcher's point: the last message with one in it.
   for (const m of inbox) {
     const d = m.data;
@@ -132,15 +135,26 @@ function setup() {
   }
 }
 
+/**
+ * Where the robot it follows should be now: the last fix (the launcher's point, else the last sighting) carried on
+ * by its speed for the time since, never under the ground. Without the time since, a dart flying blind 30 s aimed
+ * at where the robot was when it was let go.
+ */
+function here() {
+  const age = time - state.fixAt;
+  return { x: state.point.x + state.vel.x * age, y: Math.max(floor, state.point.y + state.vel.y * age) };
+}
+
 /** The robot it follows: the one the launcher named, else the enemy nearest the point (or nearest at all without one). */
 function pick() {
   let best = null;
   let bestD = Infinity;
+  const at = state.point ? here() : null; // where it looks for the robot to follow
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core || c.mass < minMass) continue;
     if (state.id !== undefined && c.id === state.id) return c;
-    const d = state.point ? Math.hypot(c.pos.x - state.point.x, c.pos.y - state.point.y) : c.distance;
-    if (state.point && d > acquire) continue;
+    const d = at ? Math.hypot(c.pos.x - at.x, c.pos.y - at.y) : c.distance;
+    if (at && d > acquire) continue;
     if (d < bestD) {
       best = c;
       bestD = d;
@@ -173,14 +187,17 @@ function tick() {
     state.vel = { x: seen.vel.x, y: seen.vel.y };
     state.id = seen.id;
     state.seenAt = time;
+    state.fixAt = time;
   } else if (state.seenAt >= 0 && time - state.seenAt > 0.3) {
-    // Lost track: fly to the last point it had.
+    // Lost track: fly to the last point it had (carried on to now, then held there).
+    if (state.point) state.point = here();
+    state.fixAt = time;
     state.vel = { x: 0, y: 0 };
   }
 
   let aim = state.aim;
   if (state.point) {
-    const p = state.point;
+    const p = here();
     const dx = p.x - self.pos.x;
     const dy = p.y - self.pos.y;
     const dist = Math.hypot(dx, dy);
@@ -206,10 +223,12 @@ function tick() {
       state.aim = Math.atan2(self.vel.y, self.vel.x);
     }
     // Aim ahead of a moving robot: time left from how fast the gap closes.
-    const closing = Math.max(20, (dx * (self.vel.x - state.vel.x) + dy * (self.vel.y - state.vel.y)) / Math.max(dist, 1));
+    // At least `minClose`: counted at 20 m/s, a dart let go 900 m out led its point by 45 s of the robot's speed.
+    const closing = Math.max(minClose, (dx * (self.vel.x - state.vel.x) + dy * (self.vel.y - state.vel.y)) / Math.max(dist, 1));
     const tgo = dist / closing;
     let gx = p.x + lead * state.vel.x * tgo;
-    let gy = p.y + lead * state.vel.y * tgo;
+    // Never under the ground: led by a falling or sinking robot's speed, darts flew into the ground short of it.
+    let gy = Math.max(floor, p.y + lead * state.vel.y * tgo);
     if (state.phase === 'climb') {
       // Up toward `height` above the point, then down: once the point is steeply enough below it, or once the ground
       // left is about what it needs to stop moving sideways (v^2 / 2a with its sideways push, plus the ground it covers

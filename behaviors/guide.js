@@ -1,6 +1,6 @@
 // @behavior Guide
 // @about Steers toward the enemy it tracks and flies into it, for a missile or a drone that should close on its target.
-// @version 2
+// @version 3
 // @slot push throttle "what pushes" required many owns
 // @slot steer spin|swivel|deflect "what steers" required many owns
 // @slot blast detonate "what goes off" optional many
@@ -21,7 +21,9 @@
 //   far behind the middle it is), and what is left to parts with a `deflect` input (plates in the air,
 //   `spec.config.area`, held along the air and angled off it by just what the turn needs).
 // - Target: the robot the launcher named, else the enemy with a live core nearest the launcher's point (or nearest of
-//   all with no point), aimed ahead by its speed. Lost, it flies to the last point it had and keeps looking.
+//   all with no point), aimed ahead by its speed. Where it is, between sightings, is the last fix carried on by its
+//   speed for the time since; the lead counts on closing at 100 m/s or more; it never aims under the ground (v3). Lost,
+//   it flies to the last point it had and keeps looking.
 // - Friends on the way are flown over.
 
 const fuse = param('fuse', 12, { min: 0.5, max: 60 }); // s of flight before what goes off is set off anyway
@@ -38,6 +40,8 @@ const LIGHT = 10; // kg: lighter robots (other missiles) are not followed
 const ACQUIRE = 60; // m: a robot this close to the launcher's point is the one it follows
 const NEAR = 5; // m: losing sight of the robot it follows this close sets it off too
 const ARRIVE = 3; // m: this close to its point with nothing tracked, it flies on straight and keeps looking
+const MIN_CLOSE = 100; // m/s: the closing speed it counts on at least when leading
+const FLOOR = 0.5; // m: it never aims lower than this (the ground is at 0)
 const PASS = 15; // m it keeps over a friend's core on its way
 const PASS_MASS = 25; // kg: friends this heavy or more are flown over (drones, not other missiles)
 
@@ -128,6 +132,7 @@ function setup() {
   state.origin = { x: self.pos.x, y: self.pos.y };
   state.aim = b.nose;
   state.seenAt = -1;
+  state.fixAt = time; // when the point and speed were last known (the launcher's message, then each sighting)
   state.said = '';
   // The launcher's point: the last message with one in it.
   for (const m of inbox) {
@@ -140,15 +145,25 @@ function setup() {
   }
 }
 
+/**
+ * Where the robot it follows should be now: the last fix (the launcher's point, else the last sighting) carried on
+ * by its speed for the time since, never under the ground.
+ */
+function here() {
+  const age = time - state.fixAt;
+  return { x: state.point.x + state.vel.x * age, y: Math.max(FLOOR, state.point.y + state.vel.y * age) };
+}
+
 /** The robot it follows: the one the launcher named, else the enemy nearest its point (or nearest of all without one). */
 function pick() {
   let best = null;
   let bestD = Infinity;
+  const at = state.point ? here() : null; // where it looks for the robot to follow
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core || c.mass < LIGHT) continue;
     if (state.id !== undefined && c.id === state.id) return c;
-    const d = state.point ? Math.hypot(c.pos.x - state.point.x, c.pos.y - state.point.y) : c.distance;
-    if (state.point && d > ACQUIRE) continue;
+    const d = at ? Math.hypot(c.pos.x - at.x, c.pos.y - at.y) : c.distance;
+    if (at && d > ACQUIRE) continue;
     if (d < bestD) {
       best = c;
       bestD = d;
@@ -187,14 +202,17 @@ function tick() {
     state.vel = { x: seen.vel.x, y: seen.vel.y };
     state.id = seen.id;
     state.seenAt = time;
+    state.fixAt = time;
   } else if (state.seenAt >= 0 && time - state.seenAt > 0.3) {
-    // Lost track: fly to the last point it had.
+    // Lost track: fly to the last point it had (carried on to now, then held there).
+    if (state.point) state.point = here();
+    state.fixAt = time;
     state.vel = { x: 0, y: 0 };
   }
 
   let aim = state.aim;
   if (state.point) {
-    const p = state.point;
+    const p = here();
     const dx = p.x - self.pos.x;
     const dy = p.y - self.pos.y;
     const dist = Math.hypot(dx, dy);
@@ -218,10 +236,12 @@ function tick() {
       state.aim = Math.atan2(self.vel.y, self.vel.x);
     }
     // Aim ahead of a moving robot: time left from how fast the gap closes.
-    const closing = Math.max(20, (dx * (self.vel.x - state.vel.x) + dy * (self.vel.y - state.vel.y)) / Math.max(dist, 1));
+    // At least `MIN_CLOSE`: counted at 20 m/s, one let go 900 m out led its point by 45 s of the robot's speed.
+    const closing = Math.max(MIN_CLOSE, (dx * (self.vel.x - state.vel.x) + dy * (self.vel.y - state.vel.y)) / Math.max(dist, 1));
     const tgo = dist / closing;
     const gx = p.x + state.vel.x * tgo;
-    let gy = p.y + state.vel.y * tgo;
+    // Never under the ground: led by a falling or sinking robot's speed, it flew into the ground short of it.
+    let gy = Math.max(FLOOR, p.y + state.vel.y * tgo);
     // Over friends on the way: its line is raised to pass `PASS` meters over any it would pass closer to.
     const lx = gx - self.pos.x;
     const ly = gy - self.pos.y;

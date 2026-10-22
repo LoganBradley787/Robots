@@ -1,3 +1,10 @@
+// titan-bastion dart guide: the seeker guide (missile-up.guide.js), kept by hand since the titan-darts fixes (2026-10).
+// - The robot the base named is followed whatever it weighs.
+// - Its fuse fits the flight: `fuse` s at least, and the time to the launcher's point at `fuseSpeed` plus `fuseSpare`
+//   when that is longer, up to `fuseMax`.
+// - It arms only within `armDist` m of the point it flies to (the robot it tracks, else the launcher's point), as the
+//   hive's darts do. Armed 15 m out of its bay, darts let go 0.05 s apart bumped each other over the fortress and blew
+//   up there (a third of them); unarmed, a bump or a shell on the way only breaks one.
 // Seeker guide (M8): flies to the point its launcher sent it, and follows the robot its seeker tracks there.
 // Starts when the missile wakes (its decoupler lets go) or on deploy. G turns it off and on.
 // - setup() reads the launcher's point from inbox (and `arc` if the launcher chose the path for this shot). With none,
@@ -13,7 +20,10 @@
 //   the nose as fast as it can and still stop.
 // Parts are found by type, so it works however the missile was placed on its launcher.
 
-const fuse = param('fuse', 12, { min: 0.5, max: 30 }); // seconds of flight before it detonates
+const fuse = param('fuse', 12, { min: 0.5, max: 30 }); // s of flight before it detonates, at least (a far point gives it more)
+const fuseSpeed = param('fuseSpeed', 50, { min: 5, max: 500 }); // m/s: the fuse is at least the time to the launcher's point at this speed
+const fuseSpare = param('fuseSpare', 5, { min: 0, max: 30 }); // s added to that (the climb out, a target that moves away)
+const fuseMax = param('fuseMax', 40, { min: 1, max: 120 }); // s at most, so a dart that lost everything still ends
 const thrust = param('thrust', 160, { min: 10, max: 1000 }); // N, the motor's full push (thruster 160, booster 400)
 const gyroTorque = param('gyroTorque', 40, { min: 1, max: 1000 }); // N m, the gyro's full torque (gyro 40, heavy gyro 200)
 const margin = param('margin', 0.7, { min: 0.1, max: 1 }); // share of the gyro's torque it plans its braking on
@@ -23,6 +33,8 @@ const sideMax = param('sideMax', 0.8, { min: 0.1, max: 0.95 }); // most of the p
 const clear = param('clear', 0.15, { min: 0, max: 2 }); // seconds flying straight before steering, to clear the launcher
 const clearDist = param('clearDist', 0, { min: 0, max: 50 }); // and meters from where it was let go (both must pass)
 const lead = param('lead', 1, { min: 0, max: 2 }); // 1 aims ahead of a tracked robot by its speed, 0 at where it is
+const minClose = param('minClose', 100, { min: 10, max: 1000 }); // m/s: the closing speed it counts on at least when leading
+const floor = param('floor', 0.5, { min: 0, max: 50 }); // m: it never aims lower than this (the ground is at 0)
 const arc = param('arc', 0, { min: 0, max: 1 }); // 1: climb above the point, then come down onto it
 const height = param('height', 40, { min: 5, max: 300 }); // m above the point it climbs to when arcing
 const spread = param('spread', 0.25, { min: 0, max: 1 }); // each arc's height varies by up to this share (seeded), so two arcs rarely meet
@@ -36,6 +48,7 @@ const passBy = param('passBy', 15, { min: 0, max: 50 }); // m it keeps over a fr
 const passMass = param('passMass', 25, { min: 0, max: 1000 }); // kg: friendly robots this heavy or more are flown over (drones, not other missiles)
 const near = param('near', 5, { min: 0, max: 20 }); // m: losing sight of a tracked robot this close (from its warhead) sets it off too
 const arrive = param('arrive', 3, { min: 0, max: 20 }); // m: this close to the point with nothing tracked, it flies on straight and keeps looking
+const armDist = param('armDist', 200, { min: 5, max: 2000 }); // m from the point it flies to: it arms inside this
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -102,6 +115,7 @@ function setup() {
   state.phase = arc > 0.5 ? 'climb' : 'direct';
   state.height = height * (1 + spread * (2 * random() - 1));
   state.seenAt = -1;
+  state.fixAt = time; // when the point and speed were last known (the launcher's message, then each sighting)
   // The launcher's point: the last message with one in it.
   for (const m of inbox) {
     const d = m.data;
@@ -113,18 +127,47 @@ function setup() {
     // The launcher may choose the path for this shot: `arc: 1` over the top, `arc: 0` straight in.
     if (typeof d.arc === 'number') state.phase = d.arc > 0.5 ? 'climb' : 'direct';
   }
+  // The fuse fits the flight: a dart sent far gets the time to get there (titans let go from 900 m).
+  state.fuse = fuse;
+  if (state.point) {
+    const far = Math.hypot(state.point.x - self.pos.x, state.point.y - self.pos.y);
+    state.fuse = clamp(fuseSpare + far / fuseSpeed, fuse, Math.max(fuse, fuseMax));
+  }
+}
+
+/**
+ * Where the robot it follows should be now: the last fix (the launcher's point, else the last sighting) carried on
+ * by its speed for the time since, never under the ground. Without the time since, a dart flying blind 30 s aimed
+ * at where the robot was when it was let go.
+ */
+function here() {
+  const age = time - state.fixAt;
+  return { x: state.point.x + state.vel.x * age, y: Math.max(floor, state.point.y + state.vel.y * age) };
 }
 
 /** The robot it follows: the one the launcher named, else the enemy nearest the point (or nearest at all without one). */
 function pick() {
   let best = null;
   let bestD = Infinity;
+  // The robot it was sent at died (titan-darts, 2026-10): it is in view as debris, with no live core. It forgets that
+  // robot and its spot, flies on the way it is going, and takes the nearest enemy it sees.
+  if (state.id !== undefined) {
+    for (const c of contacts) {
+      if (c.id === state.id && (c.side !== 'enemy' || !c.core)) {
+        state.id = undefined;
+        state.point = undefined;
+        state.aim = Math.atan2(self.vel.y, self.vel.x);
+        break;
+      }
+    }
+  }
+  const at = state.point ? here() : null; // where it looks for the robot to follow
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
     if (state.id !== undefined && c.id === state.id) return c; // titan-bastion: the named robot, whatever it weighs
     if (c.mass < minMass) continue;
-    const d = state.point ? Math.hypot(c.pos.x - state.point.x, c.pos.y - state.point.y) : c.distance;
-    if (state.point && d > acquire) continue;
+    const d = at ? Math.hypot(c.pos.x - at.x, c.pos.y - at.y) : c.distance;
+    if (at && d > acquire) continue;
     if (d < bestD) {
       best = c;
       bestD = d;
@@ -134,7 +177,7 @@ function pick() {
 }
 
 function tick() {
-  if (time - state.start > fuse) boom();
+  if (time - state.start > state.fuse) boom();
 
   const seen = pick();
   // Lost sight of what it was about to reach (M11): it passed out of the seeker's cone close by, or the robot is now
@@ -145,8 +188,10 @@ function tick() {
   state.close = undefined;
   // Armed (M10) once clear of its launcher, and only when it was launched at something (a message with a point) or
   // tracks an enemy: safe while it rides on a launcher and while it clears it, and a missile knocked loose by a hit
-  // (no message) stays a dud unless it finds a target.
-  if (!state.armed && (state.launched || seen) && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
+  // (no message) stays a dud unless it finds a target. Only near where it is going (`armDist`).
+  const to = seen ? seen.pos : state.point ? here() : null;
+  const nearPoint = to && Math.hypot(to.x - self.pos.x, to.y - self.pos.y) < armDist;
+  if (!state.armed && (state.launched || seen) && nearPoint && time - state.start >= clear && Math.hypot(self.pos.x - state.origin.x, self.pos.y - state.origin.y) >= clearDist) {
     set('warhead', 'arm', 1);
     set('heavywarhead', 'arm', 1);
     state.armed = true;
@@ -156,14 +201,17 @@ function tick() {
     state.vel = { x: seen.vel.x, y: seen.vel.y };
     state.id = seen.id;
     state.seenAt = time;
+    state.fixAt = time;
   } else if (state.seenAt >= 0 && time - state.seenAt > 0.3) {
-    // Lost track: fly to the last point it had.
+    // Lost track: fly to the last point it had (carried on to now, then held there).
+    if (state.point) state.point = here();
+    state.fixAt = time;
     state.vel = { x: 0, y: 0 };
   }
 
   let aim = state.aim;
   if (state.point) {
-    const p = state.point;
+    const p = here();
     const dx = p.x - self.pos.x;
     const dy = p.y - self.pos.y;
     const dist = Math.hypot(dx, dy);
@@ -189,10 +237,12 @@ function tick() {
       state.aim = Math.atan2(self.vel.y, self.vel.x);
     }
     // Aim ahead of a moving robot: time left from how fast the gap closes.
-    const closing = Math.max(20, (dx * (self.vel.x - state.vel.x) + dy * (self.vel.y - state.vel.y)) / Math.max(dist, 1));
+    // At least `minClose`: counted at 20 m/s, a dart let go 900 m out led its point by 45 s of the robot's speed.
+    const closing = Math.max(minClose, (dx * (self.vel.x - state.vel.x) + dy * (self.vel.y - state.vel.y)) / Math.max(dist, 1));
     const tgo = dist / closing;
     let gx = p.x + lead * state.vel.x * tgo;
-    let gy = p.y + lead * state.vel.y * tgo;
+    // Never under the ground: led by a falling or sinking robot's speed, darts flew into the ground short of it.
+    let gy = Math.max(floor, p.y + lead * state.vel.y * tgo);
     if (state.phase === 'climb') {
       // Up toward `height` above the point, then down: once the point is steeply enough below it, or once the ground
       // left is about what it needs to stop moving sideways (v^2 / 2a with its sideways push, plus the ground it covers

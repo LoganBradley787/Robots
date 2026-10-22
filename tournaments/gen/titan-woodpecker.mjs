@@ -128,6 +128,7 @@ const dartBlueprint = (file) => ({
 const blueprint = {
   format: 1,
   name: NAME,
+  kind: 'yours',
   autoControls: false,
   grid: g.map((row) => row.join(' ')).reverse(),
   legend,
@@ -137,6 +138,8 @@ const blueprint = {
   recipes: { dart: dartBlueprint(`${NAME}.dart.guide.js`) },
 };
 fs.writeFileSync(bp(`${NAME}.json`), JSON.stringify(blueprint, null, 1) + '\n');
-fs.writeFileSync(bp(`${NAME}-dart.json`), JSON.stringify(dartBlueprint(`${NAME}-dart.guide.js`), null, 1) + '\n');
+// The saved copy is stamped as one of yours (the builder's library kind); the bay's recipe is not.
+const { format: dartFormat, name: dartName, ...dartRest } = dartBlueprint(`${NAME}-dart.guide.js`);
+fs.writeFileSync(bp(`${NAME}-dart.json`), JSON.stringify({ format: dartFormat, name: dartName, kind: 'yours', ...dartRest }, null, 1) + '\n');
 if (fs.existsSync(bp(`${NAME}.dart.guide.js`))) fs.copyFileSync(bp(`${NAME}.dart.guide.js`), bp(`${NAME}-dart.guide.js`));
 console.log(`${NAME}: ${W} wide, ${dart} darts, ${bay} bays, ${anchors} anchors`);

@@ -86,7 +86,9 @@ describe('grapple drone (Batch), done when', () => {
     expect(partsLost(w, hunter)).toBeGreaterThanOrEqual(20);
     // Not its core within 40 s any more (heavy armor went from 5 to 20 kg, 2026-10-02: the fight runs differently and the
     // hunter hangs on its rope with 10 parts left at 70 s, core among them). Stripped is what this checks.
-    expect(partsLost(w, me)).toBeLessThanOrEqual(5);
+    // At most 10 since the guides carry a fix on by the time since it (titan-darts, 2026-10): one of the hunter's
+    // missiles, knocked loose, now finds the grapple drone and its blast takes 9 parts (a gun, the grapple, 4 propellers).
+    expect(partsLost(w, me)).toBeLessThanOrEqual(10);
     // Its guns did it: they are the only thing of ours that shoots.
     expect(w.shotsBy(me.id)).toBeGreaterThan(20);
     w.dispose();

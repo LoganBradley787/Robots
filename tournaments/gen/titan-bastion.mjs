@@ -115,6 +115,7 @@ bay(MID + JAM[1], BODY + TIER.rows, 'jr', 1, 1);
 // Recipes: the dart is the stock missile-up with its guide under our name; the pod is one jammer.
 const dart = JSON.parse(fs.readFileSync(bp('missile-up.json'), 'utf8'));
 dart.name = 'dart';
+delete dart.kind;
 delete dart.bindings;
 dart.scripts = [{ id: 'guide', params: { ...dart.scripts[0].params, fuse: 14 }, source: { file: 'titan-bastion.dart.guide.js' } }];
 // The guide: the stock one, except that the robot the base named is followed whatever it weighs (the other
@@ -124,11 +125,14 @@ const from = "    if (c.side !== 'enemy' || !c.core || c.mass < minMass) continu
 const to = "    if (c.side !== 'enemy' || !c.core) continue;\n    if (state.id !== undefined && c.id === state.id) return c; // titan-bastion: the named robot, whatever it weighs\n    if (c.mass < minMass) continue;";
 if (!guide.includes(from)) throw new Error('missile-up.guide.js changed: the pick() lines to patch were not found');
 guide = guide.replace(from, to);
-fs.writeFileSync(bp('titan-bastion.dart.guide.js'), guide);
+// Kept by hand since the titan-darts fixes (2026-10: a fuse that fits the flight, arming near the target): written
+// from the stock guide only when the file is missing.
+if (!fs.existsSync(bp('titan-bastion.dart.guide.js'))) fs.writeFileSync(bp('titan-bastion.dart.guide.js'), guide);
 
 const out = {
   format: 1,
   name: 'titan-bastion',
+  kind: 'yours',
   autoControls: false,
   grid: g
     .slice()

@@ -133,6 +133,7 @@ turret(X1 + 1, 8 + UP, 270);
 const dart = {
   format: 1,
   name: 'titan-hive-dart',
+  kind: 'yours',
   // The blast head is the very front (a part in front of a blast halves it); the seeker rides beside the second head.
   grid: ['x .', 'H S^', 'C .', 'E .', 'g .', 'k .'],
   legend: {
@@ -150,10 +151,12 @@ const dart = {
 };
 const dartInHost = JSON.parse(JSON.stringify(dart));
 dartInHost.scripts[0].source.file = 'titan-hive.dart.guide.js';
+delete dartInHost.kind;
 
 const hive = {
   format: 1,
   name: 'titan-hive',
+  kind: 'yours',
   grid: cells
     .slice()
     .reverse()
