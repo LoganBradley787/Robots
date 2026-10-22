@@ -55,8 +55,8 @@ const tiltMax = param('tiltMax', 10, { min: 1, max: 90 }); // degrees: tilted mo
 const low = param('low', 0.1, { min: 0, max: 1 }); // under this share of its energy it stops driving
 const huge = param('huge', 600, { min: 10, max: 100000 }); // parts: a robot bigger than this is never scanned whole, only its extremes
 const gap = param('gap', 30, { min: 0, max: 200 }); // m between its nose (or tail) and a ground enemy it besieges (clear of what it launches from its edge)
-const weaveAmp = param('weaveAmp', 25, { min: 0, max: 200 }); // m either way it drifts while parked under something
-const weavePeriod = param('weavePeriod', 14, { min: 2, max: 120 }); // s for one drift there and back
+const weaveAmp = param('weaveAmp', 12, { min: 0, max: 200 }); // m either way it drifts while parked under something
+const weavePeriod = param('weavePeriod', 30, { min: 2, max: 120 }); // s for one drift there and back
 const standBack = param('standBack', 1150, { min: 100, max: 3000 }); // m it keeps from a ground enemy it cannot move nor burn, with no arena edge: past a radar's 1000 m, where nothing is sent after it
 const roam = param('roam', 300, { min: 0, max: 2000 }); // m either side of the last sighting it patrols with no arena edge
 const rest = param('rest', 60, { min: 0, max: 3600 }); // s with nothing seen before it stops to save energy (no arena edge)
@@ -188,6 +188,8 @@ function say(what) {
  * Meters to add to where it parks under something: it never sits still there. Darts aim where a robot will be from
  * how it moves when they leave; a sled parked under a carrier for 45 s had its core tunneled to by them (titans v2).
  */
+// Gentle on purpose: 25 m every 14 s asked for more than the boosters give, ran them flat out the whole time and
+// emptied the batteries in under two minutes; 12 m every 30 s is under 3 m/s and 0.6 m/s2.
 function weave() {
   return weaveAmp * Math.sin((2 * Math.PI * time) / weavePeriod);
 }
