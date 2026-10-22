@@ -626,8 +626,9 @@ function tick() {
     let lo = 1e9;
     let hi = -1e9;
     let ylo = 1e9;
+    const fresh = pings[pings.length - 1].t > time - 3; // go by the last 3 s of touches when there are any
     for (const p of pings) {
-      if (time - p.t > 4 && pings.length > 30) continue;
+      if (fresh ? time - p.t > 3 : time - p.t > 4 && pings.length > 30) continue;
       if (p.lo < lo) lo = p.lo;
       if (p.hi > hi) hi = p.hi;
       if (p.ylo < ylo) ylo = p.ylo;
@@ -733,7 +734,10 @@ function tick() {
   const tipping = Math.abs(self.angle) > Math.abs(lean) + 0.2 || Math.abs(self.angVel) > 0.12;
   const cap = tipping ? 0.5 : Math.abs(self.angle - lean) > 0.3 ? 0.35 : clamp(1 - lift, 0.12, 0.35);
   const diff = clamp(torque / state.leanTorque, -cap, cap);
-  lift = clamp(lift, Math.abs(diff), 1 - Math.abs(diff));
+  // Near the ceiling while still climbing, nothing is kept on: only a cut lift stops the climb in time (a kept half
+  // let it coast through the arena's roof, titans v2, 2026-10).
+  const keep = y > ceiling - 60 && vy > 0 ? 0 : Math.abs(diff);
+  lift = clamp(lift, keep, 1 - Math.abs(diff));
   const leftLift = lift > 0 ? clamp(lift - diff, 0, 1) : 0;
   const rightLift = lift > 0 ? clamp(lift + diff, 0, 1) : 0;
   set('la', 'throttle', state.laLeft ? leftLift : rightLift);
