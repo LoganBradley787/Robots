@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
-import { CRASH_REACH, crashDistance, crashFraction, crashWeight } from '../src/world/crash';
+import { CRASH_FLOOR, CRASH_REACH, CRASH_SAFE, crashDistance, crashFraction, crashWeight } from '../src/world/crash';
+import { defaultRegistry } from '../src/parts/registry';
 import type { PartInstance } from '../src/world/Robot';
 
 const flat = parseWorldFile(flatJson);
@@ -203,6 +204,60 @@ describe('crash damage is local (Titans)', () => {
     for (const p of roof) expect(p.health).toBe(p.def.health);
     expect(lost.some((id) => id.startsWith('battery'))).toBe(true);
     for (const p of low) expect(p.health).toBeLessThan(p.def.health);
+    w.dispose();
+  });
+});
+
+// Review S3: a wheel, or anything on a rotator or a piston, is its own body. A robot spinning at w swings it round by
+// `w * w * r * dt` a step with nothing touching it, which counted as a crash past 12 m/s.
+describe('crash damage is felt by the robot, not the link (review S3)', () => {
+  const space = parseWorldFile({ name: 'void', ground: { width: 50, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [{ x: 60, y: 20, w: 1, h: 30 }] });
+  const lostShare = (p: PartInstance | undefined): number => (p ? 1 - p.health / p.def.health : 1);
+  const find = (w: World, id: string): PartInstance | undefined => w.robots.flatMap((x) => [...x.parts.values()]).find((p) => p.id === id);
+
+  it('no part feels a jolt as small as CRASH_FLOOR, under which an untouched body is looked at no further', () => {
+    for (const def of defaultRegistry().list()) {
+      expect(def.impact?.speed ?? Infinity, def.id).toBeGreaterThan(CRASH_FLOOR);
+      expect(def.charge?.crash ?? Infinity, def.id).toBeGreaterThan(CRASH_FLOOR);
+      expect(def.crash?.safe ?? CRASH_SAFE, def.id).toBeGreaterThan(CRASH_FLOOR);
+    }
+  });
+
+  it('a 9 wide car spun past 16 rad/s by two heavy gyros in empty space loses nothing', async () => {
+    const w = await World.create({ seed: 1, gravityY: 0 }, space);
+    // Two heavy gyros, and wheels 4.1 m from the middle: before, both went at about 13.7 rad/s.
+    const r = w.spawnBlueprint({ format: 1, name: 'spinner', grid: ['B  F  F  Y  C  Y  F  F  B', 'W  .  .  .  .  .  .  .  W'] } as never, { x: 0, y: 500 });
+    w.step([{ robot: r.id, pressed: ['e'], released: [] }]);
+    for (let i = 0; i < 60 * 8; i++) w.step();
+    const core = r.parts.get('core@4,1');
+    expect(Math.abs(w.physics.state(r.groups[core?.group ?? -1]?.bodyId ?? -1).w)).toBeGreaterThan(16);
+    expect(destroyed(w)).toEqual([]);
+    for (const p of r.parts.values()) expect(p.health).toBe(p.def.health);
+    w.dispose();
+  });
+
+  it('a wheel that leads into a wall still takes its crash, and the hull behind it less', async () => {
+    const w = await World.create({ seed: 1, gravityY: 0 }, space);
+    // The wheel sits on the east face of the front frame, so it is what touches the wall.
+    const r = w.spawnBlueprint({ format: 1, name: 'ram', grid: ['B  B  F  C  F  W>'] } as never, { x: 0, y: 20 });
+    w.kickRobot(r, 20, 0);
+    for (let i = 0; i < 300; i++) w.step();
+    expect(destroyed(w)).toContain('wheel@5,0');
+    expect(find(w, 'battery@0,0')).toBeDefined();
+    // The core next to it (frames shrug off 24 m/s) lost more than the battery at the back.
+    expect(lostShare(find(w, 'core@3,0'))).toBeGreaterThan(lostShare(find(w, 'battery@0,0')));
+    w.dispose();
+  });
+
+  it('a car rammed hull first into a wall: its wheels, touching nothing, still take their share of the hit', async () => {
+    const w = await World.create({ seed: 1, gravityY: 0 }, space);
+    const r = w.spawnBlueprint({ format: 1, name: 'car', grid: ['B  F  C  F  F  F', '.  W  .  .  W  .'] } as never, { x: 0, y: 20 });
+    w.kickRobot(r, 20, 0);
+    for (let i = 0; i < 300; i++) w.step();
+    // The front wheel is 1.5 m behind the hull's front face, the back one 4.5 m: both hurt, the front one more.
+    const front = lostShare(find(w, 'wheel@4,0'));
+    expect(front).toBeGreaterThan(0);
+    expect(front).toBeGreaterThan(lostShare(find(w, 'wheel@1,0')));
     w.dispose();
   });
 });

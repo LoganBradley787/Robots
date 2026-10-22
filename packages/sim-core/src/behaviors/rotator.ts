@@ -1,12 +1,13 @@
 import { wrapAngle } from '../physics/PhysicsWorld';
 import type { Behavior } from './registry';
+import { aboutPoint, hingeInertia, motorLoad } from './reduced';
 
 /**
  * A rotator (Q5, M6): a motorized hinge that aims what it carries. `turn` (Z and X by auto controls) swings its aim
  * at up to `turnSpeed` rad/s within +-`range` of straight; with no input it holds the aim. The position motor's gains
- * come from the inertia of what it carries about the hinge, for a response near `frequency` rad/s critically damped,
- * so a heavy turret aims as crisply as a light one until the torque cap. Draws energy in proportion to the torque it
- * needs. Its motor has an integral term (Batch), so a steady load (a missile's weight) does not leave a sag. `angle` reads the aim as a fraction of the range.
+ * come from the inertia of what it carries about the hinge (capped at twice the reduced inertia of the two sides, S4),
+ * for a response near `frequency` rad/s critically damped, so a heavy turret aims as crisply as a light one until the
+ * torque cap. Draws energy in proportion to the torque it needs. Its motor has an integral term (Batch), so a steady load (a missile's weight) does not leave a sag. `angle` reads the aim as a fraction of the range.
  */
 /** How far the aim may run ahead of the turret while it is turning, in radians. */
 const AIM_LEAD = 0.15;
@@ -25,9 +26,12 @@ export const rotator: Behavior = {
     const mp = ctx.physics.massProperties(ctx.group.bodyId);
     // The body's origin is the rotator's cell: the hinge.
     const hinge = ctx.physics.state(ctx.group.bodyId);
-    const hx = mp.comX - hinge.x;
-    const hy = mp.comY - hinge.y;
-    const inertia = mp.inertia + mp.mass * (hx * hx + hy * hy);
+    // S4: the motor turns both sides. A turret on a heavy hull keeps its own inertia about the hinge; a light mount
+    // under a heavy hull (a hull shot down to a stub) is what turns, and gains sized for the hull flung it round and
+    // round, so they are capped by the pair's reduced inertia.
+    const own = aboutPoint(mp, hinge.x, hinge.y);
+    const parent = ctx.robot.groups[joint.parentGroup];
+    const inertia = parent ? motorLoad(own, hingeInertia(mp, ctx.physics.massProperties(parent.bodyId), hinge.x, hinge.y)) : own;
     // A heavy turret turns only as fast as the motor can stop it within about 0.2 rad (half its torque to spare for
     // gravity), and the aim never runs far ahead of it (M7): otherwise it swings far past where you let go.
     const speed = Math.min(ctx.config('turnSpeed'), Math.sqrt((0.2 * spec.maxTorque) / Math.max(inertia, 1e-6)));
