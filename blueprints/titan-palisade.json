@@ -194,13 +194,13 @@
   ". . . fp1 . . . . . . . . . . fp1 . fp1 g1_p1",
   ". . . d pa pa pa pa pa pa pb pb pb pb pb . . .",
   ". g6_ r6_ f f f f f f f f f f f f f r5_ g5_",
-  ". . . tb . . pd pd pd pd pd pd pd . . tb . .",
+  ". . . tb . f pa pa pa pa pb pb pb f . tb . .",
   ". . . ta pa pa pa pa pa pa pb pb pb pb pb ta . .",
   ". . . f f f f f f f f f f f f f . .",
-  ". . . tb . . pd pd pd pd pd pd pd . . tb . .",
+  ". . . tb . f pa pa pa pa pb pb pb f . tb . .",
   ". . . ta pa pa pa pa pa pa pb pb pb pb pb ta . .",
   ". g4_ r4_ f f f f f f f f f f f f f r3_ g3_",
-  ". . . tb . . pd pd pd pd pd pd pd . . tb . .",
+  ". . . tb . f pa pa pa pa pb pb pb f . tb . .",
   ". . . ta pa pa pa pa pa pa pb pb pb pb pb ta . .",
   ". . . f f f f f f f f f f f f f . .",
   ". . . tb z z z z f a f z z z f tb . .",
@@ -248,14 +248,6 @@
    "rot": 90,
    "tags": [
     "tb"
-   ],
-   "auto": false
-  },
-  "pd": {
-   "part": "propeller",
-   "rot": 180,
-   "tags": [
-    "pd"
    ],
    "auto": false
   },

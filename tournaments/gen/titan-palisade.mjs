@@ -100,12 +100,13 @@ function panel(index, y0, link) {
 }
 
 /**
- * The keep (round 2): the main core over a belly of armor, four decks of propellers pushing up and three rows
- * pushing down (`pd`) so it can step out of a ram's way either way, eight thrusters each way, six single guns.
+ * The keep (round 2): the main core over a belly of armor, propellers pushing up, eight thrusters each way, six
+ * single guns. Titans v2 (2026-10): the three rows that pushed down (`pd`) push up now, hung between the decks on a
+ * frame at each end: with 44 propellers lifting 479 kg it could barely hover (lift 1.1 times its weight), and a lean
+ * in its first seconds took it to the ground for the whole match. Cutting the lift drops it at 9.8 m/s^2 anyway.
  */
 function keep(y0, link) {
   const t = T('');
-  const pd = tok('', 'pd', 'propeller', 180, ['pd'], { auto: false });
   const mounts = new Set([1, 3, 6, 9, 12]);
   const fwd = new Set([0, 4, 7, 10]);
   for (let y = 0; y <= 12; y++) {
@@ -123,7 +124,8 @@ function keep(y0, link) {
     for (let x = 4; x <= 14; x++) {
       put(x, y0 + dy, t.f);
       put(x, y0 + dy + 1, t.prop(x <= 9 ? 'pa' : 'pb'));
-      if (dy > 3 && x >= 6 && x <= 12) put(x, y0 + dy - 1, pd);
+      if (dy > 3 && x >= 6 && x <= 12) put(x, y0 + dy - 1, t.prop(x <= 9 ? 'pa' : 'pb'));
+      if (dy > 3 && (x === 5 || x === 13)) put(x, y0 + dy - 1, t.f);
     }
   }
   [1, 6, 12].forEach((r, i) => {
