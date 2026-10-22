@@ -11,7 +11,8 @@
 // - Target: the nearest such robot of `light` kg or more (the one it has is kept unless another is much closer). Which part: it scans the
 //   robot and picks what is worth the most that one bolt can still reach (its main core first: the one the contact
 //   is reported at; a missile's core on a rack is worth little): a bolt takes the health of each part in
-//   front off its `damage` (armor in full), so a part behind more health than that is out of reach this shot.
+//   front off its `damage` (armor in full: the gun's own, read off its part), so a part behind more health than that
+//   is out of reach this shot.
 // - A robot of more than `huge` parts (a titan) is never scanned whole: thousands of parts handed to the script every
 //   tick cost more than the rest of the battle. To choose, it asks the radar for the `most` parts nearest the barrel,
 //   each with the health in front of it on the line (`cover`, counted over the whole robot); after that only for the
@@ -30,7 +31,7 @@
 const reach = param('reach', 250, { min: 1, max: 2000 }); // m: the part's sight (250 cannon, 400 lance)
 const track = param('track', 400, { min: 1, max: 2000 }); // m: it charges and points at things this near
 const speed = param('speed', 300, { min: 1, max: 5000 }); // m/s, the bolt (300 cannon, 600 lance)
-const damage = param('damage', 1500, { min: 1, max: 100000 }); // what one bolt carries (1500 cannon, 250 lance)
+const damage = param('damage', 0, { min: 0, max: 100000 }); // what one bolt carries; 0: the gun's own (its def's `cannon.damage`)
 const full = param('full', 4, { min: 0.1, max: 60 }); // s the part can be held full (4 cannon, 2 lance)
 const barrel = param('barrel', 3.5, { min: 0, max: 20 }); // m from the part's first cell to the barrel's end
 const off = param('off', 0, { min: -5, max: 5 }); // m the barrel's middle is to the left of the part's first cell (cannon -0.5)
@@ -144,7 +145,7 @@ function aimedParts(id) {
  * of that robot in front of it on the line (and its own) is more than a bolt carries. Undefined when it cannot be
  * scanned; otherwise the part as scanned.
  */
-function bestPart(target, from) {
+function bestPart(target, from, carries) {
   // A huge robot: the radar hands over only the parts nearest the barrel, with what covers each.
   const big = target.parts > huge;
   let list = big ? scan(target.id, { near: from, most, from, wide }) : scanned(target.id);
@@ -189,10 +190,15 @@ function bestPart(target, from) {
       if (Math.abs(qx * uy - qy * ux) < wide) cost += q.health;
     }
     // Out of one bolt's reach: still worth its share, since the next bolt down the same line finishes the job.
-    const score = cost <= damage ? bound : (bound * damage) / cost;
+    const score = cost <= carries ? bound : (bound * carries) / cost;
     if (!best || score > best.score) best = { p, score };
   }
   return best && best.p;
+}
+
+/** What one bolt of this gun carries: the `damage` param when set, else the gun's own, off its part's def. */
+function boltDamage(gun) {
+  return damage > 0 ? damage : gun.spec.cannon.damage;
 }
 
 /** Where to point so a bolt from `from` meets a point at `pos` moving at `vel`: led by its flight time, raised by its drop. */
@@ -256,7 +262,7 @@ function aimTurret(name, powered) {
   let p;
   if ((time - st.picked >= repick || st.part === undefined) && state.pickFrame !== frame) {
     state.pickFrame = frame;
-    p = bestPart(best.c, from);
+    p = bestPart(best.c, from, boltDamage(gun));
     st.part = p && p.id;
     st.picked = time;
   } else if (st.part !== undefined) {

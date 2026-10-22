@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
@@ -9,6 +10,7 @@ import { DEFAULT_LEGEND } from '../src/blueprint/legend';
 import { SIGHT } from '../src/weapons/shells';
 import { WIND } from '../src/behaviors/cannon';
 import { buildReplay, parseReplay, runReplay } from '../src/replay/replayFile';
+import { resolveScripts } from '../src/blueprint/scripts';
 
 /** No gravity, a small ground far below, so nothing moves on its own. */
 const space = parseWorldFile({ name: 'space', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 } });
@@ -30,6 +32,24 @@ const gunOf = (r: Robot): PartInstance => {
 };
 const stored = (w: World, r: Robot): number => w.energy(r.id)?.stored ?? 0;
 const charged = (w: World, r: Robot): number => w.partOutput(r.id, gunOf(r).id, 'charged') ?? -1;
+const bpFile = (file: string): string => readFileSync(new URL(`../../../blueprints/${file}`, import.meta.url), 'utf8');
+/** A shipped blueprint, its scripts read but never run (no script host here). */
+const shipped = (name: string): unknown => resolveScripts(JSON.parse(bpFile(`${name}.json`)), bpFile).raw;
+/** Every body of every robot but `skip`: its mass and speed, and the momentum along x of them all. */
+function others(w: World, skip: Robot): { bodies: { mass: number; speed: number }[]; px: number } {
+  const bodies: { mass: number; speed: number }[] = [];
+  let px = 0;
+  for (const r of w.robots) {
+    if (r.id === skip.id) continue;
+    for (const g of r.groups) {
+      const s = w.physics.state(g.bodyId);
+      const mass = w.physics.massProperties(g.bodyId).mass;
+      bodies.push({ mass, speed: Math.hypot(s.vx, s.vy) });
+      px += mass * s.vx;
+    }
+  }
+  return { bodies, px };
+}
 const steps = (w: World, n: number): void => {
   for (let i = 0; i < n; i++) w.step();
 };
@@ -551,6 +571,61 @@ describe('charged guns (M15): the cannon and the lance', () => {
     expect(w.events.filter((e) => e.kind === 'boltHit')).toMatchObject([{ robot: loose.id, partType: 'frame', damage: 60 }, { robot: target.id, partType: 'armorplate', damage: 190 }]);
     expect(w.events.filter((e) => e.kind === 'explosion')).toEqual([]);
     expect(Math.abs(w.physics.state(target.groups[0]?.bodyId as number).vx)).toBeGreaterThan(5);
+    w.dispose();
+  });
+
+  it('through a hunter drone a cannon bolt shoves what is left: the broken parts\' share goes to the nearest part standing', async () => {
+    // 200 m off, no gravity: the orb breaks some thirty parts and flies on with a third of its damage. Before (Claude's
+    // call, 2026-10-22) every share landed on a broken part and was lost: the hunter's remains did not move at all.
+    const w = await space0();
+    const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
+    w.spawnBlueprint(shipped('hunter-drone'), { x: 200, y: 100 }, { team: 1 });
+    steps(w, 5);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 60);
+    const spent = w.events.filter((e) => e.kind === 'boltHit').reduce((a, e) => a + ((e as { damage?: number }).damage ?? 0), 0);
+    expect(spent).toBeGreaterThan(900);
+    expect(spent).toBeLessThan(1500);
+    const { bodies, px } = others(w, rig);
+    // About 800 N s times the share spent, less what went with parts that broke on a later tick: some 430 N s.
+    expect(px).toBeGreaterThan(300);
+    expect(px).toBeLessThan((800 * spent) / 1500 + 1);
+    // The 45 kg left goes at some 10 m/s, under the cap.
+    const main = bodies.reduce((a, b) => (b.mass > a.mass ? b : a));
+    expect(main.speed).toBeGreaterThan(7);
+    expect(main.speed).toBeLessThan(14);
+    w.dispose();
+  });
+
+  it('one bolt changes a body\'s speed by 15 m/s at most: a lance through a car leaves no scrap flying off at 44 m/s', async () => {
+    const w = await space0();
+    const rig = w.spawnBlueprint(LANCE, { x: 0, y: 100 });
+    w.spawnBlueprint(shipped('car'), { x: 200, y: 100 }, { team: 1 });
+    steps(w, 5);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 60);
+    const { bodies, px } = others(w, rig);
+    // The bolt is spent in the car and its 300 N s land on scraps of a few kg: uncapped one went at 44 m/s.
+    expect(px).toBeGreaterThan(20);
+    expect(bodies.length).toBeGreaterThan(0);
+    for (const b of bodies) expect(b.speed).toBeLessThanOrEqual(15.05);
+    expect(Math.max(...bodies.map((b) => b.speed))).toBeGreaterThan(5);
+    w.dispose();
+  });
+
+  it('the cap holds over the whole flight: a cannon orb spent in seven heavy plates over two ticks gives what is left 15 m/s', async () => {
+    const w = await space0();
+    const rig = w.spawnBlueprint(CANNON, { x: 0, y: 100 });
+    w.spawnBlueprint({ format: 1, name: 'brick', grid: ['A A A A C A A'] }, { x: 200, y: 100 }, { team: 1 });
+    steps(w, 5);
+    chargeUp(w, rig);
+    w.step(letGo(rig.id));
+    steps(w, 60);
+    const { bodies } = others(w, rig);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]?.speed).toBeCloseTo(15, 1);
     w.dispose();
   });
 
