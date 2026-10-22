@@ -20,12 +20,10 @@ export interface BodyMotion {
 export interface RebuildHost {
   physics: PhysicsWorld;
   tick: number;
-  /** A body's motion, counting a kick it was given earlier this tick (Rapier reports it only after a step). */
+  /** A body's motion, counting a kick it was given since the last step (`PhysicsWorld.state`). */
   motion(body: BodyId): BodyMotion;
-  /** Gives a new body its velocity on the next step (`PhysicsWorld.kick`). */
+  /** Gives a new body its velocity: outright, or for a multibody link as a kick before the next step. */
   kick(body: BodyId, vx: number, vy: number, w: number): void;
-  /** Forgets anything kept for a body that is about to be removed. */
-  forget(body: BodyId): void;
   newRobotId(): number;
   /** Tests only: always work the pieces out from scratch, never from what the robot kept (`Kept`). Same result, slower. */
   full?: boolean;
@@ -92,7 +90,6 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
   // Everything about the old bodies, before any of them goes.
   const motions = new Map(robot.groups.map((g) => [g.index, host.motion(g.bodyId)]));
   for (const g of robot.groups) {
-    host.forget(g.bodyId);
     physics.removeBody(g.bodyId);
   }
   if (all.size === 0) {

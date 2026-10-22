@@ -54,7 +54,7 @@ const LIFTER = {
 };
 
 /** Everything the world keeps per robot, by name: each must be empty once every robot is gone. */
-const PER_ROBOT = ['byId', 'controllers', 'runners', 'channels', 'used', 'logBudget', 'emptied', 'debrisRest', 'dirty', 'grown', 'seen', 'seenDecoys', 'scriptMarks', 'lastSentEvent', 'pendingKicks', 'recentKicks', 'unprimed', 'pendingRemove'] as const;
+const PER_ROBOT = ['byId', 'controllers', 'runners', 'channels', 'used', 'logBudget', 'emptied', 'debrisRest', 'dirty', 'grown', 'seen', 'seenDecoys', 'scriptMarks', 'lastSentEvent', 'unprimed', 'pendingRemove'] as const;
 
 function held(w: World): Record<string, number> {
   const inside = w as unknown as Record<string, { size: number }>;

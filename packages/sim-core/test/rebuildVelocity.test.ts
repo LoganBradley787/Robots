@@ -52,7 +52,7 @@ async function fly(blueprint: unknown, ticks: number, lose: boolean, on = -1, of
     }
     w.step(i === on ? [{ robot: r.id, pressed: ['w'], released: [] }] : i === off ? [{ robot: r.id, pressed: [], released: ['w'] }] : []);
   }
-  // A hull with joints reports a rebuilt body's velocity a step late: let the last rebuild settle.
+  // Let the last rebuild's kick and pushes settle.
   for (let i = 0; i < 3; i++) w.step();
   const v = speed(w, r);
   w.dispose();
