@@ -185,7 +185,6 @@ function tick() {
   let big = null;
   let heaviest = null;
   let kept = null;
-  let keptLight = null;
   let light = null;
   let gone = false;
   const mem = state.root;
@@ -201,19 +200,18 @@ function tick() {
     const v = Math.hypot(c.vel.x, c.vel.y);
     if (v > fast) state.quick[c.id] = 1;
     if (c.mass < mainMass || state.quick[c.id]) continue;
+    if (mem && c.id === mem.id) kept = c; // kept however light it gets
     if (c.mass >= heavyMass) {
-      if (mem && c.id === mem.id) kept = c;
       if (!heaviest || c.mass > heaviest.mass) heaviest = c;
     } else if (v < slow) {
-      if (mem && c.id === mem.id) keptLight = c;
       if (!light || c.mass > light.mass) light = c;
     }
   }
   if (!jammed && t > 0.05) state.heard = time;
   let main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
-  if (main) state.heavyAt = time;
+  if (main && main.mass >= heavyMass) state.heavyAt = time;
   // No heavy one for a while (longer in a match: a titan hidden from the first second is out there): a light, slow one.
-  else if (light && time - state.heavyAt > (arena ? fallbackMatch : fallback)) main = keptLight || light;
+  else if (!main && light && time - state.heavyAt > (arena ? fallbackMatch : fallback)) main = light;
   if (main) {
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, at: time, d: main.distance };
     state.foe = { id: main.id, x: main.pos.x, y: main.pos.y, at: time };

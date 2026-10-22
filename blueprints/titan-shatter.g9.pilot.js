@@ -157,7 +157,6 @@ function lookAround() {
   let heaviest = null;
   let light = null;
   let kept = null;
-  let keptLight = null;
   let gone = false;
   const root = state.root;
   for (const c of contacts) {
@@ -172,11 +171,11 @@ function lookAround() {
     const v = Math.hypot(c.vel.x, c.vel.y);
     if (v > fast) state.quick[c.id] = 1;
     if (c.mass >= mainMass && !state.quick[c.id]) {
+      // The one it has is kept however light it gets (a main enemy shot to pieces weighs less and less).
+      if (c.id === root.id) kept = c;
       if (c.mass >= heavyMass) {
-        if (c.id === root.id) kept = c;
         if (!heaviest || c.mass > heaviest.mass) heaviest = c;
       } else if (v < slow) {
-        if (c.id === root.id) keptLight = c;
         if (!light || c.mass > light.mass) light = c;
       }
     }
@@ -184,10 +183,10 @@ function lookAround() {
     if (!small && c.mass < 60 && c.distance < 140) small = c;
   }
   let main = kept && !(heaviest && heaviest.mass > 2 * kept.mass) ? kept : heaviest;
-  if (main) state.mainAt = time;
+  if (main && main.mass >= heavyMass) state.mainAt = time;
   // No heavy enemy (`heavyMass` or more) for a while: a lighter, slow one with a live core will do (until a heavy one
   // shows up). In a match it waits longer: a titan hidden from the first second is still out there somewhere.
-  else if (light && time - state.mainAt > (arena ? fallbackMatch : fallback)) main = keptLight || light;
+  else if (!main && light && time - state.mainAt > (arena ? fallbackMatch : fallback)) main = light;
   if (main) {
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance };
     state.live = true;
