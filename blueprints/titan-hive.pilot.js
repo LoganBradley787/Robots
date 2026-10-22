@@ -73,6 +73,7 @@ const groundY = param('groundY', 35, { min: 0, max: 200 }); // m: an enemy core 
 const touchReach = param('touchReach', 320, { min: 0, max: 1000 }); // m: a heavy enemy this close is scanned for what presses on it
 const touchDist = param('touchDist', 90, { min: 0, max: 500 }); // m from its core: a part this close is the turrets' first target
 const touchEvery = param('touchEvery', 0.5, { min: 0.05, max: 10 }); // s between those scans
+const cutUnder = param('cutUnder', 28, { min: 0, max: 100 }); // m under its core it cuts a mast that presses on it (the belly is 9 m down; the belly turrets swing no closer than 76 degrees to level)
 const restHeight = param('restHeight', 9, { min: 1, max: 50 }); // m from its core down to the ground when it sits (the belly turrets are under it)
 const propDraw = param('propDraw', 10, { min: 0, max: 1000 }); // J/s, one propeller at full push
 const minMass = param('minMass', 10, { min: 0, max: 1000 }); // kg: lighter enemies get no dart
@@ -600,12 +601,23 @@ function tick() {
   // up through the hull pushed the ship out of the arena while the turrets aimed at its core on the ground.
   if (main && main.mass >= heavyMass && main.distance < touchReach && frame - state.touchScan >= touchEvery / dt) {
     state.touchScan = frame;
+    const was = state.touch;
     state.touch = null;
     const ps = scan(main.id, { near: { x: self.pos.x, y: self.pos.y }, most: 3 });
     if (ps) {
       for (const p of ps) {
         const d = Math.hypot(p.pos.x - self.pos.x, p.pos.y - self.pos.y);
         if (d < touchDist && (!state.touch || d < state.touch.d)) state.touch = { x: p.pos.x, y: p.pos.y, d, at: time, id: main.id };
+      }
+    }
+    // Pressed by something that reaches up past the belly (a mast): aim at it just under the belly instead, where
+    // cutting it across lets everything above fall away, not level with the core, where there is only more of it.
+    if (state.touch && was && Math.abs(state.touch.x - was.x) < 15) {
+      const cut = scan(main.id, { near: { x: state.touch.x, y: self.pos.y - cutUnder }, most: 1 });
+      if (cut && cut.length > 0 && Math.abs(cut[0].pos.x - state.touch.x) < 10 && cut[0].pos.y < self.pos.y - cutUnder + 8) {
+        state.touch.x = cut[0].pos.x;
+        state.touch.y = cut[0].pos.y;
+        state.touch.d = Math.hypot(cut[0].pos.x - self.pos.x, cut[0].pos.y - self.pos.y);
       }
     }
   }
@@ -615,4 +627,9 @@ function tick() {
     foes.unshift({ id: -1, pos: { x: touch.x + main.vel.x * age, y: touch.y + main.vel.y * age }, vel: main.vel, mass: main.mass, distance: touch.d });
   }
   for (const t of C.turrets) aimTurret(t, foes, friends);
+  if (debug > 0.5 && frame % 120 === 60) {
+    let firing = 0;
+    for (const t of C.turrets) if (t.st.firing) firing++;
+    log('turrets ' + C.turrets.length + ' firing ' + firing + (touch ? ' pressed at ' + (touch.x - self.pos.x).toFixed(0) + ',' + (touch.y - self.pos.y).toFixed(0) : '') + ' main ' + (main ? (main.pos.x - self.pos.x).toFixed(0) + ',' + (main.pos.y - self.pos.y).toFixed(0) : '-'));
+  }
 }
