@@ -45,7 +45,7 @@ export { sampleRobot, partWorldPose, DriveTracker } from './metrics/robotMetrics
 export type { RobotSample, DriveMetrics } from './metrics/robotMetrics';
 export { parseKeyTimeline, timelineInputs, TimelineError } from './control/timeline';
 export type { KeyPress } from './control/timeline';
-export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setPartRotations, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls, moveParts, movePartsBy, replacePartType, replacePartAt, stampOfParts, stampPlacement, placePartStamp, copyParts } from './blueprint/edit';
+export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setPartRotations, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls, moveParts, movePartsBy, replacePartType, replacePartAt, stampOfParts, stampPlacement, stampFlipAxis, placePartStamp, copyParts } from './blueprint/edit';
 export type { CellArea, MoveOptions, MoveResult, PlacePartOptions, PartSetting, ReplaceOptions, ReplaceReport, ReplaceResult, PartStamp, StampOptions, CopyResult } from './blueprint/edit';
 export { mirrorRotation, mirrorX, mirrorBlueprint, mirrorProblem, rootFlipAxis } from './blueprint/mirror';
 export { footprintBox, footprintOf, mirrorable, mirroredShift, partMass, defaultSize, cupFootprint } from './parts/footprint';

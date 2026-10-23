@@ -4,7 +4,7 @@ import { defaultSize, footprintOf, mirroredShift } from '../parts/footprint';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import { mirrorProblem, mirrorRotation } from './mirror';
+import { mirrorProblem, mirrorRotation, rootFlipAxis } from './mirror';
 import type { Binding, Blueprint, CoreControls, PlacedPart, Recipe, ScriptSpec } from './types';
 
 /**
@@ -561,7 +561,7 @@ export interface PartStamp {
 
 export interface StampOptions {
   rot?: Rotation;
-  /** Flip the stamp left to right (across its anchor's column) before turning it. */
+  /** Flip the stamp left to right (across the middle of its anchor's own cells) before turning it. */
   mirror?: boolean;
   /** The cells copies may land on. Absent: anywhere. */
   area?: CellArea;
@@ -584,18 +584,28 @@ export function stampOfParts(bp: Blueprint, ids: readonly string[], anchorId?: s
 }
 
 /**
+ * The column a stamp flips across so its anchor (the part whose origin is the stamp's (0, 0)) keeps its own cells, in
+ * half cells from the anchor's origin (`rootFlipAxis`): 1 for a cannon two cells wide, 0 for a one-cell anchor.
+ */
+export function stampFlipAxis(stamp: PartStamp, registry: PartRegistry): number {
+  const anchor = stamp.parts.find((p) => p.x === 0 && p.y === 0);
+  return anchor ? rootFlipAxis(anchor, registry) : 0;
+}
+
+/**
  * Where a stamp's parts would stand with its anchor on `at`: the copies as they would be placed, still under the
  * originals' ids (and id tags). For the ghost a builder draws, and for `placePartStamp`. Flipped first, then turned,
- * like a placed blueprint (`placeBlueprint`).
+ * like a placed blueprint (`placeBlueprint`): the flip keeps the anchor on its own cells (review E5).
  */
 export function stampPlacement(stamp: PartStamp, at: { x: number; y: number }, registry: PartRegistry, opts: StampOptions = {}): PlacedPart[] {
   const rot: Rotation = opts.rot ?? 0;
+  const axis = opts.mirror === true ? stampFlipAxis(stamp, registry) : 0;
   return stamp.parts.map((p) => {
     let dx = p.x;
     let dy = p.y;
     let r = p.rot;
     if (opts.mirror === true) {
-      dx = -dx;
+      dx = axis - dx;
       r = mirrorRotation(r);
       // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
       const shift = registry.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), r) : { x: 0, y: 0 };

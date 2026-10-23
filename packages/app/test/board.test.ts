@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { blankBlueprint, defaultRegistry, expandBlueprint, type Blueprint } from '@robots/sim-core';
+import { blankBlueprint, defaultRegistry, expandBlueprint, mirrorBlueprint, stampOfParts, type Blueprint, type PlacedPart } from '@robots/sim-core';
 import { History } from '../src/builder/history';
 import { initialEditor, reduce, type EditorEvent, type EditorState, type ReduceResult } from '../src/builder/editorState';
-import { groupOffers, mirrorTwin, swapParts, wholeScopes, type Fx } from '../src/builder/boardOps';
+import { copyGhost, copyOf, groupOffers, mirrorTwin, swapParts, wholeScopes, type Fx } from '../src/builder/boardOps';
 import { editNote } from '../src/builder/notice';
 import { applyNameFix, partInputs, scriptProblems, showScript } from '../src/builder/scriptView';
 
@@ -569,5 +569,33 @@ describe('dead names in Problems, and their fix', () => {
     const fixed = applyNameFix(b, reg, problems[0]?.fix ?? { from: '', to: '', before: '', after: '', spots: [] });
     expect(fixed.cores?.map((c) => c.scripts[0]?.source)).toEqual(["function tick() { set('burn', 'throttle', 1); }", "function tick() { set('burn', 'throttle', 1); }"]);
     expect(scriptProblems(fixed, reg)).toEqual([]);
+  });
+});
+
+describe('a held copy anchored on a cannon (review E5, as placeBlueprint)', () => {
+  const d = (() => {
+    const r = expandBlueprint({ format: 1, name: 'g', parts: [{ part: 'cannon', x: 2, y: 1 }, { part: 'heavyrotator', x: 2, y: 0 }, { part: 'core', x: 6, y: 0 }] });
+    if (!r.blueprint) throw new Error('should expand');
+    return r.blueprint;
+  })();
+  const ids = ['cannon@2,1', 'heavyrotator@2,0'];
+  const copy = (rot: 0 | 90 | 180 | 270, flipped: boolean) => ({ ...copyOf(d, stampOfParts(d, ids, 'cannon@2,1'), ids), rot, flipped });
+  const off = { on: false, axisHalfCells: 0 };
+  const rows = (parts: readonly PlacedPart[]): string[] => parts.map((p) => `${p.part}@${p.x},${p.y}:${p.rot}`).sort();
+
+  it('flipping it keeps the cannon under the pointer', () => {
+    const plain = copyGhost(copy(0, false), { x: 10, y: 5 }, off, reg);
+    const flipped = copyGhost(copy(0, true), { x: 10, y: 5 }, off, reg);
+    expect(flipped.find((p) => p.part === 'cannon')?.x).toBe(plain.find((p) => p.part === 'cannon')?.x);
+  });
+
+  it('in mirror mode its twin is its exact mirror image, at every turn, flipped or not', () => {
+    for (const rot of [0, 90, 180, 270] as const) {
+      for (const flipped of [false, true]) {
+        const ghost = copyGhost(copy(rot, flipped), { x: 10, y: 5 }, { on: true, axisHalfCells: 31 }, reg);
+        const first = { ...d, parts: ghost.slice(0, 2), cores: [] };
+        expect(rows(ghost.slice(2)), `rot ${rot}, flipped ${flipped}`).toEqual(rows(mirrorBlueprint(first, 31, reg).parts));
+      }
+    }
   });
 });

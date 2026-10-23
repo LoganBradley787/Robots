@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { expandBlueprint } from '../src/blueprint/expand';
 import { copyParts, placePart, placePartStamp, stampOfParts, stampPlacement, type CopyResult } from '../src/blueprint/edit';
+import { partCells } from '../src/assembly/assemble';
 import { matchesTarget, scopedView } from '../src/control/target';
 import type { Blueprint } from '../src/blueprint/types';
 import { defaultRegistry } from '../src/parts/registry';
@@ -152,6 +153,21 @@ describe('stampOfParts and placePartStamp (a copy held in the hand)', () => {
     expect(stampPlacement(s, { x: 5, y: 5 }, reg, { rot: 90 }).map((p) => [p.part, p.x, p.y, p.rot])).toEqual([['gun', 4, 5, 180], ['rotator', 5, 5, 90]]);
     const r = done(placePartStamp(d, reg, s, { x: 3, y: 2 }, { rot: 90 }));
     expect(part(r.blueprint, 'gun@2,2')).toEqual({ id: 'gun@2,2', part: 'gun', x: 2, y: 2, rot: 180, tags: ['guns', 'turret1.gun', 'gun@2,2'] });
+  });
+
+  it('a stamp held by a cannon flips onto its cannon cells (review E5, as placeBlueprint)', () => {
+    const d = bp({ parts: [{ part: 'cannon', x: 2, y: 1 }, { part: 'heavyrotator', x: 2, y: 0 }, { part: 'core', x: 5, y: 0 }] });
+    const s = stampOfParts(d, ['cannon@2,1', 'heavyrotator@2,0'], 'cannon@2,1');
+    const cellsOf = (parts: ReturnType<typeof stampPlacement>, type: string): string[] =>
+      parts.filter((p) => p.part === type).flatMap((p) => partCells(p, reg).map((c) => `${c.cell.x},${c.cell.y}`)).sort();
+    for (const rot of [0, 180] as const) {
+      const plain = stampPlacement(s, { x: 10, y: 5 }, reg, { rot });
+      const flipped = stampPlacement(s, { x: 10, y: 5 }, reg, { rot, mirror: true });
+      expect(cellsOf(flipped, 'cannon'), `turned ${rot}`).toEqual(cellsOf(plain, 'cannon'));
+    }
+    // Upright, the rotator under the cannon's left column goes under its right one.
+    const flipped = stampPlacement(s, { x: 10, y: 5 }, reg, { mirror: true });
+    expect(flipped.map((p) => [p.part, p.x, p.y])).toEqual([['cannon', 10, 5], ['heavyrotator', 11, 4]]);
   });
 
   it('flips the stamp left to right, for the mirror twin of a copy', () => {
