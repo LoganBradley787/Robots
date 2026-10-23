@@ -26,6 +26,9 @@
 //   (measured: its lift then points down or along the ground and only slides it; its push boosters give about a
 //   third of the turn needed), so a side hit is aimed from both faces' shapes to spin the target and not itself
 //   (pickHeight). Turned over, it still drives its push boosters the right way and never lifts itself out.
+// - Peers (titans v3, 2026-10): the rules made for two rammers of one weight (backing off apart, side hits aimed for
+//   spin, finishing one that is down) apply only to a target of at least `peer` of its mass. One much lighter is
+//   knocked away by each hit, so it is chased and hit again on the way to the edge.
 // Something much heavier is not rammed: the brick waits high behind its tail.
 // It never turns round: boosters on each side push it left or right, the lift rows hold its height and its lean.
 // Guns on every face blast what their sights show. Everything goes by `side` and by where its own parts are, so it
@@ -74,6 +77,7 @@ const tilt = param('tilt', 25, { min: 0, max: 40 }); // degrees it leans at most
 const forget = param('forget', 30, { min: 1, max: 10000 }); // s a main enemy that vanished alive is kept, with no arena
 const pingKeep = param('pingKeep', 15, { min: 1, max: 60 }); // s it keeps going for the place gun sights last touched the enemy
 const lead = param('lead', 0.4, { min: 0, max: 1 }); // share of the climb or dive of a target flying at it that it leads
+const peer = param('peer', 0.5, { min: 0, max: 10 }); // share of its own mass from which a target is a peer (see fromSide)
 const spinAim = param('spinAim', 1, { min: 0, max: 1 }); // 1: picks the height of a side hit from both faces' shapes (see pickHeight)
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
@@ -547,12 +551,20 @@ function tick() {
     // The overlap is reckoned at the height it is heading for (the target's core, as near as the ground and ceiling
     // allow), so a level hit on something in the air is never slowed, while a ground base lower than its middle is.
     const tm = Math.max(t.m, 1);
+    // A peer: a target at least `peer` of its own mass (titans v3, 2026-10). The rules below marked "a peer only"
+    // are for two rammers of about one weight, where a hit stops both and each backs off for its own run-up, and a
+    // hit's spin is shared. A much lighter target is knocked away by the hit at most of the closing speed and spins
+    // the brick hardly at all, so it is chased as it flies off and hit again on the way to the edge (without that,
+    // round 4 went from 3-3-0 to 0-6-0 against a hive and from 4-1-1 to 2-0-4 against a mirage, both under a third
+    // of its mass, on seeds 1 to 3 both ways round).
+    const isPeer = tm >= peer * m;
     // Against a radar-seen target in the air, the height and the spin come from both faces' shapes (pickHeight).
     // Two that both pick the height chase each other's pick to the ground or the ceiling (two anvils each wanting to
     // meet the other lower dove together, each wanting higher both rolled at the ceiling). So against a target flying
     // at it, only the one with more parts left picks; the one with fewer holds its height, and even ones meet level.
-    const atMe = -t.vx * Math.sign(dx) > 10;
-    const pickAll = spinAim > 0.5 && t === state.last && shape && !shape.ground && state.mine ? pickHeight(shape, dx > 0) : null;
+    // A peer only.
+    const atMe = isPeer && -t.vx * Math.sign(dx) > 10;
+    const pickAll = isPeer && spinAim > 0.5 && t === state.last && shape && !shape.ground && state.mine ? pickHeight(shape, dx > 0) : null;
     const rank = !pickAll || !atMe || t.parts === undefined ? 1 : Math.sign(parts.length - t.parts);
     const pick = rank > 0 ? pickAll : null;
     const tip = pick ? (tipSpin * state.inertia) / (Math.max(1, pick.armMe) * ((m * tm) / (m + tm))) : tipSpeed(t);
@@ -561,8 +573,9 @@ function tick() {
     // `maxRun` before a still target and less the faster the target moves away from it, so one drifting away is
     // chased, not let go (titans v2, 2026-10: a 250 m run-up let a fleeing hive go for 20 s). Not while backing off
     // after a hit, for up to 30 s: a target going away then is mostly backing off itself (another rammer), and of two
-    // anvils the one whose run-up was cut first chased the other to its edge, where every later hit was slow.
-    const away = state.backing && time - state.hitAt < 30 ? 0 : Math.max(0, t.vx * Math.sign(dx));
+    // anvils the one whose run-up was cut first chased the other to its edge, where every later hit was slow. A peer
+    // only: a lighter target going away after a hit was knocked away by it.
+    const away = isPeer && state.backing && time - state.hitAt < 30 ? 0 : Math.max(0, t.vx * Math.sign(dx));
     const runCap = clamp(maxRun - 25 * away, 80, state.finish ? 300 : maxRun);
     const runup = clamp(runFor(speed), 40, runCap);
     if (state.dir === 0) state.dir = dx >= 0 ? 1 : -1;
@@ -573,12 +586,13 @@ function tick() {
     const near = state.halfWidth + (shape ? Math.max(-shape.hullLo, shape.hullHi) : 0);
     // A target closing on it brings its own speed to the hit: no need to run from it, turn and meet it. Closing means
     // the gap shrinks (titans v3, 2026-10): one following it while it backs off faster is not, and turning on it threw
-    // away the speed it had backing off (hits at 40 m/s).
-    const coming = (vx - t.vx) * Math.sign(dx) > 15 && Math.abs(dx) > near + 60;
+    // away the speed it had backing off (hits at 40 m/s). A peer only: any other target coming at it counts.
+    const coming = (isPeer ? (vx - t.vx) * Math.sign(dx) : -t.vx * Math.sign(dx)) > 15 && Math.abs(dx) > near + 60;
     if (dx * state.dir < 0 && (dx * state.dir < -(runup + near) || ahead < 30 || coming)) {
       state.dir = -state.dir; // past it (or backed off far enough): come again
-      // A run-up after a hit is part of the same try, timed afresh from here; flying past it ends the try.
-      if (state.backing) state.wayAt = time;
+      // A run-up after a hit is part of the same try, timed afresh from here; flying past it ends the try (and so
+      // does any turn on a target that is not a peer).
+      if (state.backing && isPeer) state.wayAt = time;
       else passed = true;
       state.backing = false;
     }
@@ -605,6 +619,8 @@ function tick() {
       // Its speed is kept up with only for a target coming after it: one going away (backing off for its own
       // run-up) adds to the gap, and following it too let the pair drift to an arena's edge (titans v3, 2026-10:
       // backing off as fast as the gap needed, whichever of two anvils was slower made the other back off faster).
+      // A peer only: a lighter one going away was knocked off by the hit, and keeping up with it ends in the next hit
+      // nearer the edge (round 4: a hive bumped out twice in a row this way, let go once this held for every target).
       const left = runup + near - Math.abs(dx);
       // Push boosters lost (titans v3, 2026-10): hits wear away the ones behind a face, and with those gone it backed off
       // at 8 m/s for 170 s. Then it leans instead: it backs off as fast as half its lean can stop it, and climbs clear
@@ -612,7 +628,7 @@ function tick() {
       const stopPush = state.dir > 0 ? state.pushLeft : state.pushRight;
       const weak = Math.min(state.pushLeft, state.pushRight) < 0.25 * Math.max(state.pushLeft, state.pushRight);
       const stopF = weak ? Math.max(0.6 * stopPush, 0.5 * leanPush) : 0.6 * push;
-      wantVx = (t.vx * Math.sign(dx) > 0 ? 0 : t.vx) + state.dir * clamp(Math.sqrt(2 * (stopF / m) * Math.max(0, left)), 8, Math.max(lineUp, speed));
+      wantVx = (isPeer && t.vx * Math.sign(dx) > 0 ? 0 : t.vx) + state.dir * clamp(Math.sqrt(2 * (stopF / m) * Math.max(0, left)), 8, Math.max(lineUp, speed));
       state.climbOver = weak && Math.abs(dx) < state.halfWidth + near + 60;
     } else wantVx = t.vx + state.dir * (overTop ? Math.min(speed, lineUp) : speed);
     if (overTop) wantH = over;
@@ -737,10 +753,11 @@ function tick() {
     // on to its back cannot get up) and being bumped out, it is shoved on toward the edge without a break: no backing
     // off after a hit (it slid 16 s after each bump while the brick backed off, and was bumped every 40 s), short
     // run-ups when it must, no regrouping, and high enough over the ground to lean (it slides with little friction).
-    // It counts as down once seen still on the ground (another anvil only passing low is not).
+    // It counts as down once seen still on the ground (another anvil only passing low is not). A peer only (see
+    // fromSide): one much lighter flies far from each bump, and backing off for a fast one carries it out sooner.
     if (pushOut === 0 || target.vx * pushOut < -3) state.down2 = false;
     else if (Math.hypot(target.vx, target.vy) < 3) state.down2 = true;
-    state.finish = state.down2;
+    state.finish = state.down2 && target.m >= peer * m;
     if (state.way !== '' && !can[state.way]) endTry(main);
     if (state.way !== '' && time - state.wayAt > tryTime) endTry(main);
     if (state.way !== '' && state.wayHit && main && state.wayParts - main.parts >= hitParts) {
