@@ -9,7 +9,7 @@ export interface Container {
 export function poolTotals(containers: readonly Container[]): { stored: number; capacity: number } {
   let stored = 0;
   let capacity = 0;
-  for (const c of [...containers].sort(byId)) {
+  for (const c of inIdOrder(containers)) {
     stored += c.stored;
     capacity += c.capacity;
   }
@@ -31,7 +31,7 @@ export function grantFactor(stored: number, requested: number): number {
  * order so float sums come out the same everywhere. Mutates `stored`; returns what was actually taken.
  */
 export function drainContainers(containers: readonly Container[], amount: number): number {
-  const sorted = [...containers].sort(byId);
+  const sorted = inIdOrder(containers);
   const total = sorted.reduce((s, c) => s + c.stored, 0);
   if (amount <= 0 || total <= 0) return 0;
   if (amount >= total) {
@@ -53,7 +53,7 @@ export function drainContainers(containers: readonly Container[], amount: number
  * Mutates `stored`; returns what was actually added (less than `amount` when the pool is nearly full).
  */
 export function fillContainers(containers: readonly Container[], amount: number): number {
-  const sorted = [...containers].sort(byId);
+  const sorted = inIdOrder(containers);
   const room = sorted.reduce((s, c) => s + Math.max(0, c.capacity - c.stored), 0);
   if (amount <= 0 || room <= 0) return 0;
   if (amount >= room) {
@@ -68,6 +68,12 @@ export function fillContainers(containers: readonly Container[], amount: number)
     added += share;
   }
   return added;
+}
+
+/** The containers in part id order: as given when they already are (a kept list), else a sorted copy. */
+function inIdOrder(containers: readonly Container[]): readonly Container[] {
+  for (let i = 1; i < containers.length; i++) if (byId(containers[i - 1]!, containers[i]!) > 0) return [...containers].sort(byId);
+  return containers;
 }
 
 function byId(a: Container, b: Container): number {

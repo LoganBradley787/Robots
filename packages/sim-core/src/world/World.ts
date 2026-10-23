@@ -3567,10 +3567,10 @@ function eyesOf(robot: Robot, coreId: string): { sensors: readonly PartInstance[
   return e;
 }
 
-/** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
 /**
  * `poolContainers` from the chunk's energy parts found once and kept in `held` (a behavior list's, made again whenever
- * the robot changes): the same parts in the same order, each with what it holds now.
+ * the robot changes): the same parts, each with what it holds now, kept in id order, the order every pool sum and
+ * share is worked in (`pools.ts`), so those need not sort them again.
  */
 function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): Container[] {
   let parts = held[chunk];
@@ -3580,6 +3580,7 @@ function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): 
       const p = robot.parts.get(id);
       if (p?.def.resource?.kind === 'energy') parts.push(p);
     }
+    parts.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     held[chunk] = parts;
   }
   const out: Container[] = [];
@@ -3587,6 +3588,7 @@ function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): 
   return out;
 }
 
+/** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
 function poolContainers(robot: Robot, chunk: number): Container[] {
   const out: Container[] = [];
   for (const id of robot.chunks[chunk]?.partIds ?? []) {
