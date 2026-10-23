@@ -2728,7 +2728,7 @@ export class World {
         const dist = hypot(d.pos.x - from.x, d.pos.y - from.y);
         if (dist >= best) continue;
         const hid = bubbles ? jamNear(bubbles, d.pos) : undefined;
-        const b = sensors.filter((s) => throughJam(s, d.pos, hid) && sees(s, d.pos, terrain, clouds)).map((s) => s.id);
+        const b = seenBy(sensors, d.pos, hid, terrain, clouds);
         if (b.length === 0) continue;
         at = d;
         by = b;
@@ -2738,7 +2738,7 @@ export class World {
         // Batch: a robot whose reference point is inside a jammer's bubble is hidden from every sensor outside it.
         // Titans: but for a sensor within the bubble's `near` of it.
         const hid = bubbles ? jamNear(bubbles, ref.pos) : undefined;
-        by = sensors.filter((s) => throughJam(s, ref.pos, hid) && sees(s, ref.pos, terrain, clouds)).map((s) => s.id);
+        by = seenBy(sensors, ref.pos, hid, terrain, clouds);
         if (by.length === 0) continue;
       }
       const pos = at ? at.pos : ref.pos;
@@ -3567,10 +3567,10 @@ function eyesOf(robot: Robot, coreId: string): { sensors: readonly PartInstance[
   return e;
 }
 
-/** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
 /**
  * `poolContainers` from the chunk's energy parts found once and kept in `held` (a behavior list's, made again whenever
- * the robot changes): the same parts in the same order, each with what it holds now.
+ * the robot changes): the same parts, each with what it holds now, kept in id order, the order every pool sum and
+ * share is worked in (`pools.ts`), so those need not sort them again.
  */
 function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): Container[] {
   let parts = held[chunk];
@@ -3580,6 +3580,7 @@ function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): 
       const p = robot.parts.get(id);
       if (p?.def.resource?.kind === 'energy') parts.push(p);
     }
+    parts.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     held[chunk] = parts;
   }
   const out: Container[] = [];
@@ -3587,6 +3588,7 @@ function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): 
   return out;
 }
 
+/** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
 function poolContainers(robot: Robot, chunk: number): Container[] {
   const out: Container[] = [];
   for (const id of robot.chunks[chunk]?.partIds ?? []) {
@@ -3595,6 +3597,18 @@ function poolContainers(robot: Robot, chunk: number): Container[] {
   }
   return out;
 }
+
+/** The ids of the sensors that see the point through any jam, in sensor order (an empty list read only for its length). */
+function seenBy(sensors: readonly SensorPose[], p: { x: number; y: number }, hid: number | undefined, terrain: readonly TerrainBox[], clouds: readonly SmokeCloud[]): string[] {
+  let by: string[] | undefined;
+  for (const s of sensors) {
+    if (!throughJam(s, p, hid) || !sees(s, p, terrain, clouds)) continue;
+    if (by === undefined) by = [];
+    by.push(s.id);
+  }
+  return by ?? NO_SEEN;
+}
+const NO_SEEN: string[] = [];
 
 /**
  * Titans: whether a jam lets this sensor see the point. Unjammed both ways it does; a sensor in a bubble sees only

@@ -168,6 +168,41 @@ export const PRELUDE = String.raw`
   // Array.prototype never sees the refill (as with the old JSON input).
   var rows = [];
   var nulls = '[]';
+  // Made again from the rows after the layout changes (null until then), for the refill: the rows' part objects in
+  // order (each tick's parts is a copy of it; its constructor is its own undefined, so the copy is a plain array
+  // whatever a script does to Array), their pos objects, how many numbers each part has, and the rows with values
+  // with where their values start (counted from the first part's numbers).
+  var objs = null;
+  var poses = null;
+  var widths = null;
+  var named = null;
+  var namedAt = null;
+  function refillLists() {
+    var n = rows.length;
+    objs = parse(nulls);
+    poses = parse(nulls);
+    widths = new Int32Array(n);
+    var count = 0;
+    for (var i = 0; i < n; i++) if (rows[i].inN.length + rows[i].outN.length > 0) count++;
+    named = parse(nullsFor(count));
+    namedAt = new Int32Array(count);
+    var at = 0;
+    var q = 0;
+    for (var i = 0; i < n; i++) {
+      var r = rows[i];
+      objs[i] = r.o;
+      poses[i] = r.pos;
+      var w = 3 + r.inN.length + r.outN.length;
+      widths[i] = w;
+      if (w > 3) {
+        named[q] = r;
+        namedAt[q] = at + 3;
+        q++;
+      }
+      at += w;
+    }
+    defineProperty(objs, 'constructor', { value: undefined });
+  }
   var F64 = Float64Array;
   var freeze = Object.freeze;
   var seal = Object.seal;
@@ -179,6 +214,7 @@ export const PRELUDE = String.raw`
   var call = Function.prototype.call;
   var indexOf = bind(call, Array.prototype.indexOf);
   var copyWithin = bind(call, Array.prototype.copyWithin);
+  var slice = bind(call, Array.prototype.slice);
   var repeat = bind(call, String.prototype.repeat);
   var keysOf = Object.keys;
   var fixed = ['id', 'type', 'tags', 'pos', 'mass', 'in', 'out'];
@@ -310,6 +346,7 @@ export const PRELUDE = String.raw`
     rows = parse(nulls);
     for (var i = 0; i < list.length; i++) rows[i] = makeRow(list[i]);
     index = null;
+    objs = null;
   }
   function put(key, o) {
     var bucket = index[key];
@@ -344,6 +381,7 @@ export const PRELUDE = String.raw`
   // The layout after the robot changed, as a patch on the one held (frame.ts, layoutPatch): the parts that are as
   // they were keep their objects, so nothing is made again for them. A kept part object stays live across the change.
   function patchLayout(json) {
+    objs = null;
     var p = parse(json);
     var n = p[0];
     var ops = p[2];
@@ -412,22 +450,29 @@ export const PRELUDE = String.raw`
     v = f[k++]; var capacity = ok || v - v === 0 ? v : null;
     v = f[k++]; var age = ok || v - v === 0 ? v : null;
     globalThis.self = { pos: { x: px, y: py }, vel: { x: vx, y: vy }, angle: angle, angVel: angVel, mass: mass, energy: { stored: stored, capacity: capacity }, age: age };
-    var list = parse(nulls);
+    if (objs === null) refillLists();
+    var list = slice(objs);
     if (ok) {
-      for (var i = 0; i < rows.length; i++) {
-        var r = rows[i];
-        var o = r.o;
-        var pos = r.pos;
-        pos.x = f[k++];
-        pos.y = f[k++];
-        o.angle = f[k++];
+      // Every part's place and angle, then the values of the parts that have any. Only the numbers are written, into
+      // objects nothing outside this closure holds a setter on, so the order they are written in cannot be seen.
+      var base = k;
+      var n = poses.length;
+      for (var i = 0; i < n; i++) {
+        var pos = poses[i];
+        pos.x = f[k];
+        pos.y = f[k + 1];
+        objs[i].angle = f[k + 2];
+        k += widths[i];
+      }
+      for (var q = 0; q < named.length; q++) {
+        var r = named[q];
+        var at = base + namedAt[q];
         var names = r.inN;
         var target = r.inO;
-        for (var j = 0; j < names.length; j++) target[names[j]] = f[k++];
+        for (var j = 0; j < names.length; j++) target[names[j]] = f[at++];
         names = r.outN;
         target = r.outO;
-        for (var j = 0; j < names.length; j++) target[names[j]] = f[k++];
-        list[i] = o;
+        for (var j = 0; j < names.length; j++) target[names[j]] = f[at++];
       }
     } else {
       for (var i = 0; i < rows.length; i++) {
@@ -443,7 +488,6 @@ export const PRELUDE = String.raw`
         names = r.outN;
         target = r.outO;
         for (var j = 0; j < names.length; j++) { v = f[k++]; target[names[j]] = v - v === 0 ? v : null; }
-        list[i] = o;
       }
     }
     globalThis.parts = list;

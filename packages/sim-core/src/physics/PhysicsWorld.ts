@@ -3,6 +3,9 @@ import type { StateHasher } from '../replay/StateHasher';
 import { compareText } from '../replay/compareText';
 import { cos, sin } from '../math/fdlibm';
 
+/** Rapier's raw (WASM) vector, which its public types do not name. */
+type RawVector = ReturnType<typeof RAPIER.VectorOps.intoRaw>;
+
 /** Stable id owned by us. Rapier handles are index plus generation and get reused; ours never do. */
 export type BodyId = number;
 
@@ -220,6 +223,8 @@ export class PhysicsWorld {
    * tests them directly. Nothing moves a collider between steps, so a place once read holds until the step.
    */
   private fresh: FreshCollider[] = [];
+  /** What `makeCollider` reuses, from the first collider made on. */
+  private rawKit: { tra: RawVector; com: RawVector; shapes: Map<string, ReturnType<RAPIER.Shape['intoRaw']>>; turns: Map<number | string, ReturnType<typeof RAPIER.RotationOps.intoRaw>> } | undefined;
 
   constructor(gravityY: number, dt: number) {
     this.gravityY = gravityY;
@@ -251,7 +256,7 @@ export class PhysicsWorld {
     const base = shape.shape === 'box' ? RAPIER.ColliderDesc.cuboid(shape.hx, shape.hy) : RAPIER.ColliderDesc.ball(shape.radius);
     let desc = base.setTranslation(place.offsetX, place.offsetY).setRotation(place.angle ?? 0).setMass(place.mass);
     if (place.friction !== undefined) desc = desc.setFriction(place.friction);
-    const collider = this.world.createCollider(desc, this.body(bodyId));
+    const collider = this.makeCollider(desc, this.body(bodyId), shape.shape === 'box' ? `b${shape.hx},${shape.hy}` : `r${shape.radius}`);
     this.fresh.push({ handle: collider.handle, r: shape.shape === 'box' ? shape.hx + shape.hy : shape.radius, x: NaN, y: NaN });
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
@@ -879,6 +884,40 @@ export class PhysicsWorld {
     const id = this.createBody({ x: cx, y: cy, angle, kind: 'dynamic' });
     this.addCollider(id, { shape: 'box', hx: w / 2, hy: h / 2 }, { offsetX: 0, offsetY: 0, mass });
     return id;
+  }
+
+  /**
+   * `world.createCollider(desc, body)` as Rapier 0.20's `ColliderSet.createCollider` does it, with the same call into
+   * Rapier and the same values, but keeping the raw shape (one per `shapeKey`), rotation (one per angle) and vectors it
+   * would make and free in WASM memory for each collider: a titan's rebuild makes about 2300 colliders, and those
+   * allocations were about half of it. The raw objects are only read by Rapier (borrowed), never kept by it.
+   */
+  private makeCollider(desc: RAPIER.ColliderDesc, body: RAPIER.RigidBody, shapeKey: string): RAPIER.Collider {
+    const kit = (this.rawKit ??= { tra: RAPIER.VectorOps.intoRaw({ x: 0, y: 0 }), com: RAPIER.VectorOps.intoRaw({ x: 0, y: 0 }), shapes: new Map(), turns: new Map() });
+    const set = this.world.colliders as unknown as { raw: RAPIER.ColliderSet['raw']; map: { set(handle: number, c: RAPIER.Collider): void } };
+    const bodies = this.world.bodies;
+    let shape = kit.shapes.get(shapeKey);
+    if (!shape) {
+      shape = desc.shape.intoRaw();
+      kit.shapes.set(shapeKey, shape);
+    }
+    const angle = desc.rotation;
+    // -0 kept apart from 0 (a Map takes them as one key): its rotation's sine is -0.
+    const turnKey = angle === 0 && 1 / angle < 0 ? '-0' : angle;
+    let turn = kit.turns.get(turnKey);
+    if (!turn) {
+      turn = RAPIER.RotationOps.intoRaw(angle);
+      kit.turns.set(turnKey, turn);
+    }
+    kit.tra.x = desc.translation.x;
+    kit.tra.y = desc.translation.y;
+    kit.com.x = desc.centerOfMass.x;
+    kit.com.y = desc.centerOfMass.y;
+    const d = desc;
+    const handle = set.raw.createCollider(d.enabled, shape, kit.tra, turn, d.massPropsMode, d.mass, kit.com, d.principalAngularInertia, d.density, d.friction, d.restitution, d.frictionCombineRule, d.restitutionCombineRule, d.isSensor, d.collisionGroups, d.solverGroups, d.activeCollisionTypes, d.activeHooks, d.activeEvents, d.contactForceEventThreshold, d.contactSkin, true, body.handle, bodies.raw) as number;
+    const collider = new RAPIER.Collider(this.world.colliders, handle, bodies.get(body.handle), desc.shape);
+    set.map.set(handle, collider);
+    return collider;
   }
 
   private body(id: BodyId): RAPIER.RigidBody {
