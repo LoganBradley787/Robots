@@ -661,6 +661,13 @@
     "mast": 66.5,
     "bins": 38
    },
+   "parts": [
+    "booster",
+    "rotator",
+    "heavyrotator",
+    "laser",
+    "gun"
+   ],
    "source": {
     "file": "titan-juggernaut.pilot.js"
    }

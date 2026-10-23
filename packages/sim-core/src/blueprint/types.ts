@@ -69,6 +69,12 @@ export interface ScriptSpec {
   source: string | { file: string };
   /** The `.js` file in `blueprints/` the code lives in (M5: scripts are separate files). Absent for inline scripts. */
   file?: string;
+  /**
+   * The part types and tags the script reads (2026-10-23, for big robots): when every script of a core lists them,
+   * its `parts` and `get()` hold only the parts with one of those types or tags (any script's list counts), so the
+   * frame carries those rows and no others. Absent: every part, as before. `set()` reaches every part either way.
+   */
+  parts?: string[];
 }
 
 /**

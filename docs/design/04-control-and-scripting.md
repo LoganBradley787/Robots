@@ -62,6 +62,18 @@ Scripts can read key state and blend manual input themselves (hover reads A and 
 - State: the ticks it has left are simulation state, in `World.scripts(id)[i].asleep` and hashed while above 0 (a world with no sleeping script hashes as before). A replay needs nothing logged: the script asks again when it runs again.
 - A script switched off, crashed, or switched on again is awake.
 
+**A script's parts list (`parts` on a script entry, 2026-10-23).** A big robot's frame hands every script every part's numbers each tick: the bastion's pilot read 2269 parts (7410 numbers) a call, though it uses its bays, guns and anchors. A script entry may list the part types and tags its code reads:
+
+```json
+{ "id": "pilot", "parts": ["fabbay", "gun", "anchor"], "source": { "file": "titan-bastion.pilot.js" } }
+```
+
+- When every script of a core lists its parts, the frame carries only the parts whose type or one of whose tags (as the script sees tags, through its scope) is in any of the lists: `parts` holds just those, in the usual order, and `get()` finds only those. A part not listed is still the robot's: `set()` reaches it, it counts in `self.mass` and `self.energy`, and its sensors see for the robot (`contacts`).
+- A core with any script that lists nothing gives all its scripts every part, as before; a core whose scripts list different parts gives each of them all the listed parts. So a script that lists its parts sees at least those, and adding the list to a script that never reads the others changes nothing it does.
+- Not inferred from the code: a script that walks `parts` (`for (const p of parts)`) and picks parts by a computed test cannot be read for what it needs. The list is the author's promise; the validator checks it where it can (`SCRIPT_PARTS`, a warning): a listed name that reaches no part, and a plain `get()` target (`get('jl', ...)`) whose parts the list leaves out. A type or tag test (`p.type === 'core'`) is not checked: it may be about a scanned robot's parts, which the list does not limit.
+- `pnpm sim validate` rejects a list that is not a non-empty list of names (`BAD_SCRIPT`). The builder's script reference says so under `parts`.
+- The titans: the bastion's pilot lists `fabbay`, `gun`, `anchor`, the juggernaut's `booster`, `rotator`, `heavyrotator`, `laser`, `gun`; their fights are the same tick for tick (self-duel hashes unchanged). The mirage's helm and the hive's pilot weigh every part for their center of mass and inertia, so they keep the whole list.
+
 ## Latching (headless chunks, and every robot nobody controls)
 - M3 (Logan): a robot you stop controlling also holds its last input. Its held keys and toggles stay as they were until you control it again. See `11`.
 - When a chunk has no active core, the final channel values from the last controlled tick are frozen. Behaviors keep reading them, so a thruster stays lit and wheels keep spinning until the pool is empty.

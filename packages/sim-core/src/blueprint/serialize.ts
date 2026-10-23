@@ -73,6 +73,7 @@ function scriptJson(s: ScriptSpec, opts: { inlineScripts?: boolean }): Record<st
   const e: Record<string, unknown> = { id: s.id };
   if (!s.enabled) e.enabled = false;
   if (Object.keys(s.params).length > 0) e.params = s.params;
+  if (s.parts !== undefined) e.parts = [...s.parts];
   if (s.file !== undefined && !(opts.inlineScripts && typeof s.source === 'string')) e.source = { file: s.file };
   else {
     e.source = s.source;

@@ -2224,11 +2224,14 @@ export class World {
     // (fixed for a part under one scope) either way. Parts keep their order from one layout to the next, so the same
     // part is at, or a little after, where the walk has got to in the last one.
     const lastParts = last && last.scope === scope ? last.parts : undefined;
+    const listed = scriptParts(robot);
     let at = 0;
     for (const id of robot.chunks[chunk]?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
       if (p.def.resource?.kind === 'energy') containers.push(p);
+      // Scripts that list the parts they read get only those (`ScriptSpec.parts`).
+      if (listed !== undefined && !listedPart(listed, p, scope)) continue;
       let was = -1;
       if (lastParts) {
         const end = Math.min(lastParts.length, at + FEED_LOOK);
@@ -2401,9 +2404,11 @@ export class World {
     const chans = this.channels.get(robot.id);
     const scope = coreControls(robot)?.scope;
     const parts: ScriptInput['parts'] = [];
+    const listed = scriptParts(robot);
     for (const id of chunk?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
+      if (listed !== undefined && !listedPart(listed, p, scope)) continue;
       const pose = partWorldPose(this, robot, id);
       const out: Record<string, number> = {};
       for (const o of p.def.outputs) {
@@ -3334,6 +3339,28 @@ export function activeControls(robot: Robot): { bindings: readonly Binding[]; sc
 function coreControls(robot: Robot): CoreControls | undefined {
   if (!robot.woke || robot.primaryCoreId === undefined) return undefined;
   return robot.blueprint.cores?.find((c) => c.core === robot.primaryCoreId);
+}
+
+/**
+ * The part types and tags a robot's scripts read (`ScriptSpec.parts`): every list together, when each script of its
+ * controls has one; undefined (every part) when any script lists none, or it has no scripts.
+ */
+function scriptParts(robot: Robot): Set<string> | undefined {
+  const scripts = robot.woke && robot.primaryCoreId !== undefined ? coreControls(robot)?.scripts : robot.blueprint.scripts;
+  if (scripts === undefined || scripts.length === 0) return undefined;
+  const out = new Set<string>();
+  for (const s of scripts) {
+    if (s.parts === undefined) return undefined;
+    for (const name of s.parts) out.add(name);
+  }
+  return out;
+}
+
+/** Whether a script that lists `names` sees the part: its type or one of its tags (as the script sees them) is listed. */
+function listedPart(names: ReadonlySet<string>, p: PartInstance, scope: string | undefined): boolean {
+  if (names.has(p.def.id)) return true;
+  for (const t of scopedView({ id: p.id, part: p.def.id, tags: p.tags }, scope).tags) if (names.has(t)) return true;
+  return false;
 }
 
 /**
