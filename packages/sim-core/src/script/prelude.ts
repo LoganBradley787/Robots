@@ -49,7 +49,8 @@ export const PRELUDE = String.raw`
   globalThis.time = 0;
   globalThis.self = null;
   globalThis.parts = [];
-  globalThis.contacts = [];
+  // Made when first read in a tick (contactsNow); a script that writes it reads what it wrote until the next tick.
+  Object.defineProperty(globalThis, 'contacts', { get: contactsNow, set: contactsSet, enumerable: true, configurable: true });
   globalThis.inbox = [];
   // The match's edge, fixed for the whole run: { x, y } (frozen), or null. Not writable; configurable, so a script's own
   // top level let or const named arena still compiles (and hides it).
@@ -166,6 +167,61 @@ export const PRELUDE = String.raw`
   var repeat = bind(call, String.prototype.repeat);
   var keysOf = Object.keys;
   var fixed = ['id', 'type', 'tags', 'pos', 'mass', 'in', 'out'];
+  // The tick's contacts as numbers and their by lists (frame.ts, contactFrame), and the list made from them once the
+  // script reads contacts (or what it wrote there).
+  var describe = Object.getOwnPropertyDescriptor;
+  var contactNums = null;
+  var contactBy = null;
+  var contactList = [];
+  var contactMade = true;
+  var SIDES = ['enemy', 'friend', 'none'];
+  function contactsNow() {
+    if (!contactMade) {
+      contactList = makeContacts();
+      contactMade = true;
+    }
+    return contactList;
+  }
+  function contactsSet(v) {
+    contactList = v;
+    contactMade = true;
+  }
+  /** What JSON.parse(JSON.stringify(contacts)) gives, from the numbers: -0 came as 0, a number not finite as null. */
+  function makeContacts() {
+    if (contactNums === null) return [];
+    var f = new F64(contactNums);
+    var ok = f[0] === 1;
+    var n = f[1];
+    var list = parse(nullsFor(n));
+    var k = 2;
+    var v;
+    for (var i = 0; i < n; i++) {
+      v = f[k++]; var id = ok || v - v === 0 ? v : null;
+      var side = SIDES[f[k++]];
+      var core = f[k++] === 1;
+      v = f[k++]; var px = ok || v - v === 0 ? v : null;
+      v = f[k++]; var py = ok || v - v === 0 ? v : null;
+      v = f[k++]; var vx = ok || v - v === 0 ? v : null;
+      v = f[k++]; var vy = ok || v - v === 0 ? v : null;
+      v = f[k++]; var cx = ok || v - v === 0 ? v : null;
+      v = f[k++]; var cy = ok || v - v === 0 ? v : null;
+      v = f[k++]; var mass = ok || v - v === 0 ? v : null;
+      v = f[k++]; var count = ok || v - v === 0 ? v : null;
+      v = f[k++]; var distance = ok || v - v === 0 ? v : null;
+      list[i] = { id: id, side: side, core: core, pos: { x: px, y: py }, vel: { x: vx, y: vy }, center: { x: cx, y: cy }, mass: mass, parts: count, distance: distance, by: copyOf(contactBy[f[k++]]) };
+    }
+    return list;
+  }
+  /** Each contact's own copy of its by list: literals for the usual short ones, else filled through its own indices. */
+  function copyOf(b) {
+    var n = b.length;
+    if (n === 1) return [b[0]];
+    if (n === 2) return [b[0], b[1]];
+    if (n === 3) return [b[0], b[1], b[2]];
+    var out = parse(nullsFor(n));
+    for (var i = 0; i < n; i++) out[i] = b[i];
+    return out;
+  }
   // M16: each part type's static numbers (partSpec.ts), as sent, and the ones already frozen for use. Every part of
   // a type shares one spec object, frozen all the way down the first time a part of that type is made.
   var specTable = create(null);
@@ -321,7 +377,7 @@ export const PRELUDE = String.raw`
     rows = next;
     nulls = text;
   }
-  function load(buf, extras) {
+  function load(buf, extras, cbuf) {
     var f = new F64(buf);
     // Every number finite (the usual case), or check each and hand over null as JSON would.
     var ok = f[0] === 1;
@@ -376,14 +432,18 @@ export const PRELUDE = String.raw`
       }
     }
     globalThis.parts = list;
-    if (extras === '') {
+    var e = extras === '' ? null : parse(extras);
+    contactNums = cbuf === undefined ? null : cbuf;
+    contactBy = e === null ? null : e[1];
+    contactMade = false;
+    // A script that put its own contacts in place of the one above (a function of that name) gets the list now.
+    var d = describe(globalThis, 'contacts');
+    if (!d || d.get !== contactsNow) globalThis.contacts = makeContacts();
+    if (e === null) {
       keyState = { down: [], pressed: [], released: [] };
-      globalThis.contacts = [];
       globalThis.inbox = [];
     } else {
-      var e = parse(extras);
       keyState = e[0];
-      globalThis.contacts = e[1];
       globalThis.inbox = e[2];
     }
     scans = 0;
@@ -404,14 +464,14 @@ export const PRELUDE = String.raw`
     // Parts made from here on take their spec from this table; parts already made keep the one they have.
     partSpecs: function (json) { specTable = parse(json); specReady = create(null); return ''; },
     patch: function (json) { patchLayout(json); return ''; },
-    setup: function (buf, extras) {
-      load(buf, extras);
+    setup: function (buf, extras, cbuf) {
+      load(buf, extras, cbuf);
       globalThis.state = {};
       if (typeof globalThis.setup === 'function') globalThis.setup();
       return result();
     },
-    tick: function (buf, extras) {
-      load(buf, extras);
+    tick: function (buf, extras, cbuf) {
+      load(buf, extras, cbuf);
       if (typeof globalThis.tick === 'function') globalThis.tick();
       return result();
     },

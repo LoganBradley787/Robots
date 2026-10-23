@@ -12,7 +12,7 @@ import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner, type ScriptTickOutput } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
 import type { Arena } from './arena';
-import { contactHead, contactJson, contactMiddle, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
+import { contactFrame, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { partSpec, partSpecsJson } from '../script/partSpec';
 import { scanAsks, selectScanned, type ScanOptions } from '../script/scanOptions';
 import { sees, type SensorPose } from '../sensors/sight';
@@ -338,9 +338,6 @@ interface SightPass {
   /** Each robot's parts as `scan()` lists them, and the same as JSON text once a script asked for it. */
   scans: Map<Robot, ScannedPart[]>;
   scanTexts: Map<ScannedPart[], string>;
-  /** The JSON text of each contact up to its distance (`contactHead`), and per seen robot the part every viewer shares. */
-  heads: Map<ScriptContact, string>;
-  middles: Map<Robot, string>;
   /** Per team, what its radio robots have to tell (`World.teamReports`). */
   reports: Map<number, Map<number, Report[]>>;
 }
@@ -2081,7 +2078,7 @@ export class World {
    */
   shareSight<T>(read: () => T): T {
     if (this.pass) return read();
-    this.pass = { refs: new Map(), sensors: new Map(), radios: new Map(), own: new Map(), scans: new Map(), scanTexts: new Map(), heads: new Map(), middles: new Map(), reports: new Map() };
+    this.pass = { refs: new Map(), sensors: new Map(), radios: new Map(), own: new Map(), scans: new Map(), scanTexts: new Map(), reports: new Map() };
     try {
       return read();
     } finally {
@@ -2188,20 +2185,9 @@ export class World {
       if (!this.fillFeed(robot, feed)) throw new Error(`script layout of ${robot.name} did not match right after it was built`);
     }
     const inbox = (robot.parts.get(coreId)?.inbox ?? []).filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown }));
-    const contacts = this.contactsFor(robot, true);
-    return { layout: feed.layout, numbers: feed.numbers, extras: extrasJson({ keys, contacts, inbox }, this.contactsJson(contacts)) };
-  }
-
-  /** `JSON.stringify(contacts)` from the pieces the sensor pass kept; undefined when it kept none. */
-  private contactsJson(contacts: readonly ScriptContact[]): string | undefined {
-    const heads = this.pass?.heads;
-    if (!heads || contacts.length === 0) return undefined;
-    let text = '[';
-    for (const c of contacts) {
-      const head = heads.get(c);
-      text += `${text.length > 1 ? ',' : ''}${head === undefined ? JSON.stringify(c) : contactJson(head, c.distance, c.by)}`;
-    }
-    return `${text}]`;
+    const contacts = contactFrame(this.contactsFor(robot, true));
+    const extras = extrasJson({ keys, inbox }, contacts?.by ?? []);
+    return contacts ? { layout: feed.layout, numbers: feed.numbers, extras, contacts: contacts.numbers } : { layout: feed.layout, numbers: feed.numbers, extras };
   }
 
   /** A new layout for the robot's controlled chunk, with the values present on each part right now. */
@@ -2620,8 +2606,6 @@ export class World {
       }
       if (!first || !best) continue;
       const contact = { ...best.contact, distance: least, by: ['radio'] };
-      const head = this.pass?.heads.get(best.contact);
-      if (head !== undefined) this.pass?.heads.set(contact, head);
       shared.push({ first, contact, decoy: best.decoy });
     }
     if (shared.length === 0) return own;
@@ -2691,7 +2675,6 @@ export class World {
     const bubbles = this.jamBubbles();
     const clouds = this.blockingClouds();
     const fooled = lit ? new Map<number, SeenDecoy>() : undefined;
-    const pass = this.pass;
     const out: ScriptContact[] = [];
     for (const other of this.robots) {
       if (other === robot || other.groups.length === 0 || lit?.pieces.has(other.id)) continue;
@@ -2726,14 +2709,6 @@ export class World {
       const center = at ? { x: at.pos.x + ref.center.x - ref.pos.x, y: at.pos.y + ref.center.y - ref.pos.y } : ref.center;
       const contact: ScriptContact = { id: other.id, side, core: ref.core, pos, vel: at ? at.vel : ref.vel, center, mass: ref.mass, parts: other.parts.size, distance: hypot(pos.x - from.x, pos.y - from.y), by };
       out.push(contact);
-      if (!pass) continue;
-      // Its JSON text up to the distance: all but the side is the same for every viewer, unless it is seen at a decoy.
-      let middle = at ? undefined : pass.middles.get(other);
-      if (middle === undefined) {
-        middle = contactMiddle(contact);
-        if (!at) pass.middles.set(other, middle);
-      }
-      pass.heads.set(contact, contactHead(other.id, side, middle));
     }
     out.sort((a, b) => a.distance - b.distance || a.id - b.id);
     return { sensors: true, contacts: out, ...(fooled ? { fooled } : {}) };

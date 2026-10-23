@@ -10,7 +10,10 @@ import type { ScriptContact, ScriptInput } from './types';
  *   sent that text once and every part of a type shares one `spec` object;
  * - the numbers (one Float64Array): everything that moves, in a fixed order (`HEADER`, `SELF`, then per part its
  *   position, angle, `in` values, and `out` values);
- * - the extras (JSON, or '' when all are empty): keys, contacts, and inbox.
+ * - the contacts (a second Float64Array, absent when there are none): `CONTACT` numbers per contact (`contactFrame`).
+ *   As text they cost more than everything else a script is handed (a big fight sees 60 robots: 16 kB of JSON a call),
+ *   and a script makes the objects only when it first reads `contacts` in a tick;
+ * - the extras (JSON, or '' when all are empty): keys, each different `by` list of the contacts, and inbox.
  * A script sees exactly what `JSON.parse(JSON.stringify(input))` would give: `-0` arrives as `0` (the writer turns it
  * into `0`) and a number that is not finite as `null` (the `finite` slot tells the sandbox to check).
  */
@@ -36,6 +39,8 @@ export interface ScriptFrame {
   layout: ScriptLayout;
   numbers: Float64Array;
   extras: string;
+  /** The contacts as numbers (`contactFrame`); absent when there are none. */
+  contacts?: Float64Array;
 }
 
 /** One part in a layout. `in` and `out` are the names present this tick, in the order the script sees them. */
@@ -191,41 +196,51 @@ export function putHead(numbers: Float64Array, input: Pick<ScriptInput, 'frame' 
 }
 
 /**
- * Keys, contacts, and inbox as JSON, or '' when all three are empty (the usual case). `contacts`, when given, is
- * `JSON.stringify(input.contacts)` already made (the world builds it from pieces it keeps, `contactHead`).
+ * Keys, the contacts' `by` lists (`contactFrame`), and inbox as JSON, or '' when all three are empty (the usual case;
+ * there are `by` lists only when there are contacts).
  */
-export function extrasJson(input: Pick<ScriptInput, 'keys' | 'contacts' | 'inbox'>, contacts?: string): string {
+export function extrasJson(input: Pick<ScriptInput, 'keys' | 'inbox'>, by: readonly (readonly string[])[]): string {
   const k = input.keys;
-  if (k.down.length === 0 && k.pressed.length === 0 && k.released.length === 0 && input.contacts.length === 0 && input.inbox.length === 0) return '';
-  if (contacts === undefined) return JSON.stringify([k, input.contacts, input.inbox]);
-  return `[${JSON.stringify(k)},${contacts},${JSON.stringify(input.inbox)}]`;
+  if (k.down.length === 0 && k.pressed.length === 0 && k.released.length === 0 && by.length === 0 && input.inbox.length === 0) return '';
+  return JSON.stringify([k, by, input.inbox]);
 }
 
-/** A number as JSON writes it: `null` when it is not finite. */
-function jsonNumber(v: number): string {
-  return v - v === 0 ? String(v) : 'null';
-}
-
-function jsonPoint(p: { x: number; y: number }): string {
-  return `{"x":${jsonNumber(p.x)},"y":${jsonNumber(p.y)}}`;
-}
+/** Numbers per contact: id, side, core, pos x, y, vel x, y, center x, y, mass, parts, distance, its `by` list. */
+export const CONTACT = 13;
+const SIDES: Readonly<Record<ScriptContact['side'], number>> = { enemy: 0, friend: 1, none: 2 };
 
 /**
- * The middle of a contact's JSON text, from `core` to `parts`: what is the same for every viewer of that robot, so
- * the world writes it once per tick however many robots see it (the numbers are most of the work).
+ * The contacts as numbers, after a slot that is 1 when every number is finite (as in the frame's numbers) and one with
+ * their count, and their `by` lists, each different list once, in the order they first come: a contact's last number
+ * is its list's place. The sandbox makes from them exactly what
+ * `JSON.parse(JSON.stringify(contacts))` gives. Undefined when there are none.
  */
-export function contactMiddle(c: Pick<ScriptContact, 'core' | 'pos' | 'vel' | 'center' | 'mass' | 'parts'>): string {
-  return `"core":${c.core ? 'true' : 'false'},"pos":${jsonPoint(c.pos)},"vel":${jsonPoint(c.vel)},"center":${jsonPoint(c.center)},"mass":${jsonNumber(c.mass)},"parts":${jsonNumber(c.parts)}`;
-}
-
-/** A contact's JSON text up to its distance, around its middle. `side` is one of three plain words. */
-export function contactHead(id: number, side: ScriptContact['side'], middle: string): string {
-  return `{"id":${jsonNumber(id)},"side":"${side}",${middle},"distance":`;
-}
-
-/** The rest: with `contactHead` exactly `JSON.stringify(contact)`. */
-export function contactJson(head: string, distance: number, by: readonly string[]): string {
-  return `${head}${jsonNumber(distance)},"by":${JSON.stringify(by)}}`;
+export function contactFrame(contacts: readonly ScriptContact[]): { numbers: Float64Array; by: (readonly string[])[] } | undefined {
+  if (contacts.length === 0) return undefined;
+  const numbers = new Float64Array(2 + CONTACT * contacts.length);
+  numbers[1] = contacts.length;
+  const lists: (readonly string[])[] = [];
+  let ok = true;
+  let k = 2;
+  for (const c of contacts) {
+    ok = put(numbers, k++, c.id) && ok;
+    numbers[k++] = SIDES[c.side];
+    numbers[k++] = c.core ? 1 : 0;
+    ok = put(numbers, k++, c.pos.x) && ok;
+    ok = put(numbers, k++, c.pos.y) && ok;
+    ok = put(numbers, k++, c.vel.x) && ok;
+    ok = put(numbers, k++, c.vel.y) && ok;
+    ok = put(numbers, k++, c.center.x) && ok;
+    ok = put(numbers, k++, c.center.y) && ok;
+    ok = put(numbers, k++, c.mass) && ok;
+    ok = put(numbers, k++, c.parts) && ok;
+    ok = put(numbers, k++, c.distance) && ok;
+    let i = lists.findIndex((b) => sameNames(b, c.by));
+    if (i < 0) i = lists.push(c.by) - 1;
+    numbers[k++] = i;
+  }
+  numbers[0] = ok ? 1 : 0;
+  return { numbers, by: lists };
 }
 
 /**
@@ -249,5 +264,6 @@ export function inputToFrame(input: ScriptInput, layoutId: number): ScriptFrame 
   const specs = new Map<string, string>();
   for (const p of input.parts) if (p.spec !== undefined && !specs.has(p.type)) specs.set(p.type, JSON.stringify(p.spec));
   const specsJson = specs.size === 0 ? undefined : `{${[...specs].map(([type, json]) => `${JSON.stringify(type)}:${json}`).join(',')}}`;
-  return { layout: { id: layoutId, json: layoutJson(parts), ...(specsJson !== undefined ? { specs: specsJson } : {}) }, numbers, extras: extrasJson(input) };
+  const contacts = contactFrame(input.contacts);
+  return { layout: { id: layoutId, json: layoutJson(parts), ...(specsJson !== undefined ? { specs: specsJson } : {}) }, numbers, extras: extrasJson(input, contacts?.by ?? []), ...(contacts ? { contacts: contacts.numbers } : {}) };
 }
