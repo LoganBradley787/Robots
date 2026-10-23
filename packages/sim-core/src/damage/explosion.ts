@@ -76,25 +76,45 @@ export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec
 
 /** Whether the segment from (ax, ay) to (bx, by) crosses the box (center, half extents, angle). Slab test. */
 export function segmentHitsBox(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, hx: number, hy: number, angle: number): boolean {
-  const c = cos(angle);
-  const s = sin(angle);
+  return segmentHitsTurnedBox(ax, ay, bx, by, cx, cy, hx, hy, cos(angle), sin(angle));
+}
+
+/** `segmentHitsBox` given the cosine `c` and sine `s` of the box's angle, for a caller that tests one box many times. */
+export function segmentHitsTurnedBox(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, hx: number, hy: number, c: number, s: number): boolean {
   // Into the box's frame.
-  const toLocal = (x: number, y: number): [number, number] => [c * (x - cx) + s * (y - cy), -s * (x - cx) + c * (y - cy)];
-  const [px, py] = toLocal(ax, ay);
-  const [qx, qy] = toLocal(bx, by);
+  const px = c * (ax - cx) + s * (ay - cy);
+  const py = -s * (ax - cx) + c * (ay - cy);
+  const qx = c * (bx - cx) + s * (by - cy);
+  const qy = -s * (bx - cx) + c * (by - cy);
   let t0 = 0;
   let t1 = 1;
-  for (const [p, d, h] of [
-    [px, qx - px, hx],
-    [py, qy - py, hy],
-  ] as const) {
-    if (Math.abs(d) < 1e-12) {
-      if (p < -h || p > h) return false;
-      continue;
+  // Across x, then across y.
+  let d = qx - px;
+  if (Math.abs(d) < 1e-12) {
+    if (px < -hx || px > hx) return false;
+  } else {
+    let ta = (-hx - px) / d;
+    let tb = (hx - px) / d;
+    if (ta > tb) {
+      const t = ta;
+      ta = tb;
+      tb = t;
     }
-    let ta = (-h - p) / d;
-    let tb = (h - p) / d;
-    if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta);
+    t1 = Math.min(t1, tb);
+    if (t0 > t1) return false;
+  }
+  d = qy - py;
+  if (Math.abs(d) < 1e-12) {
+    if (py < -hy || py > hy) return false;
+  } else {
+    let ta = (-hy - py) / d;
+    let tb = (hy - py) / d;
+    if (ta > tb) {
+      const t = ta;
+      ta = tb;
+      tb = t;
+    }
     t0 = Math.max(t0, ta);
     t1 = Math.min(t1, tb);
     if (t0 > t1) return false;
