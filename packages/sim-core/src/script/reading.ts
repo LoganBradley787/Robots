@@ -881,6 +881,28 @@ export function scriptNameIssues(run: ScriptRun, registry: PartRegistry): Script
     const kinds = types.map((t) => `a ${t}`).join(' or ');
     warn('SCRIPT_CHANNEL', n, `${n.use}('${n.name}', '${channel}') ${what(reads)} ${kinds} does not have${hint(channel, types.flatMap((t) => channelNames(registry, t, reads)))} (${types.map((t) => (types.length > 1 ? `${t} ` : '') + list(t)).join('; ')})`);
   }
+  // SCRIPT_PARTS: a script that lists the parts it reads (`ScriptSpec.parts`) sees no others, in `parts` or `get()`.
+  const wants = run.script.parts;
+  if (wants !== undefined) {
+    const seen = new Set<string>();
+    for (const name of wants) {
+      const reached = partsReached(bp, registry, name, run.scope);
+      for (const p of reached) seen.add(p.id);
+      if (reached.length === 0 && !reachesAtRunTime(bp, registry, name)) {
+        const known = namesAvailable(bp, registry, run.scope);
+        const near = nearestNames(name, [...known.types, ...known.tags])[0];
+        issues.push({ ...scriptIssue(run, 'SCRIPT_PARTS', `lists '${name}' in its parts, but no part has that tag or part type${near !== undefined ? `; did you mean '${near}'?` : ''}`), at: -1 });
+      }
+    }
+    const shown = wants.map((n) => `'${n}'`).join(', ');
+    for (const n of reading.names) {
+      // Only get(): a type or tag test may be about another robot's parts (a scan's), which the list does not limit.
+      if (n.use !== 'get' || wants.includes(n.name)) continue;
+      const reached = partsReached(bp, registry, n.name, run.scope);
+      if (reached.length === 0 || reached.some((p) => seen.has(p.id))) continue;
+      warn('SCRIPT_PARTS', n, `get('${n.name}', ...) reads parts its parts list (${shown}) leaves out, so it sees none of them: add '${n.name}' to the script's parts`);
+    }
+  }
   // In the order written, as the old check reported them.
   return issues.sort((a, b) => a.at - b.at).map(({ at: _at, ...i }) => i);
 }

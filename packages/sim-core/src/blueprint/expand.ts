@@ -333,7 +333,7 @@ function readScripts(raw: unknown, err: Err, at = 'scripts'): ScriptSpec[] {
     const path = `${at}[${i}]`;
     const bad = (msg: string): void => err('BAD_SCRIPT', `${path}: ${msg}`, { path });
     if (!isObj(s)) return bad('must be an object');
-    const extra = unknownKeys(s, ['id', 'enabled', 'params', 'source', 'file']);
+    const extra = unknownKeys(s, ['id', 'enabled', 'params', 'source', 'file', 'parts']);
     if (extra.length > 0) return bad(`unknown field '${extra[0]}'`);
     if (!isNonEmptyString(s.id)) return bad('id must be a non-empty string');
     if (s.enabled !== undefined && typeof s.enabled !== 'boolean') return bad('enabled must be true or false');
@@ -351,8 +351,13 @@ function readScripts(raw: unknown, err: Err, at = 'scripts'): ScriptSpec[] {
     else return bad('source must be a string or { "file": "name.js" }');
     if (s.file !== undefined && !isNonEmptyString(s.file)) return bad('file must be a file name like "drone.hover.js"');
     const file = typeof source === 'string' ? (s.file as string | undefined) : source.file;
+    let parts: string[] | undefined;
+    if (s.parts !== undefined) {
+      if (!Array.isArray(s.parts) || s.parts.length === 0 || !s.parts.every(isNonEmptyString)) return bad('parts must be a list of the part types and tags the script reads, like ["gun", "fabbay"]');
+      parts = [...new Set(s.parts as string[])];
+    }
     // A script starts on deploy unless it says otherwise (Logan, before M5).
-    out.push({ id: s.id, enabled: s.enabled !== false, params, source, ...(file !== undefined ? { file } : {}) });
+    out.push({ id: s.id, enabled: s.enabled !== false, params, source, ...(file !== undefined ? { file } : {}), ...(parts !== undefined ? { parts } : {}) });
   });
   return out;
 }

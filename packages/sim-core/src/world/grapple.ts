@@ -49,6 +49,12 @@ export interface GrappleHost {
   muzzle(robot: Robot, part: PartInstance): { x: number; y: number; dx: number; dy: number } | undefined;
 }
 
+/** Which robot a part is on (`Grapples.owners`). */
+interface Owners {
+  get(part: PartInstance): Robot | undefined;
+  has(part: PartInstance): boolean;
+}
+
 /** Meters a reeling rope may be shorter than the distance it holds: past this the winch waits for the pull to catch up. */
 const MAX_STRETCH = 0.25;
 
@@ -66,15 +72,29 @@ export class Grapples {
   /** Grapples whose `fire` was above 0.5 last tick: a hook flies once per press. Simulation state, hashed. */
   private readonly held = new Set<PartInstance>();
 
-  /** Every live part's robot. */
-  private owners(host: GrappleHost): Map<PartInstance, Robot> {
-    const owner = new Map<PartInstance, Robot>();
-    for (const robot of host.robots) for (const part of robot.parts.values()) owner.set(part, robot);
-    return owner;
+  /**
+   * Every live part's robot, looked up as asked: the robot whose parts hold that very part (a part is in one robot's
+   * at most), remembered for the rest of the call. A map of every part of every robot cost a titan fight about a
+   * millisecond a tick, three times over, for the few parts that hold ropes.
+   */
+  private owners(host: GrappleHost): Owners {
+    const found = new Map<PartInstance, Robot | undefined>();
+    const get = (part: PartInstance): Robot | undefined => {
+      if (found.has(part)) return found.get(part);
+      let owner: Robot | undefined;
+      for (const robot of host.robots) {
+        if (robot.parts.get(part.id) !== part) continue;
+        owner = robot;
+        break;
+      }
+      found.set(part, owner);
+      return owner;
+    };
+    return { get, has: (part) => get(part) !== undefined };
   }
 
   /** The grapple end of a rope: the muzzle of its part, or undefined when the part or its body is gone. */
-  private near(host: GrappleHost, owner: Map<PartInstance, Robot>, rope: Rope): End | undefined {
+  private near(host: GrappleHost, owner: Owners, rope: Rope): End | undefined {
     const robot = owner.get(rope.grapple);
     const group = robot?.groups[rope.grapple.group];
     const acts = rope.grapple.def.acts;
@@ -85,7 +105,7 @@ export class Grapples {
     return this.end(host, group.bodyId, lx, ly);
   }
 
-  private far(host: GrappleHost, owner: Map<PartInstance, Robot>, rope: Rope): End | undefined {
+  private far(host: GrappleHost, owner: Owners, rope: Rope): End | undefined {
     if ('body' in rope.target) return host.physics.hasBody(rope.target.body) ? this.end(host, rope.target.body, rope.ox, rope.oy) : undefined;
     const part = rope.target.part;
     const robot = owner.get(part);
@@ -110,7 +130,7 @@ export class Grapples {
   }
 
   /** Drops every rope whose grapple or far part is gone or destroyed (health 0 this tick), and notes each grapple's robot. */
-  private prune(host: GrappleHost, owner: Map<PartInstance, Robot>): void {
+  private prune(host: GrappleHost, owner: Owners): void {
     for (const rope of [...this.ropes]) {
       const robot = owner.get(rope.grapple);
       const targetGone = 'part' in rope.target && (!owner.has(rope.target.part) || rope.target.part.health <= 0);
@@ -214,7 +234,7 @@ export class Grapples {
     host.events.push({ tick: host.tick, robot: robot.id, kind: 'hooked', part: part.id, to: live ? (hitRobot?.id ?? 0) : 0, length });
   }
 
-  private reel(host: GrappleHost, owner: Map<PartInstance, Robot>, rope: Rope, reel: number): void {
+  private reel(host: GrappleHost, owner: Owners, rope: Rope, reel: number): void {
     const spec = rope.grapple.def.grapple;
     if (!spec || reel === 0) return;
     const step = Math.max(-1, Math.min(1, reel)) * spec.reelSpeed * host.dt;

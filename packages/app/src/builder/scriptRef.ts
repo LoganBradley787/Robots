@@ -144,7 +144,7 @@ export const SCRIPT_API: readonly ApiEntry[] = [
 
   { name: 'set', sig: 'set(who, input, value)', about: 'drive a part, a kind of part, or a group', insert: 'set("", "", )', caret: 8, section: 'Parts', more: 'who is a group, a kind of part, or one part\'s id. Every part it names that has the input gets the value. A key held on the same input wins over it.' },
   { name: 'get', sig: 'get(who, name)', about: 'read an input or an output of one part', insert: 'get("", "")', caret: 6, section: 'Parts', more: 'On a group or a kind it reads the FIRST matching part, not all of them. To read each one, loop over parts.' },
-  { name: 'parts', sig: 'parts', about: 'every part still attached, as a list', insert: 'for (const p of parts) {\n  \n}', caret: 2, section: 'Parts' },
+  { name: 'parts', sig: 'parts', about: 'every part still attached, as a list', insert: 'for (const p of parts) {\n  \n}', caret: 2, section: 'Parts', more: 'On a big robot, list the part types and tags the script reads in its entry in the blueprint ("parts": ["gun", "fabbay"]): then parts and get() hold only those, and every tick costs less. set() still reaches every part.' },
   { name: 'part.id', sig: 'p.id, p.type, p.tags', about: 'its name, its kind, and the groups it is in', insert: 'p.tags.includes("")', caret: 2, section: 'Parts' },
   { name: 'part.pos', sig: 'p.pos, p.angle, p.mass', about: 'where it is, how its body is turned, what it weighs', insert: 'p.pos', section: 'Parts' },
   { name: 'part.in', sig: 'p.in, p.out', about: 'its inputs as of last tick, and what it reports', insert: 'p.out', section: 'Parts' },

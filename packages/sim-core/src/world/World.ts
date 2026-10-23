@@ -2225,11 +2225,14 @@ export class World {
     // (fixed for a part under one scope) either way. Parts keep their order from one layout to the next, so the same
     // part is at, or a little after, where the walk has got to in the last one.
     const lastParts = last && last.scope === scope ? last.parts : undefined;
+    const listed = scriptParts(robot);
     let at = 0;
     for (const id of robot.chunks[chunk]?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
       if (p.def.resource?.kind === 'energy') containers.push(p);
+      // Scripts that list the parts they read get only those (`ScriptSpec.parts`).
+      if (listed !== undefined && !listedPart(listed, p, scope)) continue;
       let was = -1;
       if (lastParts) {
         const end = Math.min(lastParts.length, at + FEED_LOOK);
@@ -2415,9 +2418,11 @@ export class World {
     const scope = coreControls(robot)?.scope;
     const reads = this.outputReads(robot);
     const parts: ScriptInput['parts'] = [];
+    const listed = scriptParts(robot);
     for (const id of chunk?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
+      if (listed !== undefined && !listedPart(listed, p, scope)) continue;
       const pose = partWorldPose(this, robot, id);
       const out: Record<string, number> = {};
       for (const o of p.def.outputs) {
@@ -2981,7 +2986,7 @@ export class World {
           if (entry.chunk < sums.length) sums[entry.chunk] = (sums[entry.chunk] ?? 0) + request;
         }
       }
-      const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0));
+      const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0, list));
       // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
       for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
       const back = list.back as Map<number, number> | undefined;
@@ -3049,11 +3054,14 @@ export class World {
     return list;
   }
 
-  /** Grants a chunk's requests for this tick and drains its pool. Returns the grant factor. */
-  private resolvePool(robot: Robot, chunk: number, requested: number): number {
+  /**
+   * Grants a chunk's requests for this tick and drains its pool. Returns the grant factor. The chunk's energy parts come
+   * from the robot's behavior list, which holds them while the robot is as it was (`behaviorList`).
+   */
+  private resolvePool(robot: Robot, chunk: number, requested: number, list: BehaviorList): number {
     if (requested <= 0) return 1;
     if (this.unlimited) return 1;
-    const containers = poolContainers(robot, chunk);
+    const containers = listedContainers((list.pools ??= []), robot, chunk);
     const { stored } = poolTotals(containers);
     const grant = grantFactor(stored, requested);
     const taken = drainContainers(containers, Math.min(requested, stored));
@@ -3351,6 +3359,28 @@ function coreControls(robot: Robot): CoreControls | undefined {
 }
 
 /**
+ * The part types and tags a robot's scripts read (`ScriptSpec.parts`): every list together, when each script of its
+ * controls has one; undefined (every part) when any script lists none, or it has no scripts.
+ */
+function scriptParts(robot: Robot): Set<string> | undefined {
+  const scripts = robot.woke && robot.primaryCoreId !== undefined ? coreControls(robot)?.scripts : robot.blueprint.scripts;
+  if (scripts === undefined || scripts.length === 0) return undefined;
+  const out = new Set<string>();
+  for (const s of scripts) {
+    if (s.parts === undefined) return undefined;
+    for (const name of s.parts) out.add(name);
+  }
+  return out;
+}
+
+/** Whether a script that lists `names` sees the part: its type or one of its tags (as the script sees them) is listed. */
+function listedPart(names: ReadonlySet<string>, p: PartInstance, scope: string | undefined): boolean {
+  if (names.has(p.def.id)) return true;
+  for (const t of scopedView({ id: p.id, part: p.def.id, tags: p.tags }, scope).tags) if (names.has(t)) return true;
+  return false;
+}
+
+/**
  * The controlled chunk is the one holding the primary core; tags resolve inside it only (`04`). A core that woke in a
  * piece that broke off runs its own controls from `cores` (a placed missile's, seen through its scope), plus auto
  * controls for the piece's parts; without an entry, auto controls only.
@@ -3495,6 +3525,8 @@ interface BehaviorList {
   early: BehaviorEntry[];
   late: BehaviorEntry[];
   back: Map<number, number> | undefined;
+  /** Each chunk's energy parts in chunk order, found on first use (`listedContainers`). */
+  pools?: PartInstance[][];
 }
 
 /** Each robot's part-to-chunk map, rebuilt when the robot is (its `version` changes). */
@@ -3536,6 +3568,25 @@ function eyesOf(robot: Robot, coreId: string): { sensors: readonly PartInstance[
 }
 
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
+/**
+ * `poolContainers` from the chunk's energy parts found once and kept in `held` (a behavior list's, made again whenever
+ * the robot changes): the same parts in the same order, each with what it holds now.
+ */
+function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): Container[] {
+  let parts = held[chunk];
+  if (!parts) {
+    parts = [];
+    for (const id of robot.chunks[chunk]?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      if (p?.def.resource?.kind === 'energy') parts.push(p);
+    }
+    held[chunk] = parts;
+  }
+  const out: Container[] = [];
+  for (const p of parts) if (p.stored !== undefined && p.def.resource) out.push({ id: p.id, stored: p.stored, capacity: p.def.resource.capacity });
+  return out;
+}
+
 function poolContainers(robot: Robot, chunk: number): Container[] {
   const out: Container[] = [];
   for (const id of robot.chunks[chunk]?.partIds ?? []) {

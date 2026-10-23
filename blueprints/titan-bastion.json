@@ -512,6 +512,11 @@
    "params": {
     "anchors": 24
    },
+   "parts": [
+    "fabbay",
+    "gun",
+    "anchor"
+   ],
    "source": {
     "file": "titan-bastion.pilot.js"
    }
