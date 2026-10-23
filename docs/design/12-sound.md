@@ -36,7 +36,7 @@ Status: built in M15 (2026-10-08), decided with Logan. Tuning is by ear at the g
 | A bolt going through a part | `boltHit`: one slam for each part on its path, harder and lower the more damage it took |
 | Gun | a shell object not seen before (`ShotWatcher`), plus `shotsBy` for shells that came and went within one frame (heard from the robot's middle); the sim logs no event per shot |
 | Propeller, thruster | the parts' `throttle` input |
-| Wheel | how fast the wheel's body spins against the robot's, over its `maxSpeed` (the sim does not fill in the wheel's `angularVelocity` output); the rumble is full while the wheel touches something |
+| Wheel | how fast the wheel's body spins against the robot's, over its `maxSpeed` (the same number as the wheel's `angularVelocity` output); the rumble is full while the wheel touches something |
 | Laser hum and crackle | `world.liveBeams()`: the beam's part names the voice (`sound.run`), heard at the barrel; that voice's `.burn` is heard where it burns |
 | Thruster lighting, laser on and off | a loop going from silent to sounding, or back, once it has stayed that way 0.3 s (a pulsed thruster lights once) |
 

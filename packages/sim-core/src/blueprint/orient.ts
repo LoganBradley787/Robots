@@ -3,7 +3,7 @@ import { rotateCell } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import { mirrorProblem, mirrorRotation } from './mirror';
+import { mirrorProblem, mirrorRotation, rootFlipAxis } from './mirror';
 import { footprintOf, mirroredShift } from '../parts/footprint';
 import { toFileJson } from './serialize';
 import { validateBlueprint } from './validate';
@@ -32,11 +32,8 @@ export function orientBlueprint(bp: Blueprint, o: Orientation, registry: PartReg
   const rootId = rootPartId(bp, registry);
   const root = bp.parts.find((p) => p.id === rootId);
   if (!root) return bp;
-  // The flip is across the column the root's own cells are symmetric about, in half cells from its origin: its
-  // origin's column for a one-cell root, half a cell off for a cannon two cells wide. Across its origin's column such a
-  // root would land a cell to the side, and again on every flip (review E5).
-  const rootCells = registry.has(root.part) ? footprintOf(registry.get(root.part), root.size).map((c) => c.x) : [0];
-  const axis = rotateCell({ x: Math.min(...rootCells) + Math.max(...rootCells), y: 0 }, root.rot).x + 0;
+  // The flip is across the column the root's own cells are symmetric about, so it lands on them (review E5).
+  const axis = rootFlipAxis(root, registry);
   const newId = new Map<string, string>();
   const parts = bp.parts.map((p) => {
     let dx = p.x - root.x;

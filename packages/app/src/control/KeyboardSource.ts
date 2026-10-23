@@ -5,9 +5,9 @@ export type KeySource = 'keyboard' | 'mouse';
 
 /**
  * Turns key downs and ups (keyboard, keys bar buttons) into edges for the controlled robot, drained once per tick.
- * Rules from `11`: a robot you leave keeps its held keys (nothing is sent to it); the robot you switch to starts with
- * nothing held, so a key already down only counts once pressed again. `releaseAll` (window blur, leaving the world)
- * releases every held key on the controlled robot so nothing sticks.
+ * Rules from `11`: a robot you leave for another you drive keeps its held keys (nothing is sent to it); the robot you
+ * switch to starts with nothing held, so a key already down only counts once pressed again. `releaseAll` (window blur,
+ * leaving the world, and `follow` to only watch a robot) releases every held key on the controlled robot so nothing sticks.
  */
 export class KeyboardSource {
   private controlled: number | undefined;
@@ -23,6 +23,17 @@ export class KeyboardSource {
     if (robot === this.controlled) return;
     this.controlled = robot;
     this.held.clear();
+  }
+
+  /**
+   * Control moves to `robot` because you clicked or cycled to it; undefined when you only watch (an enemy, a core-less
+   * robot). Moving to another robot you drive latches the old one, keys held and all (Logan, `11`). Letting go to only
+   * watch releases the old one's held keys first, as leaving the world does, so it does not drive off unseen while you
+   * watch something else. The releases are ordinary edges: they reach the world, and its replay, on the next tick.
+   */
+  follow(robot: number | undefined): void {
+    if (robot === undefined) this.releaseAll();
+    this.setControlled(robot);
   }
 
   down(source: KeySource, key: string): void {

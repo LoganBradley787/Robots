@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { World, buildReplay, defaultRegistry, expandBlueprint, parseReplay, parseWorldFile, placeBlueprint, runReplay, type Blueprint } from '@robots/sim-core';
+import turretJson from '../../../blueprints/cannon-turret.json';
+import { World, buildReplay, defaultRegistry, expandBlueprint, mirrorBlueprint, parseReplay, parseWorldFile, placeBlueprint, runReplay, type Blueprint } from '@robots/sim-core';
 import flatJson from '../../../worlds/flat.json';
 import carJson from '../../../blueprints/car.json';
 import { controlCores, controlsOf, withControls } from '../src/builder/coreControls';
@@ -39,6 +40,26 @@ describe('placing a held blueprint (M7)', () => {
     const r = placeStamp(car, stamp(), { x: 1, y: 3 }, { on: true, axisHalfCells: 5 }, reg);
     expect(r.ok && cells(r.bp, car.parts.length)).toEqual(['thruster@0,3:270', 'core@1,3:0', 'warhead@2,3:0', 'thruster@5,3:90', 'core@4,3:0', 'warhead@3,3:0']);
     expect(r.ok && r.bp.cores?.map((c) => c.scope)).toEqual(['missile1', 'missile2']);
+  });
+
+  it('a blueprint rooted on a cannon flips onto its own cells, and its mirror twin is its exact mirror image', () => {
+    const turret = bp(turretJson);
+    const held = (over: Partial<Stamp>): Stamp => ({ name: 'cannon-turret', bp: turret, rot: 0, flipped: false, ...over });
+    const parts = (b: Blueprint, from: number, to?: number): string[] => b.parts.slice(from, to).map((p) => `${p.part}@${p.x},${p.y}:${p.rot}`).sort();
+    const cannonAt = (b: Blueprint, from: number): string[] => b.parts.slice(from).filter((p) => p.part === 'cannon').map((p) => `${p.x},${p.y}`);
+    const plain = placeStamp(car, held({}), { x: 2, y: 4 }, off, reg);
+    const flipped = placeStamp(car, held({ flipped: true }), { x: 2, y: 4 }, off, reg);
+    if (!plain.ok || !flipped.ok) throw new Error('should place');
+    expect(cannonAt(flipped.bp, car.parts.length)).toEqual(cannonAt(plain.bp, car.parts.length));
+    const n = turret.parts.length;
+    for (const rot of [0, 90, 180, 270] as const) {
+      for (const isFlipped of [false, true]) {
+        const r = placeStamp(car, held({ rot, flipped: isFlipped }), { x: 1, y: 5 }, { on: true, axisHalfCells: 11 }, reg);
+        if (!r.ok) throw new Error(r.error);
+        const first = { ...r.bp, parts: r.bp.parts.slice(car.parts.length, car.parts.length + n), cores: [] };
+        expect(parts(r.bp, car.parts.length + n), `rot ${rot}, flipped ${isFlipped}`).toEqual(parts(mirrorBlueprint(first, 11, reg), 0));
+      }
+    }
   });
 
   it('refuses an overlap, and the ghost still shows where it would go, marked refused', () => {

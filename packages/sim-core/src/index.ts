@@ -47,7 +47,7 @@ export { parseKeyTimeline, timelineInputs, TimelineError } from './control/timel
 export type { KeyPress } from './control/timeline';
 export { blankBlueprint, partAt, placePart, erasePartAt, removeParts, addTagToParts, removeTagFromParts, setPartRotation, setPartRotations, setBindings, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, setAutoControls, moveParts, movePartsBy, replacePartType, replacePartAt, stampOfParts, stampPlacement, placePartStamp, copyParts } from './blueprint/edit';
 export type { CellArea, MoveOptions, MoveResult, PlacePartOptions, PartSetting, ReplaceOptions, ReplaceReport, ReplaceResult, PartStamp, StampOptions, CopyResult } from './blueprint/edit';
-export { mirrorRotation, mirrorX, mirrorBlueprint, mirrorProblem } from './blueprint/mirror';
+export { mirrorRotation, mirrorX, mirrorBlueprint, mirrorProblem, rootFlipAxis } from './blueprint/mirror';
 export { footprintBox, footprintOf, mirrorable, mirroredShift, partMass, defaultSize, cupFootprint } from './parts/footprint';
 export { hollowCells, hollowAt, recipePlacement, recipeStats, buildSeconds, scopeBase } from './fabricate/recipe';
 export { orientBlueprint, orientRaw } from './blueprint/orient';

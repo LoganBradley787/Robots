@@ -2,7 +2,8 @@ import type { Rotation } from '../parts/types';
 import type { PartRegistry } from '../parts/registry';
 import { footprintOf, mirrorable, mirroredShift } from '../parts/footprint';
 import { partId } from './expand';
-import type { Binding, Blueprint } from './types';
+import { rotateCell } from '../parts/faces';
+import type { Binding, Blueprint, PlacedPart } from './types';
 
 /**
  * Mirroring across a vertical axis. The axis is stored in half cells so it can sit on a column center (even) or a
@@ -21,6 +22,16 @@ export function mirrorRotation(rot: Rotation): Rotation {
 export function mirrorProblem(bp: Pick<Blueprint, 'parts'>, registry: PartRegistry): string | undefined {
   const bad = bp.parts.find((p) => registry.has(p.part) && !mirrorable(registry.get(p.part), footprintOf(registry.get(p.part), p.size)));
   return bad ? `${bad.id} (${bad.part}) cannot be mirrored: its footprint is not symmetric about any column (a mirrored copy would be a different part)` : undefined;
+}
+
+/**
+ * The column a blueprint is flipped across to keep its root part on its own cells (review E5), in half cells from the
+ * root's origin: its origin's column (0) for a one-cell root, half a cell off (1) for a cannon two cells wide. Across
+ * its origin's column such a root would land a cell to the side. `orientBlueprint` and `placeBlueprint` both use it.
+ */
+export function rootFlipAxis(root: Pick<PlacedPart, 'part' | 'rot' | 'size'>, registry: PartRegistry): number {
+  const xs = registry.has(root.part) ? footprintOf(registry.get(root.part), root.size).map((c) => c.x) : [0];
+  return rotateCell({ x: Math.min(...xs) + Math.max(...xs), y: 0 }, root.rot).x + 0;
 }
 
 export function mirrorX(x: number, axisHalfCells: number): number {
