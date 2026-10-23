@@ -2972,7 +2972,7 @@ export class World {
           if (entry.chunk < sums.length) sums[entry.chunk] = (sums[entry.chunk] ?? 0) + request;
         }
       }
-      const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0));
+      const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0, list));
       // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
       for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
       const back = list.back as Map<number, number> | undefined;
@@ -3040,11 +3040,14 @@ export class World {
     return list;
   }
 
-  /** Grants a chunk's requests for this tick and drains its pool. Returns the grant factor. */
-  private resolvePool(robot: Robot, chunk: number, requested: number): number {
+  /**
+   * Grants a chunk's requests for this tick and drains its pool. Returns the grant factor. The chunk's energy parts come
+   * from the robot's behavior list, which holds them while the robot is as it was (`behaviorList`).
+   */
+  private resolvePool(robot: Robot, chunk: number, requested: number, list: BehaviorList): number {
     if (requested <= 0) return 1;
     if (this.unlimited) return 1;
-    const containers = poolContainers(robot, chunk);
+    const containers = listedContainers((list.pools ??= []), robot, chunk);
     const { stored } = poolTotals(containers);
     const grant = grantFactor(stored, requested);
     const taken = drainContainers(containers, Math.min(requested, stored));
@@ -3508,6 +3511,8 @@ interface BehaviorList {
   early: BehaviorEntry[];
   late: BehaviorEntry[];
   back: Map<number, number> | undefined;
+  /** Each chunk's energy parts in chunk order, found on first use (`listedContainers`). */
+  pools?: PartInstance[][];
 }
 
 /** Each robot's part-to-chunk map, rebuilt when the robot is (its `version` changes). */
@@ -3549,6 +3554,25 @@ function eyesOf(robot: Robot, coreId: string): { sensors: readonly PartInstance[
 }
 
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
+/**
+ * `poolContainers` from the chunk's energy parts found once and kept in `held` (a behavior list's, made again whenever
+ * the robot changes): the same parts in the same order, each with what it holds now.
+ */
+function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): Container[] {
+  let parts = held[chunk];
+  if (!parts) {
+    parts = [];
+    for (const id of robot.chunks[chunk]?.partIds ?? []) {
+      const p = robot.parts.get(id);
+      if (p?.def.resource?.kind === 'energy') parts.push(p);
+    }
+    held[chunk] = parts;
+  }
+  const out: Container[] = [];
+  for (const p of parts) if (p.stored !== undefined && p.def.resource) out.push({ id: p.id, stored: p.stored, capacity: p.def.resource.capacity });
+  return out;
+}
+
 function poolContainers(robot: Robot, chunk: number): Container[] {
   const out: Container[] = [];
   for (const id of robot.chunks[chunk]?.partIds ?? []) {
