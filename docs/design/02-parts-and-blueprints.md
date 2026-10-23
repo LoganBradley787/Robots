@@ -46,7 +46,7 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | core | 2 | 50 | N E S W | | position, velocity, acceleration, angle, angular velocity, energy stored and capacity | Required for control. Scripts and bindings attach here. Built-ins decided (Q2) so nobody places accelerometers or battery monitors. Holds 600 energy. |
 | frame | 1 | 60 | N E S W | | | Structural, and the armor: toughest per kilogram. |
 | battery | 3 | 30 | N E S W | | charge fraction | Energy container, 1500 units (M4). A target: shoot it and the robot runs dry. |
-| wheel | 1.5 | 25 | N (mount only) | speed [-1, 1] | angular velocity | Rotation 0 mounts to the cell above. Own body, revolute motor joint. |
+| wheel | 1.5 | 25 | N (mount only) | speed [-1, 1] | angularVelocity (rad/s against the body it mounts on, counterclockwise positive: forward reads negative) | Rotation 0 mounts to the cell above. Own body, revolute motor joint. |
 | thruster | 1 | 25 | N E W | throttle [0, 1] | | Rotation 0: nozzle S, pushes +y. 160 N (Gate 6, was 120), 20 energy per second. Force at part position. Flame overlay when throttle > 0 and the robot has energy. |
 | propeller | 1 | 15 | S E W | throttle [0, 1] | | Rotation 0: lift +y. 120 N (Gate 6, was 60), 10 energy per second. Spin sprite animation speed tied to throttle. The most fragile part. |
 | decoupler | 1 | 30 | N E S W | fire (pulse) | armed | Rotation 0: release face N (its `acts`). On fire, N stops attaching once and both sides get 2 N s apart. Acts before other parts that tick (M6). |

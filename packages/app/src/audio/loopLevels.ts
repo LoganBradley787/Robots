@@ -1,6 +1,6 @@
 /**
  * What drives a looping voice (M15): one of the part's input channels, one of its outputs, or how fast its own body
- * spins against the robot's (a wheel: the sim does not fill in its `angularVelocity` output).
+ * spins against the robot's (a wheel: the same number as its `angularVelocity` output when it hangs off the main body).
  */
 export interface LoopDrive {
   input?: string;

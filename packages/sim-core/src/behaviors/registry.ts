@@ -64,7 +64,14 @@ export interface Behavior {
    */
   plan(ctx: BehaviorContext): PlannedAction | undefined;
   /** An output channel this behavior reports (a decoupler's `armed`), or undefined for one it does not. */
-  output?(part: PartInstance, name: string): number | undefined;
+  output?(part: PartInstance, name: string, reads: OutputReads): number | undefined;
+}
+
+/** What an output may read of the robot it is on (a wheel's spin). Only reads: an output never changes the world. */
+export interface OutputReads {
+  robot: Robot;
+  /** A body group's angular velocity, radians a second counterclockwise, after the last physics step (0 for no such group). */
+  spin(group: number): number;
 }
 
 export interface PlannedAction {

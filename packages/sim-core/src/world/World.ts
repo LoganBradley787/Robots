@@ -5,7 +5,7 @@ import { StateHasher } from '../replay/StateHasher';
 import { InputLog, type WorldChange } from '../replay/InputLog';
 import { Controller } from '../control/controller';
 import type { ControlledPart, ControlTrace, RobotInput } from '../control/types';
-import { BEHAVIORS, type Behavior, type BehaviorContext } from '../behaviors/registry';
+import { BEHAVIORS, type Behavior, type BehaviorContext, type OutputReads } from '../behaviors/registry';
 import { allBindings, autoBindings } from '../control/autoControls';
 import { drainContainers, fillContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
@@ -2217,6 +2217,7 @@ export class World {
     const chans = this.channels.get(robot.id);
     const scope = coreControls(robot)?.scope;
     const pool = this.lazyPool(robot, chunk);
+    const reads = this.outputReads(robot);
     const parts: ScriptFeed['parts'] = [];
     const layout: LayoutPart[] = [];
     const containers: PartInstance[] = [];
@@ -2243,7 +2244,7 @@ export class World {
       const ins = p.def.inputs.length === 0 ? NO_NAMES : [...(chans?.get(id)?.keys() ?? [])];
       let outs: string[] = NO_NAMES;
       for (const o of p.def.outputs) {
-        if (this.outputOf(p, o.name, pool) === undefined) continue;
+        if (this.outputOf(p, o.name, pool, reads) === undefined) continue;
         if (outs === NO_NAMES) outs = [];
         outs.push(o.name);
       }
@@ -2311,6 +2312,7 @@ export class World {
       }
       return b;
     };
+    const reads: OutputReads = { robot, spin: (group) => (robot.groups[group] ? bodyOf(group).s.w : 0) };
     let ok = true;
     let k = HEADER + SELF;
     for (const fp of feed.parts) {
@@ -2332,7 +2334,7 @@ export class World {
       }
       let j = 0;
       for (const o of part.def.outputs) {
-        const v = this.outputOf(part, o.name, pool);
+        const v = this.outputOf(part, o.name, pool, reads);
         if ((v !== undefined) !== (fp.out[j] === o.name)) return false;
         if (v === undefined) continue;
         j++;
@@ -2365,6 +2367,17 @@ export class World {
     return true;
   }
 
+  /** What a behavior's output reads of the robot (`OutputReads`), straight from the physics. */
+  private outputReads(robot: Robot): OutputReads {
+    return {
+      robot,
+      spin: (group) => {
+        const g = robot.groups[group];
+        return g ? this.bodyState(g.bodyId).w : 0;
+      },
+    };
+  }
+
   /** A chunk's energy totals, added up on first use. */
   private lazyPool(robot: Robot, chunk: number): () => { stored: number; capacity: number } {
     let totals: { stored: number; capacity: number } | undefined;
@@ -2372,8 +2385,8 @@ export class World {
   }
 
   /** `partOutput` for a part and an output name it is known to have, with its chunk's pool (M9: no lookups). */
-  private outputOf(part: PartInstance, name: string, pool: () => { stored: number; capacity: number }): number | undefined {
-    const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name);
+  private outputOf(part: PartInstance, name: string, pool: () => { stored: number; capacity: number }, reads: OutputReads): number | undefined {
+    const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name, reads);
     if (own !== undefined) return own;
     if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
     if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
@@ -2400,6 +2413,7 @@ export class World {
     const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const chans = this.channels.get(robot.id);
     const scope = coreControls(robot)?.scope;
+    const reads = this.outputReads(robot);
     const parts: ScriptInput['parts'] = [];
     for (const id of chunk?.partIds ?? []) {
       const p = robot.parts.get(id);
@@ -2407,7 +2421,7 @@ export class World {
       const pose = partWorldPose(this, robot, id);
       const out: Record<string, number> = {};
       for (const o of p.def.outputs) {
-        const v = referenceOutput(robot, p, id, o.name);
+        const v = referenceOutput(robot, p, id, o.name, reads);
         if (v !== undefined) out[o.name] = v;
       }
       parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out, rot: p.rot, on: carriedBy(robot, p), center: partCenter(p) ?? { x: 0, y: 0 }, spec: partSpec(p.def) });
@@ -3065,7 +3079,7 @@ export class World {
     const robot = this.byId.get(robotId);
     const part = robot?.parts.get(partId);
     if (!robot || !part || !part.def.outputs.some((o) => o.name === name)) return undefined;
-    return this.outputOf(part, name, this.lazyPool(robot, chunkIndex(robot, partId)));
+    return this.outputOf(part, name, this.lazyPool(robot, chunkIndex(robot, partId)), this.outputReads(robot));
   }
 
   /**
@@ -3401,9 +3415,9 @@ function referenceEnergy(robot: Robot): { stored: number; capacity: number } {
   return poolTotals(poolContainers(robot, chunk));
 }
 
-function referenceOutput(robot: Robot, part: PartInstance, partId: string, name: string): number | undefined {
+function referenceOutput(robot: Robot, part: PartInstance, partId: string, name: string, reads: OutputReads): number | undefined {
   if (!part.def.outputs.some((o) => o.name === name)) return undefined;
-  const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name);
+  const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name, reads);
   if (own !== undefined) return own;
   if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
   if (name === 'energy' || name === 'energyCapacity') {
