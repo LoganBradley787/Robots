@@ -22,6 +22,10 @@
 //   nowhere) as far as its measured speeding up needs for that speed (at most `maxRun`, less for a target moving
 //   away, none for one coming at it), and leans into the run-up. A way in too slow to break what it hits (from below
 //   or above, on an armored brick) is left for last.
+// - Rolling (titans v3, 2026-10, Logan: decisive mirror matches): a brick on its back or side cannot right itself
+//   (measured: its lift then points down or along the ground and only slides it; its push boosters give about a
+//   third of the turn needed), so a side hit is aimed from both faces' shapes to spin the target and not itself
+//   (pickHeight). Turned over, it still drives its push boosters the right way and never lifts itself out.
 // Something much heavier is not rammed: the brick waits high behind its tail.
 // It never turns round: boosters on each side push it left or right, the lift rows hold its height and its lean.
 // Guns on every face blast what their sights show. Everything goes by `side` and by where its own parts are, so it
@@ -70,6 +74,7 @@ const tilt = param('tilt', 25, { min: 0, max: 40 }); // degrees it leans at most
 const forget = param('forget', 30, { min: 1, max: 10000 }); // s a main enemy that vanished alive is kept, with no arena
 const pingKeep = param('pingKeep', 15, { min: 1, max: 60 }); // s it keeps going for the place gun sights last touched the enemy
 const lead = param('lead', 0.4, { min: 0, max: 1 }); // share of the climb or dive of a target flying at it that it leads
+const spinAim = param('spinAim', 1, { min: 0, max: 1 }); // 1: picks the height of a side hit from both faces' shapes (see pickHeight)
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
@@ -155,6 +160,8 @@ function setup() {
   state.stallAt = 0;
   state.backing = false;
   state.hitAt = -100;
+  state.mine = null; // its own faces (faces), remade each second
+  state.mineAt = -100;
   state.evade = false;
   state.jamAt = -100;
   state.hideSide = 0;
@@ -272,8 +279,74 @@ function measure(main) {
       if (y > T) T = y;
     }
   }
-  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length };
+  const f = faces(seen, cx, cy);
+  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length, faceL: f.L, faceR: f.R };
   state.shapeAt = time;
+}
+
+// How far a body reaches out to each side, row by row: 1 m rows of world height from its core, `FACE` either way.
+const FACE = 40;
+function faces(list, cx, cy) {
+  const L = [];
+  const R = [];
+  for (let i = 0; i <= 2 * FACE; i++) {
+    L.push(-1e9);
+    R.push(-1e9);
+  }
+  for (const p of list) {
+    const i = Math.round(p.pos.y - cy) + FACE;
+    if (i < 0 || i > 2 * FACE) continue;
+    const dx = p.pos.x - cx;
+    if (dx > R[i]) R[i] = dx;
+    if (-dx > L[i]) L[i] = -dx;
+  }
+  return { L, R };
+}
+
+// Where a level side hit lands with its core `d` m over the target's: the rows where the two faces reach furthest
+// toward each other (within 2 m of the most, weighted by how far), as a height from the target's core.
+function contactAt(mine, its, d) {
+  let best = -1e9;
+  for (let v = -FACE; v <= FACE; v++) {
+    const u = v - d;
+    if (u < -FACE || u > FACE) continue;
+    const s = mine[u + FACE] + its[v + FACE];
+    if (s > best) best = s;
+  }
+  if (best < -1e8) return null;
+  let w = 0;
+  let sv = 0;
+  for (let v = -FACE; v <= FACE; v++) {
+    const u = v - d;
+    if (u < -FACE || u > FACE) continue;
+    const s = mine[u + FACE] + its[v + FACE];
+    if (s > best - 2) {
+      w += s - (best - 2);
+      sv += (s - (best - 2)) * v;
+    }
+  }
+  return sv / w;
+}
+
+// The height to meet a target from the side at (titans v3, 2026-10, Logan: decisive mirror matches). A side hit
+// spins each body by the push times how far the contact is above or below its center of mass, and a brick rolled
+// onto its back cannot right itself (its lift then points down, its push boosters along the ground; measured). Two
+// flat faces always meet halfway between the two cores, so the spin is shared; a face worn uneven by earlier hits
+// is not flat. So it tries each height within 24 m of the target's core and takes the one whose contact is far
+// from the target's center and near its own: the target spins, it does not. `armMe` sets how fast it may hit.
+function pickHeight(shape, toRight) {
+  const mine = toRight ? state.mine.R : state.mine.L;
+  const its = toRight ? shape.faceL : shape.faceR;
+  let pick = null;
+  for (let d = -24; d <= 24; d++) {
+    const c = contactAt(mine, its, d);
+    if (c === null) continue;
+    const armIt = Math.abs(c);
+    const armMe = Math.abs(c - d);
+    const score = Math.min(armIt, 12) - 3 * armMe - 0.05 * Math.abs(d);
+    if (!pick || score > pick.score) pick = { d, armIt, armMe, score };
+  }
+  return pick;
 }
 
 // A try along a way in ends: it counts against that way unless it broke enough off the enemy.
@@ -345,6 +418,10 @@ function tick() {
   }
   runGuns();
   if (main && time - state.shapeAt > 2) measure(main);
+  if (time - state.mineAt > 1) {
+    state.mine = faces(parts, self.pos.x, self.pos.y);
+    state.mineAt = time;
+  }
   while (pings.length > 0 && time - pings[0].t > pingKeep) pings.shift();
 
   const charge = self.energy.capacity > 0 ? self.energy.stored / self.energy.capacity : 1;
@@ -467,7 +544,15 @@ function tick() {
     // The overlap is reckoned at the height it is heading for (the target's core, as near as the ground and ceiling
     // allow), so a level hit on something in the air is never slowed, while a ground base lower than its middle is.
     const tm = Math.max(t.m, 1);
-    const tip = tipSpeed(t);
+    // Against a radar-seen target in the air, the height and the spin come from both faces' shapes (pickHeight).
+    // Two that both pick the height chase each other's pick to the ground or the ceiling (two anvils each wanting to
+    // meet the other lower dove together, each wanting higher both rolled at the ceiling). So against a target flying
+    // at it, only the one with more parts left picks; the one with fewer holds its height, and even ones meet level.
+    const atMe = -t.vx * Math.sign(dx) > 10;
+    const pickAll = spinAim > 0.5 && t === state.last && shape && !shape.ground && state.mine ? pickHeight(shape, dx > 0) : null;
+    const rank = !pickAll || !atMe || t.parts === undefined ? 1 : Math.sign(parts.length - t.parts);
+    const pick = rank > 0 ? pickAll : null;
+    const tip = pick ? (tipSpin * state.inertia) / (Math.max(1, pick.armMe) * ((m * tm) / (m + tm))) : tipSpeed(t);
     const speed = Math.max(12, Math.min(fast || Math.min(vmax, (sat * (m + tm)) / m, 0.95 * vTop), tip));
     // The run-up: what its measured speeding up needs to reach that speed (leaning, against air drag), at most
     // `maxRun` before a still target and less the faster the target moves away from it, so one drifting away is
@@ -531,9 +616,15 @@ function tick() {
       // A target flying at it is likely matching its height too: led fully, the two would chase each other's
       // climb up to the ceiling (titans v3, 2026-10: an anvil pair met there, and the hit rolled one over). So
       // such a target's climb is led only by `lead`, which lets the pair settle at one height.
-      const g = -t.vx * Math.sign(dx) > 10 ? lead : 1;
-      const aimY = clamp(t.y + g * (t.vy * tc + 0.5 * ay * tc * tc), floor, ceiling);
-      ramVy = g * (t.vy + ay * tc) + (aimY - y) / Math.max(0.7, tc);
+      const g = atMe ? lead : 1;
+      // One flying at it is met no lower than 30 m over its own floor and no higher than 30 m under the ceiling.
+      const lo = atMe ? Math.min(floor + 30, ceiling) : floor;
+      const hi = atMe ? Math.max(lo, ceiling - 30) : ceiling;
+      if (rank < 0) ramVy = (clamp(y, lo, hi) - y) / Math.max(0.7, tc);
+      else {
+        const aimY = clamp(t.y + (pick ? pick.d : 0) + g * (t.vy * tc + 0.5 * ay * tc * tc), lo, hi);
+        ramVy = g * (t.vy + ay * tc) + (aimY - y) / Math.max(0.7, tc);
+      }
       if (tc < 2.5) calm = true;
     }
     return passed;
@@ -837,7 +928,10 @@ function tick() {
 
 
   // Sideways: the boosters on one side or the other.
-  const u = clamp(0.6 * (wantVx - vx), -1, 1);
+  // Upside down they push the other way, and on its side up or down (titans v3, 2026-10: a brick on its back drove
+  // itself out of the arena wanting to go the other way): turned over, the booster sides swap; on its side, none.
+  const facing = Math.cos(self.angle);
+  const u = clamp(0.6 * (wantVx - vx), -1, 1) * (facing > 0.3 ? 1 : facing < -0.3 ? -1 : 0);
   set('pa', 'throttle', clamp(u * state.paDir, 0, 1));
   set('pb', 'throttle', clamp(-u * state.paDir, 0, 1));
   state.push = u * (u > 0 ? state.pushRight : state.pushLeft);
