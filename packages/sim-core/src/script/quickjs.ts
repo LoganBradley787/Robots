@@ -3,7 +3,7 @@ import { Prng } from '../rng/Prng';
 import type { ScriptFrame } from './frame';
 import { PRELUDE } from './prelude';
 import { readScanOptions, type ScanOptions } from './scanOptions';
-import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInstance, type ScriptLimits, type ScriptMark, type ScriptResult, type ScriptServices, type ScriptWrite } from './types';
+import { DEFAULT_LIMITS, type CompileOptions, type CompileResult, type ParamSpec, type ScriptError, type ScriptHost, type ScriptInstance, type ScriptLimits, type ScriptMark, type ScriptResult, type ScriptServices, type ScriptWrite, SLEEP_MAX } from './types';
 
 /** Global code (the user's top level, and `param()` calls) gets a few ticks' worth of budget. */
 const COMPILE_BUDGET_TICKS = 4;
@@ -461,7 +461,7 @@ function readResult(text: string): ScriptResult {
   } catch {
     return bad;
   }
-  const o = raw as { writes?: unknown; logs?: unknown; marks?: unknown; keys?: unknown } | null;
+  const o = raw as { writes?: unknown; logs?: unknown; marks?: unknown; keys?: unknown; sleep?: unknown } | null;
   if (!o || !Array.isArray(o.writes) || !Array.isArray(o.logs) || !Array.isArray(o.marks)) return bad;
   const writes: ScriptWrite[] = [];
   for (const w of o.writes.slice(0, MAX_WRITES)) {
@@ -481,7 +481,9 @@ function readResult(text: string): ScriptResult {
   }
   // Keys it asked about (M16): plain strings only, kept short; anything else is left out, not an error.
   const keys = Array.isArray(o.keys) ? o.keys.slice(0, 16).filter((k): k is string => typeof k === 'string').map((k) => k.slice(0, 20)) : [];
-  return { ok: true, writes, logs, marks, ...(keys.length > 0 ? { keys } : {}) };
+  // Ticks it asked to sleep (`sleep(n)`): a whole number from 1 to SLEEP_MAX, anything else none.
+  const sleep = typeof o.sleep === 'number' && Number.isInteger(o.sleep) && o.sleep > 0 ? Math.min(SLEEP_MAX, o.sleep) : 0;
+  return { ok: true, writes, logs, marks, ...(keys.length > 0 ? { keys } : {}), ...(sleep > 0 ? { sleep } : {}) };
 }
 
 type RunResult = { ok: true; text: string } | { ok: false; error: ScriptError };

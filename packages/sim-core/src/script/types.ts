@@ -152,7 +152,11 @@ export interface ScriptInput {
 }
 
 /** `keys`: the keys it asked about with `keys.down` and friends this call (M16, for the readout), when any. */
-export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[]; marks: ScriptMark[]; keys?: string[] } | { ok: false; error: ScriptError };
+/** The most ticks one `sleep(n)` call skips (a script that wants longer calls it again when it wakes). */
+export const SLEEP_MAX = 30;
+
+/** `sleep`: the ticks after this one the script asked to sit out (`sleep(n)`), 1 to SLEEP_MAX; absent for none. */
+export type ScriptResult = { ok: true; writes: ScriptWrite[]; logs: string[]; marks: ScriptMark[]; keys?: string[]; sleep?: number } | { ok: false; error: ScriptError };
 
 export interface ScriptInstance {
   /** Params the script declared with `param()`, with the values it got. */

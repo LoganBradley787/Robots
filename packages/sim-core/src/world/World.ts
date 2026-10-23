@@ -5,7 +5,7 @@ import { StateHasher } from '../replay/StateHasher';
 import { InputLog, type WorldChange } from '../replay/InputLog';
 import { Controller } from '../control/controller';
 import type { ControlledPart, ControlTrace, RobotInput } from '../control/types';
-import { BEHAVIORS, type BehaviorContext } from '../behaviors/registry';
+import { BEHAVIORS, type Behavior, type BehaviorContext } from '../behaviors/registry';
 import { allBindings, autoBindings } from '../control/autoControls';
 import { drainContainers, fillContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
@@ -33,7 +33,7 @@ import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face, JammerSpec } from '../parts/types';
-import type { PartInstance, Robot } from './Robot';
+import type { BodyGroup, PartInstance, Robot } from './Robot';
 import { BAY_CLEAR_SPEED, bayClearAfterTicks, copyLeaveTicks } from './bayclear';
 import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
@@ -504,6 +504,10 @@ export class World {
   private readonly grown = new Set<Robot>();
   /** Each robot blueprint's fabricator jobs by part (M12), worked out once per blueprint object. Derived. */
   private readonly jobs = new WeakMap<Blueprint, Map<string, { seconds: number; joules: number } | undefined>>();
+  /** Each robot's parts with a behavior and their contexts (`behaviorList`), kept until the robot changes. Derived. */
+  private readonly behaviorLists = new WeakMap<Robot, BehaviorList>();
+  /** Each blueprint's jammer pod ids, in blueprint order (`jammerIds`). Derived. */
+  private readonly jammerIdsOf = new WeakMap<Blueprint, readonly string[]>();
   /** Batch: jamming bubbles for the tick they were found on. Derived; dropped when robots come or go. */
   private jamCache: { tick: number; bubbles: JamBubble[] | undefined } | undefined;
   /** Batch: jammer pods lit at some point and maybe still jamming, so sensors skip looking for bubbles when there are none. Derived from each part's `burn`. */
@@ -802,8 +806,8 @@ export class World {
     const out: JamBubble[] = [];
     this.jammers.clear();
     for (const r of this.robots) {
-      for (const bp of r.blueprint.parts) {
-        const part = r.parts.get(bp.id);
+      for (const id of this.jammerIds(r.blueprint)) {
+        const part = r.parts.get(id);
         const spec = part?.def.jammer;
         if (!part || !spec || (part.burn ?? 0) <= 0 || !r.groups[part.group]) continue;
         this.jammers.add(part);
@@ -814,6 +818,19 @@ export class World {
     const bubbles = out.length === 0 ? undefined : out;
     this.jamCache = { tick: this.tickCount, bubbles };
     return bubbles;
+  }
+
+  /**
+   * The ids of a blueprint's jammer pods, in blueprint order, found once per blueprint object (a dart keeps its
+   * titan's blueprint of thousands of parts, and a fabricator's build makes a new one). Derived.
+   */
+  private jammerIds(blueprint: Blueprint): readonly string[] {
+    let ids = this.jammerIdsOf.get(blueprint);
+    if (!ids) {
+      ids = blueprint.parts.filter((p) => this.registry.has(p.part) && this.registry.get(p.part).jammer !== undefined).map((p) => p.id);
+      this.jammerIdsOf.set(blueprint, ids);
+    }
+    return ids;
   }
 
   /**
@@ -2119,6 +2136,9 @@ export class World {
           if (core.inbox.length === 0) delete core.inbox;
         }
         this.scriptMarks.set(robotId, out.marks);
+      } else if (out.marks.length > 0) {
+        // Every script asleep (`sleep(n)`): messages wait in the inbox for them, and their marks stay up.
+        this.scriptMarks.set(robotId, out.marks);
       } else {
         this.scriptMarks.delete(robotId);
       }
@@ -2899,10 +2919,11 @@ export class World {
     }
   }
 
-  /** Robots with at least one script running now, in the order their scripts run: those Smooth may skip. Read-only. */
+  /** Robots with at least one script running now and awake, in the order their scripts run: those Smooth may skip. Read-only. */
   scriptedRobots(): number[] {
     const out: number[] = [];
-    for (const [id, runner] of this.runners) if (this.controllers.has(id) && runner.scripts.some((s) => s.enabled)) out.push(id);
+    // A robot whose every running script is asleep (`sleep(n)`) calls none next tick: Smooth has nothing to skip.
+    for (const [id, runner] of this.runners) if (this.controllers.has(id) && runner.awake) out.push(id);
     return out;
   }
 
@@ -2943,44 +2964,39 @@ export class World {
    */
   private runBehaviors(early: boolean): void {
     for (const robot of this.robots) {
+      const list = this.behaviorList(robot);
+      const entries = early ? list.early : list.late;
+      // Nothing plans: every chunk would ask for nothing, which grants in full and changes nothing.
+      if (entries.length === 0) continue;
       const planned: { action: PlannedAction; chunk: number; request: number }[] = [];
-      // M15: energy parts pour back this tick (a charged gun draining), by chunk, poured once the grants are settled.
-      let back: Map<number, number> | undefined;
+      // Each chunk's requests, summed in planned order from 0 (as a filter and a reduce would), so the floats match.
+      const sums: number[] = new Array<number>(robot.chunks.length).fill(0);
       const chans = this.channels.get(robot.id);
-      for (const part of robot.parts.values()) {
-        const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
-        const group = robot.groups[part.group];
-        if (!behavior || !group || (behavior.early === true) !== early) continue;
-        const own = chans?.get(part.id);
-        const ctx: BehaviorContext = {
-          physics: this.physics,
-          robot,
-          part,
-          group,
-          dt: this.dt,
-          value: (channel) => own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
-          config: (key) => part.def.behaviorConfig?.[key] ?? 0,
-          controlled: this.controllers.has(robot.id),
-          free: this.unlimited,
-          detach: (face, impulse) => this.detach(robot, part, face, impulse),
-          giveBack: (joules) => {
-            if (!(joules > 0)) return;
-            const chunk = chunkIndex(robot, part.id);
-            (back ??= new Map()).set(chunk, (back.get(chunk) ?? 0) + joules);
-          },
-          job: () => this.jobOf(robot, part),
-          finish: () => this.finishBuild(robot, part),
-          release: () => this.releaseBuild(robot, part),
-          watch: () => this.watchLeaving(robot, part),
-        };
-        const action = behavior.plan(ctx);
+      const controlled = this.controllers.has(robot.id);
+      // M15: energy parts pour back this tick (a charged gun draining), by chunk, poured once the grants are settled.
+      list.back = undefined;
+      for (const entry of entries) {
+        const group = robot.groups[entry.part.group];
+        if (!group) continue;
+        const ctx = entry.ctx;
+        entry.own = chans?.get(entry.part.id);
+        ctx.group = group;
+        ctx.controlled = controlled;
+        ctx.free = this.unlimited;
+        const action = entry.behavior.plan(ctx);
         // A load that is not a number (a hand-made def dividing by zero) must never reach the pool: NaN would stick.
         const load = Number.isFinite(action?.load) ? Math.max(0, Math.min(1, action?.load ?? 0)) : 0;
-        if (action) planned.push({ action, chunk: chunkIndex(robot, part.id), request: part.def.powerDraw * load * this.dt });
+        if (action) {
+          const request = entry.part.def.powerDraw * load * this.dt;
+          planned.push({ action, chunk: entry.chunk, request });
+          if (entry.chunk < sums.length) sums[entry.chunk] = (sums[entry.chunk] ?? 0) + request;
+        }
       }
-      const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, planned.filter((p) => p.chunk === c).reduce((s, p) => s + p.request, 0)));
+      const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0));
       // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
       for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
+      const back = list.back as Map<number, number> | undefined;
+      list.back = undefined;
       if (back && !this.unlimited) {
         for (const [chunk, joules] of back) {
           const containers = poolContainers(robot, chunk);
@@ -2995,6 +3011,53 @@ export class World {
         }
       }
     }
+  }
+
+  /**
+   * A robot's parts with a known behavior, early and late, each with its chunk and its context, in the robot's part
+   * order: made again only when the robot changes (its `version`, chunks, map of parts or part count), so a tick
+   * walks only the parts that act and builds no closures. Derived, never hashed.
+   */
+  private behaviorList(robot: Robot): BehaviorList {
+    const had = this.behaviorLists.get(robot);
+    if (had && had.version === robot.version && had.chunks === robot.chunks && had.parts === robot.parts && had.size === robot.parts.size) return had;
+    const list: BehaviorList = { version: robot.version, chunks: robot.chunks, parts: robot.parts, size: robot.parts.size, early: [], late: [], back: undefined };
+    for (const part of robot.parts.values()) {
+      const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
+      if (!behavior) continue;
+      const chunk = chunkIndex(robot, part.id);
+      const entry: BehaviorEntry = {
+        part,
+        behavior,
+        chunk,
+        own: undefined,
+        ctx: {
+          physics: this.physics,
+          robot,
+          part,
+          // Set each tick before the part plans (`runBehaviors`).
+          group: robot.groups[part.group] as BodyGroup,
+          dt: this.dt,
+          value: (channel) => entry.own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
+          config: (key) => part.def.behaviorConfig?.[key] ?? 0,
+          controlled: false,
+          free: false,
+          detach: (face, impulse) => this.detach(robot, part, face, impulse),
+          giveBack: (joules) => {
+            if (!(joules > 0)) return;
+            const back = (list.back ??= new Map());
+            back.set(chunk, (back.get(chunk) ?? 0) + joules);
+          },
+          job: () => this.jobOf(robot, part),
+          finish: () => this.finishBuild(robot, part),
+          release: () => this.releaseBuild(robot, part),
+          watch: () => this.watchLeaving(robot, part),
+        },
+      };
+      (behavior.early === true ? list.early : list.late).push(entry);
+    }
+    this.behaviorLists.set(robot, list);
+    return list;
   }
 
   /** Grants a chunk's requests for this tick and drains its pool. Returns the grant factor. */
@@ -3082,6 +3145,11 @@ export class World {
         h.addString(sc.id);
         h.addInt(sc.enabled ? 1 : 0);
         h.addInt(sc.crashed ? 1 : 0);
+        // A script asleep (`sleep(n)`) and the ticks it has left. One awake adds nothing.
+        if (sc.asleep !== undefined) {
+          h.addString('asleep');
+          h.addInt(sc.asleep);
+        }
       }
     }
     // Destruction (M6): which robots exist, what each part has left, cut faces, aims, frozen (latched) channels of
@@ -3418,6 +3486,26 @@ function gunOutput(part: PartInstance, name: string): number | undefined {
   if (name === 'sightId') return part.sight?.id ?? 0;
   if (name === 'aim') return part.sight?.aim ?? 0;
   return undefined;
+}
+
+/** A part with a behavior, as `runBehaviors` keeps it: its chunk, its context, and its input channels this tick (`own`). */
+interface BehaviorEntry {
+  part: PartInstance;
+  behavior: Behavior;
+  chunk: number;
+  own: ReadonlyMap<string, number> | undefined;
+  ctx: BehaviorContext;
+}
+
+/** A robot's behavior parts by phase, for the robot as it was made (`World.behaviorList`); `back` is this pass's energy poured back, by chunk. */
+interface BehaviorList {
+  version: number;
+  chunks: Robot['chunks'];
+  parts: Robot['parts'];
+  size: number;
+  early: BehaviorEntry[];
+  late: BehaviorEntry[];
+  back: Map<number, number> | undefined;
 }
 
 /** Each robot's part-to-chunk map, rebuilt when the robot is (its `version` changes). */

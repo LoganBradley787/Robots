@@ -37,7 +37,10 @@ export async function scriptIssues(raw: unknown): Promise<Issue[]> {
     if (!compiled.ok && compiled.error.kind === 'compile' && !compiled.error.message.endsWith('tick()')) continue;
     issues.push(...scriptNameIssues(run, registry));
     // M16, the same pure check the builder's script view runs: it reads `contacts` and nothing on the robot sees.
-    for (const c of scriptChecks(script.source, run.blueprint, registry, run.scope)) if (c.kind === 'sees') warn('SCRIPT_SEES', `line ${c.line}: ${c.message}`);
+    for (const c of scriptChecks(script.source, run.blueprint, registry, run.scope)) {
+      if (c.kind === 'sees') warn('SCRIPT_SEES', `line ${c.line}: ${c.message}`);
+      if (c.kind === 'sleep') warn('SCRIPT_SLEEP', `line ${c.line}: ${c.message}`);
+    }
   }
   // Plain issues: the scripts they are about (whole blueprints) stay out of what the command hands on.
   return foldScriptIssues(issues).map((i) => ({ severity: i.severity, code: i.code, message: i.message }));

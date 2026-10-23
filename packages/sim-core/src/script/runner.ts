@@ -10,6 +10,8 @@ export interface ScriptSlot {
   crashed?: ScriptError;
   /** Keys it has asked about since it was last switched on (M16, for the readout), in the order it first did. */
   reads?: readonly string[];
+  /** Ticks it still sleeps (`sleep(n)`), 1 or more; absent when it is awake. Simulation state, hashed. */
+  asleep?: number;
 }
 
 export interface ScriptTickOutput {
@@ -30,7 +32,7 @@ export interface ScriptTickOutput {
  * source. Scripts run in blueprint order and their writes apply in that order (last write wins).
  */
 export class ScriptRunner {
-  private readonly slots: (Omit<ScriptSlot, 'reads'> & { source?: string; params: Record<string, number>; instance?: ScriptInstance; needsSetup: boolean; seed: number; name: string; reads: string[]; last: ScriptWrite[] })[];
+  private readonly slots: (Omit<ScriptSlot, 'reads'> & { source?: string; params: Record<string, number>; instance?: ScriptInstance; needsSetup: boolean; seed: number; name: string; reads: string[]; last: ScriptWrite[]; lastMarks: ScriptMark[]; asleep: number })[];
   private readonly host: ScriptHost | undefined;
   /** The world's arena, handed to every script it compiles (the global `arena`). */
   private readonly arena: Arena | null;
@@ -45,6 +47,8 @@ export class ScriptRunner {
       needsSetup: false,
       reads: [],
       last: [],
+      lastMarks: [],
+      asleep: 0,
       seed: seed(i),
       name: typeof s.source === 'string' ? `${s.id}.js` : s.source.file,
       ...(typeof s.source === 'string' ? { source: s.source } : {}),
@@ -56,7 +60,12 @@ export class ScriptRunner {
   }
 
   get scripts(): readonly ScriptSlot[] {
-    return this.slots.map((s) => ({ id: s.id, enabled: s.enabled, ...(s.crashed ? { crashed: s.crashed } : {}), ...(s.reads.length > 0 ? { reads: [...s.reads] } : {}) }));
+    return this.slots.map((s) => ({ id: s.id, enabled: s.enabled, ...(s.crashed ? { crashed: s.crashed } : {}), ...(s.reads.length > 0 ? { reads: [...s.reads] } : {}), ...(s.asleep > 0 ? { asleep: s.asleep } : {}) }));
+  }
+
+  /** Whether a running script will be called on the next tick (one asleep is not): those Smooth may skip. */
+  get awake(): boolean {
+    return this.slots.some((s) => s.enabled && s.instance !== undefined && (s.asleep === 0 || s.needsSetup));
   }
 
   /** Crashes found while enabling at construction (compile errors), reported on the first tick. */
@@ -69,23 +78,37 @@ export class ScriptRunner {
     if (!slot) return;
     if (slot.enabled) {
       slot.enabled = false;
+      slot.asleep = 0;
       return;
     }
     this.enable(i);
   }
 
-  /** Runs every enabled script for this tick. `input` is built only when a script needs it. */
+  /**
+   * Runs every enabled script for this tick. `input` is built only when a script needs it. A script asleep
+   * (`sleep(n)`) is not called: its `set()` calls and marks from the last tick it ran are made again, as on a tick
+   * Smooth skips (`repeat`), and one of its ticks to sleep is used up.
+   */
   tick(input: () => ScriptFrame, services?: ScriptServices): ScriptTickOutput {
     const out: ScriptTickOutput = { writes: [], writesBy: [], marks: [], ran: false, logs: [], crashes: this.pending };
     this.pending = [];
     let built: ScriptFrame | undefined;
     for (const slot of this.slots) {
       if (!slot.enabled || !slot.instance) continue;
+      if (slot.asleep > 0 && !slot.needsSetup) {
+        slot.asleep--;
+        out.writes.push(...slot.last);
+        out.writesBy.push({ script: slot.id, count: slot.last.length });
+        out.marks.push({ script: slot.id, marks: slot.lastMarks });
+        continue;
+      }
       built ??= input();
       out.ran = true;
       const instance = slot.instance;
       const results: ScriptResult[] = [];
       slot.last = [];
+      slot.lastMarks = [];
+      slot.asleep = 0;
       try {
         if (slot.needsSetup) results.push(instance.setup(built, services));
         slot.needsSetup = false;
@@ -100,6 +123,9 @@ export class ScriptRunner {
           slot.last = slot.last.length === 0 ? r.writes : [...slot.last, ...r.writes];
           out.writesBy.push({ script: slot.id, count: r.writes.length });
           out.marks.push({ script: slot.id, marks: r.marks });
+          slot.lastMarks = r.marks;
+          // `sleep(n)` in setup() or tick(): the longer wins.
+          slot.asleep = Math.max(slot.asleep, r.sleep ?? 0);
           out.logs.push(...r.logs.map((text) => ({ script: slot.id, text })));
           for (const k of r.keys ?? []) if (slot.reads.length < 16 && !slot.reads.includes(k)) slot.reads.push(k);
         } else {
@@ -116,13 +142,15 @@ export class ScriptRunner {
    * A tick its scripts sit out (Smooth, `skip` in the input log): no script is called, and each running script's
    * `set()` calls from the last tick it ran are made again, in the same order, so its parts keep what it set (the
    * script layer is cleared every tick, `Controller.endTick`). A script switched on since it last ran has none yet.
-   * Compile errors from switching one on are reported here too, as on a tick that ran.
+   * Compile errors from switching one on are reported here too, as on a tick that ran. A script asleep uses up one
+   * of its ticks to sleep: it sleeps for ticks of the world, skipped or not.
    */
   repeat(): ScriptTickOutput {
     const out: ScriptTickOutput = { writes: [], writesBy: [], marks: [], ran: false, logs: [], crashes: this.pending };
     this.pending = [];
     for (const slot of this.slots) {
       if (!slot.enabled || !slot.instance || slot.needsSetup) continue;
+      if (slot.asleep > 0) slot.asleep--;
       out.writes.push(...slot.last);
       out.writesBy.push({ script: slot.id, count: slot.last.length });
     }
@@ -156,12 +184,15 @@ export class ScriptRunner {
     if (!r.ok) return fail(r.error);
     slot.instance = r.instance;
     slot.last = [];
+    slot.lastMarks = [];
+    slot.asleep = 0;
     slot.enabled = true;
     slot.needsSetup = true;
   }
 
   private crash(slot: (typeof this.slots)[number], error: ScriptError): void {
     slot.crashed = error;
+    slot.asleep = 0;
     slot.enabled = false;
     slot.instance?.dispose();
     delete slot.instance;

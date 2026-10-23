@@ -59,7 +59,7 @@ export { resolveScripts, allScripts, scriptFiles, scriptFileName, scriptFileClas
 export { SCRIPT_FILE } from './blueprint/validate';
 export { editDistance, nearestNames } from './blueprint/nearest';
 export { createQuickJsHost } from './script/quickjs';
-export { DEFAULT_LIMITS } from './script/types';
+export { DEFAULT_LIMITS, SLEEP_MAX } from './script/types';
 export { inputToFrame } from './script/frame';
 export { partSpec, partSpecsJson } from './script/partSpec';
 export type { ScriptPartSpec } from './script/partSpec';

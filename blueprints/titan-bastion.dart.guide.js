@@ -13,6 +13,10 @@
 // - (titans v2, 2026-10) A way in: the launcher may send `via`, a list of points given from the robot it follows (so
 //   they move with it). The dart flies through them in turn at `viaSpeed` (slow enough to turn round), then straight
 //   at the robot, led as usual. The base uses it to come in on the robot's thinnest side, its back most often.
+// - (2026-10-22) Far from where it is going it sleeps between steers (`sleep()`): `farSleep` ticks when over
+//   `farDist` m from its point, `midSleep` over `midDist`, holding its motor and gyro as they were set. Never while
+//   clearing its launcher, about to reach what it tracks, or with an enemy seen within `midDist`. A dart's frame was
+//   most of the bastion's script time, and a few degrees of turn a tick 300 m out need no fresh answer each tick.
 // Seeker guide (M8): flies to the point its launcher sent it, and follows the robot its seeker tracks there.
 // Starts when the missile wakes (its decoupler lets go) or on deploy. G turns it off and on.
 // - setup() reads the launcher's point from inbox (and `arc` if the launcher chose the path for this shot). With none,
@@ -64,6 +68,10 @@ const armDist = param('armDist', 200, { min: 5, max: 2000 }); // m from the poin
 const armNear = param('armNear', 40, { min: 0, max: 500 }); // m (plus the robot's size): an enemy seen this close arms it
 const armOut = param('armOut', 60, { min: 0, max: 2000 }); // m from where it was let go: past this, clear of its volley, it arms
 const armSafe = param('armSafe', 7, { min: 0, max: 50 }); // m: a friendly robot (a dart of its volley) this close keeps it safe
+const farDist = param('farDist', 300, { min: 0, max: 5000 }); // m from the point it flies to: further, it sleeps `farSleep` ticks between steers
+const farSleep = param('farSleep', 3, { min: 0, max: 30 }); // ticks it sleeps while far
+const midDist = param('midDist', 150, { min: 0, max: 5000 }); // m: further than this (and nearer than `farDist`), it sleeps `midSleep` ticks
+const midSleep = param('midSleep', 1, { min: 0, max: 30 }); // ticks it sleeps at middle distance
 
 function wrap(a) {
   while (a > Math.PI) a -= 2 * Math.PI;
@@ -266,11 +274,13 @@ function tick() {
   }
 
   let aim = state.aim;
+  let far = 0; // how far the point it flies to is, for how long it may sleep
   if (state.point) {
     const p = here();
     const dx = p.x - self.pos.x;
     const dy = p.y - self.pos.y;
     const dist = Math.hypot(dx, dy);
+    far = dist;
     // Close enough to the tracked robot (M11): measured from the warhead, and counting where it will be by the next
     // tick. The nose reaches something light (a flare) first and would push straight through it, and at 100 m/s it
     // covers 2 m a tick, past the point before it looks again.
@@ -370,4 +380,8 @@ function tick() {
   const spinCmd = clamp(-torque / gyroTorque, -1, 1); // a gyro's spin is clockwise positive
   set('gyro', 'spin', spinCmd);
   set('heavygyro', 'spin', spinCmd);
+
+  // Far from where it is going: sleep, holding these commands. Not while clearing, close, or near an enemy it sees.
+  const nap = far > farDist ? farSleep : far > midDist ? midSleep : 0;
+  if (nap > 0 && !clearing && !state.close && !contacts.some((c) => c.side === 'enemy' && c.distance < midDist)) sleep(nap);
 }

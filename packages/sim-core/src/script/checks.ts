@@ -2,6 +2,7 @@ import { nearestNames } from '../blueprint/nearest';
 import type { Blueprint } from '../blueprint/types';
 import type { PartRegistry } from '../parts/registry';
 import { codeWords, deadNames, readScript, scriptReach, type SourceSpot } from './reading';
+import { SLEEP_MAX } from './types';
 
 /**
  * What is wrong with a script on one robot, found without running it (M16, the script view's checks as you type). Each
@@ -14,9 +15,9 @@ export interface ScriptCheck extends SourceSpot {
   /**
    * `target`: a plain `set()` or `get()` name no part answers to. `input`: an input or output the parts it names do
    * not have. `sees`: it reads `contacts` (or calls `scan`) and nothing on the robot sees. `tick`: it defines no
-   * `tick()`, so it would stop as it starts.
+   * `tick()`, so it would stop as it starts. `sleep`: a `sleep()` of a plain number over SLEEP_MAX, which sleeps only that long.
    */
-  kind: 'target' | 'input' | 'sees' | 'tick';
+  kind: 'target' | 'input' | 'sees' | 'tick' | 'sleep';
   /** One plain sentence or two. */
   message: string;
   /** The real names that could stand there instead, most likely first. For `target` and `input`. */
@@ -102,6 +103,14 @@ export function scriptChecks(source: string, bp: Blueprint, registry: PartRegist
     if (first) out.push({ kind: 'sees', line: first.line, column: first.column, start: first.start, end: first.end, message: `contacts is always empty here. ${add}`, suggest: [] });
     const scan = words.find((w) => w.text === 'scan' && w.before !== '.' && w.before !== 'function' && w.after === '(');
     if (scan) out.push({ kind: 'sees', line: scan.line, column: scan.column, start: scan.start, end: scan.end, message: `scan() always gives null here. ${add}`, suggest: [] });
+  }
+
+  // `sleep(60)`: it sleeps SLEEP_MAX ticks, not 60. Only a plain number is judged.
+  for (const w of words) {
+    if (w.text !== 'sleep' || w.after !== '(' || w.before === '.' || w.before === 'function') continue;
+    const n = /^\s*\(\s*(\d+(?:\.\d*)?)\s*\)/.exec(source.slice(w.end))?.[1];
+    if (n === undefined || Number(n) <= SLEEP_MAX) continue;
+    out.push({ kind: 'sleep', line: w.line, column: w.column, start: w.start, end: w.end, message: `sleep() skips at most ${SLEEP_MAX} ticks, so sleep(${n}) sleeps ${SLEEP_MAX}. Call it again when it wakes to sleep longer.`, suggest: [] });
   }
 
   // `function tick`, or `tick = ...` (a script may also hang it on globalThis).

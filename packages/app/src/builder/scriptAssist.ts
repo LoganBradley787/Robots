@@ -135,7 +135,7 @@ export interface EditorCheck {
   /** From 1. */
   line: number;
   severity: 'error' | 'warning';
-  kind: 'syntax' | 'target' | 'input' | 'sees' | 'tick';
+  kind: 'syntax' | 'target' | 'input' | 'sees' | 'tick' | 'sleep';
   message: string;
   /** One click each: the text the marked spot would become. */
   fixes: { label: string; text: string }[];
