@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { partCells } from '../src/assembly/assemble';
+import { mirrorBlueprint } from '../src/blueprint/mirror';
+import { orientBlueprint } from '../src/blueprint/orient';
 import { expandBlueprint } from '../src/blueprint/expand';
 import { placeBlueprint } from '../src/blueprint/place';
 import { resolveScripts, assignScriptFiles, scriptFiles } from '../src/blueprint/scripts';
@@ -202,5 +206,51 @@ describe('controls per core in files', () => {
     if (!r.ok) throw new Error(r.error);
     expect(r.blueprint.primaryCore).toBe('core@0,5');
     expect(validateBlueprint(toFileJson(r.blueprint, reg, { inlineScripts: true }), reg).issues.filter((i) => i.code === 'BAD_CORE_CONTROLS')).toEqual([]);
+  });
+});
+
+describe('placing a mirrored blueprint keeps its root part where it lands (review E5, in placeBlueprint)', () => {
+  const rootCells = (b: Blueprint, from: number): string[] => {
+    const root = b.parts[from];
+    return root ? partCells(root, reg).map((c) => `${c.cell.x},${c.cell.y}`).sort() : [];
+  };
+  const empty = bp({ format: 1, name: 'empty', parts: [] });
+  const turret = bp(JSON.parse(readFileSync(new URL('../../../blueprints/cannon-turret.json', import.meta.url), 'utf8')));
+  const cellsOf = (b: Blueprint): string[] => b.parts.map((p) => `${p.part}@${p.x},${p.y}:${p.rot}`).sort();
+
+  it('a cannon turret mirrored lands on the same cells as unmirrored, its rotator under the other column', () => {
+    expect(turret.parts[0]?.part).toBe('cannon');
+    for (const target of [car, empty]) {
+      const at = { x: 0, y: 4 };
+      const plain = placeBlueprint(target, turret, at, reg);
+      const flipped = placeBlueprint(target, turret, at, reg, { mirror: true });
+      if (!plain.ok || !flipped.ok) throw new Error('should place');
+      const from = target.parts.length;
+      expect(rootCells(flipped.blueprint, from)).toEqual(rootCells(plain.blueprint, from));
+      expect(flipped.blueprint.parts[from]?.x).toBe(at.x);
+      const rotator = flipped.blueprint.parts.slice(from).find((p) => p.part === 'heavyrotator');
+      expect([rotator?.x, rotator?.y]).toEqual([at.x + 1, at.y - 1]);
+    }
+  });
+
+  it('a bay root lands on its own cells mirrored, at every size', () => {
+    for (const size of [undefined, [1, 1], [2, 3], [4, 2]] as const) {
+      const src = bp({ format: 1, name: 'b', parts: [{ part: 'fabbay', x: 3, y: 2, ...(size ? { size } : {}) }, { part: 'frame', x: 3, y: 1 }] });
+      const plain = placeBlueprint(empty, src, { x: 0, y: 0 }, reg);
+      const flipped = placeBlueprint(empty, src, { x: 0, y: 0 }, reg, { mirror: true });
+      if (!plain.ok || !flipped.ok) throw new Error('should place');
+      expect(rootCells(flipped.blueprint, 0)).toEqual(rootCells(plain.blueprint, 0));
+    }
+  });
+
+  it('places what orientBlueprint flips, and what mirrorBlueprint gives across the root middle', () => {
+    const root = turret.parts[0];
+    if (!root) throw new Error('no root');
+    const flipped = placeBlueprint(empty, turret, { x: root.x, y: root.y }, reg, { mirror: true });
+    if (!flipped.ok) throw new Error(flipped.error);
+    expect(cellsOf(flipped.blueprint)).toEqual(cellsOf(orientBlueprint(turret, { flip: true }, reg)));
+    // The cannon spans columns root.x and root.x + 1: its middle is 2 * root.x + 1 in half cells.
+    expect(cellsOf(flipped.blueprint)).toEqual(cellsOf(mirrorBlueprint(turret, 2 * root.x + 1, reg)));
+    expect(mirrorBlueprint(mirrorBlueprint(turret, 7, reg), 7, reg).parts).toEqual(turret.parts);
   });
 });

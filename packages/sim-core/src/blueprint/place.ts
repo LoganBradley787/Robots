@@ -3,13 +3,13 @@ import { rotateCell } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Rotation } from '../parts/types';
 import { partId } from './expand';
-import { mirrorProblem, mirrorRotation } from './mirror';
+import { mirrorProblem, mirrorRotation, rootFlipAxis } from './mirror';
 import { footprintOf, mirroredShift } from '../parts/footprint';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from './types';
 
 export interface PlaceOptions {
   rot?: Rotation;
-  /** Flip the source left to right (across its root part's column) before turning it. */
+  /** Flip the source left to right (across the middle of its root part's cells) before turning it. */
   mirror?: boolean;
   /** M12: the copy's scope, instead of the next free `<name><n>` (a fabricator bay names what it builds). */
   scope?: string;
@@ -22,7 +22,8 @@ export type PlaceResult = { ok: true; blueprint: Blueprint; scope?: string; warn
 /**
  * Places a copy of `source` on `target` (M7, Logan: a placed blueprint becomes part of the robot, never a link to
  * its file). The source's root part (its primary core, else its first core, else its first part) lands on `at`;
- * `mirror` flips it first, then `rot` turns it around that cell.
+ * `mirror` flips it first (across the middle of the root's own cells, so the root keeps them), then `rot` turns it
+ * around that cell.
  *
  * When the target already has a core, the copy gets a scope (`missile1`, the source's name plus the first free
  * number): every copied part is tagged `missile1`, its own tags become `missile1.<tag>`, and the source's controls
@@ -48,12 +49,15 @@ export function placeBlueprint(target: Blueprint, source: Blueprint, at: { x: nu
   // Where each source part goes.
   const taken = new Set([...target.parts.map((p) => p.id), ...(opts.reservedIds ?? [])]);
   const newId = new Map<string, string>();
+  // Flipped across the column the root's own cells are symmetric about, so it keeps them, as `orientBlueprint` does
+  // (review E5): across its origin's column a cannon or a bay root lands a cell to the side.
+  const axis = opts.mirror ? rootFlipAxis(anchor, registry) : 0;
   const moved: PlacedPart[] = source.parts.map((p) => {
     let dx = p.x - anchor.x;
     let dy = p.y - anchor.y;
     let r = p.rot;
     if (opts.mirror) {
-      dx = -dx;
+      dx = axis - dx;
       r = mirrorRotation(r);
       // A multi-cell part symmetric about a column other than its origin's moves its origin (M12).
       const shift = registry.has(p.part) ? mirroredShift(footprintOf(registry.get(p.part), p.size), r) : { x: 0, y: 0 };
