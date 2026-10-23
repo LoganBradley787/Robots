@@ -1,7 +1,7 @@
 import * as RAPIER from '@dimforge/rapier2d-deterministic-compat';
 import type { StateHasher } from '../replay/StateHasher';
 import { compareText } from '../replay/compareText';
-import { cos, hypot, sin } from '../math/fdlibm';
+import { cos, sin } from '../math/fdlibm';
 
 /** Stable id owned by us. Rapier handles are index plus generation and get reused; ours never do. */
 export type BodyId = number;
@@ -151,6 +151,15 @@ function readState(body: RAPIER.RigidBody): BodyState {
   return { x: t.x, y: t.y, angle: body.rotation(), vx: v.x, vy: v.y, w: body.angvel() };
 }
 
+const handleBits = new Float64Array(1);
+const handleWords = new Uint32Array(handleBits.buffer);
+
+/** A collider handle's arena index (its low 32 bits; the high ones are the slot's generation), Rapier's own order. */
+function arenaIndex(handle: number): number {
+  handleBits[0] = handle;
+  return handleWords[0]!;
+}
+
 export class PhysicsWorld {
   /** Gravity's y (m/s^2, negative is down), for things that feed it forward (Batch: the piston). */
   readonly gravityY: number;
@@ -191,6 +200,11 @@ export class PhysicsWorld {
   private readonly stepSeconds: number;
   /** Velocities waiting to be given to bodies (`kick`) at the start of the next step (`applyKicks`). */
   private readonly kicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
+  /**
+   * Colliders created since the last step, by handle, in creation order. Rapier's query index (its broad phase) is
+   * rebuilt at the end of each step, so it misses these until the next one; `scanOverlaps` tests them directly.
+   */
+  private fresh: number[] = [];
 
   constructor(gravityY: number, dt: number) {
     this.gravityY = gravityY;
@@ -223,6 +237,7 @@ export class PhysicsWorld {
     let desc = base.setTranslation(place.offsetX, place.offsetY).setRotation(place.angle ?? 0).setMass(place.mass);
     if (place.friction !== undefined) desc = desc.setFriction(place.friction);
     const collider = this.world.createCollider(desc, this.body(bodyId));
+    this.fresh.push(collider.handle);
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
       const list = this.owned.get(bodyId);
@@ -690,9 +705,8 @@ export class PhysicsWorld {
 
   /**
    * True when any of the shapes (world space, unrotated) overlaps an existing collider. Shapes are shrunk by
-   * `margin` so resting exactly against something counts as free.
-   * Tests every collider directly rather than through Rapier's scene queries: in 0.20 the query index only
-   * refreshes during a step, so it misses colliders created since (a robot just spawned, or a world that is paused).
+   * `margin` so resting exactly against something counts as free. Sees colliders created since the last step too
+   * (a robot just spawned, or a world that is paused), which Rapier's query index misses (`scanOverlaps`).
    */
   overlapsShapes(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin = 0.02): boolean {
     let hit = false;
@@ -718,37 +732,36 @@ export class PhysicsWorld {
     return found;
   }
 
-  /** Calls `visit` on every collider that overlaps any shape, stopping once it returns true. */
+  /**
+   * Calls `visit` on every collider that overlaps any shape, in the order Rapier lists its colliders (arena index),
+   * stopping once it returns true. Asks Rapier's query index, which holds every collider as it was after the last step
+   * (nothing moves a collider between steps here), plus the colliders created since, tested directly.
+   */
   private scanOverlaps(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin: number, visit: (c: RAPIER.Collider) => boolean): void {
     const shrink = (v: number): number => Math.max(0.001, v - margin);
     const probes = shapes.map((s) => ({
       pos: { x: s.x, y: s.y },
       shape: s.shape.shape === 'box' ? new RAPIER.Cuboid(shrink(s.shape.hx), shrink(s.shape.hy)) : new RAPIER.Ball(shrink(s.shape.radius)),
     }));
-    // The box around every probe: a collider whose bounding circle misses it cannot touch any probe, so the exact
-    // test (the slow part, with hundreds of robots about) runs only on colliders near the spot.
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const s of shapes) {
-      const hx = s.shape.shape === 'box' ? s.shape.hx : s.shape.radius;
-      const hy = s.shape.shape === 'box' ? s.shape.hy : s.shape.radius;
-      minX = Math.min(minX, s.x - hx);
-      minY = Math.min(minY, s.y - hy);
-      maxX = Math.max(maxX, s.x + hx);
-      maxY = Math.max(maxY, s.y + hy);
+    const hits = new Map<number, RAPIER.Collider>();
+    for (const p of probes) {
+      this.world.intersectionsWithShape(p.pos, 0, p.shape, (c) => {
+        hits.set(c.handle, c);
+        return true;
+      });
     }
-    let done = false;
-    this.world.forEachCollider((c) => {
-      if (done) return;
+    for (const handle of this.fresh) {
+      if (hits.has(handle)) continue;
+      const c = this.world.getCollider(handle);
+      // Gone since (the lookup is by arena index, so a newer collider in the same slot answers for it).
+      if (!c || c.handle !== handle) continue;
       const pos = c.translation();
-      const type = c.shapeType();
-      const reach = type === RAPIER.ShapeType.Ball ? c.radius() : type === RAPIER.ShapeType.Cuboid ? hypot(c.halfExtents()?.x ?? Infinity, c.halfExtents()?.y ?? Infinity) : Infinity;
-      if (pos.x + reach < minX || pos.x - reach > maxX || pos.y + reach < minY || pos.y - reach > maxY) return;
       const rot = c.rotation();
-      if (probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0))) done = visit(c);
-    });
+      if (probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0))) hits.set(handle, c);
+    }
+    if (hits.size === 0) return;
+    const order = [...hits.keys()].sort((x, y) => arenaIndex(x) - arenaIndex(y));
+    for (const handle of order) if (visit(hits.get(handle)!)) return;
   }
 
   /**
@@ -822,7 +835,7 @@ export class PhysicsWorld {
   createFixedBox(cx: number, cy: number, w: number, h: number, angle = 0): BodyId {
     const id = this.createBody({ x: cx, y: cy, angle, kind: 'fixed' });
     const desc = RAPIER.ColliderDesc.cuboid(w / 2, h / 2);
-    this.world.createCollider(desc, this.body(id));
+    this.fresh.push(this.world.createCollider(desc, this.body(id)).handle);
     return id;
   }
 
@@ -918,6 +931,7 @@ export class PhysicsWorld {
       this.world.timestep = this.stepSeconds;
       this.world.numSolverIterations = SOLVER_ITERATIONS;
     } else this.world.step();
+    this.fresh = [];
     for (const id of this.forced) {
       const b = this.body(id);
       b.resetForces(false);

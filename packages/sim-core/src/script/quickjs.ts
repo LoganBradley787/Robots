@@ -425,9 +425,12 @@ class QuickJsInstance implements ScriptInstance {
       // Copied into the sandbox's own memory: exactly the numbers' bytes, even when they are a view of a bigger buffer.
       const buf = ctx.newArrayBuffer(n.byteOffset === 0 && n.byteLength === n.buffer.byteLength ? n.buffer : n.slice().buffer);
       const extras = ctx.newString(frame.extras);
-      const r = run(ctx, this.meter, () => ctx.callFunction(entry, ctx.undefined, buf, extras));
+      const c = frame.contacts;
+      const contacts = c === undefined ? undefined : ctx.newArrayBuffer(c.byteOffset === 0 && c.byteLength === c.buffer.byteLength ? c.buffer : c.slice().buffer);
+      const r = run(ctx, this.meter, () => ctx.callFunction(entry, ctx.undefined, buf, extras, contacts ?? ctx.undefined));
       buf.dispose();
       extras.dispose();
+      contacts?.dispose();
       return r.ok ? readResult(r.text) : r;
     } catch (e) {
       // An engine-level error outside `run` (copying the inputs in) moves the wasm stack pointer the same way.

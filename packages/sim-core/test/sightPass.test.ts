@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import variant from '@jitl/quickjs-wasmfile-release-sync';
 import { createQuickJsHost } from '../src/script/quickjs';
 import type { ScannedPart, ScriptContact, ScriptHost, ScriptInstance, ScriptServices } from '../src/script/types';
-import { contactHead, contactJson, contactMiddle, extrasJson, type ScriptFrame } from '../src/script/frame';
+import { CONTACT, contactFrame, extrasJson, inputToFrame, type ScriptFrame } from '../src/script/frame';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import type { Robot } from '../src/world/Robot';
@@ -26,21 +26,26 @@ const space = parseWorldFile({ name: 'space', ground: { width: 10, thickness: 2 
 interface Seen {
   /** The script's file name: `<script id>.js`, one per robot here. */
   name: string;
-  /** Keys, contacts, and inbox as the JSON text the script is handed ('' when all are empty). */
-  extras: string;
+  /** The contacts as the script saw them, as JSON text (its objects, fields in their order). */
+  text: string;
   contacts: ScriptContact[];
   /** Every `scan(id)` the script made, with the text it was handed. */
   scans: { id: number; text: string }[];
 }
 
-/** A host that notes what crosses into each script on each call: its contacts, and each scan's answer. */
+/** A host that notes what crosses into each script on each call: its contacts (as it saw them), and each scan's answer. */
 function recording(): { host: ScriptHost; calls: Seen[] } {
   const calls: Seen[] = [];
-  const wrap = (name: string, run: (frame: ScriptFrame, services?: ScriptServices) => ReturnType<ScriptInstance['tick']>) => (frame: ScriptFrame, services?: ScriptServices) => {
-    const seen: Seen = { name, extras: frame.extras, contacts: frame.extras === '' ? [] : (JSON.parse(frame.extras) as [unknown, ScriptContact[], unknown])[1], scans: [] };
+  const wrap = (name: string, run: (frame: ScriptFrame, services?: ScriptServices) => ReturnType<ScriptInstance['tick']>, inspect: () => string) => (frame: ScriptFrame, services?: ScriptServices) => {
+    const seen: Seen = { name, text: '', contacts: [], scans: [] };
     calls.push(seen);
-    if (!services) return run(frame);
-    return run(frame, {
+    const note = (r: ReturnType<ScriptInstance['tick']>): ReturnType<ScriptInstance['tick']> => {
+      seen.text = JSON.stringify((JSON.parse(inspect()) as { contacts: unknown }).contacts);
+      seen.contacts = JSON.parse(seen.text) as ScriptContact[];
+      return r;
+    };
+    if (!services) return note(run(frame));
+    return note(run(frame, {
       scan: (id) => services.scan(id),
       scanJson: (id) => {
         const text = services.scanJson ? services.scanJson(id) : JSON.stringify(services.scan(id));
@@ -48,17 +53,18 @@ function recording(): { host: ScriptHost; calls: Seen[] } {
         return text;
       },
       send: (to, json) => services.send(to, json),
-    });
+    }));
   };
   return {
     calls,
     host: {
       compile(source, opts) {
-        const r = inner.compile(source, opts);
+        const r = inner.compile(source, { ...opts, inspect: true });
         if (!r.ok) return r;
         const i = r.instance;
+        const inspect = (): string => i.inspect?.() ?? '{}';
         // Setup is not noted: it gets the same frame as the tick that follows it.
-        return { ok: true, instance: { params: i.params, setup: (f, s) => i.setup(f, s), tick: wrap(opts.name, (f, s) => i.tick(f, s)), dispose: () => i.dispose() } };
+        return { ok: true, instance: { params: i.params, setup: (f, s) => i.setup(f, s), tick: wrap(opts.name, (f, s) => i.tick(f, s), inspect), dispose: () => i.dispose() } };
       },
     },
   };
@@ -149,10 +155,7 @@ function stepAndCheck(w: World, calls: Seen[], scripted: Map<string, Robot>, inp
     expect(want, call.name).toBeDefined();
     expect(call.contacts, `${call.name} contacts at tick ${w.tick}`).toEqual(want?.contacts);
     // The text itself, character for character (the order of a contact's fields is something a script can see).
-    if (call.extras !== '') {
-      const [keys, , inbox] = JSON.parse(call.extras) as [unknown, unknown, unknown];
-      expect(call.extras).toBe(`[${JSON.stringify(keys)},${want?.text ?? ''},${JSON.stringify(inbox)}]`);
-    }
+    expect(call.text).toBe(want?.text);
     // The prelude hands the host only the first four scans of a tick.
     expect(call.scans.map((s) => s.id)).toEqual(call.contacts.slice(0, 4).map((c) => c.id));
     for (const s of call.scans) expect(s.text, `${call.name} scan(${s.id}) at tick ${w.tick}`).toBe(want?.scans.get(s.id));
@@ -282,20 +285,70 @@ describe('what scripts see while the sensor pass shares its work', () => {
     w.dispose();
   });
 
-  it('a contact written from its pieces is JSON.stringify of it, whatever its numbers', () => {
+  it('a contact made from its numbers is JSON.parse(JSON.stringify(contact)), whatever its numbers', () => {
     const odd = [0, -0, 1, -1, 0.1, 1 / 3, 1e21, 1e-7, 123456789.123456789, -2.5e-300, Number.MAX_VALUE, Number.MIN_VALUE, NaN, Infinity, -Infinity];
+    const lists = [['radio'], ['radar@1,0', 'see"ker\\@2,0\n', 'é'], [], ['a', 'b', 'c', 'd', 'e'], ['a', 'b', 'c'], ['a', 'b']];
     const contacts: ScriptContact[] = [];
     for (let i = 0; i < odd.length; i++) {
       const n = (k: number): number => odd[(i + k) % odd.length] as number;
-      contacts.push({ id: i + 1, side: (['enemy', 'friend', 'none'] as const)[i % 3] ?? 'none', core: i % 2 === 0, pos: { x: n(0), y: n(1) }, vel: { x: n(2), y: n(3) }, center: { x: n(4), y: n(5) }, mass: n(6), parts: i * 7, distance: n(7), by: i % 4 === 0 ? ['radio'] : ['radar@1,0', 'see"ker\\@2,0\n', 'é'] });
+      contacts.push({ id: i + 1, side: (['enemy', 'friend', 'none'] as const)[i % 3] ?? 'none', core: i % 2 === 0, pos: { x: n(0), y: n(1) }, vel: { x: n(2), y: n(3) }, center: { x: n(4), y: n(5) }, mass: n(6), parts: i * 7, distance: n(7), by: [...(lists[i % lists.length] ?? [])] });
     }
-    for (const c of contacts) expect(contactJson(contactHead(c.id, c.side, contactMiddle(c)), c.distance, c.by)).toBe(JSON.stringify(c));
-    // And the extras around them.
-    const keys = { down: ['w'], pressed: [], released: ['k'] };
-    const inbox = [{ from: 'core@0,0', tick: 3, data: { a: [1, 'x'] } }];
-    const text = `[${contacts.map((c) => JSON.stringify(c)).join(',')}]`;
-    expect(extrasJson({ keys, contacts, inbox }, text)).toBe(extrasJson({ keys, contacts, inbox }));
-    expect(extrasJson({ keys: { down: [], pressed: [], released: [] }, contacts: [], inbox: [] }, '[]')).toBe('');
+    // Each different list once, a contact's list by its place.
+    const f = contactFrame(contacts);
+    expect(f?.by).toEqual(lists);
+    expect(f?.numbers.length).toBe(2 + CONTACT * contacts.length);
+    expect(contactFrame([])).toBeUndefined();
+    // What the script sees, -0 told apart from 0, each by list its own array, fields in their order.
+    const finite = contacts.map((c) => ({ ...c, pos: { x: 1.5, y: -0 }, vel: { x: 2, y: 3 }, center: { x: 4, y: 5 }, mass: 6, distance: 7 }));
+    const r = inner.compile(
+      `var want = [${JSON.stringify(JSON.stringify(contacts))}, ${JSON.stringify(JSON.stringify(finite))}, '[]'];
+      function tick() {
+        var mark = function (k, v) { return typeof v === 'number' && 1 / v === -Infinity ? '-0' : v; };
+        var text = JSON.stringify(contacts, mark);
+        log(want.indexOf(text) >= 0 ? 'match' : text.slice(0, 300));
+        log(contacts.length > 6 && contacts[0].by === contacts[6].by ? 'shared' : 'own');
+        log(contacts === contacts ? 'same' : 'new');
+      }`,
+      { name: 't.js', seed: 1 },
+    );
+    if (!r.ok) throw new Error(r.error.message);
+    const base = { frame: 1, dt: 1 / 60, time: 1, self: { pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, angle: 0, angVel: 0, mass: 1, energy: { stored: 0, capacity: 0 } }, parts: [], keys: { down: [], pressed: [], released: [] }, inbox: [] };
+    const seen = r.instance.tick(inputToFrame({ ...base, contacts }, 1));
+    expect(seen.ok && seen.logs).toEqual(['match', 'own', 'same']);
+    // All finite: the same.
+    const again = r.instance.tick(inputToFrame({ ...base, contacts: finite }, 1));
+    expect(again.ok && again.logs).toEqual(['match', 'own', 'same']);
+    // None: an empty list, and no extras at all.
+    const none = inputToFrame({ ...base, contacts: [] }, 1);
+    expect(none.contacts).toBeUndefined();
+    expect(none.extras).toBe('');
+    const empty = r.instance.tick(none);
+    expect(empty.ok && empty.logs).toEqual(['match', 'own', 'same']);
+    expect(extrasJson({ keys: { down: [], pressed: [], released: [] }, inbox: [] }, [])).toBe('');
+    r.instance.dispose();
+  });
+
+  it('contacts a script writes over stay until the next tick; a function of that name gets the list each tick', () => {
+    const one: ScriptContact = { id: 3, side: 'enemy', core: true, pos: { x: 1, y: 2 }, vel: { x: 0, y: 0 }, center: { x: 1, y: 2 }, mass: 5, parts: 2, distance: 9, by: ['radar'] };
+    const base = { frame: 1, dt: 1 / 60, time: 1, self: { pos: { x: 0, y: 0 }, vel: { x: 0, y: 0 }, angle: 0, angVel: 0, mass: 1, energy: { stored: 0, capacity: 0 } }, parts: [], keys: { down: [], pressed: [], released: [] }, inbox: [] };
+    const frame = inputToFrame({ ...base, contacts: [one] }, 1);
+    const written = inner.compile(`var contacts = 5; function tick() { log(String(contacts.length)); contacts = null; log(String(contacts)); }`, { name: 'w.js', seed: 1 });
+    if (!written.ok) throw new Error(written.error.message);
+    const a = written.instance.tick(frame);
+    const b = written.instance.tick(frame);
+    expect(a.ok && a.logs).toEqual(['1', 'null']);
+    expect(b.ok && b.logs).toEqual(['1', 'null']);
+    written.instance.dispose();
+    const named = inner.compile(`function contacts() {} function tick() { log(typeof contacts + ':' + contacts.length); }`, { name: 'n.js', seed: 1 });
+    if (!named.ok) throw new Error(named.error.message);
+    const c = named.instance.tick(frame);
+    expect(c.ok && c.logs).toEqual(['object:1']);
+    named.instance.dispose();
+    const own = inner.compile(`let contacts = 'mine'; function tick() { log(contacts + ':' + globalThis.contacts.length); }`, { name: 'o.js', seed: 1 });
+    if (!own.ok) throw new Error(own.error.message);
+    const d = own.instance.tick(frame);
+    expect(d.ok && d.logs).toEqual(['mine:1']);
+    own.instance.dispose();
   });
 
   it('a host without scanJson still gets the scan (the plain list)', () => {

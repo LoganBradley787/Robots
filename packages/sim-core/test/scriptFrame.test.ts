@@ -60,7 +60,7 @@ describe('script frames (M9)', () => {
     expect([...f.numbers]).toEqual([1, 3, 1 / 60, 3 / 60, 1, 2, 0, 0, 0, 0, 10, 5, 6, 0, 1, 2, 0, 5, 1, 3, 0.5, 0.3]);
     expect(f.numbers.length).toBe(HEADER + SELF + 4 + 4);
     expect(f.extras).toBe('');
-    expect(extrasJson(base({ keys: { down: ['a'], pressed: [], released: [] } }))).toBe(JSON.stringify([{ down: ['a'], pressed: [], released: [] }, [], []]));
+    expect(extrasJson(base({ keys: { down: ['a'], pressed: [], released: [] } }), [])).toBe(JSON.stringify([{ down: ['a'], pressed: [], released: [] }, [], []]));
   });
 
   it('keeps part objects between ticks and updates their numbers in place; parts is a new array each tick', () => {
