@@ -506,6 +506,8 @@ export class World {
   private readonly jobs = new WeakMap<Blueprint, Map<string, { seconds: number; joules: number } | undefined>>();
   /** Each robot's parts with a behavior and their contexts (`behaviorList`), kept until the robot changes. Derived. */
   private readonly behaviorLists = new WeakMap<Robot, BehaviorList>();
+  /** Each blueprint's jammer pod ids, in blueprint order (`jammerIds`). Derived. */
+  private readonly jammerIdsOf = new WeakMap<Blueprint, readonly string[]>();
   /** Batch: jamming bubbles for the tick they were found on. Derived; dropped when robots come or go. */
   private jamCache: { tick: number; bubbles: JamBubble[] | undefined } | undefined;
   /** Batch: jammer pods lit at some point and maybe still jamming, so sensors skip looking for bubbles when there are none. Derived from each part's `burn`. */
@@ -804,8 +806,8 @@ export class World {
     const out: JamBubble[] = [];
     this.jammers.clear();
     for (const r of this.robots) {
-      for (const bp of r.blueprint.parts) {
-        const part = r.parts.get(bp.id);
+      for (const id of this.jammerIds(r.blueprint)) {
+        const part = r.parts.get(id);
         const spec = part?.def.jammer;
         if (!part || !spec || (part.burn ?? 0) <= 0 || !r.groups[part.group]) continue;
         this.jammers.add(part);
@@ -816,6 +818,19 @@ export class World {
     const bubbles = out.length === 0 ? undefined : out;
     this.jamCache = { tick: this.tickCount, bubbles };
     return bubbles;
+  }
+
+  /**
+   * The ids of a blueprint's jammer pods, in blueprint order, found once per blueprint object (a dart keeps its
+   * titan's blueprint of thousands of parts, and a fabricator's build makes a new one). Derived.
+   */
+  private jammerIds(blueprint: Blueprint): readonly string[] {
+    let ids = this.jammerIdsOf.get(blueprint);
+    if (!ids) {
+      ids = blueprint.parts.filter((p) => this.registry.has(p.part) && this.registry.get(p.part).jammer !== undefined).map((p) => p.id);
+      this.jammerIdsOf.set(blueprint, ids);
+    }
+    return ids;
   }
 
   /**
