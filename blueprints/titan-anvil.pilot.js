@@ -69,6 +69,7 @@ const stuckTime = param('stuckTime', 3, { min: 1, max: 30 }); // s going nowhere
 const tilt = param('tilt', 25, { min: 0, max: 40 }); // degrees it leans at most to speed up or slow down
 const forget = param('forget', 30, { min: 1, max: 10000 }); // s a main enemy that vanished alive is kept, with no arena
 const pingKeep = param('pingKeep', 15, { min: 1, max: 60 }); // s it keeps going for the place gun sights last touched the enemy
+const lead = param('lead', 0.4, { min: 0, max: 1 }); // share of the climb or dive of a target flying at it that it leads
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
@@ -153,6 +154,7 @@ function setup() {
   state.downAt = 0;
   state.stallAt = 0;
   state.backing = false;
+  state.hitAt = -100;
   state.evade = false;
   state.jamAt = -100;
   state.hideSide = 0;
@@ -469,8 +471,11 @@ function tick() {
     const speed = Math.max(12, Math.min(fast || Math.min(vmax, (sat * (m + tm)) / m, 0.95 * vTop), tip));
     // The run-up: what its measured speeding up needs to reach that speed (leaning, against air drag), at most
     // `maxRun` before a still target and less the faster the target moves away from it, so one drifting away is
-    // chased, not let go (titans v2, 2026-10: a 250 m run-up let a fleeing hive go for 20 s).
-    const runCap = clamp(maxRun - 25 * Math.max(0, t.vx * Math.sign(dx)), 80, maxRun);
+    // chased, not let go (titans v2, 2026-10: a 250 m run-up let a fleeing hive go for 20 s). Not while backing off
+    // after a hit, for up to 15 s: a target going away then is mostly backing off itself (another rammer), and of two
+    // anvils the one whose run-up was cut first chased the other to its edge, where every later hit was slow.
+    const away = state.backing && time - state.hitAt < 15 ? 0 : Math.max(0, t.vx * Math.sign(dx));
+    const runCap = clamp(maxRun - 25 * away, 80, maxRun);
     const runup = clamp(runFor(speed), 40, runCap);
     if (state.dir === 0) state.dir = dx >= 0 ? 1 : -1;
     const ahead = state.dir > 0 ? limit - x : x + limit; // room left before the arena's edge
@@ -478,12 +483,16 @@ function tick() {
     // The run-up counts from its face, not its core (titans v2, 2026-10: against a base 80 m wide it turned round
     // still touching it, and every bump was a slow one).
     const near = state.halfWidth + (shape ? Math.max(-shape.hullLo, shape.hullHi) : 0);
-    // A target coming at it brings its own speed to the hit: no need to run from it, turn and meet it.
-    const coming = -t.vx * Math.sign(dx) > 15 && Math.abs(dx) > near + 60;
+    // A target closing on it brings its own speed to the hit: no need to run from it, turn and meet it. Closing means
+    // the gap shrinks (titans v3, 2026-10): one following it while it backs off faster is not, and turning on it threw
+    // away the speed it had backing off (hits at 40 m/s).
+    const coming = (vx - t.vx) * Math.sign(dx) > 15 && Math.abs(dx) > near + 60;
     if (dx * state.dir < 0 && (dx * state.dir < -(runup + near) || ahead < 30 || coming)) {
       state.dir = -state.dir; // past it (or backed off far enough): come again
+      // A run-up after a hit is part of the same try, timed afresh from here; flying past it ends the try.
+      if (state.backing) state.wayAt = time;
+      else passed = true;
       state.backing = false;
-      passed = true;
     }
     // A hit: back off for the next run-up at once. Pressed against it and going nowhere for `breakOff` s: the same.
     // A bump shoves it much further than a steady push, and a brick that sits still is an easy mark.
@@ -491,6 +500,7 @@ function tick() {
       state.dir = -state.dir;
       state.backing = true;
       state.stallAt = time; // the try goes on: what the hit broke off is counted next tick
+      state.hitAt = time;
     }
     if (!state.backing && Math.abs(dx) < state.halfWidth + 30 && Math.abs(vx - t.vx) < 2) {
       if (time - state.stallAt > breakOff) {
@@ -504,8 +514,11 @@ function tick() {
     if (dx * state.dir < 0) {
       // Going away for the run-up: as fast as still stops it (on the push boosters alone) at the run-up's end, so it
       // turns round there and the whole run-up goes into speeding up toward the target.
+      // Its speed is kept up with only for a target coming after it: one going away (backing off for its own
+      // run-up) adds to the gap, and following it too let the pair drift to an arena's edge (titans v3, 2026-10:
+      // backing off as fast as the gap needed, whichever of two anvils was slower made the other back off faster).
       const left = runup + near - Math.abs(dx);
-      wantVx = t.vx + state.dir * clamp(Math.sqrt(2 * ((0.6 * push) / m) * Math.max(0, left)), 8, Math.max(lineUp, speed));
+      wantVx = (t.vx * Math.sign(dx) > 0 ? 0 : t.vx) + state.dir * clamp(Math.sqrt(2 * ((0.6 * push) / m) * Math.max(0, left)), 8, Math.max(lineUp, speed));
     } else wantVx = t.vx + state.dir * (overTop ? Math.min(speed, lineUp) : speed);
     if (overTop) wantH = over;
     // Off a ground base: clear of its roof. Else at its height, but high enough to lean into the run-up.
@@ -515,8 +528,12 @@ function tick() {
       const reach = shape ? (dx > 0 ? -shape.hullLo : shape.hullHi) : 0;
       const tc = clamp((Math.abs(dx) - state.halfWidth - reach) / closing, 0, 4);
       const ay = Math.abs(t.ay || 0) > 1.5 ? clamp(t.ay, -6, 6) : 0; // only a clear dive or climb
-      const aimY = clamp(t.y + t.vy * tc + 0.5 * ay * tc * tc, floor, ceiling);
-      ramVy = t.vy + ay * tc + (aimY - y) / Math.max(0.7, tc);
+      // A target flying at it is likely matching its height too: led fully, the two would chase each other's
+      // climb up to the ceiling (titans v3, 2026-10: an anvil pair met there, and the hit rolled one over). So
+      // such a target's climb is led only by `lead`, which lets the pair settle at one height.
+      const g = -t.vx * Math.sign(dx) > 10 ? lead : 1;
+      const aimY = clamp(t.y + g * (t.vy * tc + 0.5 * ay * tc * tc), floor, ceiling);
+      ramVy = g * (t.vy + ay * tc) + (aimY - y) / Math.max(0.7, tc);
       if (tc < 2.5) calm = true;
     }
     return passed;
@@ -808,6 +825,11 @@ function tick() {
   // let it coast through the arena's roof, titans v2, 2026-10).
   const keep = y > ceiling - 60 && vy > 0 ? 0 : Math.abs(diff);
   lift = clamp(lift, keep, 1 - Math.abs(diff));
+  // On its side (a hit rolled it past 60 degrees) the lift rows push it along more than up: lying on the ground on
+  // its side, a brick slid out of the arena on them at 84 m/s (titans v3, 2026-10). They are cut while that push
+  // heads for the nearer edge and it is already going that way or near it.
+  const sideways = -Math.sin(self.angle);
+  if (arena && Math.abs(self.angle) > 1.05 && sideways * x > 0 && (vx * sideways > 5 || edge - Math.abs(x) < 300)) lift = 0;
   const leftLift = lift > 0 ? clamp(lift - diff, 0, 1) : 0;
   const rightLift = lift > 0 ? clamp(lift + diff, 0, 1) : 0;
   set('la', 'throttle', state.laLeft ? leftLift : rightLift);
