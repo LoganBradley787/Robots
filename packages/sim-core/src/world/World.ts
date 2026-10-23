@@ -2901,7 +2901,7 @@ export class World {
   }
 
   /** A robot's scripts, whether each runs or crashed, and the keys each has asked about since it was switched on. Read-only. */
-  scripts(robotId: number): readonly { id: string; enabled: boolean; crashed?: ScriptError; reads?: readonly string[] }[] {
+  scripts(robotId: number): readonly { id: string; enabled: boolean; crashed?: ScriptError; reads?: readonly string[]; asleep?: number }[] {
     return this.runners.get(robotId)?.scripts ?? [];
   }
 
