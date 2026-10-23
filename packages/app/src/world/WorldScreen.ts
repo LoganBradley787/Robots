@@ -478,13 +478,14 @@ export class WorldScreen {
   }
 
   /**
-   * Follows the robot and takes control of it when it has a core (`11`). Watching a core-less robot lets go of the
-   * one you were controlling (it latches), so your keys never drive a robot you cannot see.
+   * Follows the robot and takes control of it when you can drive it (`11`). Watching one you cannot (an enemy, a
+   * core-less robot) lets go of the one you were controlling and releases its held keys first, so your keys never
+   * drive a robot you cannot see and it does not drive off on its own. Switching to another of yours latches the old one.
    */
   focus(robotId: number): void {
     this.focusId = robotId;
     this.cam = setFollow(this.cam, true);
-    this.keys.setControlled(this.possessable(robotId) ? robotId : undefined);
+    this.keys.follow(this.possessable(robotId) ? robotId : undefined);
   }
 
   /** Only your own robots with a live core (M8): an enemy can be watched, never driven. Nor one waiting to be removed (M16). */

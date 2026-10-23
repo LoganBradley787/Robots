@@ -17,6 +17,7 @@ Status: decided with Logan, 2026-09-23 (before the M3 plan). Adds to `04`; where
 - To park a robot, let go of its keys before switching.
 - Claude's call: the robot you switch to starts with no keys held. A key you were already holding only counts once you press it again. Otherwise holding D and pressing `,` would drive both robots.
 - Claude's call: losing window focus or switching to the builder releases every key on the controlled robot, so a key is never stuck down by a missed key-up.
+- (2026-10-23) Clicking a robot you can only watch (an enemy, a core-less robot) releases every key on the robot you were driving too, the same way: it lets go of control without moving it to a robot of yours, and your robot should not drive off unseen while you watch. The releases are ordinary key edges, so the replay has them. Switching to another robot of yours still latches the old one, as above.
 
 ## Driving feel (Logan: heavy enough to feel like a machine, weight must matter)
 Logan's words, summarized:

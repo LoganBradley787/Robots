@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { World, buildReplay, parseReplay, parseWorldFile, runReplay } from '@robots/sim-core';
+import flatJson from '../../../worlds/flat.json';
+import carJson from '../../../blueprints/car.json';
 import { KeyboardSource } from '../src/control/KeyboardSource';
 import { isClick, nextRobot } from '../src/control/possession';
 
@@ -66,6 +69,47 @@ describe('KeyboardSource', () => {
     k.releaseAll();
     expect(k.drain()).toEqual([{ robot: 1, pressed: [], released: ['d', 'w'] }]);
     expect(k.isDown('d')).toBe(false);
+  });
+
+  it('following a robot you only watch releases the held keys of the one you drove; following one you drive latches it', () => {
+    const k = new KeyboardSource();
+    k.setControlled(1);
+    k.down('keyboard', 'd');
+    k.down('mouse', 'w');
+    k.follow(2);
+    expect(k.drain()).toEqual([{ robot: 1, pressed: ['d', 'w'], released: [] }]);
+    k.down('keyboard', 'a');
+    k.follow(undefined);
+    expect(k.drain()).toEqual([
+      { robot: 2, pressed: ['a'], released: [] },
+      { robot: 2, pressed: [], released: ['a'] },
+    ]);
+    expect(k.robot).toBeUndefined();
+    expect(k.isDown('a')).toBe(false);
+  });
+
+  it('the release reaches the world and its replay: the car you leave to watch an enemy stops driving', async () => {
+    const w = await World.create({ seed: 1 }, parseWorldFile(flatJson));
+    const car = w.spawnBlueprint(carJson, { x: 0, y: 2 });
+    w.spawnBlueprint(carJson, { x: 30, y: 2 }, { team: 1 });
+    const speeds = (): number[] => [...(w.robotChannels(car.id)?.values() ?? [])].map((c) => c.get('speed')).filter((v) => v !== undefined);
+    const k = new KeyboardSource();
+    k.follow(car.id);
+    k.down('keyboard', 'd');
+    for (let i = 0; i < 30; i++) w.step(k.drain());
+    expect(speeds().length).toBeGreaterThan(0);
+    expect(speeds().every((v) => v === 1)).toBe(true);
+    // Clicking the enemy: `WorldScreen.focus` follows a robot you cannot drive.
+    k.follow(undefined);
+    k.up('keyboard', 'd'); // letting go of D afterwards sends nothing more
+    for (let i = 0; i < 30; i++) w.step(k.drain());
+    expect(speeds().every((v) => v === 0)).toBe(true);
+    const replay = buildReplay(w);
+    expect(replay.inputs.flatMap((t) => t.inputs.flatMap((i) => i.released))).toEqual(['d']);
+    const r = await runReplay(parseReplay(JSON.parse(JSON.stringify(replay))));
+    expect(r.matches).toBe(true);
+    r.world.dispose();
+    w.dispose();
   });
 
   it('clear drops pending edges and control', () => {
