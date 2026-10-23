@@ -160,6 +160,19 @@ function arenaIndex(handle: number): number {
   return handleWords[0]!;
 }
 
+/** A collider created since the last step (`PhysicsWorld.fresh`). */
+interface FreshCollider {
+  handle: number;
+  /** Holds the shape at any turn: a ball's radius, a box's half width plus half height. */
+  r: number;
+  /** Where it is, once read (NaN until then). */
+  x: number;
+  y: number;
+}
+
+/** Meters added to the reach test for colliders created since the last step, far more than any rounding. */
+const FRESH_SLACK = 0.1;
+
 export class PhysicsWorld {
   /** Gravity's y (m/s^2, negative is down), for things that feed it forward (Batch: the piston). */
   readonly gravityY: number;
@@ -201,10 +214,12 @@ export class PhysicsWorld {
   /** Velocities waiting to be given to bodies (`kick`) at the start of the next step (`applyKicks`). */
   private readonly kicks = new Map<BodyId, { vx: number; vy: number; w: number }>();
   /**
-   * Colliders created since the last step, by handle, in creation order. Rapier's query index (its broad phase) is
-   * rebuilt at the end of each step, so it misses these until the next one; `scanOverlaps` tests them directly.
+   * Colliders created since the last step, in creation order: the handle, a radius that holds the shape at any turn,
+   * and where the collider is (read from Rapier on the first scan that needs it; NaN until then). Rapier's query
+   * index (its broad phase) is rebuilt at the end of each step, so it misses these until the next one; `scanOverlaps`
+   * tests them directly. Nothing moves a collider between steps, so a place once read holds until the step.
    */
-  private fresh: number[] = [];
+  private fresh: FreshCollider[] = [];
 
   constructor(gravityY: number, dt: number) {
     this.gravityY = gravityY;
@@ -237,7 +252,7 @@ export class PhysicsWorld {
     let desc = base.setTranslation(place.offsetX, place.offsetY).setRotation(place.angle ?? 0).setMass(place.mass);
     if (place.friction !== undefined) desc = desc.setFriction(place.friction);
     const collider = this.world.createCollider(desc, this.body(bodyId));
-    this.fresh.push(collider.handle);
+    this.fresh.push({ handle: collider.handle, r: shape.shape === 'box' ? shape.hx + shape.hy : shape.radius, x: NaN, y: NaN });
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
       const list = this.owned.get(bodyId);
@@ -750,12 +765,33 @@ export class PhysicsWorld {
         return true;
       });
     }
-    for (const handle of this.fresh) {
+    // Each probe's reach: a radius that holds its shape at any turn.
+    const reach = shapes.map((s) => (s.shape.shape === 'box' ? shrink(s.shape.hx) + shrink(s.shape.hy) : shrink(s.shape.radius)));
+    for (const f of this.fresh) {
+      const handle = f.handle;
       if (hits.has(handle)) continue;
       const c = this.world.getCollider(handle);
       // Gone since (the lookup is by arena index, so a newer collider in the same slot answers for it).
       if (!c || c.handle !== handle) continue;
-      const pos = c.translation();
+      if (f.x !== f.x) {
+        const t = c.translation();
+        f.x = t.x;
+        f.y = t.y;
+      }
+      // Only a probe whose reach meets the collider's can touch it: the rest are passed over without asking Rapier.
+      // FRESH_SLACK keeps the test wide of rounding, so it never passes over a collider Rapier would call touching.
+      let near = false;
+      for (let i = 0; i < probes.length; i++) {
+        const dx = f.x - shapes[i]!.x;
+        const dy = f.y - shapes[i]!.y;
+        const d = f.r + reach[i]! + FRESH_SLACK;
+        if (dx * dx + dy * dy <= d * d) {
+          near = true;
+          break;
+        }
+      }
+      if (!near) continue;
+      const pos = { x: f.x, y: f.y };
       const rot = c.rotation();
       if (probes.some((p) => c.shape.intersectsShape(pos, rot, p.shape, p.pos, 0))) hits.set(handle, c);
     }
@@ -835,7 +871,7 @@ export class PhysicsWorld {
   createFixedBox(cx: number, cy: number, w: number, h: number, angle = 0): BodyId {
     const id = this.createBody({ x: cx, y: cy, angle, kind: 'fixed' });
     const desc = RAPIER.ColliderDesc.cuboid(w / 2, h / 2);
-    this.fresh.push(this.world.createCollider(desc, this.body(id)).handle);
+    this.fresh.push({ handle: this.world.createCollider(desc, this.body(id)).handle, r: w / 2 + h / 2, x: NaN, y: NaN });
     return id;
   }
 
