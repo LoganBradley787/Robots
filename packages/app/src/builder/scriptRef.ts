@@ -166,6 +166,7 @@ export const SCRIPT_API: readonly ApiEntry[] = [
   { name: 'state', sig: 'state', about: 'remembers things between ticks', insert: 'state.', section: 'Settings and memory', more: 'Emptied when the script is switched on; setup() fills it.' },
   { name: 'log', sig: 'log(...)', about: 'a line in the readout in the world', insert: 'log()', caret: 1, section: 'Settings and memory' },
   { name: 'mark', sig: 'mark(x, y, label)', about: 'a point on the debug overlay', insert: 'mark(self.pos.x, self.pos.y, "")', caret: 2, section: 'Settings and memory' },
+  { name: 'sleep', sig: 'sleep(n)', about: 'skip the next n ticks (at most 30), holding what it set', insert: 'sleep(2)', caret: 1, section: 'Settings and memory', more: 'For a script that need not steer every tick (a missile far from its target): the world calls nothing for n ticks and makes this tick\'s set() calls again on each of them, so it costs nothing while asleep. It wakes on its own; nothing wakes it early. frame, time and self.age are real when it wakes.' },
   { name: 'random', sig: 'random()', about: 'a number from 0 to 1, the same every rerun', insert: 'random()', section: 'Settings and memory' },
 
   { name: 'clamp', sig: 'clamp(x, lo, hi)', about: 'keep a number in a range', insert: 'clamp(, 0, 1)', caret: 7, section: 'Maths' },

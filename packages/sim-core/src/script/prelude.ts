@@ -29,6 +29,9 @@ export const PRELUDE = String.raw`
   var finite = isFinite;
   var nanWarned = false;
   var marks = [];
+  // Ticks to sleep after this one (sleep(n)), 0 for none: the last call of the tick wins.
+  var sleepFor = 0;
+  var sleepWarned = false;
   var scanWarned = false;
   var optWarned = {};
   var s = seed.slice();
@@ -125,6 +128,18 @@ export const PRELUDE = String.raw`
       if (hasOwn.call(o.out, channel)) return o.out[channel];
     }
     return undefined;
+  };
+  // Skips the script's next n ticks (at most 30): the world calls nothing and makes this tick's set() calls again on
+  // each of them (ScriptRunner). sleep(0) takes back an earlier call this tick. Not a number: no sleep, one log line.
+  globalThis.sleep = function (n) {
+    n = Number(n);
+    if (!finite(n)) {
+      if (!sleepWarned && logs.length < 5) logs[logs.length] = 'sleep(' + String(n) + '): not a number of ticks; it does not sleep';
+      sleepWarned = true;
+      sleepFor = 0;
+      return;
+    }
+    sleepFor = n <= 0 ? 0 : n >= 30 ? 30 : n | 0;
   };
   globalThis.keys = {
     down: function (k) { return keyState.down.indexOf(ask(String(k))) >= 0; },
@@ -389,6 +404,8 @@ export const PRELUDE = String.raw`
     scans = 0;
     sends = 0;
     nanWarned = false;
+    sleepWarned = false;
+    sleepFor = 0;
     marks = [];
     writes = [];
     logs = [];
@@ -397,7 +414,7 @@ export const PRELUDE = String.raw`
     if (inspecting) seen = stringify({ frame: globalThis.frame, dt: globalThis.dt, time: globalThis.time, self: globalThis.self, parts: globalThis.parts, keys: keyState, contacts: globalThis.contacts, inbox: globalThis.inbox });
   }
   function result() {
-    return stringify({ writes: writes, logs: logs, marks: marks, keys: asked });
+    return stringify({ writes: writes, logs: logs, marks: marks, keys: asked, sleep: sleepFor });
   }
   return {
     layout: function (json) { setLayout(json); return ''; },

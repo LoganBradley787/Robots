@@ -53,6 +53,15 @@ Scripts can read key state and blend manual input themselves (hover reads A and 
 - is not watched (`watchScripts`): nothing of it runs.
 - What a script sees when it next runs is the world as it is: `frame`, `time` and `self.age` are real world time, so they jump by the ticks it sat out (at most 3), and timing from them stays right. `dt` stays the tick's length. A script that counts its own calls in `state` counts runs, not ticks; one that integrates with `dt` (a PID's integral) sees one tick's `dt` per run. Scripts that should be exact under Smooth time things with `self.age` or `frame`; none of the stock scripts need changing.
 
+**Sleeping scripts (`sleep(n)`, 2026-10-22).** A script that need not run every tick (a missile far from its target) calls `sleep(n)` in its tick: for the next n ticks of the world it is not called, and wakes on its own on the tick after. It is Smooth's skip asked for by the script itself, so it costs what a skip costs: nothing (no frame, no contacts, no `scan`); a profile of the bastion's darts found their frames, not their logic, were most of their cost.
+- n is whole ticks: a fraction is cut (`2.9` is 2), 0 or less is no sleep, more than `SLEEP_MAX` (30, half a second) is 30, and anything not a number is no sleep with one log line. The last call of the tick wins, so `sleep(0)` takes back an earlier one; called in `setup()` and `tick()` on the same tick, the longer counts. `pnpm sim validate` and the builder warn about a plain number over 30 (`SCRIPT_SLEEP`).
+- While it sleeps its `set()` calls from the tick it called `sleep` are made again every tick, in the same order, and its marks stay up (`ScriptRunner.tick`, as `repeat` does for Smooth). Its other scripts on the same robot run as usual.
+- Nothing wakes it early: not a message, a hit, a rebuild, or a split. Wake rules would be one more thing to keep deterministic and to explain, and a short sleep does the job: a script that must answer quickly sleeps 1 to 3 ticks, not 30. Key presses made while it sleeps are missed (it sees keys held when it wakes); messages wait in the core's inbox and reach it when it wakes, unless another script of the same robot that ran meanwhile took them first (the inbox is the core's).
+- When it wakes it runs normally on the world as it is: `frame`, `time` and `self.age` are real and have jumped by n + 1, `dt` is one tick. A script that steers by elapsed time reads `time`; one that counts its calls counts runs.
+- Smooth: a robot whose running scripts are all asleep next tick is not in `World.scriptedRobots()`, so Smooth never spends a skip on it and its every-4th-tick floor never wakes it. A tick Smooth skips uses up a tick of sleep like any other: sleep counts the world's ticks.
+- State: the ticks it has left are simulation state, in `World.scripts(id)[i].asleep` and hashed while above 0 (a world with no sleeping script hashes as before). A replay needs nothing logged: the script asks again when it runs again.
+- A script switched off, crashed, or switched on again is awake.
+
 ## Latching (headless chunks, and every robot nobody controls)
 - M3 (Logan): a robot you stop controlling also holds its last input. Its held keys and toggles stay as they were until you control it again. See `11`.
 - When a chunk has no active core, the final channel values from the last controlled tick are frozen. Behaviors keep reading them, so a thruster stays lit and wheels keep spinning until the pool is empty.
@@ -153,6 +162,7 @@ Available inside `tick()`:
 - `state`: persistent object across ticks, cleared on `setup()`.
 - `world.robots()`: `[{ id, pos, vel, isSelf }]` for targeting (Q10). Perfect information by design.
 - `log(...)`: to the UI console, rate limited.
+- `sleep(n)` (2026-10-22): skip the next n ticks; see Sleeping scripts below.
 - `random()`: seeded per script instance.
 - `clamp`, `lerp`, `sign`, and the normal `Math` functions except `Math.random`.
 

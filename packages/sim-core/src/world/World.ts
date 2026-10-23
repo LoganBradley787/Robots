@@ -2136,6 +2136,9 @@ export class World {
           if (core.inbox.length === 0) delete core.inbox;
         }
         this.scriptMarks.set(robotId, out.marks);
+      } else if (out.marks.length > 0) {
+        // Every script asleep (`sleep(n)`): messages wait in the inbox for them, and their marks stay up.
+        this.scriptMarks.set(robotId, out.marks);
       } else {
         this.scriptMarks.delete(robotId);
       }
@@ -2916,10 +2919,11 @@ export class World {
     }
   }
 
-  /** Robots with at least one script running now, in the order their scripts run: those Smooth may skip. Read-only. */
+  /** Robots with at least one script running now and awake, in the order their scripts run: those Smooth may skip. Read-only. */
   scriptedRobots(): number[] {
     const out: number[] = [];
-    for (const [id, runner] of this.runners) if (this.controllers.has(id) && runner.scripts.some((s) => s.enabled)) out.push(id);
+    // A robot whose every running script is asleep (`sleep(n)`) calls none next tick: Smooth has nothing to skip.
+    for (const [id, runner] of this.runners) if (this.controllers.has(id) && runner.awake) out.push(id);
     return out;
   }
 
@@ -3141,6 +3145,11 @@ export class World {
         h.addString(sc.id);
         h.addInt(sc.enabled ? 1 : 0);
         h.addInt(sc.crashed ? 1 : 0);
+        // A script asleep (`sleep(n)`) and the ticks it has left. One awake adds nothing.
+        if (sc.asleep !== undefined) {
+          h.addString('asleep');
+          h.addInt(sc.asleep);
+        }
       }
     }
     // Destruction (M6): which robots exist, what each part has left, cut faces, aims, frozen (latched) channels of
