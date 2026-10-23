@@ -13,6 +13,8 @@ import {
   removeParts,
   replacePartAt,
   replacePartType,
+  rotateCell,
+  stampFlipAxis,
   stampPlacement,
   type Blueprint,
   type CoreControls,
@@ -235,7 +237,13 @@ function copySpots(copy: HeldCopy, cell: Cell, mirror: MirrorSetting, registry: 
   const spots = [{ at: cell, rot: copy.rot, mirror: copy.flipped }];
   const mx = mirrorX(cell.x, mirror.axisHalfCells);
   // The mirror image of "flip, then turn by r" is "flip the other way, then turn by -r". Parts that cannot be flipped are placed once.
-  if (mirror.on && mx !== cell.x && mirrorProblem(copy.stamp, registry) === undefined) spots.push({ at: { x: mx, y: cell.y }, rot: ((360 - copy.rot) % 360) as Rotation, mirror: !copy.flipped });
+  // A flip keeps the anchor on its own cells (`stampPlacement`), so an anchor wider than a cell (a cannon) is held by
+  // an origin that many cells back, as for a held blueprint (`stampSpots`).
+  if (mirror.on && mx !== cell.x && mirrorProblem(copy.stamp, registry) === undefined) {
+    const rot = ((360 - copy.rot) % 360) as Rotation;
+    const back = rotateCell({ x: stampFlipAxis(copy.stamp, registry), y: 0 }, rot);
+    spots.push({ at: { x: mx - back.x + 0, y: cell.y - back.y + 0 }, rot, mirror: !copy.flipped });
+  }
   return spots;
 }
 
