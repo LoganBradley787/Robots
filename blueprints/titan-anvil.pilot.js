@@ -160,6 +160,9 @@ function setup() {
   state.stallAt = 0;
   state.backing = false;
   state.hitAt = -100;
+  state.down2 = false; // the target was seen down (still, on the ground)
+  state.finish = false; // the target is down and being bumped out (see pushOut)
+  state.climbOver = false; // backing off with lost push boosters: over the target first
   state.mine = null; // its own faces (faces), remade each second
   state.mineAt = -100;
   state.evade = false;
@@ -557,10 +560,10 @@ function tick() {
     // The run-up: what its measured speeding up needs to reach that speed (leaning, against air drag), at most
     // `maxRun` before a still target and less the faster the target moves away from it, so one drifting away is
     // chased, not let go (titans v2, 2026-10: a 250 m run-up let a fleeing hive go for 20 s). Not while backing off
-    // after a hit, for up to 15 s: a target going away then is mostly backing off itself (another rammer), and of two
+    // after a hit, for up to 30 s: a target going away then is mostly backing off itself (another rammer), and of two
     // anvils the one whose run-up was cut first chased the other to its edge, where every later hit was slow.
-    const away = state.backing && time - state.hitAt < 15 ? 0 : Math.max(0, t.vx * Math.sign(dx));
-    const runCap = clamp(maxRun - 25 * away, 80, maxRun);
+    const away = state.backing && time - state.hitAt < 30 ? 0 : Math.max(0, t.vx * Math.sign(dx));
+    const runCap = clamp(maxRun - 25 * away, 80, state.finish ? 300 : maxRun);
     const runup = clamp(runFor(speed), 40, runCap);
     if (state.dir === 0) state.dir = dx >= 0 ? 1 : -1;
     const ahead = state.dir > 0 ? limit - x : x + limit; // room left before the arena's edge
@@ -581,13 +584,13 @@ function tick() {
     }
     // A hit: back off for the next run-up at once. Pressed against it and going nowhere for `breakOff` s: the same.
     // A bump shoves it much further than a steady push, and a brick that sits still is an easy mark.
-    if (!state.backing && Math.abs(dx) < near + 20 && dx * state.dir > 0 && jolt > 4) {
+    if (!state.backing && !state.finish && Math.abs(dx) < near + 20 && dx * state.dir > 0 && jolt > 4) {
       state.dir = -state.dir;
       state.backing = true;
       state.stallAt = time; // the try goes on: what the hit broke off is counted next tick
       state.hitAt = time;
     }
-    if (!state.backing && Math.abs(dx) < state.halfWidth + 30 && Math.abs(vx - t.vx) < 2) {
+    if (!state.backing && !state.finish && Math.abs(dx) < state.halfWidth + 30 && Math.abs(vx - t.vx) < 2) {
       if (time - state.stallAt > breakOff) {
         state.dir = dx >= 0 ? -1 : 1;
         state.backing = true;
@@ -603,10 +606,18 @@ function tick() {
       // run-up) adds to the gap, and following it too let the pair drift to an arena's edge (titans v3, 2026-10:
       // backing off as fast as the gap needed, whichever of two anvils was slower made the other back off faster).
       const left = runup + near - Math.abs(dx);
-      wantVx = (t.vx * Math.sign(dx) > 0 ? 0 : t.vx) + state.dir * clamp(Math.sqrt(2 * ((0.6 * push) / m) * Math.max(0, left)), 8, Math.max(lineUp, speed));
+      // Push boosters lost (titans v3, 2026-10): hits wear away the ones behind a face, and with those gone it backed off
+      // at 8 m/s for 170 s. Then it leans instead: it backs off as fast as half its lean can stop it, and climbs clear
+      // over the target first (it never leans beside one).
+      const stopPush = state.dir > 0 ? state.pushLeft : state.pushRight;
+      const weak = Math.min(state.pushLeft, state.pushRight) < 0.25 * Math.max(state.pushLeft, state.pushRight);
+      const stopF = weak ? Math.max(0.6 * stopPush, 0.5 * leanPush) : 0.6 * push;
+      wantVx = (t.vx * Math.sign(dx) > 0 ? 0 : t.vx) + state.dir * clamp(Math.sqrt(2 * (stopF / m) * Math.max(0, left)), 8, Math.max(lineUp, speed));
+      state.climbOver = weak && Math.abs(dx) < state.halfWidth + near + 60;
     } else wantVx = t.vx + state.dir * (overTop ? Math.min(speed, lineUp) : speed);
     if (overTop) wantH = over;
     // Off a ground base: clear of its roof. Else at its height, but high enough to lean into the run-up.
+    else if (state.climbOver && dx * state.dir < 0) wantH = t.y + (shape ? shape.high : state.top) + state.bottom + 6;
     else if (state.backing || dx * state.dir < 0) wantH = shape && shape.ground ? t.y + shape.high + state.bottom + 3 : Math.max(t.y, floor + 30);
     else {
       const closing = Math.max(5, (vx - t.vx) * Math.sign(dx));
@@ -620,7 +631,8 @@ function tick() {
       // One flying at it is met no lower than 30 m over its own floor and no higher than 30 m under the ceiling.
       const lo = atMe ? Math.min(floor + 30, ceiling) : floor;
       const hi = atMe ? Math.max(lo, ceiling - 30) : ceiling;
-      if (rank < 0) ramVy = (clamp(y, lo, hi) - y) / Math.max(0.7, tc);
+      if (state.finish) ramVy = (clamp(Math.max(t.y, floor + 27), floor, Math.max(floor, t.y + (shape ? shape.high : 5) + state.bottom - 8)) - y) / Math.max(0.7, tc);
+      else if (rank < 0) ramVy = (clamp(y, lo, hi) - y) / Math.max(0.7, tc);
       else {
         const aimY = clamp(t.y + (pick ? pick.d : 0) + g * (t.vy * tc + 0.5 * ay * tc * tc), lo, hi);
         ramVy = g * (t.vy + ay * tc) + (aimY - y) / Math.max(0.7, tc);
@@ -641,6 +653,7 @@ function tick() {
     state.down = false;
   };
 
+  state.finish = false;
   const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
   if (state.won && !target) {
     plan('done: landing, watching for the next enemy');
@@ -702,7 +715,8 @@ function tick() {
       L: true,
       R: true,
       B: air && under - state.top - 30 > floor,
-      T: air && topY + state.bottom + perch < ceiling && topY - state.top > 25,
+      // With no arena to bump it out of, one that is down is also come down on from above.
+      T: (air || (!arena && shape && Math.hypot(target.vx, target.vy) < 3)) && topY + state.bottom + perch < ceiling && topY - state.top > (air ? 25 : 0),
     };
     // A ground enemy whose core is too deep is bumped out over the nearer edge (with an arena), unless it is too heavy
     // for bumps to move it that far: then it is waited out, hidden. Grinding at such a base was tried (titans v2,
@@ -719,6 +733,14 @@ function tick() {
       if (deep && target.m > shove && tipSpeed(target) < 40) state.evade = true;
       else if (arena && (deep || nearEdge)) pushOut = target.x >= 0 ? 1 : -1;
     }
+    // Finishing one that is down (titans v3, 2026-10, Logan): on the ground and still or sliding away (an anvil rolled
+    // on to its back cannot get up) and being bumped out, it is shoved on toward the edge without a break: no backing
+    // off after a hit (it slid 16 s after each bump while the brick backed off, and was bumped every 40 s), short
+    // run-ups when it must, no regrouping, and high enough over the ground to lean (it slides with little friction).
+    // It counts as down once seen still on the ground (another anvil only passing low is not).
+    if (pushOut === 0 || target.vx * pushOut < -3) state.down2 = false;
+    else if (Math.hypot(target.vx, target.vy) < 3) state.down2 = true;
+    state.finish = state.down2;
     if (state.way !== '' && !can[state.way]) endTry(main);
     if (state.way !== '' && time - state.wayAt > tryTime) endTry(main);
     if (state.way !== '' && state.wayHit && main && state.wayParts - main.parts >= hitParts) {
@@ -730,7 +752,7 @@ function tick() {
     }
     // Nothing it tries breaks anything off a ground enemy (an anchored base with its core deep and low, where a fast
     // hit would roll the brick over): it climbs out of reach of its guns for a while, then starts over.
-    if (state.misses >= giveUp && shape && shape.ground) {
+    if (state.misses >= giveUp && shape && shape.ground && !state.finish) {
       state.regroupUntil = time + regroup;
       state.misses = 0;
       state.way = '';
@@ -889,7 +911,12 @@ function tick() {
   // `room` meters it can stop from sqrt(F / k (exp(2 k room / m) - 1)). Only 0.7 of the push is counted. Before the
   // lean, so it leans to brake, not on toward the edge (a brick backing off a chaser leaned out of the arena).
   const stopFrom = (f, room) => Math.sqrt((f / k) * (Math.exp(Math.min(30, (2 * k * Math.max(0, room)) / m)) - 1));
-  if (limit < Infinity) wantVx = clamp(wantVx, -stopFrom(0.7 * state.pushRight, x + limit), stopFrom(0.7 * state.pushLeft, limit - x));
+  // With the push boosters on one side lost, that side's braking counts a third of the lean instead (away from the
+  // ground), or it could never fly toward that edge again (titans v3, 2026-10: it crept at 25 m/s into every ram).
+  const leanStop = y - floor > 25 ? 0.35 * leanPush : 0;
+  const brakeR = Math.max(0.7 * state.pushLeft, state.pushLeft < 0.25 * state.pushRight ? leanStop : 0); // stops it going right
+  const brakeL = Math.max(0.7 * state.pushRight, state.pushRight < 0.25 * state.pushLeft ? leanStop : 0);
+  if (limit < Infinity) wantVx = clamp(wantVx, -stopFrom(brakeL, x + limit), stopFrom(brakeR, limit - x));
   const dvx = wantVx - vx;
   let lean = 0;
   // Never near the ground or the target: a leaning brick that scrapes something rolls over.
