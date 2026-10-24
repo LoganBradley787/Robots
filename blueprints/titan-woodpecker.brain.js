@@ -57,16 +57,21 @@ const keepHalf = param('keepHalf', 10, { min: 1, max: 100 }); // m to either sid
 const keepTall = param('keepTall', 13, { min: 1, max: 100 }); // m up or down from the main core that count as the keep
 const flareBurn = param('flareBurn', 2, { min: 0.1, max: 10 }); // s a flare burns: one burning covers what arrives before it is out
 const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
+const burnGap = param('burnGap', 6, { min: 1, max: 600 }); // ticks between two burners leaving the rack
+const burnWait = param('burnWait', 90, { min: 0, max: 6000 }); // ticks the burners wait for the probes' way in, at most
 
 function setup() {
   state.mirrorX = -self.pos.x;
   state.grips = [];
   state.bays = [];
   state.flares = [];
+  state.burners = [];
   for (const p of parts) {
     if (p.type === 'decoupler') {
       const tag = p.tags.find((t) => /^g\d+$/.test(t));
       if (tag) state.grips.push({ n: Number(tag.slice(1)), x: p.pos.x });
+      const ub = p.tags.find((t) => /^ug\d+$/.test(t));
+      if (ub) state.burners.push({ n: Number(ub.slice(2)), x: p.pos.x });
     } else if (p.type === 'flare') {
       const tag = p.tags.find((t) => /^f\d+$/.test(t));
       if (tag) state.flares.push({ n: Number(tag.slice(1)), x: p.pos.x, y: p.pos.y });
@@ -78,6 +83,9 @@ function setup() {
   // Nearest the enemy first.
   const toward = state.mirrorX;
   state.grips.sort((a, b) => Math.abs(a.x - toward) - Math.abs(b.x - toward) || a.n - b.n);
+  state.burners.sort((a, b) => Math.abs(a.x - toward) - Math.abs(b.x - toward) || a.n - b.n);
+  state.bnext = 0;
+  state.lastBurn = -1000;
   state.next = 0;
   state.lastFire = -1000;
   state.lastBay = -1000;
@@ -394,6 +402,35 @@ function flares() {
   state.flareAt = time;
 }
 
+/**
+ * The burners (titans round 5, 2026-10): each one goes once the target is seen and the probes have found the way in
+ * (or after `burnWait` ticks), `burnGap` ticks apart, told the target as a dart is, the way in whatever its cover
+ * (a beam from any side burns a straight tunnel), and its slot beside the others. Never at a blind guess: a burner
+ * is too dear to spend on an empty spot.
+ */
+function burn(t) {
+  if (state.bnext >= state.burners.length || frame - state.lastBurn < burnGap) return;
+  if (!t && !(state.last && state.last.id === state.tid && Math.hypot(state.last.vx, state.last.vy) < stillSpeed)) return;
+  const id = t ? t.id : state.last.id;
+  if (!(state.app && state.app.tid === id) && frame < burnWait && t && Math.hypot(t.vel.x, t.vel.y) < appSpeed) return;
+  const msg = message(t);
+  if (!msg || msg.blind) {
+    if (msg) state.shots--;
+    return;
+  }
+  const a = state.app;
+  if (a && a.tid === id) {
+    msg.ax = a.ax;
+    msg.ay = a.ay;
+  }
+  const b = state.burners[state.bnext];
+  msg.slot = state.bnext++;
+  state.lastBurn = frame;
+  if (!(get('ug' + b.n, 'armed') > 0)) return;
+  send('u' + b.n, msg);
+  set('ug' + b.n, 'fire', 1);
+}
+
 // Cast every anchor that holds no rope: its `fire` goes to 0 on one tick and to 1 on the next (a cast needs a rise).
 function castAnchors() {
   if (anchors < 1 || frame < anchorAt) return;
@@ -409,7 +446,7 @@ function castAnchors() {
 function tick() {
   castAnchors();
   flares();
-  if (state.grips.length === 0 && state.bays.length === 0) return;
+  if (state.grips.length === 0 && state.bays.length === 0 && state.burners.length === 0) return;
   // The target, looked for every tick so its last place and its death are known when a dart goes.
   const t = pick();
   if (t) {
@@ -431,8 +468,9 @@ function tick() {
   if (t && useApp > 0.5 && Math.hypot(t.vel.x, t.vel.y) < appSpeed) probe(t);
 }
 
-// The rack and the bays.
+// The burners, the rack and the bays.
 function fire(t) {
+  burn(t);
   // The rack.
   // In waves (titans v2, 2026-10): `wave` darts, then `waveGap` ticks of rest. The whole rack in one stream arrived
   // within 2 s, so a single flare (it burns 2 s) took every dart of it; waves further apart than a flare burns make a
