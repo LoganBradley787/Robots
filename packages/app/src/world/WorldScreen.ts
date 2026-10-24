@@ -478,9 +478,9 @@ export class WorldScreen {
   }
 
   /**
-   * Follows the robot and takes control of it when you can drive it (`11`). Watching one you cannot (an enemy, a
-   * core-less robot) lets go of the one you were controlling and releases its held keys first, so your keys never
-   * drive a robot you cannot see and it does not drive off on its own. Switching to another of yours latches the old one.
+   * Follows the robot and takes control of it when you can drive it (`11`). Either way the robot you were controlling
+   * has its held keys released first, so it does not drive off on its own; watching one you cannot drive (an enemy, a
+   * core-less robot) also lets go of control, so your keys never drive a robot you cannot see.
    */
   focus(robotId: number): void {
     this.focusId = robotId;

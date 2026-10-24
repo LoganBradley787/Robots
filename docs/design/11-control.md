@@ -11,13 +11,12 @@ Status: decided with Logan, 2026-09-23 (before the M3 plan). Adds to `04`; where
 - (Logan, 2026-10-22) Any robot can be clicked and inspected, an enemy included: the camera follows it and the readout (`10`, The live readout) shows its position, speed, energy, parts and mass, its scripts and their last log lines. Another team's robot is tagged with its team's name in its color in the readout and the time panel, and is only watched: no keys show, nothing drives it. The keys bar shows the followed robot's energy, and its keys only when you control it. The world keeps each robot's last 20 log lines (`World.logsOf`), so in a fight of hundreds of scripted robots the followed one's lines are still there.
 - You control one robot at a time. Its keys are the robot's own bindings; letters and digits belong to the robot, world keys are punctuation (`04`).
 
-## Robots you stop controlling hold their last input (Logan)
-- When control moves away, the robot keeps whatever it was doing. Keys held at that moment stay held, toggles stay as they are. A car you leave while holding D keeps driving off.
-- This is the same latching `04` gives headless chunks, applied to every robot nobody controls.
-- To park a robot, let go of its keys before switching.
+## Robots you stop controlling let go of their keys (Logan, 2026-10-24)
+- When control moves away (a click on another robot, `,`, deploying a new robot, or clicking a robot you can only watch), every key held on the old robot is released first, so it stops instead of driving off on its own. Toggles stay as they are. The releases are ordinary key edges, so the replay has them.
+- History: until 2026-10-24 a robot you left for another of yours kept its held keys (a car you left while holding D kept driving off); since 2026-10-23 watching a robot you cannot drive already released them. Logan, 2026-10-24: release on every switch.
+- A robot nobody controls still holds whatever inputs it was last given, the same latching `04` gives headless chunks; with every key released, that is nothing held.
 - Claude's call: the robot you switch to starts with no keys held. A key you were already holding only counts once you press it again. Otherwise holding D and pressing `,` would drive both robots.
 - Claude's call: losing window focus or switching to the builder releases every key on the controlled robot, so a key is never stuck down by a missed key-up.
-- (2026-10-23) Clicking a robot you can only watch (an enemy, a core-less robot) releases every key on the robot you were driving too, the same way: it lets go of control without moving it to a robot of yours, and your robot should not drive off unseen while you watch. The releases are ordinary key edges, so the replay has them. Switching to another robot of yours still latches the old one, as above.
 
 ## Driving feel (Logan: heavy enough to feel like a machine, weight must matter)
 Logan's words, summarized:

@@ -71,13 +71,17 @@ describe('KeyboardSource', () => {
     expect(k.isDown('d')).toBe(false);
   });
 
-  it('following a robot you only watch releases the held keys of the one you drove; following one you drive latches it', () => {
+  it('following another robot, one you drive or one you only watch, releases the held keys of the one you drove', () => {
     const k = new KeyboardSource();
     k.setControlled(1);
     k.down('keyboard', 'd');
     k.down('mouse', 'w');
+    k.follow(1); // the same robot again: nothing changes
     k.follow(2);
-    expect(k.drain()).toEqual([{ robot: 1, pressed: ['d', 'w'], released: [] }]);
+    expect(k.drain()).toEqual([
+      { robot: 1, pressed: ['d', 'w'], released: [] },
+      { robot: 1, pressed: [], released: ['d', 'w'] },
+    ]);
     k.down('keyboard', 'a');
     k.follow(undefined);
     expect(k.drain()).toEqual([
