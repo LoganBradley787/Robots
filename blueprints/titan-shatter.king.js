@@ -45,6 +45,9 @@ const roof = param('roof', 35, { min: 5, max: 200 }); // m under the match's cei
 const ramSpeed = param('ramSpeed', 50, { min: 10, max: 1000 }); // m/s: a robot of `ram` kg seen this fast rams; it waits for it among its gunships
 const guard = param('guard', 0, { min: 0, max: 1 }); // 1: against a ram it waits unhidden among its gunships (off: tried, the ram ended it sooner)
 const guardX = param('guardX', 400, { min: 0, max: 100000 }); // m from the middle at most while it waits for a ram
+const cross = param('cross', 450, { min: 0, max: 2000 }); // m: cornered with the main enemy this close sideways, it crosses over it
+const crossTo = param('crossTo', 600, { min: 50, max: 2000 }); // m past the enemy it crosses to
+const refreshFoe = param('refreshFoe', 0, { min: 0, max: 240 }); // s: hidden from a known main enemy, it listens when what it knows is older (0: never; at 6 it heard a titan coming but was pushed out of bounds anyway)
 const G = 9.81;
 const LIFT = 120;
 
@@ -183,9 +186,16 @@ function hidePlace(f) {
   const dy = Math.max(0, y - f.y);
   const reach = Math.sqrt(Math.max(0, far * far - dy * dy)); // sideways it must be from it at that height
   let x = f.x + dir * (reach + 60 + 200 * state.jit);
+  state.crossing = false;
   if (Math.abs(x) > edgeX) {
     x = Math.sign(x) * (edgeX - 220 * state.jit);
-    if (Math.sign(x - f.x) !== dir) x = f.x + dir * 50; // the enemy is at our edge: no room behind it
+    // Round 5: cornered (its back to the edge and the enemy within `cross` m of it sideways, or past it), it goes over
+    // to the enemy's far side at full speed, rather than wait at the edge to be found and shot down there (a titan
+    // driving under it ended it so five times in six).
+    if (Math.sign(x - f.x) !== dir || Math.abs(x - f.x) < cross) {
+      x = clamp(f.x - dir * crossTo, -edgeX, edgeX);
+      state.crossing = true;
+    }
   }
   return { x: x, y: y };
 }
@@ -269,7 +279,9 @@ function tick() {
   // while it knows of no main enemy (titans v2): lapsing within the enemy's radar reach let it be seen, and its darts
   // came 10 s later. Knowing one, it keeps hidden and goes by where it was last seen.
   const stale = time - state.heard > refresh;
-  const listen = stale && state.jamUntil > 0 && !state.foe;
+  // Round 5: knowing one, it still listens when what it knows of it is older than `refreshFoe` s (in its bubble it
+  // waited where it last heard of a titan, sure it was far, while that titan drove under it and shot it down).
+  const listen = state.jamUntil > 0 && (state.foe ? refreshFoe > 0 && time - state.heard > refreshFoe : stale);
   if (exposed && t > 1.2 && time >= (listen ? state.jamUntil + lookFor : state.jamUntil - 0.05)) {
     while (state.jam < pods && !hasPod(state.jam)) state.jam++;
     if (state.jam < pods) {
@@ -309,7 +321,8 @@ function tick() {
   }
   const evading = time - state.evade < 8 && state.dodge;
   if (evading) place = state.dodge;
-  fly(place.x, Math.max(place.y, 20), evading ? dash : 30, evading ? 0.6 : 0.35, evading ? 25 : 12);
+  const hurry = evading || state.crossing;
+  fly(place.x, Math.max(place.y, 20), hurry ? dash : 30, hurry ? 0.6 : 0.35, evading ? 25 : 12);
   // Round 5: pushed up near the match's ceiling (a ram's wreck still rising under it carried it to 265 m, past the
   // bounds), it cuts all lift so it falls back as soon as it can.
   if (arena && self.pos.y > arena.y - roof && self.vel.y > -2) {

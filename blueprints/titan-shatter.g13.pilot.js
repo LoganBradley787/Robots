@@ -49,6 +49,11 @@ const ramMass = param('ramMass', 1500, { min: 0, max: 100000 }); // kg: an enemy
 const ramSpeed = param('ramSpeed', 50, { min: 10, max: 1000 }); // m/s: an enemy this heavy seen this fast comes for the king (a 12 t brick crossed the arena at 60 to grind it down)
 const escort = param('escort', 0, { min: 0, max: 1000 }); // m: the ring round the king against a ram (0: off; tried at 130 and the ram ended the king sooner)
 const kingMass = param('kingMass', 100, { min: 0, max: 100000 }); // kg: a friend this heavy is the king
+const gunCost = param('gunCost', 400, { min: 0, max: 100000 }); // points a place on an enemy gun's line counts as, when it looks for a line in
+const gunCone = param('gunCone', 0.08, { min: 0, max: 1 }); // rad either side of a gun's line counted as on it (its shells spread 1.5 degrees; the robot turns a little)
+const gunReach = param('gunReach', 300, { min: 10, max: 1000 }); // m a gun's shells carry
+const coreFirst = param('coreFirst', 700, { min: 0, max: 100000 }); // points: a core with less than this in front of it is burned before any weapon (Palisade's: 300)
+const say = param('say', 0, { min: 0, max: 1 }); // 1: the gunship in slot 4 logs its looks for a line in
 const G = 9.81;
 const LIFT = 120;
 const SWING = Math.PI / 2;
@@ -236,6 +241,7 @@ function lookAround() {
         state.guns = n;
         state.lasers = g.length - n;
         state.countedAt = time;
+        state.scannedAt = frame;
       }
     }
     if (main.id !== root.id && time - state.countedAt > 0.5) {
@@ -355,7 +361,11 @@ function tick() {
   const on = f === state.phase ? 1 : 0;
   set('eye', 'on', on);
   set('ear', 'on', on);
-  if (f === (state.phase + 1) % look) lookAround();
+  // A scan sees only what its own radar saw: on the tick after the radar looks (round 5: scans on other ticks came
+  // back empty). That tick carries at most 4 scans: every other one looks for a line in, the others for a weapon.
+  const lookTick = f === (state.phase + 1) % look;
+  const evenLook = Math.floor(frame / look) % 2 === 0;
+  if (lookTick) lookAround();
 
   const root = now(state.root);
   let px;
@@ -393,22 +403,36 @@ function tick() {
       state.thetaId = state.root.id;
       state.probedAt = time - ((slot * 0.37) % probe);
     }
-    if (state.live && state.root.own && state.root.parts >= probeParts && time - state.probedAt >= probe && f === (state.phase + 2) % look) {
+    if (state.live && state.root.own && state.root.parts >= probeParts && time - state.probedAt >= probe && lookTick && evenLook && state.scannedAt !== frame) {
       state.probedAt = time;
       let best = Infinity;
       let pick = state.theta;
+      let bestCover = Infinity;
+      // Its guns, and which way each points (`acts`): a place on a gun's line within its reach costs `gunCost` more.
+      // A titan's guns fixed pointing up shred whatever hangs over it, and leave alone what keeps to its side.
+      const guns = state.guns > 0 ? scan(state.root.id, { of: ['gun'], near: { x: self.pos.x, y: self.pos.y }, most: 60, acts: true }) : null;
       for (const th of [state.theta - step, state.theta, state.theta + step]) {
         const at = ringPoint(root, ring, th);
         const c = scan(state.root.id, { of: ['core'], near: { x: root.x, y: root.y }, most: 1, from: at });
-        const cost = c && c.length > 0 && c[0].cover !== undefined ? c[0].cover : Infinity;
+        let cost = c && c.length > 0 && c[0].cover !== undefined ? c[0].cover : Infinity;
+        if (guns) {
+          for (const g of guns) {
+            if (g.acts === undefined) continue;
+            const gx = at.x - g.pos.x;
+            const gy = at.y - g.pos.y;
+            if (gx * gx + gy * gy < gunReach * gunReach && Math.abs(wrap(Math.atan2(gy, gx) - g.acts)) < gunCone) cost += gunCost;
+          }
+        }
         // Ties keep the bearing it has (no wandering over a face that costs the same everywhere).
         if (cost < best - 1 || (cost <= best + 1 && th === state.theta)) {
           best = cost;
+          bestCover = c && c.length > 0 && c[0].cover !== undefined ? c[0].cover : Infinity;
           pick = th;
         }
       }
       state.theta = pick;
-      state.cover = best;
+      state.cover = bestCover; // what stands in front of the core from there, guns left out
+      if (say > 0.5 && slot === 4) log('probe', 'th', state.theta.toFixed(2), 'cover', bestCover, 'best', best, 'guns', guns ? guns.length : -1, 'n', state.guns);
     }
     let at = ringPoint(root, ring, state.theta);
     // Escort (round 5): a main enemy that rams goes for the king, faster than the gunships fly, and ground it down
@@ -447,10 +471,10 @@ function tick() {
   // weapons that can reach this gunship: a laser in its sight (40 points, a fifteenth of a second) before any gun,
   // a gun with nothing in front of it next. A titan's two beams burned the whole swarm in ten seconds while every
   // beam went at its core.
-  if (rootIn && state.root.own && ((state.lasers || 0) > 0 || state.guns >= manyGuns) && f === (state.phase + 5) % look) pickWeapon(root);
+  if (rootIn && state.root.own && ((state.lasers || 0) > 0 || state.guns >= manyGuns) && lookTick && !evenLook && state.scannedAt !== frame) pickWeapon(root);
   const arm = state.arm && time - state.arm.t < 0.4 && state.arm.id === state.root.id ? state.arm : null;
   if (near && state.near.small) target = near;
-  else if (rootIn && arm) target = { x: root.x + arm.dx, y: root.y + arm.dy, vx: root.vx, vy: root.vy, size: 0 };
+  else if (rootIn && arm && !(state.cover < coreFirst)) target = { x: root.x + arm.dx, y: root.y + arm.dy, vx: root.vx, vy: root.vy, size: 0 };
   else if (rootIn) target = root;
   else if (near) target = near;
   turret('beamA', 'rotA', target);
