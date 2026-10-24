@@ -55,6 +55,14 @@ const still = param('still', 2, { min: 0, max: 100 }); // m/s: a big one that hi
 const huntFar = param('huntFar', 940, { min: 0, max: 2000 }); // m: the big one seen last further than this went out of reach and is hunted; nearer, it hid
 const awake = param('awake', 20, { min: 1, max: 600 }); // s: in an open sandbox it keeps its cloak up this long after it last saw an enemy
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
+const hush = param('hush', 1, { min: 0, max: 1 }); // 1: a ghost's pod is lit as it is let go (its first sighting gave the hull away)
+const clueSpeed = param('clueSpeed', 10, { min: 0, max: 500 }); // m/s: a new light enemy slower than this tells nothing of its launcher
+const clueNear = param('clueNear', 160, { min: 0, max: 1000 }); // m: one first seen nearer the hull came out of a bubble by it
+const clueFar = param('clueFar', 950, { min: 100, max: 2000 }); // m: one first seen further off may only have come into the radars' reach
+const clueBack = param('clueBack', 0.3, { min: 0, max: 5 }); // s back along its path to where it came from
+const clueAge = param('clueAge', 12, { min: 1, max: 120 }); // s a first sighting counts
+const clueKeep = param('clueKeep', 6, { min: 1, max: 50 }); // first sightings kept
+const debug = param('debug', 0, { min: 0, max: 1 });
 
 function measure() {
   let m = 0;
@@ -196,6 +204,8 @@ function setup() {
   state.pod = 0; // the next jammer pod to light
   state.podAt = 0; // when it may
   state.seen = -1000; // when it last saw an enemy
+  state.ids = {}; // light enemies seen, by contact id: when first seen
+  state.clues = []; // where new light enemies came from: { x, y, at }
   measure();
 }
 
@@ -215,7 +225,10 @@ function target() {
     if (state.big && c.id === state.big.id && (c.side !== 'enemy' || !c.core)) bigGone = true;
     if (c.side !== 'enemy' || !c.core) continue;
     state.seen = time;
-    if (c.mass < minMass) continue;
+    if (c.mass < minMass) {
+      clue(c);
+      continue;
+    }
     if (mem && c.id === mem.id) kept = c;
     if (!heaviest || c.mass > heaviest.mass) heaviest = c;
   }
@@ -237,8 +250,36 @@ function target() {
   return main;
 }
 
+/**
+ * A light enemy seen for the first time, moving: where it came from (back along its path) is about where its launcher
+ * is, which may be hiding in a jammer's bubble (r5, 2026-10: Hive and Bastion hid all match and Mirage never fired at
+ * them). Not one first seen close by (it came out of a bubble near the hull) or far out (it only came into reach).
+ */
+function clue(c) {
+  if (state.ids[c.id] !== undefined) return;
+  state.ids[c.id] = time;
+  if (c.vel.x * c.vel.x + c.vel.y * c.vel.y < clueSpeed * clueSpeed || c.distance < clueNear || c.distance > clueFar) return;
+  state.clues.push({ x: c.pos.x - c.vel.x * clueBack, y: Math.max(1, c.pos.y - c.vel.y * clueBack), at: time });
+  if (state.clues.length > clueKeep) state.clues.shift();
+}
+
+/** The middle of the fresh clues, or null. */
+function clueAt() {
+  let n = 0;
+  let x = 0;
+  let y = 0;
+  for (const k of state.clues) {
+    if (time - k.at > clueAge) continue;
+    n++;
+    x += k.x;
+    y += k.y;
+  }
+  return n > 0 ? { x: x / n, y: y / n, n } : null;
+}
+
 function tick() {
   if (frame % 30 === 0) measure();
+  if (frame % 600 === 0) for (const id in state.ids) if (time - state.ids[id] > 120) delete state.ids[id];
 
   // what it goes after, and where that was last
   const t = target();
@@ -274,7 +315,13 @@ function tick() {
   let want = state.x0 - state.dir * backoff;
   const b = state.big;
   const away = b && !t && time - b.at > 1;
-  if (away) {
+  const hid = t ? null : clueAt();
+  if (debug > 0 && frame % 300 === 0) log('t ' + (t ? t.id + ' ' + t.distance.toFixed(0) : '-') + ' last ' + (state.last ? state.last.id : '-') + ' big ' + (b ? b.id + '@' + b.x.toFixed(0) + ',' + b.y.toFixed(0) + ' age ' + (time - b.at).toFixed(0) : '-') + ' clue ' + (hid ? hid.n + '@' + hid.x.toFixed(0) + ',' + hid.y.toFixed(0) : '-') + ' energy ' + (self.energy.stored / Math.max(1, self.energy.capacity)).toFixed(2) + ' y ' + self.pos.y.toFixed(0));
+  if (hid) {
+    // Hidden, but its darts tell where it is: hold the standoff from there, inside the radars' reach of its next ones.
+    if (state.side === 0) state.side = sign(self.pos.x - hid.x) || -state.dir;
+    want = hid.x + state.side * standoff;
+  } else if (away) {
     // The big one is out of sight. Gone out of the radars' reach (seen last further than `huntFar`): close in to
     // `huntAt` m of where it was last until the radars find it again. Vanished nearer (into a jammer's bubble or
     // smoke): hold `hideAt` from where it was last, out of reach of guns it cannot see. (Closing in on one that only
@@ -289,7 +336,11 @@ function tick() {
     if (held < cornered && other > held + 200) state.side = -state.side;
     want = t.pos.x + state.side * standoff;
     // On its own side it never comes nearer the middle than where it started (that is where everyone looks first).
-    if (arena && state.side === -state.dir) want = state.side * Math.max(state.side * want, state.side * state.x0);
+    // Unless that leaves it out of a volley's reach (r5, 2026-10: Hive held 1050 m off and nothing went for 50 s).
+    if (arena && state.side === -state.dir) {
+      const held = state.side * Math.max(state.side * want, state.side * state.x0);
+      if (Math.abs(held - t.pos.x) < reach - 60) want = held;
+    }
   }
   want = clamp(want, -edge, edge);
   // No faster than it can still stop in the room left. Its boosters are small for its weight, so it also leans its
@@ -337,6 +388,7 @@ function tick() {
     alive++;
     if (r > 0) ready++;
   }
+  if (debug > 0 && frame % 300 === 0) log('bays alive ' + alive + ' ready ' + ready + ' angle ' + (self.angle * 57.3).toFixed(0));
   if (ready === 0) {
     state.firstReady = -1;
     return;
@@ -365,6 +417,13 @@ function tick() {
     const g = r || aim ? null : guard();
     if (r) aim = r;
     else if (g) aim = { x: g.pos.x, y: g.pos.y, vx: g.vel.x, vy: g.vel.y, id: g.id };
+  } else if (hid && Math.hypot(hid.x - self.pos.x, hid.y - self.pos.y) <= reach + 200) {
+    // Hidden, where its darts came from: volleys there as at one in sight (a ghost's seeker sees through a bubble
+    // within 150 m, and it follows the heaviest live enemy it finds near its point).
+    // A big one that hid standing still near there is still where it was seen: its own place is the surer one.
+    const b = state.big;
+    if (b && Math.hypot(b.vx, b.vy) < still && Math.hypot(b.x - hid.x, b.y - hid.y) < 200) aim = { x: b.x, y: b.y, vx: 0, vy: 0, id: b.id };
+    else aim = { x: hid.x, y: hid.y, vx: 0, vy: 0 };
   } else if (going || time - state.lastSalvo >= blindGap) {
     // Nothing tracked: the place it vanished (kept `memory` s, carried on by its speed for a moment), else the place
     // the big one hid if it stood still there (a fort under its own bubble does not move; titans v2, 2026-10: Bastion
@@ -388,6 +447,7 @@ function tick() {
       const tag = 'g' + String.fromCharCode(97 + i);
       if (!(get(tag, 'ready') > 0)) continue;
       send(tag + get(tag, 'built'), aim);
+      if (hush > 0) set(tag + get(tag, 'built'), 'ignite', 1);
       set(tag, 'release', 1);
       sent++;
     }
