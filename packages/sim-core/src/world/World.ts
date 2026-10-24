@@ -1507,7 +1507,7 @@ export class World {
   /**
    * M14, right after the physics step: every laser whose behavior was granted energy this tick (`part.beam`) burns the
    * first part straight out of its barrel within `range`: `dps * dt` times its grant, halved by each smoke cloud on the
-   * way, no `shellDamage` (a beam burns armor in full). Anyone's part, its own robot's too; terrain stops it. A wreck
+   * way, times the part's `beamDamage` (armor takes a quarter). Anyone's part, its own robot's too; terrain stops it. A wreck
    * (no core in charge) burns nothing. Then each laser's sight looks, as a gun's does.
    */
   private runLasers(): void {
@@ -1738,7 +1738,7 @@ export class World {
     beam.hitRobot = hitRobot.id;
     beam.hitPart = hitPart.id;
     if (hitPart.health <= 0) return undefined;
-    return { hitRobot, hitPart, damage: spec.dps * this.dt * power * powInt(0.5, smoke), x: x2, y: y2 };
+    return { hitRobot, hitPart, damage: spec.dps * this.dt * power * powInt(0.5, smoke) * (hitPart.def.beamDamage ?? 1), x: x2, y: y2 };
   }
 
   /** How `robot` reads `seen` (M8 contacts rule): itself, a robot nobody controls, a friend, or an enemy. */

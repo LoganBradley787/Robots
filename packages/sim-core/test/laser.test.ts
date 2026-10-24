@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import flatJson from '../../../worlds/flat.json';
+import frameJson from '../src/parts/defs/frame.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import { parsePartDef } from '../src/parts/parsePartDef';
@@ -16,6 +17,8 @@ const FIRE = [{ key: 'f', mode: 'hold', target: 'laser', channel: 'fire', value:
 const RIG = { format: 1, name: 'laser-rig', grid: ['Z C Lz> ='], bindings: FIRE };
 /** One armor plate, nobody's. */
 const PLATE = { format: 1, name: 'plate', grid: ['A'] };
+/** The share of a beam an armor plate takes (`beamDamage`, Logan 2026-10-24). */
+const K = 0.25;
 const hold = (robot: number) => [{ robot, pressed: ['f'], released: [] }];
 const letGo = (robot: number) => [{ robot, pressed: [], released: ['f'] }];
 
@@ -37,6 +40,15 @@ describe('laser (M14)', () => {
     expect(DEFAULT_LEGEND['Lz>']).toEqual({ part: 'laser', rot: 270 });
   });
 
+  it('beamDamage is part data: armor plates 0.25, everything else takes a beam in full; the parser keeps it 0 to 10', () => {
+    const reg = defaultRegistry();
+    expect(reg.get('armorplate').beamDamage).toBe(0.25);
+    expect(reg.get('frame').beamDamage).toBeUndefined();
+    const base = { ...frameJson, id: 'x' };
+    expect(parsePartDef({ ...base, beamDamage: 0.5 }, 'x.json').beamDamage).toBe(0.5);
+    expect(() => parsePartDef({ ...base, beamDamage: 11 }, 'x.json')).toThrow(/beamDamage/);
+  });
+
   it('the parser wants acts, a fire input, the sight outputs, sight max = range, and the laser behavior', () => {
     const raw = JSON.parse(JSON.stringify(defaultRegistry().get('laser')));
     expect(() => parsePartDef({ ...raw, inputs: [] }, 'x.json')).toThrow('must have a "fire" input');
@@ -47,7 +59,7 @@ describe('laser (M14)', () => {
     expect(() => parsePartDef({ ...raw, laser: { dps: 600, range: 300, x: 1 } }, 'x.json')).toThrow();
   });
 
-  it('burns the first part on its line at 600 a second, only while fire is held; armor takes it in full', async () => {
+  it('burns the first part on its line at 600 a second, only while fire is held; an armor plate takes a quarter', async () => {
     const w = await space0();
     const rig = w.spawnBlueprint(RIG, { x: 0, y: 100 });
     const plate = w.spawnBlueprint(PLATE, { x: 50, y: 100 });
@@ -56,8 +68,8 @@ describe('laser (M14)', () => {
     expect(w.liveBeams()).toEqual([]);
     w.step(hold(rig.id));
     for (let i = 0; i < 19; i++) w.step();
-    // 20 ticks of 600 / 60 = 10: no shell multiplier (armor plates take a tenth of a shell).
-    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(250 - 20 * 10, 6);
+    // 20 ticks of 600 / 60 = 10, times the plate's beamDamage (not its shellDamage, a tenth).
+    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(250 - 20 * 10 * K, 6);
     const beam = w.liveBeams()[0];
     // From the barrel's end (the base at +1, the barrel at +2, its end at +2.5) to the plate's near face (+49.5).
     expect(beam).toMatchObject({ robot: rig.id, laser: 'laser@2,0', power: 1, side: SIGHT.none, hitRobot: plate.id, hitPart: 'armorplate@0,0' });
@@ -67,11 +79,11 @@ describe('laser (M14)', () => {
     w.step(letGo(rig.id));
     w.step();
     expect(w.liveBeams()).toEqual([]);
-    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(50, 6);
+    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(250 - 200 * K, 6);
     // One laserBurn when the beam first met the plate, not one per tick.
     expect(w.events.filter((e) => e.kind === 'laserBurn')).toMatchObject([{ robot: plate.id, part: 'armorplate@0,0', partType: 'armorplate', by: rig.id, laser: 'laser@2,0' }]);
     expect(w.laserStats(rig.id)).toMatchObject({ ticks: 20 });
-    expect(w.laserStats(rig.id).damage).toBeCloseTo(200, 6);
+    expect(w.laserStats(rig.id).damage).toBeCloseTo(200 * K, 6);
     w.dispose();
   });
 
@@ -89,10 +101,10 @@ describe('laser (M14)', () => {
     const before = plate.parts.get('armorplate@0,0')?.health ?? 0;
     w.step();
     expect(w.liveBeams()[0]?.power).toBeCloseTo(0.5, 6);
-    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(before - 5, 6);
+    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(before - 5 * K, 6);
     w.step();
     expect(w.liveBeams()).toEqual([]);
-    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(before - 5, 6);
+    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(before - 5 * K, 6);
     // Unlimited energy: full power again.
     w.setUnlimitedEnergy(true);
     w.step();
@@ -109,7 +121,7 @@ describe('laser (M14)', () => {
       const rig = w.spawnBlueprint(RIG, { x: 0, y: 100 });
       const plate = w.spawnBlueprint(PLATE, { x, y: 100 });
       w.step(hold(rig.id));
-      expect(plate.parts.get('armorplate@0,0')?.health, `at ${x} m`).toBe(burns ? 240 : 250);
+      expect(plate.parts.get('armorplate@0,0')?.health, `at ${x} m`).toBe(burns ? 250 - 10 * K : 250);
       expect(w.liveBeams()[0]?.side).toBe(burns ? SIGHT.none : SIGHT.nothing);
       w.dispose();
     }
@@ -146,7 +158,7 @@ describe('laser (M14)', () => {
     ]);
     expect(w.smokeClouds().length).toBe(2);
     w.step(hold(rig.id));
-    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(250 - 10 / 4, 6);
+    expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(250 - (10 / 4) * K, 6);
     expect(w.liveBeams()[0]).toMatchObject({ smoke: 2 });
     w.dispose();
   });

@@ -128,8 +128,9 @@ describe('Sandbox rule: smoke and jammers do nothing', () => {
       w.step([...key(a, 's', true), ...key(b, 's', true)]);
       expect(w.smokeClouds()).toHaveLength(2);
       w.step(key(rig, 'f', true));
-      // 600 damage a second, one tick: 10, or a quarter of it through two clouds.
-      expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(on ? 250 - 10 : 250 - 10 / 4, 6);
+      // 600 damage a second, one tick: 10, or a quarter of it through two clouds; the plate takes a quarter of either
+      // (its beamDamage).
+      expect(plate.parts.get('armorplate@0,0')?.health).toBeCloseTo(250 - (on ? 10 : 10 / 4) * 0.25, 6);
       expect(w.liveBeams()[0]).toMatchObject({ smoke: on ? 0 : 2 });
       w.dispose();
     }

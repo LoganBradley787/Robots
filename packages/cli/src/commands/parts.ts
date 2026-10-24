@@ -108,6 +108,7 @@ function details(d: PartDef): string[] {
     out.push(`gun sight: looks ${g.range} m straight out of the barrel: sight (meters to the first thing, ${g.range} for nothing), sightSide (0 nothing, 1 own robot, 2 friend, 3 enemy, 4 nobody's, 5 terrain), sightId (the robot's contact id), aim (the barrel's world angle, radians)`);
   }
   if (d.shellDamage !== undefined) out.push(`armor: takes ${d.shellDamage} of a shell's damage (${Math.ceil(d.health / (5 * d.shellDamage))} hits from a 5 damage shell); blasts hurt it in full`);
+  if (d.beamDamage !== undefined) out.push(`armor: takes ${d.beamDamage} of a laser beam's damage`);
   if (d.solar) out.push(`solar: adds ${d.solar.power} J/s (times the cosine of the angle between its ${d.acts ?? 'N'} face and straight up, nothing when level or down) to its chunk's energy pool while its ${d.acts ?? 'N'} face points up; it fills batteries, cells, and cores up to their capacity; no inputs or outputs`);
   if (d.charge) out.push(`distance charge: once armed it goes off (the blast above, then it is gone) when any part of a robot of another team comes within ${d.charge.radius} m (a flare counts as the robot it stands in for; friends and wrecks do not set it off), or on a detonate pulse${d.charge.crash !== undefined ? `, or when a hit knocks its body over ${d.charge.crash} m/s (a ram; a shell never does)` : ''}; destroyed any other way (shot, caught in a blast) it breaks as a dud, without a blast; no impact fuze`);
   if (d.grapple) {

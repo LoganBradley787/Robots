@@ -65,7 +65,7 @@ function join(path: string, key: string): string {
 }
 
 const DEF_KEYS = [
-  'id', 'name', 'category', 'about', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage',
+  'id', 'name', 'category', 'about', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage', 'beamDamage',
   'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
 ] as const;
 
@@ -193,6 +193,11 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const f = r.num(o, 'shellDamage', '');
     if (f < 0 || f > 10) r.fail('shellDamage', 'must be 0 to 10 (the share of a shell\'s damage the part takes)');
     def.shellDamage = f;
+  }
+  if (o.beamDamage !== undefined) {
+    const f = r.num(o, 'beamDamage', '');
+    if (f < 0 || f > 10) r.fail('beamDamage', 'must be 0 to 10 (the share of a laser beam\'s damage the part takes)');
+    def.beamDamage = f;
   }
   if (o.impact !== undefined) {
     const io = r.obj(o.impact, 'impact', ['speed']);

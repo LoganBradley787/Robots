@@ -83,16 +83,17 @@ describe('M14 lasers, done when', () => {
     w.dispose();
   });
 
-  it('a beam burns through armor: a core behind three heavy plates is gone in under 3 s', { timeout: 60_000 }, async () => {
+  it('a beam burns through armor slowly: a core behind three heavy plates is gone in 5 to 7 s', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-laser-tower'), { x: -60, y: 0.6 }, { team: 1 });
     // A core with three plates on its right, facing the tower (on frames so the plates are in the turret's line).
     const brick = w.spawnBlueprint({ format: 1, name: 'brick', grid: ['C A A A', 'F F F F'] }, { x: -150, y: 4.5 });
     for (let t = 0; t < 900; t++) w.step();
     const lost = coreLostAt(w, brick);
-    // 3 x 250 + 50 health at 600 a second is 1.3 s of beam, plus the turret swinging over.
-    expect(lost).toBeGreaterThan(1.3);
-    expect(lost).toBeLessThan(3);
+    // Plates take a quarter of a beam (beamDamage, Logan 2026-10-24): 3 x 250 at 150 a second is 5 s, the core's 50 at
+    // 600 a tenth more, plus the turret swinging over. Before, armor took it in full: 1.3 s of beam, gone in under 3 s.
+    expect(lost).toBeGreaterThan(5);
+    expect(lost).toBeLessThan(7);
     expect(tower.parts.size).toBe(41);
     w.dispose();
   });

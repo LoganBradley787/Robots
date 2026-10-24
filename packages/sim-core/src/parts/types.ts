@@ -194,7 +194,7 @@ export interface GunSpec {
  * A laser (M14): while its `fire` input is above 0.5 and its robot has a core in charge, it asks its chunk's pool for
  * its `powerDraw` and burns a beam straight out of its `acts` face, `range` meters long: the first part on the line
  * (anyone's) loses `dps` health a second, times the share of energy granted (a brownout weakens it) and halved by every
- * smoke cloud the beam crosses. No `shellDamage`: a beam burns armor in full. Terrain stops it; no push. Its sight
+ * smoke cloud the beam crosses, times the part's `beamDamage` (not `shellDamage`). Terrain stops it; no push. Its sight
  * outputs are a gun's (`GUN_OUTPUTS`), looking `range` meters.
  */
 export interface LaserSpec {
@@ -331,6 +331,11 @@ export interface PartDef {
    * blasts are unchanged). 1 when absent. Frames are 0.25.
    */
   shellDamage?: number;
+  /**
+   * Share of a laser beam's damage the part takes (Logan, 2026-10-24: lasers burnt through titans' armor in full, so
+   * two laser titans tunnelled to cores and armor stopped mattering). 1 when absent. Armor plates are 0.25.
+   */
+  beamDamage?: number;
   /**
    * M10: the part is safe until armed. It needs an `arm` input (above 0.5 arms it for good) and an `armed` output.
    * Unarmed, `onDestroyed.explode` and `impact` do not apply, and its behavior may ignore its triggers (a warhead's
