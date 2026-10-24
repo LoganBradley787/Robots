@@ -60,7 +60,7 @@ const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between tw
 const burnGap = param('burnGap', 6, { min: 1, max: 600 }); // ticks between two burners leaving the rack
 const safeUp = param('safeUp', 1.35, { min: 0, max: 3.2 }); // rad: the way in to a target with lasers is no steeper than this, on our side
 const mainKeep = param('mainKeep', 90, { min: 0, max: 6000 }); // s a hidden main enemy is still sent burners after it was last seen
-const gunMax = param('gunMax', 16, { min: 0, max: 100 }); // a target with more guns than this has them left alone by the burners
+const gunMax = param('gunMax', 8, { min: 0, max: 100 }); // a target with more guns than this has them left alone by the burners (a fortress's few turrets are worth a burner's first second; a flier's dozen cost it the kill)
 const gunEvery = param('gunEvery', 300, { min: 30, max: 6000 }); // ticks between two looks at the target's guns
 const burnWait = param('burnWait', 90, { min: 0, max: 6000 }); // ticks the burners wait for the probes' way in, at most
 

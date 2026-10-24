@@ -52,7 +52,7 @@ const huntSpread = param('huntSpread', 45, { min: 0, max: 300 }); // m between t
 const sweep = param('sweep', 1.25, { min: 0, max: 1.5 }); // rad either side of straight down the feeler swings
 const sweepRate = param('sweepRate', 1.2, { min: 0.1, max: 10 }); // rad/s of the feeler's swing phase
 const gunBurn = param('gunBurn', 0.25, { min: 0, max: 5 }); // s of beam on each of the target's guns (25 health: a tenth of that)
-const gunTry = param('gunTry', 0.4, { min: 0, max: 30 }); // s it tries for a gun before it lets it be
+const gunTry = param('gunTry', 0.12, { min: 0, max: 30 }); // s it tries for a gun before it lets it be
 const laserBurn = param('laserBurn', 1, { min: 0, max: 10 }); // s of beam on each of the target's lasers
 const laserTry = param('laserTry', 3, { min: 0, max: 30 }); // s it tries for a laser before it lets it be
 const gunNear = param('gunNear', 4, { min: 0.5, max: 50 }); // m: the sight must meet the target this near the gun's point
@@ -294,9 +294,6 @@ function nextGun(las, tx, ty) {
   let bd = Infinity;
   for (const g of state.guns) {
     if (g.fired >= g.need || g.tried >= g.try) continue;
-    // Guns only once it is being shot (it has lost a part): the core goes first otherwise (a flier's turrets that
-    // never aimed at the burners cost it five seconds and the kill).
-    if (g.need <= gunBurn && parts.length >= state.n0) continue;
     const r = Math.hypot(tx + g.x - las.pos.x, ty + g.y - las.pos.y);
     const d = r - (g.need > gunBurn ? 1000 : 0);
     if (d < bd && r < reach) {
@@ -318,7 +315,11 @@ function gunAim(las, g, gx, gy) {
   const d = Math.hypot(gx - las.pos.x, gy - las.pos.y);
   const on = Math.abs(err) < tol && las.out.sightSide === SIGHT_ENEMY && las.out.sightId === state.t.id && Math.abs(las.out.sight - d) < gunNear;
   set('laser', 'fire', on ? 1 : 0);
-  g.tried += dt;
+  // Tried counts only while aimed: a gun the sight does not meet there at once (behind armor from here) is let be,
+  // so a flier's dozen hidden turrets cost the burner a second, not five.
+  if (Math.abs(err) < tol) g.tried += dt;
+  else g.slew = (g.slew || 0) + dt;
+  if (g.slew > 1) g.tried = g.try;
   if (on) g.fired += dt;
 }
 
