@@ -62,6 +62,8 @@ const huntFar = param('huntFar', 940, { min: 0, max: 2000 }); // m: the big one 
 const awake = param('awake', 20, { min: 1, max: 600 }); // s: in an open sandbox it keeps its cloak up this long after it last saw an enemy
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
 const hush = param('hush', 1, { min: 0, max: 1 }); // 1: a ghost's pod is lit as it is let go (its first sighting gave the hull away)
+const viaOut = param('viaOut', 45, { min: 0, max: 500 }); // m past the end of the hull a ghost sent at something under it goes first
+const viaUp = param('viaUp', 25, { min: 0, max: 200 }); // m over the core's height there
 const hushFar = param('hushFar', 450, { min: 0, max: 2000 }); // m: only for a point this far (the pod blinds the ghost's own seeker and radio for its 5 s)
 const clueSpeed = param('clueSpeed', 10, { min: 0, max: 500 }); // m/s: a new light enemy slower than this tells nothing of its launcher
 const clueNear = param('clueNear', 160, { min: 0, max: 1000 }); // m: one first seen nearer the hull came out of a bubble by it
@@ -117,6 +119,18 @@ function measure() {
   }
   state.m = m;
   state.inertia = inertia;
+  // How far the hull reaches along the bow from the core, both ways (r5: a ghost sent at something under it goes out
+  // past the nearer end).
+  let lo = 0;
+  let hi = 0;
+  const d = state.dir || 1;
+  for (const p of parts) {
+    const f = (p.pos.x - self.pos.x) * d;
+    if (f < lo) lo = f;
+    if (f > hi) hi = f;
+  }
+  state.foreMin = lo;
+  state.foreMax = hi;
   for (let k = 0; k < strips; k++) if (cap[k] > 0) arm[k] /= cap[k];
   state.cap = cap;
   state.arm = arm;
@@ -337,7 +351,9 @@ function tick() {
     // hid let Bastion's guns shoot the hull down from 600 m, then end its core on the ground: 6 losses of 6, where v1
     // backed off to 1050 m and drew; at 880 m it was still shot down.)
     if (state.side === 0) state.side = sign(self.pos.x - b.x) || -state.dir;
-    want = b.x + state.side * (b.d > huntFar ? huntAt : hideAt);
+    // A still one is never hunted (r5, 2026-10: Bastion seen once 1060 m off, its bubble lit again, and the hull closed
+    // to 700 m of it and was shot down in 54 s): it did not go out of reach, it is where it was.
+    want = b.x + state.side * (b.d > huntFar && !stillBig ? huntAt : hideAt);
   } else if (t) {
     if (state.side === 0) state.side = self.pos.x === t.pos.x ? -state.dir : sign(self.pos.x - t.pos.x);
     const held = Math.abs(clamp(t.pos.x + state.side * standoff, -edge, edge) - t.pos.x);
@@ -417,7 +433,14 @@ function tick() {
     // Not at something close under the deck: a ghost would dive through its own hull.
     const fore = (t.pos.x - self.pos.x) * state.dir; // m along the hull from the core toward the bow
     const under = t.pos.y < self.pos.y - 4 && fore > -40 && fore < 215;
-    if (t.distance <= reach && !under) aim = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id };
+    // Except a heavy one pushing up from under it (r5, 2026-10: Anvil sat under the hull for 50 s and carried it
+    // across the arena while nothing went for it): the ghosts go out past the nearer end of the hull first.
+    const ram = under && t.mass >= heavy && t.distance < danger;
+    if (t.distance <= reach && (!under || ram)) aim = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id };
+    if (aim && ram) {
+      const out = fore - state.foreMin < state.foreMax - fore ? state.foreMin - viaOut : state.foreMax + viaOut;
+      aim.via = { x: self.pos.x + state.dir * out, y: self.pos.y + viaUp };
+    }
     // What threatens the hull most comes first: the part of a heavy enemy below that reaches up to its height (a
     // mast that would shove it) gets every wave until it is cut. With the main enemy out of a ghost's way (out of
     // reach, or under the deck), the nearest gun ship come close gets the wave instead of none. (Every other wave at

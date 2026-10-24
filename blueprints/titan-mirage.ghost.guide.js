@@ -28,6 +28,8 @@
 //   `lifeSpeed` plus `lifeSpare`, up to `lifeMax`).
 // - Sent with an offset (`ox`, `oy`, titans v2, 2026-10), it goes for that point on the robot it follows, measured from
 //   its core, not the core: the hull sends such ghosts at the part of a tall enemy that would reach it.
+// - Sent with a `via` point (r5, 2026-10), it flies there first (out past the end of the hull), then on: the hull sends
+//   such ghosts at something heavy pushing on it from under its deck.
 // Let go with no point (knocked loose), it does nothing and stays safe.
 const thrust = param('thrust', 800, { min: 1, max: 100000 }); // N, both boosters
 const clear = param('clear', 14, { min: 0, max: 100 }); // m straight out of the bay before it turns
@@ -42,6 +44,7 @@ const along = param('along', 50, { min: 0, max: 500 }); // m/s^2 it asks for alo
 const cruise = param('cruise', 170, { min: 10, max: 1000 }); // m/s: faster than this it stops pushing along the line (energy for the end)
 const turn = param('turn', 5, { min: 0.1, max: 50 }); // rad/s^2 it plans its turns on
 const near = param('near', 2.5, { min: 0, max: 50 }); // m from a guessed point where it sets itself off
+const viaNear = param('viaNear', 25, { min: 1, max: 200 }); // m from a point to pass first that count as passed
 const prox = param('prox', 3, { min: 0, max: 20 }); // m from a live target (from its warhead) where it sets itself off
 const passed = param('passed', 10, { min: 0, max: 50 }); // m: having come this close, it goes off once it pulls away
 const acquire = param('acquire', 150, { min: 1, max: 1000 }); // m: an enemy this close to where the point would be is the one it follows
@@ -83,6 +86,7 @@ function setup() {
   state.fix = null; // { x, y, vx, vy, t }: the last known place and speed of what it goes after
   state.id = undefined;
   state.off = null; // where on the robot it goes, from its core (none: the core)
+  state.via = null; // a point to pass first (out past the end of the hull, to reach something under it)
   state.live = -100; // when it last had a live fix
   state.dead = false; // what it was sent at died, and nothing else was found
   state.best = Infinity;
@@ -95,6 +99,7 @@ function setup() {
     state.fix = { x: d.x, y: d.y, vx: d.vx || 0, vy: d.vy || 0, t: time };
     if (typeof d.id === 'number') state.id = d.id;
     if (typeof d.ox === 'number' && typeof d.oy === 'number') state.off = { x: d.ox, y: d.oy };
+    if (d.via && typeof d.via.x === 'number' && typeof d.via.y === 'number') state.via = { x: d.via.x, y: d.via.y };
   }
   state.life = life;
   if (state.fix) {
@@ -222,9 +227,16 @@ function tick() {
     const go = Math.min(dist / closing, 3) * lead;
     let tx = p.x + state.fix.vx * (time - state.live < 1 ? go : 0) - self.pos.x;
     let ty = Math.max(0, p.y + state.fix.vy * (time - state.live < 1 ? go : 0)) - self.pos.y;
-    // Still over the hull: do not dive through it.
-    const floor = state.ly + over;
-    if (Math.abs(self.pos.x - state.lx) < hull && self.pos.y + ty < floor) ty = floor - self.pos.y;
+    // Sent by way of a point (r5, 2026-10): to it first, then on. Still over the hull otherwise: do not dive through it.
+    const v = state.via;
+    if (v && Math.hypot(v.x - self.pos.x, v.y - self.pos.y) < viaNear) state.via = false;
+    if (state.via) {
+      tx = v.x - self.pos.x;
+      ty = v.y - self.pos.y;
+    } else if (state.via === null) {
+      const floor = state.ly + over;
+      if (Math.abs(self.pos.x - state.lx) < hull && self.pos.y + ty < floor) ty = floor - self.pos.y;
+    }
     const d = Math.max(1e-6, Math.hypot(tx, ty));
     tx /= d;
     ty /= d;
