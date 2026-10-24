@@ -8,6 +8,12 @@
 // - Ghosts: when enough bays hold a finished ghost, all of them are handed the same point and speed and let go on one
 //   tick. The point is the main enemy, and its id goes with it: a ghost follows that robot by what its radio and
 //   seeker report (the radio by the bow radars shares what they see).
+// - Quiet ghosts (r5, 2026-10): a ghost sent `hushFar` m or more has its pod lit as it leaves the bay. Hive, Bastion
+//   and Woodpecker find a launcher hidden in a bubble by where its darts are first seen; lit there, a ghost is first
+//   seen 300 to 400 m out, on its way to them, and their darts go to that empty spot instead of the hull.
+// - Hidden enemies (r5, 2026-10): the other way round, where an enemy's new darts are first seen tells where it
+//   hides. With nothing in sight, volleys go there (or to a still big one's own last place near it), and the hull
+//   holds its standoff from there.
 // - The main enemy (titan-darts, 2026-10, Logan): picked from what the radars report, never by id: the heaviest enemy
 //   with a live core of `minMass` kg or more, kept while it is seen unless one twice as heavy shows up, and given up
 //   the moment it dies. A robot that dies stays in the radars' view as debris (no live core), so nothing more goes to
@@ -56,6 +62,7 @@ const huntFar = param('huntFar', 940, { min: 0, max: 2000 }); // m: the big one 
 const awake = param('awake', 20, { min: 1, max: 600 }); // s: in an open sandbox it keeps its cloak up this long after it last saw an enemy
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radars' reach and is forgotten
 const hush = param('hush', 1, { min: 0, max: 1 }); // 1: a ghost's pod is lit as it is let go (its first sighting gave the hull away)
+const hushFar = param('hushFar', 450, { min: 0, max: 2000 }); // m: only for a point this far (the pod blinds the ghost's own seeker and radio for its 5 s)
 const clueSpeed = param('clueSpeed', 10, { min: 0, max: 500 }); // m/s: a new light enemy slower than this tells nothing of its launcher
 const clueNear = param('clueNear', 160, { min: 0, max: 1000 }); // m: one first seen nearer the hull came out of a bubble by it
 const clueFar = param('clueFar', 950, { min: 100, max: 2000 }); // m: one first seen further off may only have come into the radars' reach
@@ -317,8 +324,10 @@ function tick() {
   const away = b && !t && time - b.at > 1;
   const hid = t ? null : clueAt();
   if (debug > 0 && frame % 300 === 0) log('t ' + (t ? t.id + ' ' + t.distance.toFixed(0) : '-') + ' last ' + (state.last ? state.last.id : '-') + ' big ' + (b ? b.id + '@' + b.x.toFixed(0) + ',' + b.y.toFixed(0) + ' age ' + (time - b.at).toFixed(0) : '-') + ' clue ' + (hid ? hid.n + '@' + hid.x.toFixed(0) + ',' + hid.y.toFixed(0) : '-') + ' energy ' + (self.energy.stored / Math.max(1, self.energy.capacity)).toFixed(2) + ' y ' + self.pos.y.toFixed(0));
-  if (hid) {
+  const stillBig = b && !t && Math.hypot(b.vx, b.vy) < still && (!hid || Math.hypot(b.x - hid.x, b.y - hid.y) < 200);
+  if (hid && !stillBig) {
     // Hidden, but its darts tell where it is: hold the standoff from there, inside the radars' reach of its next ones.
+    // (Not from a still one that hid there: that is held off `hideAt` as before, out of reach of guns it cannot see.)
     if (state.side === 0) state.side = sign(self.pos.x - hid.x) || -state.dir;
     want = hid.x + state.side * standoff;
   } else if (away) {
@@ -417,6 +426,11 @@ function tick() {
     const g = r || aim ? null : guard();
     if (r) aim = r;
     else if (g) aim = { x: g.pos.x, y: g.pos.y, vx: g.vel.x, vy: g.vel.y, id: g.id };
+  } else if (stillBig && Math.hypot(state.big.x - self.pos.x, state.big.y - self.pos.y) <= reach + 200) {
+    // A big one that hid standing still is still where it was seen (a fort under its own bubble does not move):
+    // every volley goes there, not one every `blindGap` s (r5: bays stood full for 40 s while Bastion's darts came).
+    const b = state.big;
+    aim = { x: b.x, y: b.y, vx: 0, vy: 0, id: b.id };
   } else if (hid && Math.hypot(hid.x - self.pos.x, hid.y - self.pos.y) <= reach + 200) {
     // Hidden, where its darts came from: volleys there as at one in sight (a ghost's seeker sees through a bubble
     // within 150 m, and it follows the heaviest live enemy it finds near its point).
@@ -441,13 +455,14 @@ function tick() {
   if (!aim) return;
   // This wave: up to `wave` ready bays, as far apart along the hull as the ready ones allow (every `bays / wave`th).
   const stride = Math.max(1, Math.floor(bays / wave));
+  const quiet = hush > 0 && Math.hypot(aim.x - self.pos.x, aim.y - self.pos.y) > hushFar;
   let sent = 0;
   for (let k = 0; k < stride && sent < wave; k++) {
     for (let i = (state.waves + k) % stride; i < bays && sent < wave; i += stride) {
       const tag = 'g' + String.fromCharCode(97 + i);
       if (!(get(tag, 'ready') > 0)) continue;
       send(tag + get(tag, 'built'), aim);
-      if (hush > 0) set(tag + get(tag, 'built'), 'ignite', 1);
+      if (quiet) set(tag + get(tag, 'built'), 'ignite', 1);
       set(tag, 'release', 1);
       sent++;
     }
