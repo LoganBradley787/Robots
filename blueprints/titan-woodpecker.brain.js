@@ -58,6 +58,7 @@ const keepTall = param('keepTall', 13, { min: 1, max: 100 }); // m up or down fr
 const flareBurn = param('flareBurn', 2, { min: 0.1, max: 10 }); // s a flare burns: one burning covers what arrives before it is out
 const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
 const burnGap = param('burnGap', 6, { min: 1, max: 600 }); // ticks between two burners leaving the rack
+const safeUp = param('safeUp', 1.35, { min: 0, max: 3.2 }); // rad: the way in to a target with lasers is no steeper than this, on our side
 const burnWait = param('burnWait', 90, { min: 0, max: 6000 }); // ticks the burners wait for the probes' way in, at most
 
 function setup() {
@@ -205,6 +206,20 @@ function look(id, opts) {
   return opts ? scan(id, opts) : scan(id);
 }
 
+/**
+ * Whether the target carries lasers (titans round 5, 2026-10), looked up once a target: a beam burns a light flier
+ * coming at it within its reach in a fraction of a second (a sled's point defense took every burner as it closed), so
+ * the burners creep in on one that has them.
+ */
+function lasers(t) {
+  if (state.beamsFor === t.id) return;
+  const ps = look(t.id, { of: ['laser'] });
+  if (!ps) return;
+  state.beamsFor = t.id;
+  state.beamN = ps.length;
+  if (debug) log('lasers', t.id, ps.length);
+}
+
 function measure(t) {
   if (frame - state.boxAt < rescan) return;
   if (t.parts > huge && frame === state.scanFrame && state.scans > 0) return; // the four extremes need four scans
@@ -236,11 +251,11 @@ function measure(t) {
 function probe(t) {
   const pr = state.probe;
   if (!pr || pr.tid !== t.id) {
-    state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [] };
+    state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [], safe: null, safeCover: Infinity };
     return;
   }
   if (pr.i >= pr.list.length) {
-    if (frame - pr.at >= rescan) state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [] };
+    if (frame - pr.at >= rescan) state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [], safe: null, safeCover: Infinity };
     return;
   }
   for (let k = 0; k < 2 && pr.i < pr.list.length; k++) {
@@ -261,9 +276,15 @@ function probe(t) {
       pr.bestScore = score;
       pr.best = { ax, ay, cover: one[0].cover };
     }
+    // The thinnest on our side and not steep (titans round 5): a target with lasers is burnt from there, where its
+    // turrets facing us aim at the base and those facing away cannot swing round.
+    if (e <= safeUp && one[0].cover < pr.safeCover) {
+      pr.safeCover = one[0].cover;
+      pr.safe = { ax, ay, cover: one[0].cover };
+    }
   }
   if (pr.i >= pr.list.length && pr.best) {
-    state.app = { ...pr.best, tid: t.id };
+    state.app = { ...pr.best, tid: t.id, safe: pr.safe };
     if (debug) log('probe', t.id, 'way in', Math.round((Math.atan2(pr.best.ay, pr.best.ax) * 180) / Math.PI), 'cover', Math.round(pr.best.cover), 'all', pr.covers.join(' '));
   }
 }
@@ -284,7 +305,7 @@ function message(t) {
     const b = state.box;
     // Wider than tall: thin from above, so the darts come down on it.
     const top = b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0;
-    const msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, l: b.l, r: b.r, d: b.d, u: b.u, top };
+    const msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, l: b.l, r: b.r, d: b.d, u: b.u, top, beams: state.beamsFor === t.id ? state.beamN : 0 };
     const a = state.app;
     // Only for a robot worth going around (armor on every line) that keeps still: a small or moving one is hit
     // straight, and the bend only made darts miss it (a gun drone lasted 56 s, not 11).
@@ -412,16 +433,20 @@ function burn(t) {
   if (state.bnext >= state.burners.length || frame - state.lastBurn < burnGap) return;
   if (!t && !(state.last && state.last.id === state.tid && Math.hypot(state.last.vx, state.last.vy) < stillSpeed)) return;
   const id = t ? t.id : state.last.id;
-  if (!(state.app && state.app.tid === id) && frame < burnWait && t && Math.hypot(t.vel.x, t.vel.y) < appSpeed) return;
+  if (!(state.app && state.app.tid === id) && frame < burnWait && t) return;
   const msg = message(t);
   if (!msg || msg.blind) {
     if (msg) state.shots--;
     return;
   }
   const a = state.app;
-  if (a && a.tid === id) {
-    msg.ax = a.ax;
-    msg.ay = a.ay;
+  const w = a && a.tid === id ? (msg.beams > 0 ? a.safe : a) : null;
+  if (w) {
+    msg.ax = w.ax;
+    msg.ay = w.ay;
+  } else {
+    delete msg.ax;
+    delete msg.ay;
   }
   const b = state.burners[state.bnext];
   msg.slot = state.bnext++;
@@ -457,6 +482,7 @@ function tick() {
     state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id, small: t.mass < minMass, mass: t.mass };
   }
   if (t) measure(t);
+  if (t) lasers(t);
   if (debug && frame % 300 === 0) {
     let ready = 0;
     for (const tag of state.bays) if (get(tag, 'ready') > 0) ready++;
@@ -465,7 +491,8 @@ function tick() {
   fire(t);
   // Probes only for a target that keeps still: the way in is used for no other, and each probe looks over the whole
   // robot (a titan of thousands of parts).
-  if (t && useApp > 0.5 && Math.hypot(t.vel.x, t.vel.y) < appSpeed) probe(t);
+  // Titans round 5: also for a moving one while burners are still to go, since a burner stations itself on the way in.
+  if (t && useApp > 0.5 && (Math.hypot(t.vel.x, t.vel.y) < appSpeed || state.bnext < state.burners.length)) probe(t);
 }
 
 // The burners, the rack and the bays.

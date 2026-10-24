@@ -32,6 +32,9 @@ const tol = param('tol', 0.006, { min: 0.0005, max: 0.5 }); // rad: the beam bur
 const onStation = param('onStation', 25, { min: 1, max: 300 }); // m from its station within which it burns
 const still = param('still', 0.06, { min: 0.001, max: 1 }); // rad/s: or anywhere, while the line to the core turns slower than this
 const reach = param('reach', 296, { min: 10, max: 300 }); // m: the beam's reach, from the barrel
+const wary = param('wary', 235, { min: 0, max: 1000 }); // m from a target with lasers inside which it creeps
+const creep = param('creep', 9, { min: 1, max: 100 }); // m/s it closes at, at most, there (a sled's point defense burns what closes faster than 15)
+const wise = param('wise', 1.1, { min: 0, max: 1.57 }); // rad up from level on our side: the way in to a target with lasers
 const reserve = param('reserve', 900, { min: 0, max: 10000 }); // J kept to fly off the line once spent
 const life = param('life', 90, { min: 5, max: 600 }); // s after which it gives up
 const every = param('every', 3, { min: 1, max: 60 }); // ticks between two looks through the radio
@@ -121,8 +124,15 @@ function tick() {
   let ux;
   let uy;
   if (typeof t.ax === 'number') {
+    // The base's way in (for a target with lasers, the thinnest on our side).
     ux = t.ax;
     uy = t.ay;
+  } else if (t.beams > 0) {
+    // A target with lasers: from our side, high. Its turrets that face us aim at our base; one that faces away and
+    // cannot swing round to the base burns the nearest light thing it can reach (a sled's tail turret took a burner
+    // stationed behind it).
+    ux = (state.side ?? (state.side = self.pos.x < tx ? -1 : 1)) * Math.cos(wise);
+    uy = Math.sin(wise);
   } else if (t.top) {
     ux = 0;
     uy = 1;
@@ -140,7 +150,11 @@ function tick() {
   const sx = tx + ux * standoff - uy * side;
   const sy = ty + uy * standoff + ux * side;
   const up = self.pos.y - state.y0 < climb && time - state.born < 3;
-  hover(sx, sy, t.vx, t.vy, up);
+  // A target with lasers (the base's message says): inside `wary` m it creeps in, closing slower than its point
+  // defense counts as coming at it.
+  // Planned as a braking curve, so it is down to `creep` by the time it is `wary` m from the target.
+  const slow = t.beams > 0 ? Math.sqrt(creep * creep + 2 * brake * Math.max(0, Math.hypot(tx - self.pos.x, ty - self.pos.y) - wary)) : Infinity;
+  hover(sx, sy, t.vx, t.vy, up, slow);
   state.near = Math.hypot(sx - self.pos.x, sy - self.pos.y) < onStation;
   if (up) {
     // Off the rack: the laser hangs straight down until it is clear of the base (turned, it caught on the keep).
@@ -148,12 +162,12 @@ function tick() {
     set('laser', 'fire', 0);
     return;
   }
-  if (debug && state.n % 60 === 0) log('burner', Math.round(self.pos.x), Math.round(self.pos.y), 'st', Math.round(sx), Math.round(sy), 'e', Math.round(self.energy.stored), 'v', Math.round(self.vel.x), Math.round(self.vel.y), 'ang', Math.round(self.angle * 57), 'n', parts.length, 'thr', Math.round(100 * (state.thr || 0)));
+  if (debug && state.n % 60 === 0) log('burner', t.beams, Math.round(self.pos.x), Math.round(self.pos.y), 'st', Math.round(sx), Math.round(sy), 'e', Math.round(self.energy.stored), 'v', Math.round(self.vel.x), Math.round(self.vel.y), 'ang', Math.round(self.angle * 57), 'n', parts.length, 'thr', Math.round(100 * (state.thr || 0)));
   aim(las, tx, ty);
 }
 
 /** Steer toward (x, y), moving with (vx, vy): lean toward where it must go, thrust enough to hold its height. */
-function hover(x, y, vx, vy, up) {
+function hover(x, y, vx, vy, up, slow) {
   const px = self.pos.x;
   const py = self.pos.y;
   let ax;
@@ -165,7 +179,7 @@ function hover(x, y, vx, vy, up) {
     const ex = x - px;
     const ey = y - py;
     const d = Math.hypot(ex, ey) || 1;
-    const sp = Math.min(vmax, kpos * d, Math.sqrt(2 * brake * d));
+    const sp = Math.min(vmax, kpos * d, Math.sqrt(2 * brake * d), slow ?? Infinity);
     ax = kvel * (vx + (ex / d) * sp - self.vel.x);
     ay = kvel * (vy + (ey / d) * sp - self.vel.y);
     const a = Math.hypot(ax, ay);
