@@ -62,7 +62,9 @@ const put = (x, y, t) => {
   if (g[y][x] !== '.') throw new Error(`cell ${x},${y} taken by ${g[y][x]} (placing ${t})`);
   g[y][x] = t;
 };
-const legend = {};
+// The keep's plates carry a tag (titans round 5): the brain's parts list names it, so its frame carries the keep it
+// counts for hurt, not the base's floor.
+const legend = { K: { part: 'armorplate', tags: ['keep'] } };
 const cores = {};
 // One script file may serve one core only, so the rack's darts and the base's core carry their script inline (a copy
 // of the file, made here).
@@ -77,7 +79,7 @@ for (let x = 0; x < W; x++) {
       else if (y === CORE_Y && x === CX - 1) put(x, y, 'O');
       else if (y === CORE_Y && x === CX + 1) put(x, y, 'N');
       else if (y === CORE_Y && (x === CX - 2 || x === CX + 2 || x === CX + 3)) put(x, y, 'Z');
-      else put(x, y, 'A');
+      else put(x, y, 'K');
     }
     continue;
   }
@@ -249,7 +251,9 @@ const blueprint = {
   grid: g.map((row) => row.join(' ')).reverse(),
   legend,
   primaryCore: `core@${CX},${CORE_Y}`,
-  scripts: [{ id: 'brain', source: { file: `${NAME}.brain.js` }, params: { anchors } }],
+  // The brain's parts list (titans round 5): only what it reads (grips, flares, bays, anchors, the keep), so its frame
+  // is a third of the robot.
+  scripts: [{ id: 'brain', parts: ['decoupler', 'flare', 'fabbay', 'grapple', 'keep'], source: { file: `${NAME}.brain.js` }, params: { anchors } }],
   cores,
   recipes: { dart: dartBlueprint(`${NAME}.dart.guide.js`), burner: burnerBlueprint(`${NAME}.burner.js`) },
 };

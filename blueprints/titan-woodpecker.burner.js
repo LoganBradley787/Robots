@@ -65,6 +65,7 @@ const reserve = param('reserve', 900, { min: 0, max: 10000 }); // J kept to fly 
 const life = param('life', 90, { min: 5, max: 600 }); // s after which it gives up
 const every = param('every', 3, { min: 1, max: 60 }); // ticks between two looks through the radio
 const climb = param('climb', 16, { min: 0, max: 100 }); // m straight up off the rack: clear of the keep (13 m tall) before it turns
+const lazy = param('lazy', 0, { min: 0, max: 1 }); // 1: every other tick on the way
 const debug = param('debug', 0, { min: 0, max: 1 }); // 1 logs the burner's flight and aim once a second
 
 const SIGHT_ENEMY = 3;
@@ -94,6 +95,7 @@ function setup() {
   state.found = -1000;
   state.force = 0;
   // The target's guns, from its core (titans round 5): burnt first, one after another, nearest first.
+  state.n0 = parts.length;
   state.guns = state.t && Array.isArray(state.t.guns) ? state.t.guns.map((g) => ({ x: g[0], y: g[1], fired: 0, tried: 0, need: gunBurn, try: gunTry })) : [];
   // Its lasers first of all (a sled's front turret ends our base from 300 m): plated over and under, so longer on
   // each (a plate in front is 250 health).
@@ -281,6 +283,9 @@ function tick() {
   const g = state.near ? nextGun(las, tx, ty) : null;
   if (g) gunAim(las, g, tx + g.x, ty + g.y);
   else aim(las, tx, ty);
+  // Far from its station and its laser far from the target, it thinks every other tick (its writes hold meanwhile):
+  // half the script calls on the way (titans round 5).
+  if (lazy > 0.5 && Math.hypot(sx - self.pos.x, sy - self.pos.y) > 80 && Math.hypot(tx - self.pos.x, ty - self.pos.y) > reach + 80) sleep(1);
 }
 
 // The nearest gun still to burn, or null. One the burner could not line up on for `gunTry` s is let be.
@@ -289,6 +294,9 @@ function nextGun(las, tx, ty) {
   let bd = Infinity;
   for (const g of state.guns) {
     if (g.fired >= g.need || g.tried >= g.try) continue;
+    // Guns only once it is being shot (it has lost a part): the core goes first otherwise (a flier's turrets that
+    // never aimed at the burners cost it five seconds and the kill).
+    if (g.need <= gunBurn && parts.length >= state.n0) continue;
     const r = Math.hypot(tx + g.x - las.pos.x, ty + g.y - las.pos.y);
     const d = r - (g.need > gunBurn ? 1000 : 0);
     if (d < bd && r < reach) {
