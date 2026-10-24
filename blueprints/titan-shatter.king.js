@@ -42,6 +42,9 @@ const edge = param('edge', 300, { min: 50, max: 900 }); // m it keeps inside the
 const dash = param('dash', 45, { min: 5, max: 80 }); // m/s while getting out of a ram's way (round 5: no darts to carry, it lifts three times its weight)
 const flock = param('flock', 6, { min: 1, max: 1000 }); // gunships of its own in view: a ram coming, it runs to the middle of them
 const roof = param('roof', 35, { min: 5, max: 200 }); // m under the match's ceiling past which it cuts its lift
+const ramSpeed = param('ramSpeed', 50, { min: 10, max: 1000 }); // m/s: a robot of `ram` kg seen this fast rams; it waits for it among its gunships
+const guard = param('guard', 0, { min: 0, max: 1 }); // 1: against a ram it waits unhidden among its gunships (off: tried, the ram ended it sooner)
+const guardX = param('guardX', 400, { min: 0, max: 100000 }); // m from the middle at most while it waits for a ram
 const G = 9.81;
 const LIFT = 120;
 
@@ -155,6 +158,7 @@ function setup() {
   state.everSeen = false;
   state.heavyAt = 0; // when a heavy enemy was last seen
   state.quick = {}; // ids of robots seen faster than `fast` (darts)
+  state.rams = {}; // ids of heavy robots seen faster than `ramSpeed`
   state.hold = { x: self.pos.x, y: self.pos.y };
   state.jit = random(); // where in its band of hiding places it sits, picked again when it may have been seen
   state.moved = time;
@@ -220,7 +224,8 @@ function tick() {
     // Never one seen fast (a titan's darts weigh over 30 kg too; one let go is slow for a moment, so once fast is
     // fast for good). A heavy one (`heavyMass`) comes before any lighter one.
     const v = Math.hypot(c.vel.x, c.vel.y);
-    if (v > fast) state.quick[c.id] = 1;
+    if (v > fast && c.mass < heavyMass) state.quick[c.id] = 1; // round 5: never a heavy one (a ram hits at 130 m/s)
+    if (v > ramSpeed && c.mass >= ram) state.rams[c.id] = 1;
     if (c.id === keepId && !state.quick[c.id]) kept = c; // kept however light it gets, and after a while unseen
     if (c.mass < mainMass || state.quick[c.id]) continue;
     if (c.mass >= heavyMass) {
@@ -257,7 +262,9 @@ function tick() {
   const fd = f ? Math.hypot(f.x - self.pos.x, f.y - self.pos.y) : Infinity;
   // A main enemy that hides is assumed to be able to see it from anywhere (its radars may stand outside its bubble,
   // and it moves unseen): then the king stays in its bubble (51 pods last 255 s).
-  const exposed = near < far || fd < far || (state.foeHides && !!state.foe);
+  // Against a ram (round 5) it does not hide: its gunships wait round it (they must see it), and it stays mid-arena.
+  const guarded = guard > 0 && !!state.foe && !!state.rams[state.foe.id];
+  const exposed = !guarded && (near < far || fd < far || (state.foeHides && !!state.foe));
   // Listening: when the pod burns out the bubble lapses `lookFor` s, if what it knows is stale, but only
   // while it knows of no main enemy (titans v2): lapsing within the enemy's radar reach let it be seen, and its darts
   // came 10 s later. Knowing one, it keeps hidden and goes by where it was last seen.
@@ -279,7 +286,7 @@ function tick() {
     state.moved = time;
     state.jit = random();
   }
-  let place = f ? hidePlace(f) : state.hold;
+  let place = guarded ? { x: clamp(self.pos.x, -guardX, guardX), y: arena ? arena.y - 90 : top } : f ? hidePlace(f) : state.hold;
   if (!f) state.hold = { x: state.hold.x, y: arena ? arena.y - 60 : Math.max(state.hold.y, 30) };
   // A ram coming (seen only when it is not hiding): off to the far side of it, and to the other end of the sky.
   if (!big && closest) big = closest;

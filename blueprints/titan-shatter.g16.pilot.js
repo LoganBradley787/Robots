@@ -45,6 +45,10 @@ const probe = param('probe', 2, { min: 0.2, max: 60 }); // s between looks for a
 const step = param('step', 0.21, { min: 0.02, max: 1 }); // rad its bearing round the main enemy moves at most per look
 const probeParts = param('probeParts', 150, { min: 1, max: 100000 }); // parts: a main enemy this big is worth looking for a line into
 const bareCover = param('bareCover', 60, { min: 0, max: 10000 }); // points of parts in front of an enemy weapon, at most, for the beams to go at it first
+const ramMass = param('ramMass', 1500, { min: 0, max: 100000 }); // kg: an enemy this heavy seen faster than `ramSpeed` rams
+const ramSpeed = param('ramSpeed', 50, { min: 10, max: 1000 }); // m/s: an enemy this heavy seen this fast comes for the king (a 12 t brick crossed the arena at 60 to grind it down)
+const escort = param('escort', 0, { min: 0, max: 1000 }); // m: the ring round the king against a ram (0: off; tried at 130 and the ram ended the king sooner)
+const kingMass = param('kingMass', 100, { min: 0, max: 100000 }); // kg: a friend this heavy is the king
 const G = 9.81;
 const LIFT = 120;
 const SWING = Math.PI / 2;
@@ -160,6 +164,8 @@ function setup() {
   state.seenAt = -100; // when anyone last saw the root (its own radar or a friend's over the radio)
   state.mainAt = 0; // when a heavy enemy (`heavyMass` or more) was last seen
   state.quick = {}; // ids of robots seen faster than `fast` (darts)
+  state.rams = {}; // ids of heavy robots seen faster than `ramSpeed`
+  state.king = null; // where the king was last seen
   state.home = self.pos.x;
   state.friends = [];
   state.near = null;
@@ -184,9 +190,12 @@ function lookAround() {
   let kept = null;
   let gone = false;
   const root = state.root;
+  let king = null;
   for (const c of contacts) {
     if (c.side === 'friend') {
       if (c.distance < 320) friends.push({ x: c.pos.x, y: c.pos.y });
+      // The king: the heaviest friend with a core (a gunship weighs about 58 kg, the king near three times that).
+      if (c.core && c.mass >= kingMass && (!king || c.mass > king.mass)) king = c;
       continue;
     }
     if (c.id === root.id && (c.side !== 'enemy' || !c.core)) gone = true;
@@ -194,7 +203,10 @@ function lookAround() {
     // Never one seen fast as the main enemy (titans v2): a titan's darts weigh over 30 kg too, and while the titan
     // hid, the swarm took its darts for it (one let go is slow for a moment, so once fast is fast for good).
     const v = Math.hypot(c.vel.x, c.vel.y);
-    if (v > fast) state.quick[c.id] = 1;
+    // Round 5: only a light one (under `heavyMass`): a 12 t brick ramming at 130 m/s was taken for a dart and let go.
+    if (v > fast && c.mass < heavyMass) state.quick[c.id] = 1;
+    // A heavy one seen this fast rams (round 5): the gunships guard the king from it, see `escort`.
+    if (v > ramSpeed && c.mass >= ramMass) state.rams[c.id] = 1;
     // The one it has is kept however light it gets (a main enemy shot to pieces weighs less and less: a walker down to
     // its core and a few plates lay 60 s under the gunships, forgotten at under 30 kg).
     if (c.id === root.id && !state.quick[c.id]) kept = c;
@@ -243,6 +255,7 @@ function lookAround() {
     state.mainAt = -1e9; // it is dead: no reason to wait before chasing a lighter one
   }
   state.friends = friends;
+  if (king) state.king = { x: king.pos.x, y: king.pos.y, t: time };
   const pick = small || near;
   state.near = pick ? { x: pick.pos.x, y: pick.pos.y, vx: pick.vel.x, vy: pick.vel.y, t: time, small: pick === small, size: sizeOf(pick) } : null;
 }
@@ -397,7 +410,12 @@ function tick() {
       state.theta = pick;
       state.cover = best;
     }
-    const at = ringPoint(root, ring, state.theta);
+    let at = ringPoint(root, ring, state.theta);
+    // Escort (round 5): a main enemy that rams goes for the king, faster than the gunships fly, and ground it down
+    // far from them, unburned. So the gunships wait round the king instead, `escort` m out, and the ram comes into
+    // their beams on its way in.
+    const k = state.king;
+    if (escort > 0 && state.rams[state.root.id] && k && time - k.t < 3) at = ringPoint(k, escort + 0.5 * (state.ring - 150), state.theta);
     px = at.x;
     py = at.y;
   }
