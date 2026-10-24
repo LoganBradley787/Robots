@@ -67,6 +67,8 @@ function setup() {
   state.bays = [];
   state.flares = [];
   state.burners = [];
+  state.cbays = [];
+  state.slot = 0;
   for (const p of parts) {
     if (p.type === 'decoupler') {
       const tag = p.tags.find((t) => /^g\d+$/.test(t));
@@ -79,6 +81,8 @@ function setup() {
     } else if (p.type === 'fabbay') {
       const tag = p.tags.find((t) => /^b\d+x$/.test(t));
       if (tag) state.bays.push(tag);
+      const ct = p.tags.find((t) => /^c\d+x$/.test(t));
+      if (ct) state.cbays.push(ct);
     }
   }
   // Nearest the enemy first.
@@ -430,14 +434,37 @@ function flares() {
  * is too dear to spend on an empty spot.
  */
 function burn(t) {
-  if (state.bnext >= state.burners.length || frame - state.lastBurn < burnGap) return;
-  if (!t && !(state.last && state.last.id === state.tid && Math.hypot(state.last.vx, state.last.vy) < stillSpeed)) return;
+  if (state.bnext < state.burners.length && frame - state.lastBurn >= burnGap) {
+    const msg = burnerMsg(t);
+    if (msg) {
+      const b = state.burners[state.bnext++];
+      state.lastBurn = frame;
+      if (get('ug' + b.n, 'armed') > 0) {
+        send('u' + b.n, msg);
+        set('ug' + b.n, 'fire', 1);
+      }
+    }
+  }
+  // The burner bays (titans round 5): each lets its burner go as soon as it is built and there is a target.
+  for (const tag of state.cbays) {
+    if (!(get(tag, 'ready') > 0)) continue;
+    const msg = burnerMsg(t);
+    if (!msg) return;
+    send(tag + get(tag, 'built'), msg);
+    set(tag, 'release', 1);
+    return;
+  }
+}
+
+/** What a burner is told: the dart's message with the way in and its slot, or null (nothing sure to burn yet). */
+function burnerMsg(t) {
+  if (!t && !(state.last && state.last.id === state.tid && Math.hypot(state.last.vx, state.last.vy) < stillSpeed)) return null;
   const id = t ? t.id : state.last.id;
-  if (!(state.app && state.app.tid === id) && frame < burnWait && t) return;
+  if (!(state.app && state.app.tid === id) && frame < burnWait && t) return null;
   const msg = message(t);
   if (!msg || msg.blind) {
     if (msg) state.shots--;
-    return;
+    return null;
   }
   const a = state.app;
   const w = a && a.tid === id ? (msg.beams > 0 ? a.safe : a) : null;
@@ -448,12 +475,8 @@ function burn(t) {
     delete msg.ax;
     delete msg.ay;
   }
-  const b = state.burners[state.bnext];
-  msg.slot = state.bnext++;
-  state.lastBurn = frame;
-  if (!(get('ug' + b.n, 'armed') > 0)) return;
-  send('u' + b.n, msg);
-  set('ug' + b.n, 'fire', 1);
+  msg.slot = state.slot++ % 9;
+  return msg;
 }
 
 // Cast every anchor that holds no rope: its `fire` goes to 0 on one tick and to 1 on the next (a cast needs a rise).
@@ -471,7 +494,7 @@ function castAnchors() {
 function tick() {
   castAnchors();
   flares();
-  if (state.grips.length === 0 && state.bays.length === 0 && state.burners.length === 0) return;
+  if (state.grips.length === 0 && state.bays.length === 0 && state.burners.length === 0 && state.cbays.length === 0) return;
   // The target, looked for every tick so its last place and its death are known when a dart goes.
   const t = pick();
   if (t) {

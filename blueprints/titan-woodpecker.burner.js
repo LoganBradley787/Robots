@@ -18,7 +18,7 @@
 //   into the tunnel, and then drops with everything off and its script asleep.
 const standoff = param('standoff', 210, { min: 20, max: 290 }); // m from the target's core to the station
 const rise = param('rise', 0.9, { min: 0, max: 1.57 }); // rad up from level: the way in toward a compact target, on our side
-const spacing = param('spacing', 4, { min: 1, max: 30 }); // m between two burners' stations
+const spacing = param('spacing', 8, { min: 1, max: 30 }); // m between two burners' stations
 const vmax = param('vmax', 100, { min: 5, max: 200 }); // m/s at most toward the station
 const kpos = param('kpos', 0.6, { min: 0.01, max: 10 }); // 1/s: speed asked per m still to go, close in
 const brake = param('brake', 8, { min: 0.5, max: 30 }); // m/s^2 it plans to slow down at: the speed asked is at most what stops it at the station
@@ -35,11 +35,19 @@ const reach = param('reach', 296, { min: 10, max: 300 }); // m: the beam's reach
 const wary = param('wary', 235, { min: 0, max: 1000 }); // m from a target with lasers inside which it creeps
 const creep = param('creep', 9, { min: 1, max: 100 }); // m/s it closes at, at most, there (a sled's point defense burns what closes faster than 15)
 const wise = param('wise', 1.1, { min: 0, max: 1.57 }); // rad up from level on our side: the way in to a target with lasers
+const keepOff = param('keepOff', 130, { min: 0, max: 500 }); // m: it keeps this far from other enemy robots (guns reach 100)
+const awayK = param('awayK', 0.5, { min: 0, max: 10 }); // m/s asked away from one per m it is too near
+const dartSpeed = param('dartSpeed', 45, { min: 1, max: 1000 }); // m/s: an enemy faster than this is a dart, not kept away from
+const clear = param('clear', 170, { min: 0, max: 290 }); // m from the target's core it keeps on the way to its station
+const roundStep = param('roundStep', 0.5, { min: 0.05, max: 3 }); // rad round the target to the next point on the way
+const deep = param('deep', 75, { min: 1, max: 300 }); // m from the core: the beam burns what it meets only this near it
+const blockFor = param('blockFor', 1.5, { min: 0.05, max: 10 }); // s of a blocked line before it takes another way in
+const turns = [0, 0.3, -0.3, 0.6, -0.6]; // rad: the ways in it tries in turn
 const reserve = param('reserve', 900, { min: 0, max: 10000 }); // J kept to fly off the line once spent
 const life = param('life', 90, { min: 5, max: 600 }); // s after which it gives up
 const every = param('every', 3, { min: 1, max: 60 }); // ticks between two looks through the radio
 const climb = param('climb', 16, { min: 0, max: 100 }); // m straight up off the rack: clear of the keep (13 m tall) before it turns
-const debug = param('debug', 1, { min: 0, max: 1 });
+const debug = param('debug', 0, { min: 0, max: 1 }); // 1 logs the burner's flight and aim once a second
 
 const SIGHT_ENEMY = 3;
 const SIGHT_NONE = 4;
@@ -61,6 +69,8 @@ function setup() {
   state.spent = false;
   state.off = null;
   state.want = null;
+  state.blocked = 0;
+  state.turn = 0;
   state.force = 0;
   for (const p of parts) if (p.type === 'booster') state.force += p.spec.config.maxForce;
   state.rate = 2;
@@ -70,14 +80,29 @@ function setup() {
 
 // The robot to follow among what the radio shares: the one it was sent at while alive, else the heaviest enemy with a
 // live core of 30 kg or more.
+// While it looks, it also notes the other enemy robots near it that are not flying like darts (gun panels,
+// gunships): it keeps out of their guns' reach (`state.away`, a push away from them).
 function sighting(id) {
   let main = null;
   let mine = null;
+  let ax = 0;
+  let ay = 0;
+  const px = self.pos.x;
+  const py = self.pos.y;
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.id === id) mine = c;
     if (c.mass >= 30 && (!main || c.mass > main.mass)) main = c;
+    if (c.id === id || c.mass < 3 || Math.hypot(c.vel.x, c.vel.y) > dartSpeed) continue;
+    const rx = px - c.pos.x;
+    const ry = py - c.pos.y;
+    const d = Math.hypot(rx, ry) || 1;
+    if (d < keepOff) {
+      ax += (rx / d) * (keepOff - d);
+      ay += (ry / d) * (keepOff - d);
+    }
   }
+  state.away = { x: ax, y: ay };
   return mine || main;
 }
 
@@ -140,6 +165,16 @@ function tick() {
     ux = (state.side ?? (state.side = self.pos.x < tx ? -1 : 1)) * Math.cos(rise);
     uy = Math.sin(rise);
   }
+  // Another way in after the beam kept meeting something far out from the core (a sled's mast): turned by
+  // `turns[state.turn]` from the first one.
+  const tk = turns[state.turn % turns.length];
+  if (tk !== 0) {
+    const c = Math.cos(tk);
+    const sn = Math.sin(tk);
+    const nx = ux * c - uy * sn;
+    uy = ux * sn + uy * c;
+    ux = nx;
+  }
   if (uy < 0.2) {
     // Never from under it or level with it along the ground: from a little above.
     uy = 0.2;
@@ -154,7 +189,11 @@ function tick() {
   // defense counts as coming at it.
   // Planned as a braking curve, so it is down to `creep` by the time it is `wary` m from the target.
   const slow = t.beams > 0 ? Math.sqrt(creep * creep + 2 * brake * Math.max(0, Math.hypot(tx - self.pos.x, ty - self.pos.y) - wary)) : Infinity;
-  hover(sx, sy, t.vx, t.vy, up, slow);
+  // Away from other enemy robots near it (their guns), on top of following the station; round the target, never
+  // past it (flying by a flier's keep on the way to a station over it, burners met its gun panels).
+  const aw = state.away || { x: 0, y: 0 };
+  const w = round(tx, ty, sx, sy);
+  hover(w.x, w.y, t.vx + awayK * aw.x, t.vy + awayK * aw.y, up, slow, w.left);
   state.near = Math.hypot(sx - self.pos.x, sy - self.pos.y) < onStation;
   if (up) {
     // Off the rack: the laser hangs straight down until it is clear of the base (turned, it caught on the keep).
@@ -166,8 +205,31 @@ function tick() {
   aim(las, tx, ty);
 }
 
+/**
+ * Where to fly next: the station, unless the straight way there passes within `clear` m of the target's core. Then a
+ * point a step round the target, on a circle at least `clear` m out, the short way unless that way runs under it.
+ * `left` is about how far there is still to go, for the braking curve.
+ */
+function round(tx, ty, sx, sy) {
+  const bx = self.pos.x;
+  const by = self.pos.y;
+  const dx = sx - bx;
+  const dy = sy - by;
+  const l2 = dx * dx + dy * dy || 1;
+  const u = clamp(((tx - bx) * dx + (ty - by) * dy) / l2, 0, 1);
+  if (Math.hypot(bx + u * dx - tx, by + u * dy - ty) >= clear) return { x: sx, y: sy, left: Math.sqrt(l2) };
+  const pb = Math.atan2(by - ty, bx - tx);
+  const ps = Math.atan2(sy - ty, sx - tx);
+  let d = wrap(ps - pb);
+  const under = wrap(-Math.PI / 2 - pb);
+  if (Math.sign(under) === Math.sign(d) && Math.abs(under) < Math.abs(d)) d = d > 0 ? d - 2 * Math.PI : d + 2 * Math.PI;
+  const step = sign(d) * Math.min(Math.abs(d), roundStep);
+  const r = Math.max(clear + 20, Math.min(Math.hypot(bx - tx, by - ty), standoff));
+  return { x: tx + r * Math.cos(pb + step), y: ty + r * Math.sin(pb + step), left: Math.abs(d) * r + standoff * 0.2 };
+}
+
 /** Steer toward (x, y), moving with (vx, vy): lean toward where it must go, thrust enough to hold its height. */
-function hover(x, y, vx, vy, up, slow) {
+function hover(x, y, vx, vy, up, slow, left) {
   const px = self.pos.x;
   const py = self.pos.y;
   let ax;
@@ -179,7 +241,8 @@ function hover(x, y, vx, vy, up, slow) {
     const ex = x - px;
     const ey = y - py;
     const d = Math.hypot(ex, ey) || 1;
-    const sp = Math.min(vmax, kpos * d, Math.sqrt(2 * brake * d), slow ?? Infinity);
+    const go = Math.max(d, left ?? 0);
+    const sp = Math.min(vmax, kpos * go, Math.sqrt(2 * brake * go), slow ?? Infinity);
     ax = kvel * (vx + (ex / d) * sp - self.vel.x);
     ay = kvel * (vy + (ey / d) * sp - self.vel.y);
     const a = Math.hypot(ax, ay);
@@ -220,11 +283,22 @@ function aim(las, tx, ty) {
   const dist = Math.hypot(dx, dy);
   const side = las.out.sightSide;
   const sight = las.out.sight;
-  const wreck = side === SIGHT_NONE && sight > 3 && sight < dist + 2;
+  // A wreck lying in the tunnel near the core burns too; one far out does not, nor does an enemy part far out from
+  // the core (a sled's mast): that line is blocked, and after `blockFor` s of it the burner takes another way in.
+  const deepEnough = sight > dist - deep;
+  const wreck = side === SIGHT_NONE && sight > 3 && sight < dist + 2 && deepEnough;
+  // Not against a target with lasers: moving off its safe side, burners closed on it fast and were burnt.
+  if (state.near && !(state.t.beams > 0) && (side === SIGHT_ENEMY || side === SIGHT_NONE) && !deepEnough && Math.abs(err) < tol && dist <= reach + 40) {
+    state.blocked += dt;
+    if (state.blocked > blockFor) {
+      state.turn++;
+      state.blocked = 0;
+    }
+  }
   // Only from its station, or while the line holds still: a beam swept across armor while flying in warmed many
   // plates and broke few (six burners took 25 parts off a fortress).
   const steady = state.near || Math.abs(moving) < still;
-  const fire = steady && dist <= reach + 40 && sight <= reach && Math.abs(err) < tol && (side === SIGHT_ENEMY || wreck) ? 1 : 0;
+  const fire = steady && dist <= reach + 40 && sight <= reach && Math.abs(err) < tol && ((side === SIGHT_ENEMY && (deepEnough || state.turn >= turns.length || state.t.beams > 0)) || wreck) ? 1 : 0;
   set('laser', 'fire', fire);
   if (debug) {
     state.fires = (state.fires || 0) + fire;
