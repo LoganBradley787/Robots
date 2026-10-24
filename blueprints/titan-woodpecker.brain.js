@@ -232,12 +232,15 @@ function lasers(t) {
     if (!ps) return;
     state.beamsFor = t.id;
     state.beamN = ps.length;
+    // Where they are from its core (titans round 5): the burners burn the ones they can see first.
+    state.lz = ps.slice(0, 4).map((p) => [Math.round(p.pos.x - t.pos.x), Math.round(p.pos.y - t.pos.y)]);
     if (debug) log('lasers', t.id, ps.length);
   }
   // Its guns too (titans round 5), where they are from its core, if there are few enough to burn one by one: a
   // fortress's turrets shoot a burner hovering 200 m off (their shells fly 300 m), and a gun is 25 health, a tenth of
   // a second of beam. Looked at again every `gunEvery` ticks (they break, turrets turn).
   if (state.gunsFor === t.id && frame - state.gunsAt < gunEvery) return;
+  if (state.gunsFor === t.id) state.beamsFor = -1; // the lasers are looked at again next tick (turrets turn)
   const gs = look(t.id, { of: ['gun'] });
   if (!gs) return;
   state.gunsFor = t.id;
@@ -505,6 +508,7 @@ function burnerMsg(t) {
   }
   msg.slot = state.slot++ % 9;
   if (state.gunsFor === id && state.guns.length > 0) msg.guns = state.guns;
+  if (state.beamsFor === id && state.lz && state.lz.length > 0) msg.lz = state.lz;
   return msg;
 }
 

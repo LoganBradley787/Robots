@@ -34,6 +34,7 @@ const still = param('still', 0.06, { min: 0.001, max: 1 }); // rad/s: or anywher
 const reach = param('reach', 296, { min: 10, max: 300 }); // m: the beam's reach, from the barrel
 const wary = param('wary', 235, { min: 0, max: 1000 }); // m from a target with lasers inside which it creeps
 const creep = param('creep', 9, { min: 1, max: 100 }); // m/s it closes at, at most, there (a sled's point defense burns what closes faster than 15)
+const wiseOff = param('wiseOff', 282, { min: 20, max: 295 }); // m from the core of a target with lasers to the station
 const wise = param('wise', 1.1, { min: 0, max: 1.57 }); // rad up from level on our side: the way in to a target with lasers
 const keepOff = param('keepOff', 130, { min: 0, max: 500 }); // m: it keeps this far from other enemy robots (guns reach 100)
 const awayK = param('awayK', 0.5, { min: 0, max: 10 }); // m/s asked away from one per m it is too near
@@ -52,6 +53,8 @@ const sweep = param('sweep', 1.25, { min: 0, max: 1.5 }); // rad either side of 
 const sweepRate = param('sweepRate', 1.2, { min: 0.1, max: 10 }); // rad/s of the feeler's swing phase
 const gunBurn = param('gunBurn', 0.25, { min: 0, max: 5 }); // s of beam on each of the target's guns (25 health: a tenth of that)
 const gunTry = param('gunTry', 0.4, { min: 0, max: 30 }); // s it tries for a gun before it lets it be
+const laserBurn = param('laserBurn', 1, { min: 0, max: 10 }); // s of beam on each of the target's lasers
+const laserTry = param('laserTry', 3, { min: 0, max: 30 }); // s it tries for a laser before it lets it be
 const gunNear = param('gunNear', 4, { min: 0.5, max: 50 }); // m: the sight must meet the target this near the gun's point
 const clear = param('clear', 170, { min: 0, max: 290 }); // m from the target's core it keeps on the way to its station
 const roundStep = param('roundStep', 0.5, { min: 0.05, max: 3 }); // rad round the target to the next point on the way
@@ -91,7 +94,10 @@ function setup() {
   state.found = -1000;
   state.force = 0;
   // The target's guns, from its core (titans round 5): burnt first, one after another, nearest first.
-  state.guns = state.t && Array.isArray(state.t.guns) ? state.t.guns.map((g) => ({ x: g[0], y: g[1], fired: 0, tried: 0 })) : [];
+  state.guns = state.t && Array.isArray(state.t.guns) ? state.t.guns.map((g) => ({ x: g[0], y: g[1], fired: 0, tried: 0, need: gunBurn, try: gunTry })) : [];
+  // Its lasers first of all (a sled's front turret ends our base from 300 m): plated over and under, so longer on
+  // each (a plate in front is 250 health).
+  if (state.t && Array.isArray(state.t.lz)) for (const g of state.t.lz) state.guns.unshift({ x: g[0], y: g[1], fired: 0, tried: 0, need: laserBurn, try: laserTry });
   for (const p of parts) if (p.type === 'booster') state.force += p.spec.config.maxForce;
   state.rate = 2;
   for (const p of parts) if (p.type === 'rotator' || p.type === 'heavyrotator') state.rate = p.spec.config.turnSpeed;
@@ -244,8 +250,11 @@ function tick() {
   }
   const k = t.slot ?? 0;
   const side = (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * spacing;
-  const sx = tx + ux * standoff - uy * side;
-  const sy = ty + uy * standoff + ux * side;
+  // Further out from a target with lasers (titans round 5): a sled's mast stands in the way on our side, and the
+  // beam that cuts it brings its top down across the burners waiting nearer in.
+  const out = t.beams > 0 ? wiseOff : standoff;
+  const sx = tx + ux * out - uy * side;
+  const sy = ty + uy * out + ux * side;
   const up = self.pos.y - state.y0 < climb && time - state.born < 3;
   // A target with lasers (the base's message says): inside `wary` m it creeps in, closing slower than its point
   // defense counts as coming at it.
@@ -279,9 +288,10 @@ function nextGun(las, tx, ty) {
   let best = null;
   let bd = Infinity;
   for (const g of state.guns) {
-    if (g.fired >= gunBurn || g.tried >= gunTry) continue;
-    const d = Math.hypot(tx + g.x - las.pos.x, ty + g.y - las.pos.y);
-    if (d < bd && d < reach) {
+    if (g.fired >= g.need || g.tried >= g.try) continue;
+    const r = Math.hypot(tx + g.x - las.pos.x, ty + g.y - las.pos.y);
+    const d = r - (g.need > gunBurn ? 1000 : 0);
+    if (d < bd && r < reach) {
       bd = d;
       best = g;
     }
