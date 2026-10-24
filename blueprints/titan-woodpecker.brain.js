@@ -21,6 +21,11 @@
 //   dart flies over one that is about to leave, and one flare cannot take the whole rack.
 // - Anchors: grapples in the floor, cast at the ground once the base rests. Each rope holds the base where it stands
 //   against a push toward the arena's edge. One that lost its rope is cast again.
+// - Burners (titans round 5, 2026-10): six on the rack beside the keep go first, once the target is seen and the
+//   probes have found the way in, then each burner bay's as it is built. A burner is told what a dart is, plus the way
+//   in (for a target with lasers, the thinnest on our side), its slot, and where the target's lasers and (8 or less)
+//   guns are from its core. The heaviest enemy ever seen is remembered until seen dead (90 s at most): hidden while
+//   something much lighter is in view, the burners are sent at its last place and hunt it from there.
 const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts leaving the rack
 const wave = param('wave', 8, { min: 1, max: 200 }); // rack darts in one wave
 const waveGap = param('waveGap', 150, { min: 1, max: 6000 }); // ticks between two waves of the rack (longer than a flare burns)
@@ -57,27 +62,46 @@ const keepHalf = param('keepHalf', 10, { min: 1, max: 100 }); // m to either sid
 const keepTall = param('keepTall', 13, { min: 1, max: 100 }); // m up or down from the main core that count as the keep
 const flareBurn = param('flareBurn', 2, { min: 0.1, max: 10 }); // s a flare burns: one burning covers what arrives before it is out
 const recast = param('recast', 120, { min: 10, max: 6000 }); // ticks between two tries for an anchor with no rope
+const burnGap = param('burnGap', 6, { min: 1, max: 600 }); // ticks between two burners leaving the rack
+const safeUp = param('safeUp', 1.35, { min: 0, max: 3.2 }); // rad: the way in to a target with lasers is no steeper than this, on our side
+const mainKeep = param('mainKeep', 90, { min: 0, max: 6000 }); // s a hidden main enemy is still sent burners after it was last seen
+const gunMax = param('gunMax', 8, { min: 0, max: 100 }); // a target with more guns than this has them left alone by the burners (a fortress's few turrets are worth a burner's first second; a flier's dozen cost it the kill)
+const gunEvery = param('gunEvery', 300, { min: 30, max: 6000 }); // ticks between two looks at the target's guns
+const burnWait = param('burnWait', 90, { min: 0, max: 6000 }); // ticks the burners wait for the probes' way in, at most
 
 function setup() {
   state.mirrorX = -self.pos.x;
   state.grips = [];
   state.bays = [];
   state.flares = [];
+  state.burners = [];
+  state.guns = [];
+  state.gunsFor = -1;
+  state.gunsAt = -100000;
+  state.cbays = [];
+  state.slot = 0;
   for (const p of parts) {
     if (p.type === 'decoupler') {
       const tag = p.tags.find((t) => /^g\d+$/.test(t));
       if (tag) state.grips.push({ n: Number(tag.slice(1)), x: p.pos.x });
+      const ub = p.tags.find((t) => /^ug\d+$/.test(t));
+      if (ub) state.burners.push({ n: Number(ub.slice(2)), x: p.pos.x });
     } else if (p.type === 'flare') {
       const tag = p.tags.find((t) => /^f\d+$/.test(t));
       if (tag) state.flares.push({ n: Number(tag.slice(1)), x: p.pos.x, y: p.pos.y });
     } else if (p.type === 'fabbay') {
       const tag = p.tags.find((t) => /^b\d+x$/.test(t));
       if (tag) state.bays.push(tag);
+      const ct = p.tags.find((t) => /^c\d+x$/.test(t));
+      if (ct) state.cbays.push(ct);
     }
   }
   // Nearest the enemy first.
   const toward = state.mirrorX;
   state.grips.sort((a, b) => Math.abs(a.x - toward) - Math.abs(b.x - toward) || a.n - b.n);
+  state.burners.sort((a, b) => Math.abs(a.x - toward) - Math.abs(b.x - toward) || a.n - b.n);
+  state.bnext = 0;
+  state.lastBurn = -1000;
   state.next = 0;
   state.lastFire = -1000;
   state.lastBay = -1000;
@@ -113,9 +137,14 @@ function pick() {
   let gone = false;
   let small = null; // the heaviest light enemy that is not flying like a dart (a gunship, a pod)
   let keptSmall = null;
+  const m = state.main;
   for (const c of contacts) {
     if (c.id === state.tid && (c.side !== 'enemy' || !c.core)) gone = true;
+    if (m && c.id === m.id && (c.side !== 'enemy' || !c.core)) state.main = null;
     if (c.side !== 'enemy' || !c.core) continue;
+    // The main enemy for the burners (titans round 5): the heaviest enemy with a live core ever seen, kept, with its
+    // last place and speed, until it is seen dead or one heavier shows up, however long it hides.
+    if (c.mass >= minMass && (!state.main || c.id === state.main.id || c.mass > state.main.mass)) state.main = { id: c.id, x: c.pos.x, y: c.pos.y, vx: c.vel.x, vy: c.vel.y, mass: c.mass, at: time };
     if (c.mass < minMass) {
       if (!state.known[c.id]) launched(c);
       if (c.mass >= smallMass && Math.hypot(c.vel.x, c.vel.y) < smallSpeed) {
@@ -197,6 +226,33 @@ function look(id, opts) {
   return opts ? scan(id, opts) : scan(id);
 }
 
+/**
+ * Whether the target carries lasers (titans round 5, 2026-10), looked up once a target: a beam burns a light flier
+ * coming at it within its reach in a fraction of a second (a sled's point defense took every burner as it closed), so
+ * the burners creep in on one that has them.
+ */
+function lasers(t) {
+  if (state.beamsFor !== t.id) {
+    const ps = look(t.id, { of: ['laser'] });
+    if (!ps) return;
+    state.beamsFor = t.id;
+    state.beamN = ps.length;
+    // Where they are from its core (titans round 5): the burners burn the ones they can see first.
+    state.lz = ps.slice(0, 4).map((p) => [Math.round(p.pos.x - t.pos.x), Math.round(p.pos.y - t.pos.y)]);
+    if (debug) log('lasers', t.id, ps.length);
+  }
+  // Its guns too (titans round 5), where they are from its core, if there are few enough to burn one by one: a
+  // fortress's turrets shoot a burner hovering 200 m off (their shells fly 300 m), and a gun is 25 health, a tenth of
+  // a second of beam. Looked at again every `gunEvery` ticks (they break, turrets turn).
+  if (state.gunsFor === t.id && frame - state.gunsAt < gunEvery) return;
+  if (state.gunsFor === t.id) state.beamsFor = -1; // the lasers are looked at again next tick (turrets turn)
+  const gs = look(t.id, { of: ['gun'] });
+  if (!gs) return;
+  state.gunsFor = t.id;
+  state.gunsAt = frame;
+  state.guns = gs.length > 0 && gs.length <= gunMax ? gs.map((p) => [Math.round(p.pos.x - t.pos.x), Math.round(p.pos.y - t.pos.y)]) : [];
+}
+
 function measure(t) {
   if (frame - state.boxAt < rescan) return;
   if (t.parts > huge && frame === state.scanFrame && state.scans > 0) return; // the four extremes need four scans
@@ -228,11 +284,11 @@ function measure(t) {
 function probe(t) {
   const pr = state.probe;
   if (!pr || pr.tid !== t.id) {
-    state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [] };
+    state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [], safe: null, safeCover: Infinity };
     return;
   }
   if (pr.i >= pr.list.length) {
-    if (frame - pr.at >= rescan) state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [] };
+    if (frame - pr.at >= rescan) state.probe = { tid: t.id, at: frame, i: 0, list: probeList(t), best: null, bestScore: Infinity, covers: [], safe: null, safeCover: Infinity };
     return;
   }
   for (let k = 0; k < 2 && pr.i < pr.list.length; k++) {
@@ -253,9 +309,15 @@ function probe(t) {
       pr.bestScore = score;
       pr.best = { ax, ay, cover: one[0].cover };
     }
+    // The thinnest on our side and not steep (titans round 5): a target with lasers is burnt from there, where its
+    // turrets facing us aim at the base and those facing away cannot swing round.
+    if (e <= safeUp && one[0].cover < pr.safeCover) {
+      pr.safeCover = one[0].cover;
+      pr.safe = { ax, ay, cover: one[0].cover };
+    }
   }
   if (pr.i >= pr.list.length && pr.best) {
-    state.app = { ...pr.best, tid: t.id };
+    state.app = { ...pr.best, tid: t.id, safe: pr.safe };
     if (debug) log('probe', t.id, 'way in', Math.round((Math.atan2(pr.best.ay, pr.best.ax) * 180) / Math.PI), 'cover', Math.round(pr.best.cover), 'all', pr.covers.join(' '));
   }
 }
@@ -276,7 +338,7 @@ function message(t) {
     const b = state.box;
     // Wider than tall: thin from above, so the darts come down on it.
     const top = b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0;
-    const msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, l: b.l, r: b.r, d: b.d, u: b.u, top };
+    const msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, l: b.l, r: b.r, d: b.d, u: b.u, top, mass: t.mass, beams: state.beamsFor === t.id ? state.beamN : 0 };
     const a = state.app;
     // Only for a robot worth going around (armor on every line) that keeps still: a small or moving one is hit
     // straight, and the bend only made darts miss it (a gun drone lasted 56 s, not 11).
@@ -291,7 +353,7 @@ function message(t) {
     // Hidden but standing still: its last place, its size, and the way in, as if seen; the darts follow it by its id
     // the moment the radio or their own seeker sees it again.
     const b = state.box;
-    const msg = { x: s.x, y: s.y, vx: 0, vy: 0, id: s.id, l: b.l, r: b.r, d: b.d, u: b.u, top: b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0 };
+    const msg = { x: s.x, y: s.y, vx: 0, vy: 0, id: s.id, l: b.l, r: b.r, d: b.d, u: b.u, top: b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0, mass: s.mass };
     const a = state.app;
     if (useApp > 0.5 && a && a.tid === s.id && a.cover >= appCover) {
       msg.ax = a.ax;
@@ -394,6 +456,67 @@ function flares() {
   state.flareAt = time;
 }
 
+/**
+ * The burners (titans round 5, 2026-10): each one goes once the target is seen and the probes have found the way in
+ * (or after `burnWait` ticks), `burnGap` ticks apart, told the target as a dart is, the way in whatever its cover
+ * (a beam from any side burns a straight tunnel), and its slot beside the others. Never at a blind guess: a burner
+ * is too dear to spend on an empty spot.
+ */
+function burn(t) {
+  if (state.bnext < state.burners.length && frame - state.lastBurn >= burnGap) {
+    const msg = burnerMsg(t);
+    if (msg) {
+      const b = state.burners[state.bnext++];
+      state.lastBurn = frame;
+      if (get('ug' + b.n, 'armed') > 0) {
+        send('u' + b.n, msg);
+        set('ug' + b.n, 'fire', 1);
+      }
+    }
+  }
+  // The burner bays (titans round 5): each lets its burner go as soon as it is built and there is a target.
+  for (const tag of state.cbays) {
+    if (!(get(tag, 'ready') > 0)) continue;
+    const msg = burnerMsg(t);
+    if (!msg) return;
+    send(tag + get(tag, 'built'), msg);
+    set(tag, 'release', 1);
+    return;
+  }
+}
+
+/** What a burner is told: the dart's message with the way in and its slot, or null (nothing sure to burn yet). */
+function burnerMsg(t) {
+  if (!t && !state.main && !(state.last && state.last.id === state.tid && Math.hypot(state.last.vx, state.last.vy) < stillSpeed)) return null;
+  const id = t ? t.id : state.last ? state.last.id : -1;
+  if (!(state.app && state.app.tid === id) && frame < burnWait && t) return null;
+  // The main enemy hiding while something much lighter is the target (a split titan's king off in its bubble while
+  // its gunships fly about): the burners go at the main one's last place and hunt it from there.
+  const m = state.main;
+  if (m && time - m.at < mainKeep && (t ? t.id !== m.id && m.mass > 2 * t.mass : !(state.last && state.last.id === m.id))) {
+    state.shots++;
+    return { x: m.x, y: m.y, vx: m.vx, vy: m.vy, id: m.id, l: 30, r: 30, d: 30, u: 30, top: 0, mass: m.mass, beams: 0, slot: state.slot++ % 9 };
+  }
+  const msg = message(t);
+  if (!msg || msg.blind) {
+    if (msg) state.shots--;
+    return null;
+  }
+  const a = state.app;
+  const w = a && a.tid === id ? (msg.beams > 0 ? a.safe : a) : null;
+  if (w) {
+    msg.ax = w.ax;
+    msg.ay = w.ay;
+  } else {
+    delete msg.ax;
+    delete msg.ay;
+  }
+  msg.slot = state.slot++ % 9;
+  if (state.gunsFor === id && state.guns.length > 0) msg.guns = state.guns;
+  if (state.beamsFor === id && state.lz && state.lz.length > 0) msg.lz = state.lz;
+  return msg;
+}
+
 // Cast every anchor that holds no rope: its `fire` goes to 0 on one tick and to 1 on the next (a cast needs a rise).
 function castAnchors() {
   if (anchors < 1 || frame < anchorAt) return;
@@ -409,7 +532,7 @@ function castAnchors() {
 function tick() {
   castAnchors();
   flares();
-  if (state.grips.length === 0 && state.bays.length === 0) return;
+  if (state.grips.length === 0 && state.bays.length === 0 && state.burners.length === 0 && state.cbays.length === 0) return;
   // The target, looked for every tick so its last place and its death are known when a dart goes.
   const t = pick();
   if (t) {
@@ -420,6 +543,7 @@ function tick() {
     state.last = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, at: time, d: t.distance, id: t.id, small: t.mass < minMass, mass: t.mass };
   }
   if (t) measure(t);
+  if (t) lasers(t);
   if (debug && frame % 300 === 0) {
     let ready = 0;
     for (const tag of state.bays) if (get(tag, 'ready') > 0) ready++;
@@ -428,11 +552,13 @@ function tick() {
   fire(t);
   // Probes only for a target that keeps still: the way in is used for no other, and each probe looks over the whole
   // robot (a titan of thousands of parts).
-  if (t && useApp > 0.5 && Math.hypot(t.vel.x, t.vel.y) < appSpeed) probe(t);
+  // Titans round 5: also for a moving one while burners are still to go, since a burner stations itself on the way in.
+  if (t && useApp > 0.5 && (Math.hypot(t.vel.x, t.vel.y) < appSpeed || state.bnext < state.burners.length)) probe(t);
 }
 
-// The rack and the bays.
+// The burners, the rack and the bays.
 function fire(t) {
+  burn(t);
   // The rack.
   // In waves (titans v2, 2026-10): `wave` darts, then `waveGap` ticks of rest. The whole rack in one stream arrived
   // within 2 s, so a single flare (it burns 2 s) took every dart of it; waves further apart than a flare burns make a
