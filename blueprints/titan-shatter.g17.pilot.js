@@ -23,7 +23,7 @@ const flyDraw = param('flyDraw', 75, { min: 0, max: 1000 }); // W its flying tak
 const match = param('match', 240, { min: 10, max: 100000 }); // s a match lasts (only with an arena)
 const spare = param('spare', 3000, { min: 0, max: 100000 }); // energy kept over what flying to the end takes
 const keepOpen = param('keepOpen', 15000, { min: 0, max: 100000 }); // energy kept for flying in the open sandbox
-const speed = param('speed', 40, { min: 1, max: 80 }); // m/s, its fastest sideways
+const speed = param('speed', 50, { min: 1, max: 80 }); // m/s, its fastest sideways
 const lean = param('lean', 0.5, { min: 0.05, max: 1.2 }); // rad, its most lean
 const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered
@@ -44,6 +44,7 @@ const wide = param('wide', 420, { min: 50, max: 1000 }); // m: the search ring s
 const probe = param('probe', 2, { min: 0.2, max: 60 }); // s between looks for a cheaper line into the main enemy's core
 const step = param('step', 0.21, { min: 0.02, max: 1 }); // rad its bearing round the main enemy moves at most per look
 const probeParts = param('probeParts', 150, { min: 1, max: 100000 }); // parts: a main enemy this big is worth looking for a line into
+const bareCover = param('bareCover', 60, { min: 0, max: 10000 }); // points of parts in front of an enemy weapon, at most, for the beams to go at it first
 const G = 9.81;
 const LIFT = 120;
 const SWING = Math.PI / 2;
@@ -216,13 +217,19 @@ function lookAround() {
     // How many guns it carries, by a scan of its guns only (once a new main enemy is seen, then every `recount` s, and
     // only of a robot this gunship's own radar sees): a gun titan is fought from outside its guns' reach.
     if ((main.id !== root.id || time - state.countedAt > recount) && main.by && main.by.indexOf('radio') < 0) {
-      const g = scan(main.id, { of: ['gun'] });
+      const g = scan(main.id, { of: ['gun', 'laser'] });
       if (g) {
-        state.guns = g.length;
+        let n = 0;
+        for (const q of g) if (q.type === 'gun') n++;
+        state.guns = n;
+        state.lasers = g.length - n;
         state.countedAt = time;
       }
     }
-    if (main.id !== root.id && time - state.countedAt > 0.5) state.guns = 0;
+    if (main.id !== root.id && time - state.countedAt > 0.5) {
+      state.guns = 0;
+      state.lasers = 0;
+    }
     state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance, size: sizeOf(main), parts: main.parts || 0, own: !!main.by && main.by.indexOf('radio') < 0 };
     state.live = true;
     if (main.id !== root.id) state.hider = false;
@@ -244,6 +251,28 @@ function lookAround() {
 // square root of its part count, at most 12 m (a titan of 1400 parts: 9 m; a walker of 87: 2 m).
 function sizeOf(c) {
   return Math.min(12, 0.25 * Math.sqrt(c.parts || 1));
+}
+
+// The enemy weapon its beams should burn first: of the `most` lasers and guns of the main enemy nearest this gunship,
+// a laser with less than `bareCover` of its robot in front of it (seen from here), else the barest gun under that.
+// Kept as its offset from the enemy's core, which moves with the core until the next look.
+function pickWeapon(root) {
+  const w = scan(state.root.id, { of: ['laser', 'gun'], near: { x: self.pos.x, y: self.pos.y }, most: 8, from: { x: self.pos.x, y: self.pos.y } });
+  state.arm = null;
+  if (!w) return;
+  let best = null;
+  let bestKey = Infinity;
+  for (const q of w) {
+    if (q.cover === undefined || q.cover >= bareCover) continue;
+    const d = Math.hypot(q.pos.x - self.pos.x, q.pos.y - self.pos.y);
+    if (d > reach) continue;
+    const key = (q.type === 'laser' ? 0 : 10000) + q.cover * 10 + d;
+    if (key < bestKey) {
+      bestKey = key;
+      best = q;
+    }
+  }
+  if (best) state.arm = { id: state.root.id, dx: best.pos.x - root.x, dy: best.pos.y - root.y, t: time };
 }
 
 // A place on a ring of `ring` m round `c` at bearing `th` (counterclockwise from the right), kept inside the sky the
@@ -395,8 +424,16 @@ function tick() {
   // What the guns blast at: something small and close first, then the main robot's core, then whatever is nearest.
   let target = null;
   const near = state.near && time - state.near.t < 0.5 ? now(state.near) : null;
+  const rootIn = state.live && Math.hypot(root.x - self.pos.x, root.y - self.pos.y) < reach + 10;
+  // Disarming (round 5): against a main enemy with beams of its own, or `manyGuns` guns, the beams first burn the
+  // weapons that can reach this gunship: a laser in its sight (40 points, a fifteenth of a second) before any gun,
+  // a gun with nothing in front of it next. A titan's two beams burned the whole swarm in ten seconds while every
+  // beam went at its core.
+  if (rootIn && state.root.own && ((state.lasers || 0) > 0 || state.guns >= manyGuns) && f === (state.phase + 5) % look) pickWeapon(root);
+  const arm = state.arm && time - state.arm.t < 0.4 && state.arm.id === state.root.id ? state.arm : null;
   if (near && state.near.small) target = near;
-  else if (state.live && Math.hypot(root.x - self.pos.x, root.y - self.pos.y) < reach + 10) target = root;
+  else if (rootIn && arm) target = { x: root.x + arm.dx, y: root.y + arm.dy, vx: root.vx, vy: root.vy, size: 0 };
+  else if (rootIn) target = root;
   else if (near) target = near;
   turret('beamA', 'rotA', target);
   turret('beamB', 'rotB', target);

@@ -40,6 +40,8 @@ const seeker = param('seeker', 400, { min: 0, max: 1500 }); // m: a light enemy 
 const top = param('top', 236, { min: 20, max: 1000 }); // m it flies at with no arena (in a match: 57 to 60 under the ceiling: rams and blasts lifted it over from 14 and from 28)
 const edge = param('edge', 300, { min: 50, max: 900 }); // m it keeps inside the arena's side edges (round 5: 150, and rams threw it out)
 const dash = param('dash', 45, { min: 5, max: 80 }); // m/s while getting out of a ram's way (round 5: no darts to carry, it lifts three times its weight)
+const flock = param('flock', 6, { min: 1, max: 1000 }); // gunships of its own in view: a ram coming, it runs to the middle of them
+const roof = param('roof', 35, { min: 5, max: 200 }); // m under the match's ceiling past which it cuts its lift
 const G = 9.81;
 const LIFT = 120;
 
@@ -198,8 +200,16 @@ function tick() {
   let gone = false;
   const mem = state.root;
   const keepId = mem ? mem.id : state.foe ? state.foe.id : -1;
+  let fx = 0;
+  let fy = 0;
+  let fn = 0;
   for (const c of contacts) {
     if (c.id === keepId && (c.side !== 'enemy' || !c.core)) gone = true;
+    if (c.side === 'friend' && c.core && c.mass >= mainMass) {
+      fx += c.pos.x;
+      fy += c.pos.y;
+      fn++;
+    }
     if (c.side !== 'enemy' || !c.core) continue;
     // What could see it: a robot of `mainMass` or more within `far` (radars reach 1000 m), a lighter one (a dart with
     // a seeker) only within `seeker` m.
@@ -282,8 +292,21 @@ function tick() {
     // it goes back past the ram instead, at the other end of the sky from it.
     if (Math.abs(self.pos.x + away * 150) > edgeX) away = -away;
     state.dodge = { x: clamp(self.pos.x + away * 250, -edgeX, edgeX), y: big.pos.y > 120 ? 35 : hi };
+    // Round 5: with `flock` gunships or more of its own about, it runs to the middle of them instead, so whatever
+    // chases it flies into their beams (a ram that chased it away from them ground it down unburned).
+    if (fn >= flock) {
+      const cx = fx / fn;
+      const cy = fy / fn;
+      if (Math.hypot(cx - self.pos.x, cy - self.pos.y) > 60) state.dodge = { x: clamp(cx, -edgeX, edgeX), y: clamp(cy, 35, hi) };
+    }
   }
   const evading = time - state.evade < 8 && state.dodge;
   if (evading) place = state.dodge;
   fly(place.x, Math.max(place.y, 20), evading ? dash : 30, evading ? 0.6 : 0.35, evading ? 25 : 12);
+  // Round 5: pushed up near the match's ceiling (a ram's wreck still rising under it carried it to 265 m, past the
+  // bounds), it cuts all lift so it falls back as soon as it can.
+  if (arena && self.pos.y > arena.y - roof && self.vel.y > -2) {
+    set('lp', 'throttle', 0);
+    set('rp', 'throttle', 0);
+  }
 }
