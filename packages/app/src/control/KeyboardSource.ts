@@ -5,9 +5,10 @@ export type KeySource = 'keyboard' | 'mouse';
 
 /**
  * Turns key downs and ups (keyboard, keys bar buttons) into edges for the controlled robot, drained once per tick.
- * Rules from `11`: a robot you leave for another you drive keeps its held keys (nothing is sent to it); the robot you
- * switch to starts with nothing held, so a key already down only counts once pressed again. `releaseAll` (window blur,
- * leaving the world, and `follow` to only watch a robot) releases every held key on the controlled robot so nothing sticks.
+ * Rules from `11`: `follow` to another robot, one you drive or one you only watch, first releases every key held on
+ * the robot you leave, so it stops instead of driving off on its own (Logan, 2026-10-24); the robot you switch to starts
+ * with nothing held, so a key already down only counts once pressed again. `releaseAll` (window blur, leaving the world,
+ * `follow`) releases every held key on the controlled robot so nothing sticks.
  */
 export class KeyboardSource {
   private controlled: number | undefined;
@@ -18,7 +19,7 @@ export class KeyboardSource {
     return this.controlled;
   }
 
-  /** Switches control. Pending edges for the old robot still go out; its held keys stay held (latched). */
+  /** Switches control without releasing anything: pending edges for the old robot still go out, its held keys stay held. */
   setControlled(robot: number | undefined): void {
     if (robot === this.controlled) return;
     this.controlled = robot;
@@ -26,13 +27,13 @@ export class KeyboardSource {
   }
 
   /**
-   * Control moves to `robot` because you clicked or cycled to it; undefined when you only watch (an enemy, a core-less
-   * robot). Moving to another robot you drive latches the old one, keys held and all (Logan, `11`). Letting go to only
-   * watch releases the old one's held keys first, as leaving the world does, so it does not drive off unseen while you
-   * watch something else. The releases are ordinary edges: they reach the world, and its replay, on the next tick.
+   * Control moves to `robot` because you clicked, cycled or deployed it; undefined when you only watch (an enemy, a
+   * core-less robot). Either way the old robot's held keys are released first, as leaving the world does, so it does not
+   * drive off unseen (Logan, 2026-10-24: it used to keep them held when you moved to another robot of yours). The
+   * releases are ordinary edges: they reach the world, and its replay, on the next tick.
    */
   follow(robot: number | undefined): void {
-    if (robot === undefined) this.releaseAll();
+    if (robot !== this.controlled) this.releaseAll();
     this.setControlled(robot);
   }
 
