@@ -18,15 +18,19 @@
 const slot = param('slot', 0, { min: 0, max: 999 });
 const scout = param('scout', 0, { min: 0, max: 1 }); // 1: a light scout (no armor), which searches the outer part of the ring
 const look = param('look', 10, { min: 2, max: 60 }); // ticks between radar looks
-const reach = param('reach', 285, { min: 10, max: 300 }); // m, how far the guns blast
-const speed = param('speed', 30, { min: 1, max: 80 }); // m/s, its fastest sideways
+const reach = param('reach', 298, { min: 10, max: 300 }); // m, how far the beams burn (a laser reaches 300)
+const flyDraw = param('flyDraw', 75, { min: 0, max: 1000 }); // W its flying takes, about (seven propellers, gyro, radar, radio, rotators)
+const match = param('match', 240, { min: 10, max: 100000 }); // s a match lasts (only with an arena)
+const spare = param('spare', 3000, { min: 0, max: 100000 }); // energy kept over what flying to the end takes
+const keepOpen = param('keepOpen', 15000, { min: 0, max: 100000 }); // energy kept for flying in the open sandbox
+const speed = param('speed', 40, { min: 1, max: 80 }); // m/s, its fastest sideways
 const lean = param('lean', 0.5, { min: 0.05, max: 1.2 }); // rad, its most lean
 const mainMass = param('mainMass', 30, { min: 0, max: 100000 }); // kg: the main enemy is never lighter (darts, pods)
 const memory = param('memory', 15, { min: 0, max: 120 }); // s a main enemy that vanished alive is remembered
 const lostAt = param('lostAt', 900, { min: 50, max: 2000 }); // m: one that vanished further off went out of the radar's reach and is forgotten
 const room = param('room', 16, { min: 0, max: 60 }); // m it keeps from friends (two gunships that touch can lock together and fall)
 const manyGuns = param('manyGuns', 30, { min: 1, max: 10000 }); // guns: a main enemy with this many is fought from outside their reach
-const standoff = param('standoff', 320, { min: 50, max: 1000 }); // m: the ring round such a robot (guns blast about 290 m)
+const standoff = param('standoff', 270, { min: 50, max: 1000 }); // m: the ring round such a robot (its guns blast about 290 m, the beams burn 300; round 5: 320 was out of the beams' reach)
 const recount = param('recount', 15, { min: 1, max: 240 }); // s between counts of its guns
 const seek = param('seek', 105, { min: 20, max: 300 }); // m: ring round a main enemy that vanished alive (within 150 m its bubble is seen through)
 const fallback = param('fallback', 8, { min: 0, max: 120 }); // s with no main enemy before a lighter one will do
@@ -99,8 +103,8 @@ function fly(tx, ty, vmax, maxLean, vclimb, brake) {
   const ey = ty - self.pos.y;
   // The wanted speed falls off with the square root of the distance left, so it can stop in time at a gentle lean.
   // Far off its height it goes slower sideways: at speed a leaning body rides the air and will not sink.
-  const hard = brake || 2.5; // m/s2 it counts on to stop; a dash passes more
-  const vside = brake ? vmax : vmax * clamp(1 - (Math.abs(ey) - 15) / 60, 0.3, 1);
+  const hard = brake || 4; // m/s2 it counts on to stop (round 5: 2.5 was for the armored gunships; a battery gunship leans to 5.4)
+  const vside = brake ? vmax : vmax * clamp(1 - (Math.abs(ey) - 15) / 60, 0.7, 1); // round 5: 0.3, and the swarm crawled to the enemy at 11 m/s
   const vdx = Math.sign(ex) * Math.min(vside, 0.5 * Math.abs(ex), Math.sqrt(2 * hard * Math.abs(ex)));
   const vc = vclimb || 12;
   // Going down no faster than it can stop with the lift it has to spare (titans v2): an armored gunship has about
@@ -162,7 +166,7 @@ function setup() {
   state.ring = 150 + 40 * (k % 3);
   // Searching, it spreads all round the last place: its own bearing from the slot, 13 degrees apart.
   state.bearing = ((slot * 137.5) % 360) * (Math.PI / 180);
-  state.firing = { gunA: false, gunB: false };
+  state.firing = { beamA: false, beamB: false };
   state.guns = 0; // guns the main enemy carries, as last counted
   state.countedAt = -100;
 }
@@ -209,7 +213,7 @@ function lookAround() {
     // How many guns it carries, by a scan of its guns only (once a new main enemy is seen, then every `recount` s, and
     // only of a robot this gunship's own radar sees): a gun titan is fought from outside its guns' reach.
     if ((main.id !== root.id || time - state.countedAt > recount) && main.by && main.by.indexOf('radio') < 0) {
-      const g = scan(main.id, { of: ['gun'], most: 60 });
+      const g = scan(main.id, { of: ['gun'] });
       if (g) {
         state.guns = g.length;
         state.countedAt = time;
@@ -246,11 +250,18 @@ function now(r) {
   return { x: r.x + r.vx * k, y: r.y + r.vy * k, vx: age < 1 ? r.vx : 0, vy: age < 1 ? r.vy : 0, size: r.size || 0 };
 }
 
+// Energy kept for flying (round 5): a beam takes 2400 W, the propellers about 70. In a match it keeps what flying
+// to the end takes and `spare` more; in the open sandbox (no end) `keepOpen`.
+function canBurn() {
+  const keep = arena ? flyDraw * Math.max(0, match - time) + spare : keepOpen;
+  return self.energy.stored > keep;
+}
+
 function turret(gunTag, rotTag, target) {
-  // The gun's part object is refilled in place every tick: found again only when the parts change.
+  // The laser's part object is refilled in place every tick: found again only when the parts change.
   if (!state.gunParts || state.gunParts.n !== parts.length) {
     state.gunParts = { n: parts.length };
-    for (const p of parts) if (p.type === 'gun') state.gunParts[p.tags.indexOf('gunA') >= 0 ? 'gunA' : 'gunB'] = p;
+    for (const p of parts) if (p.type === 'laser') state.gunParts[p.tags.indexOf('beamA') >= 0 ? 'beamA' : 'beamB'] = p;
   }
   const gun = state.gunParts[gunTag];
   if (!gun) return;
@@ -258,52 +269,31 @@ function turret(gunTag, rotTag, target) {
   if (!target) {
     set(rotTag, 'turn', clamp(-3 * turned, -1, 1));
     set(gunTag, 'fire', 0);
+    state.firing[gunTag] = false;
     return;
   }
   const aim = gun.out.aim;
-  const px = target.x - gun.pos.x;
-  const py = target.y - gun.pos.y;
-  const rvx = target.vx - self.vel.x;
-  const rvy = target.vy - self.vel.y;
-  let t = Math.hypot(px, py) / 300;
-  let qx = px;
-  let qy = py;
-  for (let i = 0; i < 2; i++) {
-    qx = px + rvx * t;
-    qy = py + rvy * t;
-    t = Math.hypot(qx, qy) / 300;
-  }
+  // A beam has no flight time and no drop: it goes where the barrel points, so the aim is the target one tick on.
+  const qx = target.x + (target.vx - self.vel.x) * dt - gun.pos.x;
+  const qy = target.y + (target.vy - self.vel.y) * dt - gun.pos.y;
   const dist = Math.hypot(qx, qy);
-  const want = Math.atan2(qy + 0.5 * G * t * t, qx);
+  const want = Math.atan2(qy, qx);
   const rest = aim - turned * SWING;
-  if (dist > reach || Math.abs(wrap(want - rest)) > SWING - 0.03) {
+  if (dist > reach + (target.size || 0) || Math.abs(wrap(want - rest)) > SWING - 0.03) {
     set(rotTag, 'turn', clamp(-3 * turned, -1, 1));
     set(gunTag, 'fire', 0);
+    state.firing[gunTag] = false;
     return;
   }
   const err = wrap(want - aim);
   // The barrel turns with the body too: take the body's turn out, then close the gap.
   set(rotTag, 'turn', clamp((6 * err - self.angVel) / 2, -1, 1));
   const sight = gun.out.sightSide;
-  // On the aim point within 1.5 m, or within the target's size: any part of a big robot hit is damage done (titans
-  // v2; at 1.5 m the guns stayed quiet beside a titan most of the time). Twice that once blasting, so a barrel on the
-  // edge does not stutter. And whatever the aim, an enemy part on the gun's own sight line is worth a shell.
-  const tol = Math.max(0.012, Math.max(1.5, target.size || 0) / Math.max(dist, 1)) * (state.firing[gunTag] ? 2 : 1);
-  let ok = (Math.abs(err) < tol || (sight === 3 && Math.abs(err) < 0.2)) && sight !== 1 && sight !== 2;
-  if (ok) {
-    const ux = Math.cos(aim);
-    const uy = Math.sin(aim);
-    for (const f of state.friends) {
-      const fx = f.x - gun.pos.x;
-      const fy = f.y - gun.pos.y;
-      const along = fx * ux + fy * uy;
-      // The sight covers friends within 150 m; this is for the ones further out, nearer than the target.
-      if (along > 0 && along < dist && Math.abs(fx * uy - fy * ux) < 5) {
-        ok = false;
-        break;
-      }
-    }
-  }
+  // On the core's line within 2 m (twice that once burning, so a barrel on the edge does not stutter): a beam held on
+  // one line burns a tunnel to the core, one swept over a hull burns a little of everything. It burns only when the
+  // first thing on its line is an enemy's part within its reach (never its own robot, a friend, a wreck or air).
+  const tol = Math.max(0.006, 2 / Math.max(dist, 1)) * (state.firing[gunTag] ? 2 : 1);
+  const ok = Math.abs(err) < tol && sight === 3 && gun.out.sight < reach && canBurn();
   state.firing[gunTag] = ok;
   set(gunTag, 'fire', ok ? 1 : 0);
 }
@@ -336,9 +326,10 @@ function tick() {
   } else {
     // Its place: on a ring around the main robot, on its own side or the far side, well above it. Round one that
     // hides (it vanished once), the ring is tighter, inside the 150 m where its bubble is seen through.
-    // Round a robot with `manyGuns` guns or more it keeps just outside their reach (titans v2): in reach, 60 guns
-    // against 140 lost the whole swarm in 30 s. Out there it still draws their darts and eyes off the king.
-    const ring = state.guns >= manyGuns ? standoff + 0.5 * (state.ring - 150) : state.hider ? seek + 0.25 * (state.ring - 150) : state.ring;
+    // Round a robot with `manyGuns` guns or more it keeps at the edge of their reach (titans v2: in reach, 60 guns
+    // against 140 lost the whole swarm in 30 s; round 5: just inside the beams' 300 m, where those guns' shells
+    // spread over 7 m and a beam does not spread at all).
+    const ring = state.guns >= manyGuns ? standoff + 0.25 * (state.ring - 150) : state.hider ? seek + 0.25 * (state.ring - 150) : state.ring;
     const toward = state.home < root.x ? -1 : 1;
     const sideways = (state.side === 0 ? toward : -toward) * ring * Math.cos(state.elev);
     px = root.x + sideways;
@@ -361,7 +352,7 @@ function tick() {
   if (!state.body || state.body.n !== parts.length) measure();
   const spare = (state.body.m * G * 1.04) / Math.max(1, (state.body.na + state.body.nb) * LIFT);
   // Low, or far under where it should be, height comes first: barely leaning, it climbs on all it has.
-  const climb = self.pos.y < 25 || py - self.pos.y > 40;
+  const climb = self.pos.y < 25 || (py - self.pos.y > 40 && spare > 0.8); // round 5: with lift to spare it leans while it climbs
   fly(px, Math.max(py, 20), speed, Math.min(climb ? 0.12 : lean, Math.acos(clamp(spare, 0, 1))));
 
   // What the guns blast at: something small and close first, then the main robot's core, then whatever is nearest.
@@ -370,6 +361,6 @@ function tick() {
   if (near && state.near.small) target = near;
   else if (state.live && Math.hypot(root.x - self.pos.x, root.y - self.pos.y) < reach + 10) target = root;
   else if (near) target = near;
-  turret('gunA', 'rotA', target);
-  turret('gunB', 'rotB', target);
+  turret('beamA', 'rotA', target);
+  turret('beamB', 'rotB', target);
 }

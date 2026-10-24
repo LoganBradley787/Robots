@@ -23,14 +23,12 @@ const NAME = 'titan-shatter';
 
 const COLS = 3; // gunship columns under the king
 const ROWS = Number(process.env.SHATTER_ROWS ?? 10); // gunships per column (16 in round 1: too slow a tick against itself)
-const PAIRS = 8; // dart pairs on the deck (two darts each)
-const OFF = 3; // titans v2 (2026-10): three more propellers each side of the king's propeller row, so it lifts its darts
+const OFF = 3; // titans v2 (2026-10): three more propellers each side of the king's propeller row
 const W = 40 + 2 * OFF; // grid width; the king's deck is 40 wide, from OFF
-const SHIP_W = 11;
-const SCOUT_ROWS = 2; // gunship rows at the bottom built as light scouts
+const PITCH = 4; // rows a gunship takes: joint, roof, body, battery shelf (round 5)
 
 // ---- grid of cells: cells[y][x] = { part, rot, tags, auto } ----
-const H = 3 * ROWS + 12; // three rows a gunship (joint, roof, body), the king's four, and darts eight tall
+const H = PITCH * ROWS + 4; // the gunships, then the king's four rows
 const cells = Array.from({ length: H }, () => Array.from({ length: W }, () => null));
 const put = (x, y, part, rot = 0, tags = [], extra = {}) => {
   if (cells[y][x]) throw new Error(`cell ${x},${y} used twice`);
@@ -39,45 +37,47 @@ const put = (x, y, part, rot = 0, tags = [], extra = {}) => {
 const cores = {};
 
 // ---- gunships ----
-const yP = 3 * ROWS; // the king's propeller row
-const shipX = [3 + OFF, 14 + OFF, 26 + OFF]; // left edge of each column (the core sits 5 in: columns 8, 19, 31, plus OFF)
+// Round 5 (2026-10-24): lasers in place of guns, and a shelf of batteries in place of armor and darts. A gun's shell
+// does a tenth of its damage to armor (half a point a shell), so 60 guns never broke into a titan: every titan kept 95
+// to 100 percent of its parts against Shatter in round 4. A beam burns armor in full (600 a second), and the
+// cheapest line into most titans' cores is 1000 to 3000 points of parts: a few seconds of one beam. Beams are
+// thirsty (2400 W, a dense battery lasts 2.5 s of one), so every gunship carries eleven dense batteries.
+const yP = PITCH * ROWS; // the king's propeller row
+const shipX = [1 + OFF, 15 + OFF, 29 + OFF]; // each column's left laser mount (its barrel sticks out one more; the core sits 5 in)
 let slot = 0;
 for (let r = 0; r < ROWS; r++) {
   for (let c = 0; c < COLS; c++) {
     const x0 = shipX[c];
-    const yJoin = yP - 1 - 3 * r;
+    const yJoin = yP - 1 - PITCH * r;
     const yTop = yJoin - 1;
-    const yBody = yTop - 1;
-    // body row: gun, rotator, armor, battery, gyro, core, radar, battery, armor, rotator, gun
-    // Scouts (titans v2, 2026-10): the bottom SCOUT_ROWS rows carry dense batteries in place of their armor. At 30 kg
-    // they fly fast and long (an armored gunship at 64 kg uses 87 percent of its lift just to hover, and crawled), and
-    // they weigh under the 30 kg most robots take for a main enemy, so they are left alone while they look.
-    const scout = r >= ROWS - SCOUT_ROWS;
-    const plate = scout ? 'densebattery' : 'armorplate';
-    put(x0 + 0, yBody, 'gun', 90, ['gunA']);
+    const yBody = yJoin - 2;
+    const yShelf = yJoin - 3;
+    // body row: laser (two cells, barrel out), rotator, battery, battery, gyro, core, radar, battery, battery,
+    // rotator, laser. Each rotator swings its laser a quarter turn either way, so the two cover all round.
+    put(x0 + 0, yBody, 'laser', 90, ['beamA']);
     put(x0 + 1, yBody, 'rotator', 90, ['rotA'], { auto: false });
-    put(x0 + 2, yBody, plate);
+    put(x0 + 2, yBody, 'densebattery');
     put(x0 + 3, yBody, 'densebattery');
     put(x0 + 4, yBody, 'heavygyro', 0, ['stab'], { auto: false });
     put(x0 + 5, yBody, 'core');
     put(x0 + 6, yBody, 'radar', 0, ['eye']);
     put(x0 + 7, yBody, 'densebattery');
-    put(x0 + 8, yBody, plate);
+    put(x0 + 8, yBody, 'densebattery');
     put(x0 + 9, yBody, 'rotator', 270, ['rotB'], { auto: false });
-    put(x0 + 10, yBody, 'gun', 270, ['gunB']);
+    put(x0 + 10, yBody, 'laser', 270, ['beamB']);
+    // The shelf under the body: seven more dense batteries, kept clear of where the lasers swing down.
+    for (let dx = 2; dx <= 8; dx++) put(x0 + dx, yShelf, 'densebattery');
     // roof row: three propellers, the radio over the core, three propellers; on the radio the decoupler that holds it
-    // to the piece above
+    // to the piece above, and a seventh propeller beside it (held by the decoupler's side, which stays with it).
     for (const dx of [2, 3, 4]) put(x0 + dx, yTop, 'propeller', 0, ['lp'], { auto: false });
     put(x0 + 5, yTop, 'radio', 0, ['ear']);
     for (const dx of [6, 7, 8]) put(x0 + dx, yTop, 'propeller', 0, ['rp'], { auto: false });
     put(x0 + 5, yJoin, 'decoupler', 0, ['split']);
-    // An armored gunship has a seventh propeller, beside its decoupler (held by the decoupler's side, which stays
-    // with it): with six it used 87 percent of its lift to hover, sank whenever it leaned, and sat on the ground.
-    if (!scout) put(x0 + 4, yJoin, 'propeller', 0, ['lp'], { auto: false });
+    put(x0 + 4, yJoin, 'propeller', 0, ['lp'], { auto: false });
     cores[`core@${x0 + 5},${yBody}`] = {
       autoControls: false,
       bindings: [],
-      scripts: [{ id: 'pilot', params: scout ? { slot, scout: 1 } : { slot }, source: { file: `${NAME}.g${slot}.pilot.js` } }],
+      scripts: [{ id: 'pilot', params: { slot }, source: { file: `${NAME}.g${slot}.pilot.js` } }],
     };
     slot++;
   }
@@ -88,16 +88,15 @@ const SHIPS = slot;
 const yB = yP + 1; // body row
 const yA = yP + 2; // attic row: more jammer pods between frame posts
 const yD = yP + 3; // deck row
-const yG = yP + 4; // grips and dart boosters
-const propFrames = new Set([0, 4, 8, 13, 19, 25, 31, 35, 39].map((x) => x + OFF));
+// Posts: the frames of the propeller row, over each column's top decoupler (at its core, 5 in from its mount).
+const propFrames = new Set([0, 6, 11, 16, 20, 24, 29, 34, 39].map((x) => x + OFF));
+for (const x0 of shipX) if (!propFrames.has(x0 + 5)) throw new Error(`no post over the column at ${x0}`);
 for (let x = 0; x < W; x++) {
   // The extra propellers out at the ends hang off the end frames by their sides.
   if (propFrames.has(x)) put(x, yP, 'frame');
   else put(x, yP, 'propeller', 0, [x < 19.5 + OFF ? 'lp' : 'rp'], { auto: false });
   if (x >= OFF && x < 40 + OFF) put(x, yD, 'frame');
 }
-// Titans v2 (2026-10): dense batteries at the ends in place of two armor plates: the king carries its darts until the
-// gunships find a target (no blind first wave), and with them it barely lifted; the batteries keep it flying longer.
 const body0 = { 13: 'densebattery', 14: 'densebattery', 15: 'densebattery', 16: 'densebattery', 17: 'densebattery', 18: 'radar', 19: 'core', 20: 'heavygyro', 21: 'densebattery', 22: 'densebattery', 23: 'densebattery', 24: 'densebattery', 25: 'densebattery' };
 const body = Object.fromEntries(Object.entries(body0).map(([x, v]) => [Number(x) + OFF, v]));
 let pods = 0;
@@ -113,37 +112,7 @@ for (let x = OFF; x < 40 + OFF; x++) {
   else put(x, yA, 'jammer', 0, [`jam${pods++}`]);
 }
 const PODS = pods;
-let dart = 0;
-for (let j = 0; j < PAIRS; j++) {
-  const x0 = 5 * j + OFF;
-  for (const [gx, dx, rot] of [
-    [x0, x0 + 1, 270],
-    [x0 + 4, x0 + 3, 90],
-  ]) {
-    put(gx, yG, 'decoupler', rot, [`g${dart}`]);
-    put(dx, yG, 'booster', 0, [], { auto: false });
-    put(dx, yG + 1, 'heavygyro', 0, [], { auto: false });
-    put(dx, yG + 2, 'cell');
-    put(dx, yG + 3, 'cell');
-    put(dx, yG + 4, 'radar');
-    put(dx, yG + 5, 'core', 0, [`d${dart}`]);
-    put(dx, yG + 6, 'radio');
-    put(dx, yG + 7, 'charge');
-    cores[`core@${dx},${yG + 5}`] = {
-      autoControls: false,
-      bindings: [],
-      scripts: [
-        {
-          id: 'guide',
-          params: { arc: 0, clear: 0.3, clearDist: Math.round(14 + 0.8 * (40 + OFF - dx)), thrust: 400, gyroTorque: 200, fuse: 16, minMass: 30, passBy: 12, passMass: 20, height: 70, spread: 0.1, dive: 62, arcSpeed: 70 },
-          source: { file: `${NAME}.d${dart}.guide.js` },
-        },
-      ],
-    };
-    dart++;
-  }
-}
-const DARTS = dart;
+const DARTS = 0; // round 5: no darts (a dart's blast broke less than one plate of a titan's armor)
 
 // ---- legend and grid text ----
 const legend = {};
@@ -509,10 +478,6 @@ function tick() {
 }
 `.replace('//@FLY@', FLY);
 
-const guide =
-  '// titan-shatter dart guide: a copy of tech-missile.guide.js (made by tournaments/gen/titan-shatter.mjs).\n' +
-  readFileSync(resolve(out, 'tech-missile.guide.js'), 'utf8').replace(/missiles/g, 'darts').replace(/missile/g, 'dart').replace(/Missile/g, 'Dart');
-
 // ---- write ----
 const blueprint = {
   format: 1,
@@ -527,13 +492,11 @@ const blueprint = {
   cores,
 };
 writeFileSync(resolve(out, `${NAME}.json`), JSON.stringify(blueprint, null, 1) + '\n');
-// The scripts are kept by hand in blueprints/ since the titan-darts fixes (2026-10): the text in this file (and the copy of
-// tech-missile.guide.js) is how they started, and is written only when a file is missing.
+// The scripts are kept by hand in blueprints/ since the titan-darts fixes (2026-10): the text in this file is how they
+// started (with guns and darts), and is written only when a file is missing.
 const kept = (file, made) => (existsSync(resolve(out, file)) ? readFileSync(resolve(out, file), 'utf8') : made);
 const king = kept(`${NAME}.king.js`, KING);
 const pilot = kept(`${NAME}.g0.pilot.js`, PILOT);
-const dartGuide = kept(`${NAME}.d0.guide.js`, guide);
 writeFileSync(resolve(out, `${NAME}.king.js`), king);
 for (let i = 0; i < SHIPS; i++) writeFileSync(resolve(out, `${NAME}.g${i}.pilot.js`), pilot);
-for (let k = 0; k < DARTS; k++) writeFileSync(resolve(out, `${NAME}.d${k}.guide.js`), dartGuide);
 console.log(`${NAME}: ${SHIPS} gunships, ${DARTS} darts, ${PODS} jammer pods, grid ${W} by ${H}`);
