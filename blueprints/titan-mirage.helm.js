@@ -36,6 +36,7 @@ const edgeIn = param('edgeIn', 350, { min: 0, max: 900 }); // m: it never flies 
 const roofIn = param('roofIn', 35, { min: 5, max: 200 }); // m: and never asks to fly nearer the arena's ceiling than this
 // The arena (titans v2, 2026-10): its edges come from the global `arena` (null in an open sandbox: no edge, no ceiling).
 const edge = arena ? Math.max(50, arena.x - edgeIn) : Infinity;
+const roam = param('roam', 900, { min: 100, max: 100000 }); // m: in an open sandbox it keeps within this of where it started, either way (r5: backing off from a ram that kept coming, it was pushed off the end of the ground)
 const ceiling = arena ? Math.min(roof, arena.y - roofIn) : roof;
 const tiltRate = (param('tiltRate', 2, { min: 0.1, max: 30 }) * Math.PI) / 180; // degrees a second the lean may change
 const tilt = (param('tilt', 6, { min: 0, max: 20 }) * Math.PI) / 180; // degrees it leans its lift to move sideways (titans v2, 2026-10)
@@ -207,6 +208,8 @@ function share(lift, torque) {
 
 function setup() {
   state.x0 = self.pos.x;
+  state.lo = arena ? -edge : self.pos.x - roam; // where it may fly its core, along x
+  state.hi = arena ? edge : self.pos.x + roam;
   state.dir = self.pos.x <= 0 ? 1 : -1; // the way the bow points along x
   state.last = null; // the main enemy: { id, x, y, vx, vy, at, d }, its last place while seen, kept a while once it vanishes
   state.everSeen = false; // whether any enemy that could be the main one was ever seen
@@ -356,8 +359,8 @@ function tick() {
     want = b.x + state.side * (b.d > huntFar && !stillBig ? huntAt : hideAt);
   } else if (t) {
     if (state.side === 0) state.side = self.pos.x === t.pos.x ? -state.dir : sign(self.pos.x - t.pos.x);
-    const held = Math.abs(clamp(t.pos.x + state.side * standoff, -edge, edge) - t.pos.x);
-    const other = Math.abs(clamp(t.pos.x - state.side * standoff, -edge, edge) - t.pos.x);
+    const held = Math.abs(clamp(t.pos.x + state.side * standoff, state.lo, state.hi) - t.pos.x);
+    const other = Math.abs(clamp(t.pos.x - state.side * standoff, state.lo, state.hi) - t.pos.x);
     if (held < cornered && other > held + 200) state.side = -state.side;
     want = t.pos.x + state.side * standoff;
     // On its own side it never comes nearer the middle than where it started (that is where everyone looks first).
@@ -367,7 +370,7 @@ function tick() {
       if (Math.abs(held - t.pos.x) < reach - 60) want = held;
     }
   }
-  want = clamp(want, -edge, edge);
+  want = clamp(want, state.lo, state.hi);
   // No faster than it can still stop in the room left. Its boosters are small for its weight, so it also leans its
   // lift the way it must go, up to `tilt` (titans v2, 2026-10): shells and rams that shoved it out of the arena before
   // are now pushed back against with a good part of its lift.
