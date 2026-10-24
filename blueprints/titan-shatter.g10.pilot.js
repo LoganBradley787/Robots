@@ -54,6 +54,7 @@ const gunCone = param('gunCone', 0.08, { min: 0, max: 1 }); // rad either side o
 const gunReach = param('gunReach', 300, { min: 10, max: 1000 }); // m a gun's shells carry
 const coreFirst = param('coreFirst', 700, { min: 0, max: 100000 }); // points: a core with less than this in front of it is burned before any weapon (Palisade's: 300)
 const say = param('say', 0, { min: 0, max: 1 }); // 1: the gunship in slot 4 logs its looks for a line in
+const probeGuns = param('probeGuns', 30, { min: 0, max: 100000 }); // guns: only a main enemy with this many is worth the looks (against a fortress of 6 guns the beams gathered on one line and got in each other's way: 2 wins of 6, 4 without)
 const G = 9.81;
 const LIFT = 120;
 const SWING = Math.PI / 2;
@@ -403,7 +404,7 @@ function tick() {
       state.thetaId = state.root.id;
       state.probedAt = time - ((slot * 0.37) % probe);
     }
-    if (state.live && state.root.own && state.root.parts >= probeParts && time - state.probedAt >= probe && lookTick && evenLook && state.scannedAt !== frame) {
+    if (state.live && state.root.own && state.root.parts >= probeParts && state.guns >= probeGuns && time - state.probedAt >= probe && lookTick && evenLook && state.scannedAt !== frame) {
       state.probedAt = time;
       let best = Infinity;
       let pick = state.theta;
