@@ -18,6 +18,9 @@
 //   beside the keep for a while; there the guns and darts aimed at the keep broke them.)
 // - A dart (round 2): booster, heavy gyro, radio, cell, core, two blast heads at the very nose (nothing in front of
 //   them to soak up the blast). It has no sensor of its own: it steers by what the keep's radar shares over the radio.
+// - Burners (round 5): three on each side between the rack and the keep, and two burner bays on each end inside the
+//   dart bays. A burner is a small flier with a laser on a rotator under it (titan-woodpecker.burner.js): it hovers
+//   off the target and burns a tunnel to its core. The keep's plates are tagged `keep` for the brain's parts list.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -29,7 +32,7 @@ const NAME = 'titan-woodpecker';
 const PAIRS = Number(process.argv[2] ?? 10); // dart pairs on each side of the middle (24 in round 1: half the volley keeps the tick time under the rule; 10 since round 5, two pairs gave their room to burners)
 // Burners (titans round 5, 2026-10) on each side, between the rack and the keep: a flier with a laser on a rotator
 // under it, which hovers off the target and burns a tunnel to its core (see titan-woodpecker.burner.js).
-const BURN = Number(process.argv[5] ?? 3);
+const BURN = Number(process.argv[5] ?? 3); // burners on the rack on each side
 const BAYS = Number(process.argv[3] ?? 3); // dart bays on each end (8 in round 1: fewer darts in the air at once keeps the tick time down; 5 until round 5)
 // Burner bays (titans round 5, 2026-10) on each end, inside the dart bays: each builds a burner (2 wide, 9 tall) out of
 // the base's energy, about one every 50 s (its batteries are most of what a build pays for).

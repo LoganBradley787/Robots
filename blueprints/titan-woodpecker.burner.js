@@ -14,6 +14,18 @@
 // - What it follows: the robot it was sent at while that one is alive, else the heaviest enemy with a live core the
 //   radio shares (never a robot picked by its id). One hidden from the radio (a jammer's bubble) is held at its last
 //   point: a fortress does not move.
+// - On the way it goes round the target, never past it, keeps off other enemy robots of 25 kg or more, and flies 90 m
+//   over the highest of them (shells fly 300 m: a flier's gun panels shoot at our base across the burners' way).
+// - A target with lasers (the base's message says): it creeps in slower than a point defense counts as coming at it,
+//   holds 282 m out on our side, and burns the lasers first (a sled's front turret ends our base; with no beam on
+//   that side the sled backs off). A target with 8 guns or less (a fortress's turrets, which shoot the burners): the
+//   guns first, each only while the sight meets the target where the gun is. Then the core.
+// - The beam burns only near the core (`deep` m): a part or wreck far out blocks the line (a sled's mast), and then,
+//   against a target without lasers, it takes another way in.
+// - Hidden: it keeps the one it was sent at for `hunt` s. Its laser's sight is a feeler: swung to and fro under the
+//   burner with the beam off, it meets parts a jammer hides from every sensor, and tells by the contact id whose they
+//   are. A still one is burnt where it stood; one that moved, or is not where it stood, is searched for along its way
+//   and away from our base (a split titan's king sat hidden 1200 m from our base).
 // - Spent (energy down to `reserve`, or its life is up): it flies out sideways off the line, so its wreck does not fall
 //   into the tunnel, and then drops with everything off and its script asleep.
 const standoff = param('standoff', 210, { min: 20, max: 290 }); // m from the target's core to the station

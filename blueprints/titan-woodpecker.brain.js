@@ -21,6 +21,11 @@
 //   dart flies over one that is about to leave, and one flare cannot take the whole rack.
 // - Anchors: grapples in the floor, cast at the ground once the base rests. Each rope holds the base where it stands
 //   against a push toward the arena's edge. One that lost its rope is cast again.
+// - Burners (titans round 5, 2026-10): six on the rack beside the keep go first, once the target is seen and the
+//   probes have found the way in, then each burner bay's as it is built. A burner is told what a dart is, plus the way
+//   in (for a target with lasers, the thinnest on our side), its slot, and where the target's lasers and (8 or less)
+//   guns are from its core. The heaviest enemy ever seen is remembered until seen dead (90 s at most): hidden while
+//   something much lighter is in view, the burners are sent at its last place and hunt it from there.
 const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts leaving the rack
 const wave = param('wave', 8, { min: 1, max: 200 }); // rack darts in one wave
 const waveGap = param('waveGap', 150, { min: 1, max: 6000 }); // ticks between two waves of the rack (longer than a flare burns)
