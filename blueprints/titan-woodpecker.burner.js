@@ -38,6 +38,17 @@ const wise = param('wise', 1.1, { min: 0, max: 1.57 }); // rad up from level on 
 const keepOff = param('keepOff', 130, { min: 0, max: 500 }); // m: it keeps this far from other enemy robots (guns reach 100)
 const awayK = param('awayK', 0.5, { min: 0, max: 10 }); // m/s asked away from one per m it is too near
 const dartSpeed = param('dartSpeed', 45, { min: 1, max: 1000 }); // m/s: an enemy faster than this is a dart, not kept away from
+const cruise = param('cruise', 90, { min: 0, max: 500 }); // m over the highest enemy robot it flies at on the way
+const cruiseNear = param('cruiseNear', 120, { min: 0, max: 1000 }); // m from its station (sideways) where it stops cruising high
+const hunt = param('hunt', 45, { min: 0, max: 600 }); // s a hidden robot it was sent at is hunted before it takes another
+const huntAge = param('huntAge', 8, { min: 0, max: 60 }); // s a hidden mover is guessed on along its way
+const searchAfter = param('searchAfter', 6, { min: 0, max: 120 }); // s near a still hidden one's place with nothing found before it searches
+const searchSpeed = param('searchSpeed', 25, { min: 1, max: 200 }); // m/s the search's guess walks
+const searchFar = param('searchFar', 600, { min: 0, max: 3000 }); // m at most the search walks out
+const huntUp = param('huntUp', 130, { min: 10, max: 290 }); // m over the guess it hunts from
+const huntSpread = param('huntSpread', 45, { min: 0, max: 300 }); // m between two hunting burners
+const sweep = param('sweep', 1.25, { min: 0, max: 1.5 }); // rad either side of straight down the feeler swings
+const sweepRate = param('sweepRate', 1.2, { min: 0.1, max: 10 }); // rad/s of the feeler's swing phase
 const clear = param('clear', 170, { min: 0, max: 290 }); // m from the target's core it keeps on the way to its station
 const roundStep = param('roundStep', 0.5, { min: 0.05, max: 3 }); // rad round the target to the next point on the way
 const deep = param('deep', 75, { min: 1, max: 300 }); // m from the core: the beam burns what it meets only this near it
@@ -63,6 +74,8 @@ function setup() {
   for (const m of inbox) if (m.data && typeof m.data.x === 'number') state.t = m.data;
   state.born = time;
   state.y0 = self.pos.y;
+  state.home = self.pos.x; // where it left from: our base
+  state.closeAt = time;
   state.at = time;
   state.beat = Math.floor(random() * 60);
   state.n = 0;
@@ -71,6 +84,7 @@ function setup() {
   state.want = null;
   state.blocked = 0;
   state.turn = 0;
+  state.found = -1000;
   state.force = 0;
   for (const p of parts) if (p.type === 'booster') state.force += p.spec.config.maxForce;
   state.rate = 2;
@@ -87,13 +101,16 @@ function sighting(id) {
   let mine = null;
   let ax = 0;
   let ay = 0;
+  let top = -Infinity; // the highest enemy robot that is not a dart
   const px = self.pos.x;
   const py = self.pos.y;
   for (const c of contacts) {
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.id === id) mine = c;
     if (c.mass >= 30 && (!main || c.mass > main.mass)) main = c;
-    if (c.id === id || c.mass < 3 || Math.hypot(c.vel.x, c.vel.y) > dartSpeed) continue;
+    if (c.mass < 3 || Math.hypot(c.vel.x, c.vel.y) > dartSpeed) continue;
+    if (c.pos.y > top) top = c.pos.y;
+    if (c.id === id) continue;
     const rx = px - c.pos.x;
     const ry = py - c.pos.y;
     const d = Math.hypot(rx, ry) || 1;
@@ -103,7 +120,8 @@ function sighting(id) {
     }
   }
   state.away = { x: ax, y: ay };
-  return mine || main;
+  state.top = top;
+  return { mine, main };
 }
 
 function laserPart() {
@@ -120,9 +138,16 @@ function tick() {
     return;
   }
   if (contacts.length > 0) {
-    const c = sighting(t.id);
+    const seen = sighting(t.id);
+    // The one it was sent at, while seen. Hidden (a jammer's bubble, out of the radar's reach), it is kept for `hunt`
+    // s: one that stood still is burnt where it stood, one moving is hunted (titans round 5: a split titan's king
+    // flew off hidden while the burners went after its gunships). Then, or at once for one never named or for one
+    // twice as heavy in view, the heaviest enemy in view.
+    let c = seen.mine;
+    if (!c && seen.main && (t.blind || time - state.at > hunt || seen.main.mass > 2 * (t.mass || 0))) c = seen.main;
     if (c) {
       if (c.id !== t.id || t.blind) {
+        if (debug) log('switch', t.id, '->', c.id, 'blind', t.blind ? 1 : 0, 'lost', Math.round(time - state.at), 'v', Math.round(Math.hypot(t.vx, t.vy)), 'm', Math.round(t.mass || 0), Math.round(c.mass));
         t.id = c.id;
         t.blind = 0;
         t.ax = undefined;
@@ -131,7 +156,9 @@ function tick() {
       t.y = c.pos.y;
       t.vx = c.vel.x;
       t.vy = c.vel.y;
+      t.mass = c.mass;
       state.at = time;
+      state.found = -1000;
     }
   }
   set('radio', 'on', (state.n + state.beat) % every === 0 ? 1 : 0);
@@ -141,10 +168,39 @@ function tick() {
     spentTick(las);
     return;
   }
-  // Where the core is now, by its last point and speed (a hidden one stays where it was).
-  const age = Math.min(time - state.at, 3);
-  const tx = t.x + t.vx * age;
-  const ty = t.y + t.vy * age;
+  // Where the core is now, by its last point and speed (a hidden one stays where it was, or, moving, is guessed on
+  // along its way for up to `huntAge` s, inside the arena).
+  // A still one hidden where it stood whose place the feeler finds nothing at for `searchAfter` s (it left in its
+  // bubble) is searched for too: the guess walks out away from our base and back, `searchSpeed` m/s, at most
+  // `searchFar` m.
+  const lost = time - state.at > 1 && time - state.found > 1;
+  const close = Math.hypot(t.x - self.pos.x, t.y - self.pos.y) < reach;
+  if (!lost || !close) state.closeAt = time;
+  const searching = lost && Math.hypot(t.vx, t.vy) < 1.5 && time - state.closeAt > searchAfter;
+  const hidden = lost && (Math.hypot(t.vx, t.vy) >= 1.5 || searching);
+  const age = Math.min(time - state.at, hidden ? huntAge : 3);
+  let tx = t.x + t.vx * age;
+  let ty = t.y + t.vy * age;
+  if (searching) {
+    const away = state.home === undefined ? 1 : sign(t.x - state.home || 1);
+    const ph = ((time - state.closeAt - searchAfter) * searchSpeed) % (2 * searchFar);
+    tx += away * (ph < searchFar ? ph : 2 * searchFar - ph);
+  }
+  if (arena && hidden) {
+    tx = clamp(tx, -arena.x + 20, arena.x - 20);
+    ty = clamp(ty, 2, arena.y - 5);
+  }
+  if (hidden) {
+    // Hunting: over the guess, spread out by slot, the laser's sight swept across the ground below as a feeler. A
+    // sight that reads the hunted robot (by its contact id: jammers blind sensors, not a beam's sight) gives its
+    // place, and the burner burns there.
+    const k = t.slot ?? 0;
+    const off = (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * huntSpread;
+    const aw = state.away || { x: 0, y: 0 };
+    hover(tx + off, ty + huntUp, awayK * aw.x, awayK * aw.y, self.pos.y - state.y0 < climb && time - state.born < 3, Infinity);
+    feel(las, t);
+    return;
+  }
   // The way in: from the base's probes, else down onto a wide one, else from our side, up at `rise`.
   let ux;
   let uy;
@@ -192,7 +248,12 @@ function tick() {
   // Away from other enemy robots near it (their guns), on top of following the station; round the target, never
   // past it (flying by a flier's keep on the way to a station over it, burners met its gun panels).
   const aw = state.away || { x: 0, y: 0 };
-  const w = round(tx, ty, sx, sy);
+  // Over the fight on the way (titans round 5): a flier's gun panels shoot at our base, and their shells fly 300 m;
+  // a burner flying across at their height met that fire. So until it is `cruiseNear` m from its station (sideways)
+  // it flies at least `cruise` m over the highest enemy robot it knows of.
+  let wy = sy;
+  if (Math.abs(sx - self.pos.x) > cruiseNear && state.top > -Infinity) wy = Math.max(sy, state.top + cruise);
+  const w = round(tx, ty, sx, wy);
   hover(w.x, w.y, t.vx + awayK * aw.x, t.vy + awayK * aw.y, up, slow, w.left);
   state.near = Math.hypot(sx - self.pos.x, sy - self.pos.y) < onStation;
   if (up) {
@@ -285,6 +346,12 @@ function aim(las, tx, ty) {
   const sight = las.out.sight;
   // A wreck lying in the tunnel near the core burns too; one far out does not, nor does an enemy part far out from
   // the core (a sled's mast): that line is blocked, and after `blockFor` s of it the burner takes another way in.
+  if (time - state.at > 1 && side === SIGHT_ENEMY && las.out.sightId === state.t.id && Math.abs(err) < tol) {
+    // Found by the feeler and still hidden: the point moves in as the beam burns its way.
+    state.t.x = fx + Math.cos(a) * (sight + 2);
+    state.t.y = fy + Math.sin(a) * (sight + 2);
+    state.found = time;
+  }
   const deepEnough = sight > dist - deep;
   const wreck = side === SIGHT_NONE && sight > 3 && sight < dist + 2 && deepEnough;
   // Not against a target with lasers: moving off its safe side, burners closed on it fast and were burnt.
@@ -308,6 +375,29 @@ function aim(las, tx, ty) {
       state.fires = 0;
       state.errs = 0;
     }
+  }
+}
+
+/**
+ * The hunt's feeler: the rotator swings the laser to and fro under the burner (fire off) and its sight is read every
+ * tick. On the hunted robot it takes the point the sight met, a little in along the line, as the robot's place.
+ */
+function feel(las, t) {
+  set('laser', 'fire', 0);
+  state.want = null;
+  const k = t.slot ?? 0;
+  const want = -Math.PI / 2 + sweep * Math.sin(time * sweepRate + k * 1.3);
+  const err = wrap(want - las.out.aim);
+  set('rotator', 'turn', clamp((-self.angVel + gain * err) / state.rate, -1, 1));
+  if (las.out.sightSide === SIGHT_ENEMY && las.out.sightId === t.id) {
+    const a = las.out.aim;
+    const d = las.out.sight + 2;
+    t.x = las.pos.x + Math.cos(a) * d;
+    t.y = las.pos.y + Math.sin(a) * d;
+    t.vx = 0;
+    t.vy = 0;
+    state.found = time;
+    if (debug) log('found', t.id, Math.round(t.x), Math.round(t.y));
   }
 }
 

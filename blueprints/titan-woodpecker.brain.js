@@ -309,7 +309,7 @@ function message(t) {
     const b = state.box;
     // Wider than tall: thin from above, so the darts come down on it.
     const top = b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0;
-    const msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, l: b.l, r: b.r, d: b.d, u: b.u, top, beams: state.beamsFor === t.id ? state.beamN : 0 };
+    const msg = { x: t.pos.x, y: t.pos.y, vx: t.vel.x, vy: t.vel.y, id: t.id, l: b.l, r: b.r, d: b.d, u: b.u, top, mass: t.mass, beams: state.beamsFor === t.id ? state.beamN : 0 };
     const a = state.app;
     // Only for a robot worth going around (armor on every line) that keeps still: a small or moving one is hit
     // straight, and the bend only made darts miss it (a gun drone lasted 56 s, not 11).
@@ -324,7 +324,7 @@ function message(t) {
     // Hidden but standing still: its last place, its size, and the way in, as if seen; the darts follow it by its id
     // the moment the radio or their own seeker sees it again.
     const b = state.box;
-    const msg = { x: s.x, y: s.y, vx: 0, vy: 0, id: s.id, l: b.l, r: b.r, d: b.d, u: b.u, top: b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0 };
+    const msg = { x: s.x, y: s.y, vx: 0, vy: 0, id: s.id, l: b.l, r: b.r, d: b.d, u: b.u, top: b.l + b.r > 1.5 * (b.d + b.u) ? 1 : 0, mass: s.mass };
     const a = state.app;
     if (useApp > 0.5 && a && a.tid === s.id && a.cover >= appCover) {
       msg.ax = a.ax;
