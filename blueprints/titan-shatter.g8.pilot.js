@@ -41,6 +41,9 @@ const slow = param('slow', 25, { min: 0, max: 200 }); // m/s: a lighter one must
 const widen = param('widen', 12, { min: 0, max: 100 }); // m/s the search ring grows while nothing is found
 const wideHome = param('wideHome', 600, { min: 50, max: 2000 }); // m: the same round where it woke, in the open sandbox with nothing seen
 const wide = param('wide', 420, { min: 50, max: 1000 }); // m: the search ring starts over past this
+const probe = param('probe', 2, { min: 0.2, max: 60 }); // s between looks for a cheaper line into the main enemy's core
+const step = param('step', 0.21, { min: 0.02, max: 1 }); // rad its bearing round the main enemy moves at most per look
+const probeParts = param('probeParts', 150, { min: 1, max: 100000 }); // parts: a main enemy this big is worth looking for a line into
 const G = 9.81;
 const LIFT = 120;
 const SWING = Math.PI / 2;
@@ -220,7 +223,7 @@ function lookAround() {
       }
     }
     if (main.id !== root.id && time - state.countedAt > 0.5) state.guns = 0;
-    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance, size: sizeOf(main) };
+    state.root = { id: main.id, x: main.pos.x, y: main.pos.y, vx: main.vel.x, vy: main.vel.y, t: time, d: main.distance, size: sizeOf(main), parts: main.parts || 0, own: !!main.by && main.by.indexOf('radio') < 0 };
     state.live = true;
     if (main.id !== root.id) state.hider = false;
     state.seenAt = time;
@@ -241,6 +244,13 @@ function lookAround() {
 // square root of its part count, at most 12 m (a titan of 1400 parts: 9 m; a walker of 87: 2 m).
 function sizeOf(c) {
   return Math.min(12, 0.25 * Math.sqrt(c.parts || 1));
+}
+
+// A place on a ring of `ring` m round `c` at bearing `th` (counterclockwise from the right), kept inside the sky the
+// gunships use: 30 m up at least, under the match's ceiling.
+function ringPoint(c, ring, th) {
+  const y = c.y + ring * Math.sin(th);
+  return { x: c.x + ring * Math.cos(th), y: clamp(y, 30, arena ? arena.y - 10 : Infinity) };
 }
 
 // Where a remembered robot is now (it keeps its speed for a second, then is taken as still).
@@ -330,10 +340,37 @@ function tick() {
     // against 140 lost the whole swarm in 30 s; round 5: just inside the beams' 300 m, where those guns' shells
     // spread over 7 m and a beam does not spread at all).
     const ring = state.guns >= manyGuns ? standoff + 0.25 * (state.ring - 150) : state.hider ? seek + 0.25 * (state.ring - 150) : state.ring;
-    const toward = state.home < root.x ? -1 : 1;
-    const sideways = (state.side === 0 ? toward : -toward) * ring * Math.cos(state.elev);
-    px = root.x + sideways;
-    py = root.y + ring * Math.sin(state.elev);
+    // Round 5: its place is a bearing round the main enemy (from its own side or the far side, `elev` up, at first),
+    // moved toward the cheapest line into the core: every `probe` s it asks, by a scan from three places on its ring,
+    // how much of the enemy stands in front of the core seen from each (`cover`), and takes a step toward the least.
+    // A tunnel another beam burned is the cheapest line of all, so the beams gather on it.
+    if (state.theta === undefined || state.thetaId !== state.root.id) {
+      const toward = state.home < root.x ? -1 : 1;
+      const right = (state.side === 0 ? toward : -toward) > 0;
+      state.theta = right ? state.elev : Math.PI - state.elev;
+      state.thetaId = state.root.id;
+      state.probedAt = time - ((slot * 0.37) % probe);
+    }
+    if (state.live && state.root.own && state.root.parts >= probeParts && time - state.probedAt >= probe && f === (state.phase + 2) % look) {
+      state.probedAt = time;
+      let best = Infinity;
+      let pick = state.theta;
+      for (const th of [state.theta - step, state.theta, state.theta + step]) {
+        const at = ringPoint(root, ring, th);
+        const c = scan(state.root.id, { of: ['core'], near: { x: root.x, y: root.y }, most: 1, from: at });
+        const cost = c && c.length > 0 && c[0].cover !== undefined ? c[0].cover : Infinity;
+        // Ties keep the bearing it has (no wandering over a face that costs the same everywhere).
+        if (cost < best - 1 || (cost <= best + 1 && th === state.theta)) {
+          best = cost;
+          pick = th;
+        }
+      }
+      state.theta = pick;
+      state.cover = best;
+    }
+    const at = ringPoint(root, ring, state.theta);
+    px = at.x;
+    py = at.y;
   }
   // The match's ceiling (the bounds hold only the main core, but a gunship over it is no use either).
   if (arena) py = Math.min(py, arena.y - 10);

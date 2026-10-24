@@ -508,8 +508,7 @@
   {
    "id": "king",
    "params": {
-    "pods": 52,
-    "darts": 0
+    "pods": 52
    },
    "source": {
     "file": "titan-shatter.king.js"

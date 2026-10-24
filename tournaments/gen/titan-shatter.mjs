@@ -488,7 +488,7 @@ const blueprint = {
   legend,
   primaryCore: `core@${19 + OFF},${yB}`,
   bindings: [],
-  scripts: [{ id: 'king', params: { pods: PODS, darts: DARTS }, source: { file: `${NAME}.king.js` } }],
+  scripts: [{ id: 'king', params: { pods: PODS }, source: { file: `${NAME}.king.js` } }],
   cores,
 };
 writeFileSync(resolve(out, `${NAME}.json`), JSON.stringify(blueprint, null, 1) + '\n');
