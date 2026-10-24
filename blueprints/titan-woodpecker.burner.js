@@ -37,6 +37,7 @@ const creep = param('creep', 9, { min: 1, max: 100 }); // m/s it closes at, at m
 const wise = param('wise', 1.1, { min: 0, max: 1.57 }); // rad up from level on our side: the way in to a target with lasers
 const keepOff = param('keepOff', 130, { min: 0, max: 500 }); // m: it keeps this far from other enemy robots (guns reach 100)
 const awayK = param('awayK', 0.5, { min: 0, max: 10 }); // m/s asked away from one per m it is too near
+const awayMass = param('awayMass', 25, { min: 0, max: 100000 }); // kg: lighter enemy robots (darts, pods) are not kept away from nor flown over
 const dartSpeed = param('dartSpeed', 45, { min: 1, max: 1000 }); // m/s: an enemy faster than this is a dart, not kept away from
 const cruise = param('cruise', 90, { min: 0, max: 500 }); // m over the highest enemy robot it flies at on the way
 const cruiseNear = param('cruiseNear', 120, { min: 0, max: 1000 }); // m from its station (sideways) where it stops cruising high
@@ -49,6 +50,9 @@ const huntUp = param('huntUp', 130, { min: 10, max: 290 }); // m over the guess 
 const huntSpread = param('huntSpread', 45, { min: 0, max: 300 }); // m between two hunting burners
 const sweep = param('sweep', 1.25, { min: 0, max: 1.5 }); // rad either side of straight down the feeler swings
 const sweepRate = param('sweepRate', 1.2, { min: 0.1, max: 10 }); // rad/s of the feeler's swing phase
+const gunBurn = param('gunBurn', 0.25, { min: 0, max: 5 }); // s of beam on each of the target's guns (25 health: a tenth of that)
+const gunTry = param('gunTry', 0.4, { min: 0, max: 30 }); // s it tries for a gun before it lets it be
+const gunNear = param('gunNear', 4, { min: 0.5, max: 50 }); // m: the sight must meet the target this near the gun's point
 const clear = param('clear', 170, { min: 0, max: 290 }); // m from the target's core it keeps on the way to its station
 const roundStep = param('roundStep', 0.5, { min: 0.05, max: 3 }); // rad round the target to the next point on the way
 const deep = param('deep', 75, { min: 1, max: 300 }); // m from the core: the beam burns what it meets only this near it
@@ -86,6 +90,8 @@ function setup() {
   state.turn = 0;
   state.found = -1000;
   state.force = 0;
+  // The target's guns, from its core (titans round 5): burnt first, one after another, nearest first.
+  state.guns = state.t && Array.isArray(state.t.guns) ? state.t.guns.map((g) => ({ x: g[0], y: g[1], fired: 0, tried: 0 })) : [];
   for (const p of parts) if (p.type === 'booster') state.force += p.spec.config.maxForce;
   state.rate = 2;
   for (const p of parts) if (p.type === 'rotator' || p.type === 'heavyrotator') state.rate = p.spec.config.turnSpeed;
@@ -108,7 +114,7 @@ function sighting(id) {
     if (c.side !== 'enemy' || !c.core) continue;
     if (c.id === id) mine = c;
     if (c.mass >= 30 && (!main || c.mass > main.mass)) main = c;
-    if (c.mass < 3 || Math.hypot(c.vel.x, c.vel.y) > dartSpeed) continue;
+    if (c.mass < awayMass || Math.hypot(c.vel.x, c.vel.y) > dartSpeed) continue;
     if (c.pos.y > top) top = c.pos.y;
     if (c.id === id) continue;
     const rx = px - c.pos.x;
@@ -263,7 +269,39 @@ function tick() {
     return;
   }
   if (debug && state.n % 60 === 0) log('burner', t.beams, Math.round(self.pos.x), Math.round(self.pos.y), 'st', Math.round(sx), Math.round(sy), 'e', Math.round(self.energy.stored), 'v', Math.round(self.vel.x), Math.round(self.vel.y), 'ang', Math.round(self.angle * 57), 'n', parts.length, 'thr', Math.round(100 * (state.thr || 0)));
-  aim(las, tx, ty);
+  const g = state.near ? nextGun(las, tx, ty) : null;
+  if (g) gunAim(las, g, tx + g.x, ty + g.y);
+  else aim(las, tx, ty);
+}
+
+// The nearest gun still to burn, or null. One the burner could not line up on for `gunTry` s is let be.
+function nextGun(las, tx, ty) {
+  let best = null;
+  let bd = Infinity;
+  for (const g of state.guns) {
+    if (g.fired >= gunBurn || g.tried >= gunTry) continue;
+    const d = Math.hypot(tx + g.x - las.pos.x, ty + g.y - las.pos.y);
+    if (d < bd && d < reach) {
+      bd = d;
+      best = g;
+    }
+  }
+  return best;
+}
+
+// On a gun: the rotator onto its point, and the beam while the sight reads the target's part at the gun's distance.
+function gunAim(las, g, gx, gy) {
+  const a = las.out.aim;
+  const want = Math.atan2(gy - las.pos.y, gx - las.pos.x);
+  const moving = state.want === null ? 0 : wrap(want - state.want) / dt;
+  state.want = want;
+  const err = wrap(want - a);
+  set('rotator', 'turn', clamp((moving - self.angVel + gain * err) / state.rate, -1, 1));
+  const d = Math.hypot(gx - las.pos.x, gy - las.pos.y);
+  const on = Math.abs(err) < tol && las.out.sightSide === SIGHT_ENEMY && las.out.sightId === state.t.id && Math.abs(las.out.sight - d) < gunNear;
+  set('laser', 'fire', on ? 1 : 0);
+  g.tried += dt;
+  if (on) g.fired += dt;
 }
 
 /**
@@ -346,11 +384,14 @@ function aim(las, tx, ty) {
   const sight = las.out.sight;
   // A wreck lying in the tunnel near the core burns too; one far out does not, nor does an enemy part far out from
   // the core (a sled's mast): that line is blocked, and after `blockFor` s of it the burner takes another way in.
-  if (time - state.at > 1 && side === SIGHT_ENEMY && las.out.sightId === state.t.id && Math.abs(err) < tol) {
-    // Found by the feeler and still hidden: the point moves in as the beam burns its way.
-    state.t.x = fx + Math.cos(a) * (sight + 2);
-    state.t.y = fy + Math.sin(a) * (sight + 2);
+  if (side === SIGHT_ENEMY && las.out.sightId === state.t.id) {
+    // The sight is on it: it is here, hidden or not. Found by the feeler and still hidden, the point moves in as the
+    // beam burns its way.
     state.found = time;
+    if (time - state.at > 1 && Math.abs(err) < tol && Math.hypot(state.t.vx, state.t.vy) < 1.5 && state.hunted) {
+      state.t.x = fx + Math.cos(a) * (sight + 2);
+      state.t.y = fy + Math.sin(a) * (sight + 2);
+    }
   }
   const deepEnough = sight > dist - deep;
   const wreck = side === SIGHT_NONE && sight > 3 && sight < dist + 2 && deepEnough;
@@ -397,6 +438,7 @@ function feel(las, t) {
     t.vx = 0;
     t.vy = 0;
     state.found = time;
+    state.hunted = true;
     if (debug) log('found', t.id, Math.round(t.x), Math.round(t.y));
   }
 }
