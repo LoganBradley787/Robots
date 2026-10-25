@@ -29,12 +29,14 @@
 // - Peers (titans v3, 2026-10): the rules made for two rammers of one weight (backing off apart, side hits aimed for
 //   spin, finishing one that is down) apply only to a target of at least `peer` of its mass. One much lighter is
 //   knocked away by each hit, so it is chased and hit again on the way to the edge.
-// - Never idle (titans round 6, 2026-10, Logan: "it ain't ramming shit, bro"): a ground base too heavy to bump out
-//   (an anchored one) used to be waited out hidden for the rest of the match, and so did a heavy enemy with nothing
-//   to take hold of; against laser titans that was waiting to be burnt. Both are rammed now: a ground base is
-//   breached by side hits at `breachSpeed` with its underside `baseGap` over the base's low layer (breachY), the
-//   hit's spin reckoned about its real center of mass (`comUp`: the low layout buries the core above a floor slab).
-// Something much heavier with a thin face or a tall mast is still not rammed head on (see the heavy branch).
+// - Never idle (titans round 6, 2026-10, Logan: "it ain't ramming shit, bro"): an anchored ground base too heavy to
+//   bump out, a heavy enemy with nothing to take hold of, and a heavy enemy hidden from radar were each waited out
+//   hidden for the rest of the match, and short of energy against a heavy enemy it hid too. Against laser and dart
+//   titans that was waiting to be burnt. Now everything is rammed: a ground base is breached by side hits at
+//   `breachSpeed` with its underside `baseGap` over the base's low layer (breachY), the spin of a hit reckoned about
+//   its real center of mass (`comUp`: the low layout keeps the core low in a floor slab). A tall heavy enemy's top is
+//   no longer pushed (`pushTop`).
+// Something much heavier with a thin face (lying on its side) is rammed on that face (see the heavy branch).
 // It never turns round: boosters on each side push it left or right, the lift rows hold its height and its lean.
 // Guns on every face blast what their sights show. Everything goes by `side` and by where its own parts are, so it
 // works flipped.
@@ -58,6 +60,7 @@ const shove = param('shove', 5000, { min: 0, max: 100000 }); // kg: a ground ene
 const jamEvery = param('jamEvery', 4.7, { min: 1, max: 5 }); // s between jammer pods while it waits hidden (a pod jams 5 s)
 const match = param('match', 240, { min: 10, max: 10000 }); // s a match lasts (only with an arena): pushing a heavy enemy stops while the energy left still covers hovering to the end
 const hold = param('hold', 60, { min: 0, max: 10000 }); // s of hovering it keeps in hand against a heavy enemy in the open sandbox (no match end)
+const pushTop = param('pushTop', 0, { min: 0, max: 1 }); // 1: a heavy enemy standing tall is pushed over by its top (off since round 6: up there its lasers burnt the floor slab from below, and it was carried out of the arena at the ceiling)
 const tall = param('tall', 60, { min: 10, max: 250 }); // m: a heavy enemy standing this far over its core is pushed over by its top
 const touch = param('touch', 12, { min: 1, max: 40 }); // m/s it closes on that top at
 const thin = param('thin', 5, { min: 0, max: 20 }); // m: a heavy enemy's core this near a side face is rammed there anyway
@@ -504,7 +507,8 @@ function tick() {
   // and the contact is as low as it gets (a hit low on its face spins it, see tipSpeed). Null for a target in the air.
   // A hit pitches it forward, and its leading corner drops 0.6 m for every degree: too near the base's low layer that
   // corner was driven into it, and a notch broken in the slab locked onto a base roped down by its anchors for good.
-  const breachY = (t) => (shape && shape.ground ? clamp(t.y + shape.base + baseGap + state.bottom, floor, ceiling) : null);
+  // A ground robot lower than that (a gun drone) is met with its underside 2 m under its top, or it would pass over.
+  const breachY = (t) => (shape && shape.ground ? clamp(t.y + Math.min(shape.base + baseGap, shape.keepTop - 2) + state.bottom, floor, ceiling) : null);
   // The fastest side hit on `t` that leaves a spin of `tipSpin` (see fromSide), `baseSpin` on a ground base. The arm
   // is from the contact to its center of mass, which sits `comUp` over its core.
   const tipSpeed = (t) => {
@@ -713,8 +717,8 @@ function tick() {
   } else if (charge < reserve) {
     plan('low energy: landing');
     land = true;
-  } else if (state.evade || (target && target.m > heavy * m && self.energy.stored < timeLeft * hoverPower * 1.08)) {
-    state.evade = true;
+  } else if (state.evade) {
+    // Never entered since round 6 (Logan: never idle while an enemy core is alive): nothing sets `evade` any more.
     // Nothing it can do to this enemy, so it only has to last: it hides in its own jammer bubbles (no sensor sees
     // it, its own radar included) and flies from end to end, high up, never sitting still.
     plan('waiting it out, hidden');
@@ -729,7 +733,7 @@ function tick() {
     if ((x - mid) * state.hideSide > end) state.hideSide = -state.hideSide;
     wantVx = state.hideSide * lapSpeed;
     wantH = hideHeight;
-  } else if (target && target.m > heavy * m && shape && ((local > 0.5 && Math.min(shape.L, shape.R) <= thin) || shape.high > tall)) {
+  } else if (target && target.m > heavy * m && shape && ((local > 0.5 && Math.min(shape.L, shape.R) <= thin) || (pushTop > 0.5 && shape.high > tall))) {
     // Too heavy to ram head on: its own speed would hardly change. Two answers, from a scan of it; with neither it is
     // rammed like any other (titans round 6, 2026-10: it used to be waited out hidden, for good, and a heavy laser
     // titan burnt it there).
@@ -887,11 +891,10 @@ function tick() {
       const step = Math.max(0, span / 2 - state.halfWidth * 0.5);
       const k = state.upCount % 3;
       fromBelow(clamp((lo + hi) / 2 + (k === 1 ? -step : k === 2 ? step : 0), -edge, edge), ylo, 0, 0);
-    } else if (mass > heavy * m) {
-      state.evade = true;
-      wantH = hideHeight;
     } else {
       // On the ground and hidden: its core is likely deep, so bump it (out over the nearer edge, with an arena).
+      // A heavy one too (titans round 6, 2026-10): it used to be waited out hidden, high up, for good, where a dart
+      // base's darts came up from below.
       plan('ramming a hidden one from the side');
       const mid = (lo + hi) / 2;
       if (arena) limit = pushEdge;

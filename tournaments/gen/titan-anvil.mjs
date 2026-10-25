@@ -13,11 +13,14 @@
 // dense batteries (hovering alone draws 17.7 kJ a second, 4.2 MJ over a 240 s match, of 6.7 MJ).
 //
 // Round 6 (2026-10-25): the low layout is the default (`--layout brick` still writes the one above). Plates and frames
-// break alike under a hit, so the plates moved where they count: a floor slab 3 rows deep, the core 10 rows up inside a
-// box of plates 4 thick on every side (Logan's idea: layers on every line to the core, which a laser that looks for the
-// thinnest line meets), one plate on each side face, none on the roof. Its center of mass went from 21 m over its
-// bottom to 13, so a hit low on its face (a ground base) spins it far less. 370 plates, 1007 batteries, 364 push
-// boosters, 432 lift boosters; 12.5 t.
+// break alike under a hit, so the plates moved where they count: a floor slab 4 rows deep with the core in its top
+// row (from the side it sits behind half the brick's width of plates, under it 3 plates and the floor guns), a box
+// of plates 4 rows deep over the core (Logan's idea: layers on every line to the core, which a laser that looks for
+// the thinnest line meets), one plate on each side face, none on the roof. Its center of mass went from 21 m over its
+// bottom to 12, so a hit low on its face (a ground base) spins it far less. 395 plates, 1008 batteries, 350 push
+// boosters, 432 lift boosters; 13.0 t. Tried and dropped: the core 10 rows up in a 9 by 9 box (lasers from the side
+// went through 5 plates: Woodpecker's burners ended it in 30 to 38 s), a wide low box and a 5 row slab (worse
+// against Woodpecker).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,7 +42,7 @@ const CELL_ROWS = opt('cells', 22); // rows of dense batteries
 const BAND = opt('band', LOWD ? 4 : 1); // armor rows above and below the core's row
 const BOX = opt('box', LOWD ? 4 : 6); // armor columns each side of the core in those rows
 const JAMMERS = 56; // jammer pods (5 s each)
-const SLAB = opt('slab', 3); // low layout: rows of plates in the floor
+const SLAB = opt('slab', 4); // low layout: rows of plates in the floor
 const TOP_PAD = opt('topPad', 4); // low layout: frame rows over the lift rows
 
 const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1 };
@@ -101,7 +104,7 @@ function lowLayout() {
   const cx = W / 2;
   // The core in the slab (`coreUp` under `SLAB`), or higher up in the battery block inside a box of plates `BOX`
   // either side and `BAND` over and under it, out of reach of a blast on any face.
-  const coreRow = opt('coreUp', 10);
+  const coreRow = opt('coreUp', 3);
   // Batteries on the slab, push boosters beside them inside the side pad, the box over the core.
   const cellLo = SLAB;
   const cellHi = H - 1 - TOP_PAD - LIFT_ROWS; // the last battery row
