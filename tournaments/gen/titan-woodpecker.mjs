@@ -21,6 +21,7 @@
 // - Burners (round 5): three on each side between the rack and the keep, and two burner bays on each end inside the
 //   dart bays. A burner is a small flier with a laser on a rotator under it (titan-woodpecker.burner.js): it hovers
 //   off the target and burns a tunnel to its core. The keep's plates are tagged `keep` for the brain's parts list.
+//   Round 6 (armor takes a quarter of a beam): the same parts; only the scripts changed.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

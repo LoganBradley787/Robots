@@ -26,6 +26,8 @@
 //   in (for a target with lasers, the thinnest on our side), its slot, and where the target's lasers and (8 or less)
 //   guns are from its core. The heaviest enemy ever seen is remembered until seen dead (90 s at most): hidden while
 //   something much lighter is in view, the burners are sent at its last place and hunt it from there.
+// - Titans round 6 (2026-10): armor plates take a quarter of a beam now, so the burners are also told where the
+//   target's fab bays are (no armor, a quarter of a second of beam each, and what makes its darts and pods).
 const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts leaving the rack
 const wave = param('wave', 8, { min: 1, max: 200 }); // rack darts in one wave
 const waveGap = param('waveGap', 150, { min: 1, max: 6000 }); // ticks between two waves of the rack (longer than a flare burns)
@@ -69,8 +71,6 @@ const gunMax = param('gunMax', 8, { min: 0, max: 100 }); // a target with more g
 const gunEvery = param('gunEvery', 300, { min: 30, max: 6000 }); // ticks between two looks at the target's guns
 const burnWait = param('burnWait', 90, { min: 0, max: 6000 }); // ticks the burners wait for the probes' way in, at most
 const bayMax = param('bayMax', 24, { min: 0, max: 60 }); // the target's fab bays listed for the burners, at most
-const rackWait = param('rackWait', 0, { min: 0, max: 600 }); // s the rack waits at most, after the first burner left, for the target's few guns to break
-const holdEvery = param('holdEvery', 60, { min: 10, max: 6000 }); // ticks between two looks at the target's guns while the rack waits
 
 function setup() {
   state.mirrorX = -self.pos.x;
@@ -256,14 +256,12 @@ function lasers(t) {
     state.baysAt = frame;
     state.tbays = bs.slice(0, bayMax).map((p) => [Math.round(p.pos.x - t.pos.x), Math.round(p.pos.y - t.pos.y)]);
   }
-  // Looked at sooner while the rack waits for the burners to break the guns (titans round 6).
-  if (state.gunsFor === t.id && frame - state.gunsAt < (state.holding ? holdEvery : gunEvery)) return;
+  if (state.gunsFor === t.id && frame - state.gunsAt < gunEvery) return;
   if (state.gunsFor === t.id) state.beamsFor = -1; // the lasers are looked at again next tick (turrets turn)
   const gs = look(t.id, { of: ['gun'] });
   if (!gs) return;
   state.gunsFor = t.id;
   state.gunsAt = frame;
-  state.gunN = gs.length;
   state.guns = gs.length > 0 && gs.length <= gunMax ? gs.map((p) => [Math.round(p.pos.x - t.pos.x), Math.round(p.pos.y - t.pos.y)]) : [];
 }
 
@@ -580,15 +578,6 @@ function fire(t) {
   // within 2 s, so a single flare (it burns 2 s) took every dart of it; waves further apart than a flare burns make a
   // robot spend a flare on each, and the waves after its last flare get through.
   const rest = state.next > 0 && state.next % wave === 0 ? waveGap : gap;
-  // The rack waits for the burners (titans round 6, 2026-10): a target with a few guns (a fortress's turrets) shoots
-  // the darts down on the way, so the rack goes once its guns are broken, or `rackWait` s after the first burner left.
-  // Then the darts come in along the burners' line, and their blasts break the plates a beam burns slowly.
-  // The wait starts when a target is first seen; until its guns are counted it is held too (a burner leaves a second
-  // or two after the first sight, the rack's first wave in a quarter of one).
-  if (t && state.holdFrom === undefined && state.burners.length > 0) state.holdFrom = time;
-  const few = state.gunsFor !== (t && t.id) || (state.gunN > 0 && state.gunN <= gunMax);
-  state.holding = !!(t && state.holdFrom !== undefined && few && time - state.holdFrom < rackWait);
-  if (state.holding) return;
   if (state.next < state.grips.length && frame - state.lastFire >= rest && frame >= 2) {
     const grip = state.grips[state.next++];
     state.lastFire = frame;
