@@ -71,6 +71,7 @@ const mainKeep = param('mainKeep', 90, { min: 0, max: 6000 }); // s a hidden mai
 const gunMax = param('gunMax', 12, { min: 0, max: 100 }); // a target with more guns than this has them left alone by the burners (a fortress's few turrets are worth a burner's first second; 12 since round 6: a flier's dozen cost the kill in round 5, but with plates at a quarter of a beam its core holds out long enough for them to shoot every burner)
 const gunEvery = param('gunEvery', 300, { min: 30, max: 6000 }); // ticks between two looks at the target's guns
 const burnWait = param('burnWait', 90, { min: 0, max: 6000 }); // ticks the burners wait for the probes' way in, at most
+const laserFrom = param('laserFrom', 280, { min: 20, max: 300 }); // m out along a line where the probes look at a target's lasers from
 const hardCover = param('hardCover', 1800, { min: 0, max: 1000000 }); // health on the thinnest line to its core that makes a target hard
 const bayMax = param('bayMax', 24, { min: 0, max: 60 }); // the target's fab bays listed for the burners, at most
 
@@ -325,8 +326,20 @@ function probe(t) {
     }
     // The thinnest on our side and not steep (titans round 5): a target with lasers is burnt from there, where its
     // turrets facing us aim at the base and those facing away cannot swing round.
-    if (e <= safeUp && one[0].cover < pr.safeCover) {
-      pr.safeCover = one[0].cover;
+    // Round 6 (2026-10): thinnest to its lasers, which the burners burn first, as seen from where they will stand
+    // (`laserFrom` m out). On our side of a sled its mast stood in front of the lasers and the burners spent 14 s of
+    // beam on its frames; a plate in front of a laser is 1.7 s of beam now. The core's cover only breaks ties.
+    let safeScore = one[0].cover;
+    if (e <= safeUp && state.beamsFor === t.id && state.beamN > 0) {
+      const lz = look(t.id, { of: ['laser'], from: { x: t.pos.x + ax * laserFrom, y: t.pos.y + ay * laserFrom }, wide: 0.6 });
+      if (lz && lz.length > 0) {
+        let c = 0;
+        for (const p of lz) c += p.cover;
+        safeScore = c + 0.25 * one[0].cover;
+      }
+    }
+    if (e <= safeUp && safeScore < pr.safeCover) {
+      pr.safeCover = safeScore;
       pr.safe = { ax, ay, cover: one[0].cover };
     }
   }
