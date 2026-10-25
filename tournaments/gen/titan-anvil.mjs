@@ -11,6 +11,13 @@
 // plate's damage from a shell): the brick is honestly much thinner skinned than it was.
 // The rest is what 12 t in the air costs: 432 lift boosters (push to weight 1.46), 300 push boosters, and 1111
 // dense batteries (hovering alone draws 17.7 kJ a second, 4.2 MJ over a 240 s match, of 6.7 MJ).
+//
+// Round 6 (2026-10-25): the low layout is the default (`--layout brick` still writes the one above). Plates and frames
+// break alike under a hit, so the plates moved where they count: a floor slab 3 rows deep, the core 10 rows up inside a
+// box of plates 4 thick on every side (Logan's idea: layers on every line to the core, which a laser that looks for the
+// thinnest line meets), one plate on each side face, none on the roof. Its center of mass went from 21 m over its
+// bottom to 13, so a hit low on its face (a ground base) spins it far less. 370 plates, 1007 batteries, 364 push
+// boosters, 432 lift boosters; 12.5 t.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,20 +26,21 @@ const posArg = (i) => (process.argv[i] && !process.argv[i].startsWith('--') ? Nu
 const W = posArg(2) || 72; // brick width in cells (guns stand one cell outside it)
 const H = (posArg(2) && posArg(3)) || 41; // brick height
 const opt = (name, d) => { const i = process.argv.indexOf('--' + name); return i > 0 ? Number(process.argv[i + 1]) : d; };
-const SIDE_A = opt('side', 2); // armor plates on each side face (the faces that ram)
-const ROOF_A = opt('roof', 1); // armor plates on the roof (it rams upward, slower)
+const optStr = (name, d) => { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : d; };
+const LAYOUT = optStr('layout', 'low'); // 'low' (titans round 6, see lowLayout) or 'brick' (the layout before it)
+const LOWD = LAYOUT === 'low';
+const SIDE_A = opt('side', LOWD ? 1 : 2); // armor plates on each side face (the faces that ram)
+const ROOF_A = opt('roof', LOWD ? 0 : 1); // armor plates on the roof (it rams upward, slower)
 const FLOOR_A = opt('floor', 1); // armor plates under the lift boosters (ground guns blast up at it)
 const PAD = 6; // cells from a ramming face to the first booster or battery: a crash hurts nothing deeper than that
 const LIFT_ROWS = opt('lift', 8); // rows of lift boosters above the floor
-const PUSH_COLS = opt('push', 6); // columns of push boosters inside each side wall
+const PUSH_COLS = opt('push', LOWD ? 7 : 6); // columns of push boosters inside each side wall
 const CELL_ROWS = opt('cells', 22); // rows of dense batteries
-const BAND = opt('band', 1); // armor rows above and below the core's row
-const BOX = opt('box', 6); // armor columns each side of the core in those rows
+const BAND = opt('band', LOWD ? 4 : 1); // armor rows above and below the core's row
+const BOX = opt('box', LOWD ? 4 : 6); // armor columns each side of the core in those rows
 const JAMMERS = 56; // jammer pods (5 s each)
-const optStr = (name, d) => { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : d; };
-const LAYOUT = optStr('layout', 'brick');
-const SLAB = opt('slab', 4); // low layout: rows of plates in the floor
-const TOP_PAD = opt('topPad', 6); // low layout: frame rows over the lift rows
+const SLAB = opt('slab', 3); // low layout: rows of plates in the floor
+const TOP_PAD = opt('topPad', 4); // low layout: frame rows over the lift rows
 
 const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1 };
 const g = [];
@@ -91,23 +99,26 @@ function lowLayout() {
   for (let y = 0; y < SLAB; y++) for (let x = 0; x < W; x++) g[y][x] = 'A';
   for (let x = 0; x < W; x++) for (let i = 0; i < ROOF_A; i++) g[H - 1 - i][x] = 'A';
   const cx = W / 2;
-  const coreRow = Math.min(SLAB - 1, opt('coreUp', 2));
-  g[coreRow][cx] = 'C';
-  g[coreRow][cx - 1] = 'O';
-  g[coreRow][cx + 1] = 'O';
+  // The core in the slab (`coreUp` under `SLAB`), or higher up in the battery block inside a box of plates `BOX`
+  // either side and `BAND` over and under it, out of reach of a blast on any face.
+  const coreRow = opt('coreUp', 10);
   // Batteries on the slab, push boosters beside them inside the side pad, the box over the core.
   const cellLo = SLAB;
   const cellHi = H - 1 - TOP_PAD - LIFT_ROWS; // the last battery row
   const inner = PAD + PUSH_COLS + 1;
   for (let y = cellLo; y <= cellHi; y++) {
-    for (let x = inner; x < W - inner; x++) g[y][x] = y < SLAB + BAND && Math.abs(x - cx) <= BOX ? 'A' : 'Z';
+    const boxed = coreRow < SLAB ? y < SLAB + BAND : Math.abs(y - coreRow) <= BAND;
+    for (let x = inner; x < W - inner; x++) g[y][x] = boxed && Math.abs(x - cx) <= BOX ? 'A' : 'Z';
     for (let i = 0; i < PUSH_COLS; i++) {
       g[y][PAD + i] = 'p';
       g[y][W - 1 - PAD - i] = 'q';
     }
   }
+  g[coreRow][cx] = 'C';
+  g[coreRow][cx - 1] = 'O';
+  g[coreRow][cx + 1] = 'O';
   // Jammer pods in two rows of the battery block over the box, within 30 m of the core.
-  const jamRow = cellLo + BAND + 1;
+  const jamRow = (coreRow < SLAB ? cellLo : coreRow + 1) + BAND + 1;
   const half = Math.ceil(JAMMERS / 2);
   for (let i = 0; i < JAMMERS; i++) g[jamRow + Math.floor(i / half)][cx - Math.floor(half / 2) + (i % half)] = 'J';
   // Lift boosters over the batteries, a frame rib every 8 columns.
@@ -175,4 +186,4 @@ fs.writeFileSync(out, JSON.stringify(blueprint, null, 1) + '\n');
 const c = com();
 const count = {};
 for (const r of g) for (const t of r) count[t] = (count[t] || 0) + 1;
-console.log(`titan-anvil: ${W} by ${H}, about ${Math.round(c.m)} kg without guns, center of mass row ${c.y.toFixed(2)}, core row ${coreRow}`, JSON.stringify(count));
+console.log(`titan-anvil: ${W} by ${H}, about ${Math.round(c.m)} kg without guns, center of mass row ${c.y.toFixed(2)}, core row ${g.findIndex((r) => r.includes('C'))}`, JSON.stringify(count));

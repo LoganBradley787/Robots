@@ -29,7 +29,12 @@
 // - Peers (titans v3, 2026-10): the rules made for two rammers of one weight (backing off apart, side hits aimed for
 //   spin, finishing one that is down) apply only to a target of at least `peer` of its mass. One much lighter is
 //   knocked away by each hit, so it is chased and hit again on the way to the edge.
-// Something much heavier is not rammed: the brick waits high behind its tail.
+// - Never idle (titans round 6, 2026-10, Logan: "it ain't ramming shit, bro"): a ground base too heavy to bump out
+//   (an anchored one) used to be waited out hidden for the rest of the match, and so did a heavy enemy with nothing
+//   to take hold of; against laser titans that was waiting to be burnt. Both are rammed now: a ground base is
+//   breached by side hits at `breachSpeed` with its underside `baseGap` over the base's low layer (breachY), the
+//   hit's spin reckoned about its real center of mass (`comUp`: the low layout buries the core above a floor slab).
+// Something much heavier with a thin face or a tall mast is still not rammed head on (see the heavy branch).
 // It never turns round: boosters on each side push it left or right, the lift rows hold its height and its lean.
 // Guns on every face blast what their sights show. Everything goes by `side` and by where its own parts are, so it
 // works flipped.
@@ -70,8 +75,11 @@ const tries = param('tries', 2, { min: 1, max: 10 }); // tries in a row that bre
 const tryTime = param('tryTime', 20, { min: 5, max: 120 }); // s a try may take before it counts as one that failed
 const hitParts = param('hitParts', 4, { min: 1, max: 100 }); // parts the enemy must lose in a try for it to count as a hit
 const tipSpin = param('tipSpin', 0.2, { min: 0.05, max: 2 }); // rad/s: the most spin a hit may give it (it rights about 0.5 rad of spin at 0.2)
+const baseSpin = param('baseSpin', 0.35, { min: 0.05, max: 2 }); // rad/s: the same for a hit on a ground base (see breachY)
+const breachSpeed = param('breachSpeed', 75, { min: 20, max: 150 }); // m/s it rams a ground base at (it cannot dodge, and this breaks plates)
+const baseGap = param('baseGap', 3, { min: 0.5, max: 20 }); // m its underside keeps over a ground base's low layer when breaching it
 const giveUp = param('giveUp', 6, { min: 2, max: 100 }); // tries in a row that break nothing on a ground enemy before it regroups
-const regroup = param('regroup', 20, { min: 0, max: 120 }); // s it waits high, out of reach of ground guns, before trying again
+const regroup = param('regroup', 6, { min: 0, max: 120 }); // s it waits high, out of reach of ground guns, before trying again (titans round 6: was 20, Logan: never idle)
 const stuckTime = param('stuckTime', 3, { min: 1, max: 30 }); // s going nowhere before it climbs out and backs off
 const tilt = param('tilt', 25, { min: 0, max: 40 }); // degrees it leans at most to speed up or slow down
 const forget = param('forget', 30, { min: 1, max: 10000 }); // s a main enemy that vanished alive is kept, with no arena
@@ -137,6 +145,7 @@ function setup() {
     }
   }
   state.inertia = inertia;
+  state.comUp = cy - self.pos.y; // its center of mass over its core (the low layout buries the core in the floor slab)
   state.leanTorque = Math.max(arms * 400, 1); // N m per unit of throttle difference between the two lift halves
   state.laLeft = laX < 0; // the `la` lift half sits left of the middle (it does not when flipped)
   state.paDir = paX < 0 ? 1 : -1; // the `pa` boosters sit on the left and push right (the other way when flipped)
@@ -286,8 +295,22 @@ function measure(main) {
       if (y > T) T = y;
     }
   }
+  // A ground base (titans round 6, 2026-10): how high its low layer stands (most of its columns reach no higher,
+  // the base it is built on) and how high it stands over its core (what a side hit on the core meets).
+  const tops = {};
+  let keepTop = cy;
+  for (const p of seen) {
+    const k = Math.round(p.pos.x);
+    if (tops[k] === undefined || p.pos.y > tops[k]) tops[k] = p.pos.y;
+    if (Math.abs(p.pos.x - cx) < 12 && p.pos.y > keepTop) keepTop = p.pos.y;
+  }
+  const cols = Object.keys(tops).map((k) => tops[k]).sort((a, b) => a - b);
+  // Only a low layer that something stands well over counts (a keep on a long base); a block has none, and is met
+  // just over the ground.
+  let baseTop = cols.length > 0 ? cols[Math.floor(0.4 * cols.length)] : low;
+  if (baseTop > keepTop - 6) baseTop = low;
   const f = faces(seen, cx, cy);
-  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length, faceL: f.L, faceR: f.R };
+  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length, faceL: f.L, faceR: f.R, base: baseTop - cy, keepTop: keepTop - cy };
   state.shapeAt = time;
 }
 
@@ -349,7 +372,7 @@ function pickHeight(shape, toRight) {
     const c = contactAt(mine, its, d);
     if (c === null) continue;
     const armIt = Math.abs(c);
-    const armMe = Math.abs(c - d);
+    const armMe = Math.abs(c - d - state.comUp);
     const score = Math.min(armIt, 12) - 3 * armMe - 0.05 * Math.abs(d);
     if (!pick || score > pick.score) pick = { d, armIt, armMe, score };
   }
@@ -382,6 +405,7 @@ function tick() {
   state.prevVx = vx;
   state.prevVy = vy;
   if (parts.length < state.partCount) state.hurtAt = time;
+  if (jolt > 4 && say > 0.5) log('hit', jolt.toFixed(0), 'at', vx.toFixed(0), vy.toFixed(0), 'y', y.toFixed(0), 'spin', self.angVel.toFixed(2));
   state.partCount = parts.length;
 
   // The main enemy: the one it had (unless one twice as heavy shows up), else the heaviest enemy with a live core of
@@ -460,7 +484,7 @@ function tick() {
   if (target || pings.length > 0) state.lostAt = time;
   const shape = main && state.shape && time - state.shapeAt < 6 ? state.shape : null;
   if (state.way !== '' && state.wayParts < 0 && main) state.wayParts = main.parts;
-  if (state.way !== '' && jolt > 2 && target && Math.abs(target.x - x) < state.halfWidth + 120) state.wayHit = true;
+  if (state.way !== '' && jolt > 2 && target && Math.abs(target.x - x) < state.halfWidth + 120 + (shape ? Math.max(-shape.hullLo, shape.hullHi) : 0)) state.wayHit = true;
 
   // Speeding up (measured, titans v3, 2026-10): air drag is 0.0025 N s²/m² per cell, so with F newtons on it the
   // brick tops out at sqrt(F / k), and goes from still to v in -(m / 2k) ln(1 - k v² / F) meters. Level, on the push
@@ -475,14 +499,22 @@ function tick() {
     const q = (k * v * v) / runForce;
     return q >= 0.98 ? 1e9 : (-m / (2 * k)) * Math.log(1 - q);
   };
-  // The fastest side hit on `t` that leaves a spin of `tipSpin` (see fromSide).
+  // Breaching a ground base (titans round 6, 2026-10, Logan: "it ain't ramming shit"): its core height for a side
+  // hit with its underside just clear of the base's low layer, so the face it meets is the one over the target's core
+  // and the contact is as low as it gets (a hit low on its face spins it, see tipSpeed). Null for a target in the air.
+  // A hit pitches it forward, and its leading corner drops 0.6 m for every degree: too near the base's low layer that
+  // corner was driven into it, and a notch broken in the slab locked onto a base roped down by its anchors for good.
+  const breachY = (t) => (shape && shape.ground ? clamp(t.y + shape.base + baseGap + state.bottom, floor, ceiling) : null);
+  // The fastest side hit on `t` that leaves a spin of `tipSpin` (see fromSide), `baseSpin` on a ground base. The arm
+  // is from the contact to its center of mass, which sits `comUp` over its core.
   const tipSpeed = (t) => {
-    const tTop = t.y + (shape ? shape.high : 5);
+    const bY = breachY(t);
+    const tTop = t.y + (shape ? (bY !== null ? shape.keepTop : shape.high) : 5);
     const tLow = t.y + (shape ? shape.low : -5);
-    const yAt = clamp(t.y, floor, ceiling);
+    const yAt = bY !== null ? bY : clamp(t.y, floor, ceiling);
     const contactY = (Math.max(yAt - state.bottom, tLow) + Math.min(yAt + state.top, tTop)) / 2;
     const tm = Math.max(t.m, 1);
-    return (tipSpin * state.inertia) / (Math.max(1, Math.abs(contactY - yAt)) * ((m * tm) / (m + tm)));
+    return ((bY !== null ? baseSpin : tipSpin) * state.inertia) / (Math.max(1, Math.abs(contactY - yAt - state.comUp)) * ((m * tm) / (m + tm)));
   };
   // Climbing into something from below: sink `drop` under its underside while lining up, then climb at full speed
   // until the climb stalls (the hit, or the ceiling), and start over.
@@ -568,7 +600,10 @@ function tick() {
     const rank = !pickAll || !atMe || t.parts === undefined ? 1 : Math.sign(parts.length - t.parts);
     const pick = rank > 0 ? pickAll : null;
     const tip = pick ? (tipSpin * state.inertia) / (Math.max(1, pick.armMe) * ((m * tm) / (m + tm))) : tipSpeed(t);
-    const speed = Math.max(12, Math.min(fast || Math.min(vmax, (sat * (m + tm)) / m, 0.95 * vTop), tip));
+    // A ground base is rammed at `breachSpeed` (titans round 6, 2026-10): it cannot dodge, that already breaks its
+    // plates, and the shorter run-up means a hit every few seconds, not every minute (it backed off 700 m each time).
+    const bCap = t === state.last && breachY(t) !== null ? breachSpeed : vmax;
+    const speed = Math.max(12, Math.min(fast || Math.min(bCap, vmax, (sat * (m + tm)) / m, 0.95 * vTop), tip));
     // The run-up: what its measured speeding up needs to reach that speed (leaning, against air drag), at most
     // `maxRun` before a still target and less the faster the target moves away from it, so one drifting away is
     // chased, not let go (titans v2, 2026-10: a 250 m run-up let a fleeing hive go for 20 s). Not while backing off
@@ -650,7 +685,8 @@ function tick() {
       if (state.finish) ramVy = (clamp(Math.max(t.y, floor + 27), floor, Math.max(floor, t.y + (shape ? shape.high : 5) + state.bottom - 8)) - y) / Math.max(0.7, tc);
       else if (rank < 0) ramVy = (clamp(y, lo, hi) - y) / Math.max(0.7, tc);
       else {
-        const aimY = clamp(t.y + (pick ? pick.d : 0) + g * (t.vy * tc + 0.5 * ay * tc * tc), lo, hi);
+        const bY = t === state.last ? breachY(t) : null;
+        const aimY = bY !== null ? bY : clamp(t.y + (pick ? pick.d : 0) + g * (t.vy * tc + 0.5 * ay * tc * tc), lo, hi);
         ramVy = g * (t.vy + ay * tc) + (aimY - y) / Math.max(0.7, tc);
       }
       if (tc < 2.5) calm = true;
@@ -693,9 +729,11 @@ function tick() {
     if ((x - mid) * state.hideSide > end) state.hideSide = -state.hideSide;
     wantVx = state.hideSide * lapSpeed;
     wantH = hideHeight;
-  } else if (target && target.m > heavy * m) {
-    // Too heavy to ram head on: its own speed would hardly change. Three answers, from a scan of it.
-    if (local > 0.5 && shape && Math.min(shape.L, shape.R) <= thin) {
+  } else if (target && target.m > heavy * m && shape && ((local > 0.5 && Math.min(shape.L, shape.R) <= thin) || shape.high > tall)) {
+    // Too heavy to ram head on: its own speed would hardly change. Two answers, from a scan of it; with neither it is
+    // rammed like any other (titans round 6, 2026-10: it used to be waited out hidden, for good, and a heavy laser
+    // titan burnt it there).
+    if (local > 0.5 && Math.min(shape.L, shape.R) <= thin) {
       // Its core sits just behind a side face (it lies on its side): ram that face as fast as it can fly. The
       // brick's own face pays for it; the core deep inside does not.
       // Pressed against it and going nowhere (no room for a run-up near the arena's edge), it backs off and comes
@@ -706,7 +744,7 @@ function tick() {
       if (over > ceiling) over = null;
       limit = pushEdge;
       fromSide(target, prefer, over, breach);
-    } else if (shape && shape.high > tall) {
+    } else {
       // It stands tall (a mast): a push on the top of it is a long lever against its weight, so fly into the top
       // and keep pushing until it goes over.
       // It comes up to the top gently (matching the enemy's own speed, `touch` m/s faster) so the meeting is no crash.
@@ -714,10 +752,6 @@ function tick() {
       const top = target.y + shape.high;
       const tx = target.x + shape.topX;
       fromSide({ x: tx, y: Math.min(top - 14, ceiling), vx: target.vx, vy: 0, ay: 0, m: 0 }, 0, null, Math.abs(tx - x) > 150 ? lineUp : touch);
-    } else {
-      // Nothing to take hold of.
-      state.evade = true;
-      wantH = hideHeight;
     }
   } else if (target) {
     // Seen by radar: pick the way in. Each way costs how deep the core sits behind that face, plus a penalty for
@@ -746,7 +780,10 @@ function tick() {
       const nearEdge = arena && edge - Math.abs(target.x) < 100;
       // Only one too low to hit level (titans v3, 2026-10): another anvil passing near the ground read as a base and
       // was waited out for the rest of the match. Under 40 m/s a side hit breaks no armor (measured).
-      if (deep && target.m > shove && tipSpeed(target) < 40) state.evade = true;
+      // Too heavy to bump out (an anchored base): breached instead, by fast side hits just over its low layer
+      // (breachY), again and again on the face it meets (titans round 6, 2026-10). It used to be waited out hidden,
+      // for good: against a base that sends laser fliers that is waiting to be burnt (Logan: "it's not doing anything").
+      if (deep && target.m > shove) pushOut = 0;
       else if (arena && (deep || nearEdge)) pushOut = target.x >= 0 ? 1 : -1;
     }
     // Finishing one that is down (titans v3, 2026-10, Logan): on the ground and still or sliding away (an anvil rolled
@@ -890,6 +927,9 @@ function tick() {
   // and the try it was on counts as failed.
   if (!land && Math.hypot(vx, vy) < 1.5) {
     if (time - state.stillAt > stuckTime) {
+      // Stuck again soon after: the other way this time (titans round 6, 2026-10: wedged against a base's end, the
+      // way away from the target was the way that was blocked).
+      state.unstickDir = time - state.unstick < 6 ? -(state.unstickDir || 1) : 1;
       state.unstick = time + 2.5;
       state.stillAt = time;
       if (state.way !== '') {
@@ -901,7 +941,7 @@ function tick() {
   } else state.stillAt = time;
   if (time < state.unstick) {
     ramVy = 15;
-    wantVx = target ? (target.x > x ? -15 : 15) : 0;
+    wantVx = target ? (target.x > x ? -15 : 15) * (state.unstickDir || 1) : 0;
     calm = true;
   }
 
@@ -943,7 +983,9 @@ function tick() {
     const need = 0.25 * Math.abs(dvx) - pushA;
     if (need > 0) lean = -Math.sign(dvx) * Math.min((tilt * Math.PI) / 180, Math.atan(need / 9.81));
   }
-  let lift = (m * (9.81 + ay)) / state.liftForce / Math.max(0.5, Math.cos(self.angle));
+  // Upside down (past about 80 degrees) the lift rows push it toward the ground: only the difference that turns it
+  // back is kept (titans round 6, 2026-10: it doubled them there, and drove itself onto its back).
+  let lift = Math.cos(self.angle) > 0.2 ? (m * (9.81 + ay)) / state.liftForce / Math.max(0.5, Math.cos(self.angle)) : 0;
   if (land && room < 0.4 && Math.abs(vy) < 1) lift = 0; // sitting on the ground
 
   // Level (or the lean): a spring and damper on the tilt, through the difference between the two lift halves, plus
@@ -964,7 +1006,9 @@ function tick() {
   // its side, a brick slid out of the arena on them at 84 m/s (titans v3, 2026-10). They are cut while that push
   // heads for the nearer edge and it is already going that way or near it.
   const sideways = -Math.sin(self.angle);
-  if (arena && Math.abs(self.angle) > 1.05 && sideways * x > 0 && (vx * sideways > 5 || edge - Math.abs(x) < 300)) lift = 0;
+  // Only near the ground (titans round 6, 2026-10): in the air this cut the lift halves' turning too, and a brick
+  // spun by a hit rolled on through its side onto its back.
+  if (arena && Math.abs(self.angle) > 1.05 && y < state.halfWidth + 6 && sideways * x > 0 && (vx * sideways > 5 || edge - Math.abs(x) < 300)) lift = 0;
   const leftLift = lift > 0 ? clamp(lift - diff, 0, 1) : 0;
   const rightLift = lift > 0 ? clamp(lift + diff, 0, 1) : 0;
   set('la', 'throttle', state.laLeft ? leftLift : rightLift);
