@@ -72,8 +72,12 @@ const sweep = param('sweep', 1.25, { min: 0, max: 1.5 }); // rad either side of 
 const sweepRate = param('sweepRate', 1.2, { min: 0.1, max: 10 }); // rad/s of the feeler's swing phase
 const gunBurn = param('gunBurn', 0.25, { min: 0, max: 5 }); // s of beam on each of the target's guns (25 health: a tenth of that)
 const gunTry = param('gunTry', 0.12, { min: 0, max: 30 }); // s it tries for a gun before it lets it be
-const laserBurn = param('laserBurn', 2.2, { min: 0, max: 10 }); // s of beam on each of the target's lasers (titans round 6: a plate in front of one is 1.7 s now)
+const laserBurn = param('laserBurn', 2.2, { min: 0, max: 10 }); // s of beam on each of a hard target's lasers (titans round 6: a plate in front of one is 1.7 s now)
+const laserSoft = param('laserSoft', 1, { min: 0, max: 10 }); // s of beam on each of another target's lasers
 const bayBurn = param('bayBurn', 0.35, { min: 0, max: 5 }); // s of beam on each of its fab bays (150 health: a quarter of a second)
+const bayTol = param('bayTol', 0.0025, { min: 0.0005, max: 0.5 }); // rad: on a bay the beam burns only this close to the line (half a meter at 200 m: a bay is 3 m wide between armor pillars)
+const bayDeep = param('bayDeep', 9, { min: 0, max: 30 }); // m short of a bay's floor the sight may meet it
+const bayUp = param('bayUp', 230, { min: 0, max: 290 }); // m over its bays it burns them from; 0: from its station
 const laserTry = param('laserTry', 3, { min: 0, max: 30 }); // s it tries for a laser before it lets it be
 const gunNear = param('gunNear', 4, { min: 0.5, max: 50 }); // m: the sight must meet the target this near the gun's point
 const clear = param('clear', 170, { min: 0, max: 290 }); // m from the target's core it keeps on the way to its station
@@ -119,14 +123,18 @@ function setup() {
   state.guns = state.t && Array.isArray(state.t.guns) ? state.t.guns.map((g) => ({ x: g[0], y: g[1], fired: 0, tried: 0, need: gunBurn, try: gunTry })) : [];
   // Its lasers first of all (a sled's front turret ends our base from 300 m): plated over and under, so longer on
   // each (a plate in front is 250 health).
-  if (state.t && Array.isArray(state.t.lz)) for (const g of state.t.lz) state.guns.unshift({ x: g[0], y: g[1], fired: 0, tried: 0, need: laserBurn, try: laserTry, first: true });
+  // Longer on a hard target's (titans round 6): a plate in front of one is 1.7 s of beam now.
+  if (state.t && Array.isArray(state.t.lz)) for (const g of state.t.lz) state.guns.unshift({ x: g[0], y: g[1], fired: 0, tried: 0, need: state.t.hard ? laserBurn : laserSoft, try: laserTry, first: true });
   // Its fab bays (titans round 6, 2026-10): no armor, 150 health, and what makes its darts and jammer pods. Shared out
   // by slot, so each bay costs one burner a quarter of a second, not every burner one each.
-  if (state.t && Array.isArray(state.t.bays)) {
+  // Only on a hard target (the base's message says: thick armor on every line to its core), whose core takes long.
+  if (state.t && state.t.hard && Array.isArray(state.t.bays)) {
     const share = Math.max(1, state.t.share || 1);
     const k = (state.t.slot ?? 0) % share;
-    state.t.bays.forEach((g, i) => {
-      if (i % share === k) state.guns.push({ x: g[0], y: g[1], fired: 0, tried: 0, need: bayBurn, try: gunTry });
+    // In blocks along the target, left to right (titans round 6): each burner's bays lie side by side, under one station.
+    const bs = state.t.bays.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    bs.forEach((g, i) => {
+      if (Math.floor((i * share) / bs.length) === k) state.guns.push({ x: g[0], y: g[1], fired: 0, tried: 0, need: bayBurn, try: gunTry, bay: true });
     });
   }
   for (const p of parts) if (p.type === 'booster') state.force += p.spec.config.maxForce;
@@ -284,7 +292,7 @@ function tick() {
   // beam that cuts it brings its top down across the burners waiting nearer in.
   let out = t.beams > 0 ? wiseOff : standoff;
   let side = (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * spacing;
-  if (!(t.beams > 0) && stack > 0) {
+  if (!(t.beams > 0) && stack > 0 && t.hard) {
     // Stacked along the way in (titans round 6, 2026-10): each slot `stack` m further out, and turned `fan` rad off
     // the line by turns either side. The beams meet at the core from angles twice as close as side by side 8 m apart,
     // so they dig a narrower tunnel (a plate is a 1.7 s of one beam now), and the burners stand apart: side by side,
@@ -293,8 +301,26 @@ function tick() {
     out = Math.min(out + stack * ring, reach - 8);
     side = (ring % 2 === 1 ? 1 : -1) * Math.ceil(ring / 2) * fan * out;
   }
-  const sx = tx + ux * out - uy * side;
-  const sy = ty + uy * out + ux * side;
+  let sx = tx + ux * out - uy * side;
+  let sy = ty + uy * out + ux * side;
+  // Over its bays first (titans round 6, 2026-10): a fab bay is open at the top, where its copies leave, and between
+  // armor pillars at the sides, so a beam reaches it from above. With bays of its share still to burn, the station is
+  // `bayUp` m over the middle of them, spread by slot.
+  if (!(t.beams > 0) && bayUp > 0) {
+    let n = 0;
+    let mx = 0;
+    let my = -Infinity;
+    for (const g of state.guns) {
+      if (!g.bay || g.fired >= g.need || g.tried >= g.try) continue;
+      n++;
+      mx += g.x;
+      if (g.y > my) my = g.y;
+    }
+    if (n > 0) {
+      sx = tx + mx / n + (k % 2 === 0 ? 1 : -1) * 6;
+      sy = ty + my + bayUp + 10 * (k % 3);
+    }
+  }
   const up = self.pos.y - state.y0 < climb && time - state.born < 3;
   // A target with lasers (the base's message says): inside `wary` m it creeps in, closing slower than its point
   // defense counts as coming at it.
@@ -351,11 +377,14 @@ function gunAim(las, g, gx, gy) {
   const err = wrap(want - a);
   set('rotator', 'turn', clamp((moving - self.angVel + gain * err) / state.rate, -1, 1));
   const d = Math.hypot(gx - las.pos.x, gy - las.pos.y);
-  const on = Math.abs(err) < tol && las.out.sightSide === SIGHT_ENEMY && las.out.sightId === state.t.id && Math.abs(las.out.sight - d) < gunNear;
+  // A bay (titans round 6) is a hollow some 7 m deep under its open top: the sight may meet its walls or a copy it is
+  // building (a robot of its own) up to `bayDeep` m short of its floor, and that burns the bay or its copy.
+  const on = Math.abs(err) < (g.bay ? bayTol : tol) && las.out.sightSide === SIGHT_ENEMY && (g.bay ? las.out.sight > d - bayDeep && las.out.sight < d + gunNear : las.out.sightId === state.t.id && Math.abs(las.out.sight - d) < gunNear);
   set('laser', 'fire', on ? 1 : 0);
   // Tried counts only while aimed: a gun the sight does not meet there at once (behind armor from here) is let be,
   // so a flier's dozen hidden turrets cost the burner a second, not five.
-  if (Math.abs(err) < tol) g.tried += dt;
+  // A bay's time burning does not count as tried (it needs longer than a gun's try).
+  if (Math.abs(err) < tol && !(g.bay && on)) g.tried += dt;
   else g.slew = (g.slew || 0) + dt;
   if (g.slew > 1) g.tried = g.try;
   if (on) g.fired += dt;

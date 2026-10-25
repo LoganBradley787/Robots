@@ -70,6 +70,7 @@ const mainKeep = param('mainKeep', 90, { min: 0, max: 6000 }); // s a hidden mai
 const gunMax = param('gunMax', 8, { min: 0, max: 100 }); // a target with more guns than this has them left alone by the burners (a fortress's few turrets are worth a burner's first second; a flier's dozen cost it the kill)
 const gunEvery = param('gunEvery', 300, { min: 30, max: 6000 }); // ticks between two looks at the target's guns
 const burnWait = param('burnWait', 90, { min: 0, max: 6000 }); // ticks the burners wait for the probes' way in, at most
+const hardCover = param('hardCover', 1800, { min: 0, max: 1000000 }); // health on the thinnest line to its core that makes a target hard
 const bayMax = param('bayMax', 24, { min: 0, max: 60 }); // the target's fab bays listed for the burners, at most
 
 function setup() {
@@ -527,6 +528,10 @@ function burnerMsg(t) {
   msg.share = Math.max(1, state.burners.length);
   if (state.gunsFor === id && state.guns.length > 0) msg.guns = state.guns;
   if (state.baysFor === id && state.tbays && state.tbays.length > 0) msg.bays = state.tbays;
+  // A hard target (titans round 6): even its thinnest line to the core has `hardCover` health or more on it (eight
+  // plates, some 13 s of one beam). Its burners take its bays first, stand stacked along one line, and give its
+  // lasers longer; a softer one is burnt straight to its core, as in round 5.
+  if (a && a.tid === id && a.cover >= hardCover) msg.hard = 1;
   if (state.beamsFor === id && state.lz && state.lz.length > 0) msg.lz = state.lz;
   return msg;
 }
