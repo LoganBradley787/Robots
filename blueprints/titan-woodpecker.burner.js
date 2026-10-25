@@ -30,7 +30,9 @@
 //   into the tunnel, and then drops with everything off and its script asleep.
 const standoff = param('standoff', 210, { min: 20, max: 290 }); // m from the target's core to the station
 const rise = param('rise', 0.9, { min: 0, max: 1.57 }); // rad up from level: the way in toward a compact target, on our side
-const spacing = param('spacing', 8, { min: 1, max: 30 }); // m between two burners' stations
+const spacing = param('spacing', 8, { min: 1, max: 30 }); // m between two burners' stations, side by side (a target with lasers)
+const stack = param('stack', 16, { min: 0, max: 60 }); // m further out each slot stands (a target without lasers); 0: side by side
+const fan = param('fan', 0.022, { min: 0, max: 0.2 }); // rad between two stacked burners' lines into the core
 const vmax = param('vmax', 100, { min: 5, max: 200 }); // m/s at most toward the station
 const kpos = param('kpos', 0.6, { min: 0.01, max: 10 }); // 1/s: speed asked per m still to go, close in
 const brake = param('brake', 8, { min: 0.5, max: 30 }); // m/s^2 it plans to slow down at: the speed asked is at most what stops it at the station
@@ -65,7 +67,8 @@ const sweep = param('sweep', 1.25, { min: 0, max: 1.5 }); // rad either side of 
 const sweepRate = param('sweepRate', 1.2, { min: 0.1, max: 10 }); // rad/s of the feeler's swing phase
 const gunBurn = param('gunBurn', 0.25, { min: 0, max: 5 }); // s of beam on each of the target's guns (25 health: a tenth of that)
 const gunTry = param('gunTry', 0.12, { min: 0, max: 30 }); // s it tries for a gun before it lets it be
-const laserBurn = param('laserBurn', 1, { min: 0, max: 10 }); // s of beam on each of the target's lasers
+const laserBurn = param('laserBurn', 2.2, { min: 0, max: 10 }); // s of beam on each of the target's lasers (titans round 6: a plate in front of one is 1.7 s now)
+const bayBurn = param('bayBurn', 0.35, { min: 0, max: 5 }); // s of beam on each of its fab bays (150 health: a quarter of a second)
 const laserTry = param('laserTry', 3, { min: 0, max: 30 }); // s it tries for a laser before it lets it be
 const gunNear = param('gunNear', 4, { min: 0.5, max: 50 }); // m: the sight must meet the target this near the gun's point
 const clear = param('clear', 170, { min: 0, max: 290 }); // m from the target's core it keeps on the way to its station
@@ -111,7 +114,16 @@ function setup() {
   state.guns = state.t && Array.isArray(state.t.guns) ? state.t.guns.map((g) => ({ x: g[0], y: g[1], fired: 0, tried: 0, need: gunBurn, try: gunTry })) : [];
   // Its lasers first of all (a sled's front turret ends our base from 300 m): plated over and under, so longer on
   // each (a plate in front is 250 health).
-  if (state.t && Array.isArray(state.t.lz)) for (const g of state.t.lz) state.guns.unshift({ x: g[0], y: g[1], fired: 0, tried: 0, need: laserBurn, try: laserTry });
+  if (state.t && Array.isArray(state.t.lz)) for (const g of state.t.lz) state.guns.unshift({ x: g[0], y: g[1], fired: 0, tried: 0, need: laserBurn, try: laserTry, first: true });
+  // Its fab bays (titans round 6, 2026-10): no armor, 150 health, and what makes its darts and jammer pods. Shared out
+  // by slot, so each bay costs one burner a quarter of a second, not every burner one each.
+  if (state.t && Array.isArray(state.t.bays)) {
+    const share = Math.max(1, state.t.share || 1);
+    const k = (state.t.slot ?? 0) % share;
+    state.t.bays.forEach((g, i) => {
+      if (i % share === k) state.guns.push({ x: g[0], y: g[1], fired: 0, tried: 0, need: bayBurn, try: gunTry });
+    });
+  }
   for (const p of parts) if (p.type === 'booster') state.force += p.spec.config.maxForce;
   state.rate = 2;
   for (const p of parts) if (p.type === 'rotator' || p.type === 'heavyrotator') state.rate = p.spec.config.turnSpeed;
@@ -263,10 +275,19 @@ function tick() {
     ux = sign(ux || 1) * Math.sqrt(1 - uy * uy);
   }
   const k = t.slot ?? 0;
-  const side = (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * spacing;
   // Further out from a target with lasers (titans round 5): a sled's mast stands in the way on our side, and the
   // beam that cuts it brings its top down across the burners waiting nearer in.
-  const out = t.beams > 0 ? wiseOff : standoff;
+  let out = t.beams > 0 ? wiseOff : standoff;
+  let side = (k % 2 === 0 ? 1 : -1) * Math.ceil(k / 2) * spacing;
+  if (!(t.beams > 0) && stack > 0) {
+    // Stacked along the way in (titans round 6, 2026-10): each slot `stack` m further out, and turned `fan` rad off
+    // the line by turns either side. The beams meet at the core from angles twice as close as side by side 8 m apart,
+    // so they dig a narrower tunnel (a plate is a 1.7 s of one beam now), and the burners stand apart: side by side,
+    // they arrived together and drifted into each other's beams.
+    const ring = k % 6;
+    out = Math.min(out + stack * ring, reach - 8);
+    side = (ring % 2 === 1 ? 1 : -1) * Math.ceil(ring / 2) * fan * out;
+  }
   const sx = tx + ux * out - uy * side;
   const sy = ty + uy * out + ux * side;
   const up = self.pos.y - state.y0 < climb && time - state.born < 3;
@@ -307,7 +328,7 @@ function nextGun(las, tx, ty) {
   for (const g of state.guns) {
     if (g.fired >= g.need || g.tried >= g.try) continue;
     const r = Math.hypot(tx + g.x - las.pos.x, ty + g.y - las.pos.y);
-    const d = r - (g.need > gunBurn ? 1000 : 0);
+    const d = r - (g.first ? 1000 : 0);
     if (d < bd && r < reach) {
       bd = d;
       best = g;
