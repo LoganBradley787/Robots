@@ -44,8 +44,12 @@ const BOX = opt('box', LOWD ? 4 : 6); // armor columns each side of the core in 
 const JAMMERS = 56; // jammer pods (5 s each)
 const SLAB = opt('slab', 4); // low layout: rows of plates in the floor
 const TOP_PAD = opt('topPad', 4); // low layout: frame rows over the lift rows
+// Floor guns (titans round 7): 'hang' puts them under the floor every third column, as before; 'flush' sets them into
+// the slab's bottom row every `floorEvery` columns, between plates, so only a shot from straight below meets them.
+const FLOOR_GUNS = optStr('floorGuns', LOWD ? 'flush' : 'hang');
+const FLOOR_EVERY = opt('floorEvery', 2);
 
-const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1 };
+const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1 };
 const g = [];
 if (LAYOUT === 'low') lowLayout();
 else {
@@ -162,9 +166,14 @@ for (let x = 0; x < W; x++) {
 }
 top.push('.');
 bottom.push('.');
+if (FLOOR_GUNS === 'flush') {
+  // Into the bottom row, never under the core's column (a laser from below meets the plates there).
+  const cxg = W / 2;
+  for (let x = SIDE_A; x < W - SIDE_A; x++) if (x % FLOOR_EVERY === 1 && Math.abs(x - cxg) > 1) g[0][x] = 'Mv';
+}
 rows.push(top);
 for (let y = H - 1; y >= 0; y--) rows.push(['M<', ...g[y], 'M>']);
-rows.push(bottom);
+if (FLOOR_GUNS !== 'flush') rows.push(bottom);
 const wide = (t) => t.padEnd(3, ' ');
 const grid = rows.map((r) => r.map(wide).join('').trimEnd());
 

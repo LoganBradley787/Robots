@@ -36,6 +36,15 @@
 //   `breachSpeed` with its underside `baseGap` over the base's low layer (breachY), the spin of a hit reckoned about
 //   its real center of mass (`comUp`: the low layout keeps the core low in a floor slab). A tall heavy enemy's top is
 //   no longer pushed (`pushTop`).
+// - Bombing runs (titans round 7, 2026-10, Logan: "fly over the top slower and more frequently, using its downward
+//   guns to obliterate everything"): a ground enemy that stays put and cannot be bumped out is crossed end to end,
+//   low and slow, every floor gun firing (bombPass), and rammed only once passes stop breaking things; rams that
+//   break nothing send it back to bombing. One that moves, one light enough to bump out, and anything in the air
+//   are rammed as before. A base hidden from the radar is bombed where it was last seen.
+// - Fire freely (titans round 7, Logan: "there's something over there, let's make sure there's nothing over there"):
+//   every gun on a face toward an enemy, a dart or the last place the main enemy was seen fires at full rate,
+//   whatever its own sight reads (volleyFaces). Friends are not looked out for. Jammer pods are lit on the way in to
+//   an armed enemy and on the way out (see Jammers), and it works itself loose when it stops making progress (Stuck).
 // Something much heavier with a thin face (lying on its side) is rammed on that face (see the heavy branch).
 // It never turns round: boosters on each side push it left or right, the lift rows hold its height and its lean.
 // Guns on every face blast what their sights show. Everything goes by `side` and by where its own parts are, so it
@@ -95,8 +104,9 @@ const bomb = param('bomb', 1, { min: 0, max: 1 }); // 1: a ground enemy that sta
 const bombSpeed = param('bombSpeed', 14, { min: 4, max: 60 }); // m/s over the target on a bombing pass
 const bombGap = param('bombGap', 7, { min: 2, max: 60 }); // m its floor guns keep over the tallest part under it on a pass
 const bombOver = param('bombOver', 25, { min: 0, max: 300 }); // m past the target's end before it turns for the next pass
+const bombGuns = param('bombGuns', 20, { min: 0, max: 1000 }); // a ground enemy with more guns and lasers pointing up than this is rammed, not bombed
 const bombDry = param('bombDry', 2, { min: 1, max: 20 }); // passes in a row that break fewer than `hitParts` before it rams instead
-const jam = param('jam', 1, { min: 0, max: 1 }); // 1: lights jammer pods on the way in to an armed enemy and on the way out (see jamNow)
+const jam = param('jam', 1, { min: 0, max: 1 }); // 1: lights jammer pods on the way in to an armed enemy and on the way out (see Jammers)
 const jamFar = param('jamFar', 170, { min: 0, max: 2000 }); // m: a pod is lit only this far from the enemy (closer, sensors see through the bubble)
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
@@ -383,9 +393,19 @@ function measure(main) {
   // just over the ground.
   let baseTop = cols.length > 0 ? cols[Math.floor(0.4 * cols.length)] : low;
   if (baseTop > keepTop - 6) baseTop = low;
+  // What can shoot up at it on a bombing pass (titans round 7): guns and lasers whose barrels point up now (a turret
+  // aims at it, so it counts). A juggernaut's 146 guns and two lasers took 250 parts in two seconds and burnt the
+  // core from below while it was bombed; a bastion's six turrets or a woodpecker's six burners do far less.
+  const ws = arms > 0 ? scan(main.id, { of: ['gun', 'laser', 'cannon', 'lance'], acts: true }) : null;
+  let upArms = 0;
+  if (ws) for (const p of ws) if (Math.sin(p.acts) > 0.2) upArms++;
   const f = faces(seen, cx, cy);
-  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length, faceL: f.L, faceR: f.R, base: baseTop - cy, keepTop: keepTop - cy, prof, profX: x0 - cx, arms };
+  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length, faceL: f.L, faceR: f.R, base: baseTop - cy, keepTop: keepTop - cy, prof, profX: x0 - cx, arms, upArms };
   state.shapeAt = time;
+  if (say > 0.5 && state.sizedId !== main.id) {
+    state.sizedId = main.id;
+    log('sized up', main.id, 'arms', arms, 'pointing up', upArms, 'ground', state.shape.ground);
+  }
 }
 
 // How far a body reaches out to each side, row by row: 1 m rows of world height from its core, `FACE` either way.
@@ -939,7 +959,8 @@ function tick() {
     // when `giveUp` rams in a row break nothing it goes back to bombing. A ground enemy that moves, or one light
     // enough to bump out, is rammed.
     const still = Math.hypot(target.vx, target.vy) < 4;
-    const bombIt = bomb > 0.5 && shape && shape.ground && still && pushOut === 0 && !state.finish;
+    // Only one with few guns pointing up (`bombGuns`): over a gun titan the floor is shot away (see measure).
+    const bombIt = bomb > 0.5 && shape && shape.ground && still && pushOut === 0 && !state.finish && shape.upArms <= bombGuns;
     if (bombIt && state.misses >= giveUp) {
       state.misses = 0;
       state.dry = 0;
@@ -1095,6 +1116,7 @@ function tick() {
       const pod = pods.pop();
       set(pod.id, 'ignite', 1);
       state.jamAt = time;
+      if (say > 0.5) log('jammer lit', d.toFixed(0), 'm off,', pods.length, 'left');
     }
   }
 
