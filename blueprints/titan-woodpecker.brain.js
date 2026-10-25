@@ -27,7 +27,8 @@
 //   guns are from its core. The heaviest enemy ever seen is remembered until seen dead (90 s at most): hidden while
 //   something much lighter is in view, the burners are sent at its last place and hunt it from there.
 // - Titans round 6 (2026-10): armor plates take a quarter of a beam now, so the burners are also told where the
-//   target's fab bays are (no armor, a quarter of a second of beam each, and what makes its darts and pods).
+//   target's fab bays are (no armor, a quarter of a second of beam each, and what makes its darts and pods), and
+//   whether it is hard (`hardCover` health or more on its thinnest line to the core).
 const gap = param('gap', 2, { min: 1, max: 60 }); // ticks between two darts leaving the rack
 const wave = param('wave', 8, { min: 1, max: 200 }); // rack darts in one wave
 const waveGap = param('waveGap', 150, { min: 1, max: 6000 }); // ticks between two waves of the rack (longer than a flare burns)

@@ -27,10 +27,12 @@
 //   are. A still one is burnt where it stood; one that moved, or is not where it stood, is searched for along its way
 //   and away from our base (a split titan's king sat hidden 1200 m from our base).
 // - Titans round 6 (2026-10): a plate takes a quarter of a beam now (1.7 s of one beam, not 0.4), so a tunnel costs
-//   four times the beam and a wide one fails. The stations stand one behind the other along the way in (`stack` m
-//   apart, `fan` rad off the line by turns either side), so the beams meet the core from angles half as far apart
-//   as side by side, and the burners keep clear of each other (side by side they arrived together and drifted into
-//   each other's beams). The target's fab bays are burnt with its guns, shared out by slot. A laser gets 2.2 s.
+//   four times the beam and a wide one fails. Against a hard target (the base's message says `hard`: thick armor on
+//   every line to its core) the stations stand one behind the other along the way in (`stack` m apart, `fan` rad off
+//   the line by turns either side), so the beams meet the core from angles half as far apart as side by side, and the
+//   burners keep clear of each other (side by side they arrived together and drifted into each other's beams). Its
+//   fab bays are burnt first, with its guns, shared out by slot in blocks and burnt from over them (a bay is open at
+//   the top). Its lasers get 2.2 s. A softer target is burnt as in round 5.
 // - Spent (energy down to `reserve`, or its life is up): it flies out sideways off the line, so its wreck does not fall
 //   into the tunnel, and then drops with everything off and its script asleep.
 const standoff = param('standoff', 210, { min: 20, max: 290 }); // m from the target's core to the station
