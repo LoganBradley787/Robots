@@ -15,8 +15,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const W = Number(process.argv[2]) || 72; // brick width in cells (guns stand one cell outside it)
-const H = Number(process.argv[3]) || 41; // brick height
+const posArg = (i) => (process.argv[i] && !process.argv[i].startsWith('--') ? Number(process.argv[i]) : 0);
+const W = posArg(2) || 72; // brick width in cells (guns stand one cell outside it)
+const H = (posArg(2) && posArg(3)) || 41; // brick height
 const opt = (name, d) => { const i = process.argv.indexOf('--' + name); return i > 0 ? Number(process.argv[i + 1]) : d; };
 const SIDE_A = opt('side', 2); // armor plates on each side face (the faces that ram)
 const ROOF_A = opt('roof', 1); // armor plates on the roof (it rams upward, slower)
@@ -25,12 +26,18 @@ const PAD = 6; // cells from a ramming face to the first booster or battery: a c
 const LIFT_ROWS = opt('lift', 8); // rows of lift boosters above the floor
 const PUSH_COLS = opt('push', 6); // columns of push boosters inside each side wall
 const CELL_ROWS = opt('cells', 22); // rows of dense batteries
-const BAND = 1; // armor rows above and below the core's row
+const BAND = opt('band', 1); // armor rows above and below the core's row
 const BOX = opt('box', 6); // armor columns each side of the core in those rows
 const JAMMERS = 56; // jammer pods (5 s each)
+const optStr = (name, d) => { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : d; };
+const LAYOUT = optStr('layout', 'brick');
+const SLAB = opt('slab', 4); // low layout: rows of plates in the floor
+const TOP_PAD = opt('topPad', 6); // low layout: frame rows over the lift rows
 
 const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1 };
 const g = [];
+if (LAYOUT === 'low') lowLayout();
+else {
 // Light frames everywhere, then the armor: the outside of each side face, the roof, and the floor.
 for (let y = 0; y < H; y++) g.push(new Array(W).fill('F'));
 for (let y = 0; y < H; y++) for (let i = 0; i < SIDE_A; i++) { g[y][i] = 'A'; g[y][W - 1 - i] = 'A'; }
@@ -49,9 +56,9 @@ for (let y = liftLo; y <= liftHi; y++) {
   }
 }
 // The block above the lift rows: dense batteries, with the core in its middle row inside an armor box.
-const blockLo = liftHi + 1;
-const blockHi = blockLo + CELL_ROWS + 2 * BAND; // CELL_ROWS battery rows plus the band's rows
-const coreRow = Math.round((blockLo + blockHi) / 2);
+var blockLo = liftHi + 1;
+var blockHi = blockLo + CELL_ROWS + 2 * BAND; // CELL_ROWS battery rows plus the band's rows
+var coreRow = opt('coreUp', -1) >= 0 ? blockLo + opt('coreUp', -1) : Math.round((blockLo + blockHi) / 2);
 const inner = PAD + PUSH_COLS + 1;
 const cx = W / 2;
 for (let y = blockLo; y <= blockHi; y++) {
@@ -68,6 +75,49 @@ g[coreRow][cx + 1] = 'O';
 // Jammer pods in the frame row over the battery block, within 30 m of the core: lit one after another they hide
 // the brick from every sensor while it waits out an enemy it cannot break.
 for (let i = 0; i < JAMMERS; i++) g[blockHi + 1][cx - Math.floor(JAMMERS / 2) + i] = 'J';
+}
+
+// The low layout (titans round 6, 2026-10): the plates where they count. Under a hit, a plate and a frame break
+// alike (both shrug off 24 m/s), so plates on a ramming face buy nothing against a crash, only depth does; their
+// weight high up on the faces was what made each low hit spin the brick (its center of mass sat 21 m over its
+// bottom, and a ground base is struck 4 to 12 m up). So the floor is a slab of plates `SLAB` rows deep with the core
+// buried in it (from the side it sits behind half the brick's width of plates; the slab is also what lands on a
+// target it drops on), each side face has `SIDE_A` plates against shells and blasts, a box of plates stands over the
+// core, the batteries sit on the slab, the lift rows over them, and light frames on top keep a crash from above off
+// the lift rows.
+function lowLayout() {
+  for (let y = 0; y < H; y++) g.push(new Array(W).fill('F'));
+  for (let y = 0; y < H; y++) for (let i = 0; i < SIDE_A; i++) { g[y][i] = 'A'; g[y][W - 1 - i] = 'A'; }
+  for (let y = 0; y < SLAB; y++) for (let x = 0; x < W; x++) g[y][x] = 'A';
+  for (let x = 0; x < W; x++) for (let i = 0; i < ROOF_A; i++) g[H - 1 - i][x] = 'A';
+  const cx = W / 2;
+  const coreRow = Math.min(SLAB - 1, opt('coreUp', 2));
+  g[coreRow][cx] = 'C';
+  g[coreRow][cx - 1] = 'O';
+  g[coreRow][cx + 1] = 'O';
+  // Batteries on the slab, push boosters beside them inside the side pad, the box over the core.
+  const cellLo = SLAB;
+  const cellHi = H - 1 - TOP_PAD - LIFT_ROWS; // the last battery row
+  const inner = PAD + PUSH_COLS + 1;
+  for (let y = cellLo; y <= cellHi; y++) {
+    for (let x = inner; x < W - inner; x++) g[y][x] = y < SLAB + BAND && Math.abs(x - cx) <= BOX ? 'A' : 'Z';
+    for (let i = 0; i < PUSH_COLS; i++) {
+      g[y][PAD + i] = 'p';
+      g[y][W - 1 - PAD - i] = 'q';
+    }
+  }
+  // Jammer pods in two rows of the battery block over the box, within 30 m of the core.
+  const jamRow = cellLo + BAND + 1;
+  const half = Math.ceil(JAMMERS / 2);
+  for (let i = 0; i < JAMMERS; i++) g[jamRow + Math.floor(i / half)][cx - Math.floor(half / 2) + (i % half)] = 'J';
+  // Lift boosters over the batteries, a frame rib every 8 columns.
+  for (let y = cellHi + 1; y <= cellHi + LIFT_ROWS; y++) {
+    for (let x = PAD; x < W - PAD; x++) {
+      const fromMid = x < W / 2 ? W / 2 - 1 - x : x - W / 2;
+      g[y][x] = fromMid % 8 === 7 ? 'F' : x < W / 2 ? 'l' : 'r';
+    }
+  }
+}
 
 const com = () => {
   let m = 0;
@@ -78,10 +128,12 @@ const com = () => {
 // Push boosters: p on the left pushing right, q on the right pushing left, beside the battery block on every row.
 // The block is centered near the center of mass row, so a hard push hardly turns the brick (the pilot cancels
 // the rest).
-for (let y = blockLo; y <= blockHi; y++) {
-  for (let i = 0; i < PUSH_COLS; i++) {
-    g[y][PAD + i] = 'p';
-    g[y][W - 1 - PAD - i] = 'q';
+if (LAYOUT !== 'low') {
+  for (let y = blockLo; y <= blockHi; y++) {
+    for (let i = 0; i < PUSH_COLS; i++) {
+      g[y][PAD + i] = 'p';
+      g[y][W - 1 - PAD - i] = 'q';
+    }
   }
 }
 
@@ -117,7 +169,8 @@ const blueprint = {
   scripts: [{ id: 'pilot', source: { file: 'titan-anvil.pilot.js' } }],
 };
 const here = path.dirname(fileURLToPath(import.meta.url));
-const out = path.join(here, '..', '..', 'blueprints', 'titan-anvil.json');
+const outArg = process.argv.indexOf('--out');
+const out = outArg > 0 ? process.argv[outArg + 1] : path.join(here, '..', '..', 'blueprints', 'titan-anvil.json');
 fs.writeFileSync(out, JSON.stringify(blueprint, null, 1) + '\n');
 const c = com();
 const count = {};
