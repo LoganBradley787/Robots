@@ -58,7 +58,7 @@ const FLOOR_EVERY = opt('floorEvery', 2);
 const FACES = optStr('faces', LOWD ? 'teeth' : 'studs');
 const TEETH = FACES === 'teeth';
 
-const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, '.': 0 };
+const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, '=': 0, '.': 0 };
 const g = [];
 if (LAYOUT === 'low') lowLayout();
 else {
@@ -187,6 +187,31 @@ if (FLOOR_GUNS === 'flush') {
     } else g[0][x] = 'Mv';
   }
 }
+// Pop-out lasers (anvil r8, 2026-10-29, Logan: "once it's taken out what seems to be a threat, it pops a laser out and
+// finishes the job"): `ZAP` turrets in the floor slab, `zapAt` columns either side of the core (even columns, between
+// the floor guns). Each is a piston pushing down (row 3, hung from the battery over it), a rotator hanging from it
+// (row 2) and a laser pointing down (rows 1 and 0, its barrel flush with the slab's bottom). Stowed, it sits in a notch
+// of the slab, met only from straight below. Pushed out (2 m), the barrel's end hangs 2 m under the slab and the
+// rotator swings it to the enemy's core. A piston or a rotator carries whatever touches its sides, so the cells beside
+// them stay empty, and so do the floor guns beside the laser (they would hang from those cells): plates instead.
+const ZAP = opt('zap', LOWD && TEETH ? 1 : 0);
+const ZAP_AT = optStr('zapAt', '8,16').split(',').map(Number);
+if (ZAP) {
+  const cxz = W / 2;
+  for (const d of ZAP_AT) {
+    for (const x of [cxz - d, cxz + d]) {
+      g[3][x] = 'x';
+      g[2][x] = 'y';
+      g[1][x] = 'z';
+      g[0][x] = '=';
+      for (const e of [x - 1, x + 1]) {
+        g[3][e] = '.';
+        g[2][e] = '.';
+        g[1][e] = 'A';
+      }
+    }
+  }
+}
 if (TEETH) {
   // Side faces: a plate tooth on every even row (row 0 and the roof row are corners), a gun in the notch on every odd
   // row, a plate behind each tooth; the skin plate stays behind each gun and becomes a frame behind each tooth's plate
@@ -228,6 +253,11 @@ const blueprint = {
     r: { part: 'booster', rot: 0, tags: ['lb'], auto: false },
     p: { part: 'booster', rot: 270, tags: ['pa'], auto: false },
     q: { part: 'booster', rot: 90, tags: ['pb'], auto: false },
+    ...(ZAP ? {
+      x: { part: 'piston', rot: 180, tags: ['zpush'], auto: false },
+      y: { part: 'rotator', rot: 180, tags: ['zrot'], auto: false },
+      z: { part: 'laser', rot: 180, tags: ['zap'], auto: false },
+    } : {}),
   },
   autoControls: false,
   scripts: [{ id: 'pilot', source: { file: 'titan-anvil.pilot.js' } }],

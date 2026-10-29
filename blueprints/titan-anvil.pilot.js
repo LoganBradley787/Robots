@@ -109,6 +109,18 @@ const bombGuns = param('bombGuns', 20, { min: 0, max: 1000 }); // a ground enemy
 const bombDry = param('bombDry', 2, { min: 1, max: 20 }); // passes in a row that break fewer than `hitParts` before it rams instead
 const jam = param('jam', 1, { min: 0, max: 1 }); // 1: lights jammer pods on the way in to an armed enemy and on the way out (see Jammers)
 const jamFar = param('jamFar', 170, { min: 0, max: 2000 }); // m: a pod is lit only this far from the enemy (closer, sensors see through the bubble)
+const zap = param('zap', 1, { min: 0, max: 1 }); // 1: finishes a target whose guns, lasers and bays are mostly gone with its pop-out lasers (see Finishing)
+const zapArms = param('zapArms', 2, { min: 0, max: 1000 }); // guns, lasers and bays a target may have left and still be finished
+const zapShare = param('zapShare', 0.12, { min: 0, max: 1 }); // or this share of the most it was seen with, whichever is more
+const zapGap = param('zapGap', 9, { min: 3, max: 100 }); // m its slab keeps over the tallest part under it while it burns
+const zapStall = param('zapStall', 15, { min: 3, max: 120 }); // s of burning that break nothing before it burns from another spot
+const zapKeep = param('zapKeep', 1.15, { min: 1, max: 3 }); // the lasers burn only while the energy left covers this many times hovering to the match's end
+const gunnery = param('gunnery', 1, { min: 0, max: 1 }); // 1: a heavy ground gun titan is raked from high and to the side, never rammed (see Gunnery)
+const gunMass = param('gunMass', 3, { min: 1, max: 100 }); // times its own mass from which a ground enemy with more than `bombGuns` guns up is raked
+const gunRange = param('gunRange', 190, { min: 60, max: 290 }); // m to the side of it while raking (its turrets fire within 150, our shells fly 300)
+const gunTilt = param('gunTilt', 20, { min: 0, max: 35 }); // degrees it tilts its near face down at it while raking
+const gunSwap = param('gunSwap', 45, { min: 10, max: 1000 }); // s on one side before it crosses over to rake the other side
+const gunRoom = param('gunRoom', 200, { min: 50, max: 900 }); // m of room it wants behind its back toward the edge, or it crosses over now
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
@@ -117,6 +129,7 @@ const pushEdge = arena ? arena.x - pushGap : Infinity; // how far out its core m
 const ceiling = arena ? arena.y - roofGap : Infinity; // the core never goes above this
 
 let guns = null;
+let zaps = []; // the pop-out lasers: { laser, rot, push } (see runZap)
 let pods = []; // jammer pods not yet used
 let gunParts = -1;
 let pings = []; // one entry per tick a sight touched the enemy's main robot: its reach that tick
@@ -231,6 +244,12 @@ function setup() {
   state.hitWatch = null;
   state.dry = 0; // bombing passes in a row that broke little
   state.overSpan = false; // over the target on a bombing pass: every floor gun fires
+  state.zapFiring = 0; // lasers burning last tick
+  state.zapping = false; // finishing the main enemy (see Finishing)
+  state.zapId = -1;
+  state.rakeId = -1;
+  state.armsId = -1;
+  state.armsMax = 0;
 }
 
 function plan(name) {
@@ -249,8 +268,14 @@ function runGuns() {
     let lifts = 0;
     let pa = 0;
     let pb = 0;
+    const lasers = [];
+    const rots = [];
+    const pushes = [];
     for (const p of parts) {
       if (p.type === 'gun') guns.push(p);
+      else if (p.type === 'laser') lasers.push(p);
+      else if (p.type === 'rotator') rots.push(p);
+      else if (p.type === 'piston') pushes.push(p);
       else if (p.type === 'jammer') {
         if (!(p.out.jamming > 0.5)) pods.push(p);
       } else if (p.type === 'booster') {
@@ -259,6 +284,17 @@ function runGuns() {
         else if (t.indexOf('pb') >= 0) pb++;
         else lifts++;
       }
+    }
+    // Each laser with the rotator and the piston over it (the nearest of each).
+    zaps = [];
+    const nearest = (list, p) => {
+      let best = null;
+      for (const q of list) if (!best || Math.hypot(q.pos.x - p.pos.x, q.pos.y - p.pos.y) < Math.hypot(best.pos.x - p.pos.x, best.pos.y - p.pos.y)) best = q;
+      return best && Math.hypot(best.pos.x - p.pos.x, best.pos.y - p.pos.y) < 4 ? best : null;
+    };
+    for (const l of lasers) {
+      const rot = nearest(rots, l);
+      if (rot) zaps.push({ laser: l, rot, push: nearest(pushes, l) });
     }
     state.liftForce = Math.max(lifts * 400, 1);
     state.pushRight = Math.max((state.paDir > 0 ? pa : pb) * 400, 1); // push toward +x
@@ -336,6 +372,51 @@ function volleyFaces() {
   return lit;
 }
 
+// The pop-out lasers (anvil r8, 2026-10-29, Logan: "once it's taken out what seems to be a threat, it pops a laser out
+// and finishes the job"). Each sits in a notch of the floor slab on a piston, under a rotator, pointing down. `out`:
+// the pistons push them 2 m clear of the slab, and each rotator swings its laser onto `aim` (the enemy's core); stowed,
+// they are pulled back in, pointing down. A laser burns while it is out, within 4 degrees of its aim, `burn` is set,
+// the core is within its reach, and its sight does not read its own robot or the ground (both would only cost energy).
+// Aiming goes by the rotator's `angle` (its share of 90 degrees from how it was built, pointing down from the slab), so
+// it works flipped: which way a positive angle swings the barrel in the world is read from the laser's own aim.
+function runZap(aim, out, burn) {
+  let firing = 0;
+  for (const z of zaps) {
+    const l = z.laser;
+    if (z.push) {
+      const pos = z.push.out.position || 0;
+      set(z.push.id, 'extend', out ? 1 : pos > 0.02 ? -1 : 0);
+    }
+    const ang = z.rot.out.angle || 0;
+    const rest = self.angle - Math.PI / 2; // straight down from the slab, in the world
+    const swung = wrapA(l.out.aim - rest);
+    if (Math.abs(ang) > 0.05 && Math.abs(swung) > 0.03) z.sign = Math.sign(swung * ang);
+    const sg = z.sign || 1;
+    let want = 0;
+    let off = 1;
+    let dist = 1e9;
+    if (out && aim) {
+      const bx = l.pos.x + 1.5 * Math.cos(l.out.aim);
+      const by = l.pos.y + 1.5 * Math.sin(l.out.aim);
+      dist = Math.hypot(aim.x - bx, aim.y - by);
+      want = clamp(wrapA(Math.atan2(aim.y - by, aim.x - bx) - rest) / (sg * (Math.PI / 2)), -0.8, 0.8);
+      off = Math.abs(wrapA(Math.atan2(aim.y - by, aim.x - bx) - l.out.aim));
+    }
+    set(z.rot.id, 'turn', clamp(3 * (want - ang) - (sg * self.angVel) / 2, -1, 1));
+    const side = l.out.sightSide;
+    const ready = out && aim && burn && z.push && (z.push.out.position || 0) > 0.9 && off < 0.07 && dist < 295 && side !== 1 && side !== 5;
+    if (ready) firing++;
+    if (ready !== l.in.fire > 0.5) set(l.id, 'fire', ready ? 1 : 0);
+  }
+  return firing;
+}
+
+function wrapA(a) {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+
 // How deep the enemy's main core sits behind each of its faces, from a scan: the parts on its row give left and
 // right, the parts on its column give below and above.
 function measure(main) {
@@ -399,13 +480,23 @@ function measure(main) {
   // core from below while it was bombed; a bastion's six turrets or a woodpecker's six burners do far less.
   const ws = arms > 0 ? scan(main.id, { of: ['gun', 'laser', 'cannon', 'lance'], acts: true }) : null;
   let upArms = 0;
-  if (ws) for (const p of ws) if (Math.sin(p.acts) > 0.2) upArms++;
+  let upY = 0;
+  if (ws) for (const p of ws) if (Math.sin(p.acts) > 0.2) {
+    upArms++;
+    upY += p.pos.y - cy;
+  }
+  upY = upArms > 0 ? upY / upArms : 0; // how high its guns pointing up stand over its core, on average (see Gunnery)
   const f = faces(seen, cx, cy);
-  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length, faceL: f.L, faceR: f.R, base: baseTop - cy, keepTop: keepTop - cy, prof, profX: x0 - cx, arms, upArms };
+  state.shape = { L: cx - L, R: R - cx, B: cy - B, T: T - cy, low: low - cy, high: high - cy, hullLo: hullLo - cx, hullHi: hullHi - cx, topX: topX - cx, ground: low < 3, armored: armor > 0.08 * seen.length, faceL: f.L, faceR: f.R, base: baseTop - cy, keepTop: keepTop - cy, prof, profX: x0 - cx, arms, upArms, upY };
   state.shapeAt = time;
+  // The most guns, lasers and bays it was seen with (see Finishing).
+  if (state.armsId !== main.id) {
+    state.armsId = main.id;
+    state.armsMax = arms;
+  } else state.armsMax = Math.max(state.armsMax, arms);
   if (say > 0.5 && state.sizedId !== main.id) {
     state.sizedId = main.id;
-    log('sized up', main.id, 'arms', arms, 'pointing up', upArms, 'ground', state.shape.ground);
+    log('sized up', main.id, 'arms', arms, 'pointing up', upArms, 'ground', state.shape.ground, 'mass', main.mass.toFixed(0), 'top', state.shape.high.toFixed(0));
   }
 }
 
@@ -868,9 +959,101 @@ function tick() {
     state.overSpan = x + state.halfWidth > lo - 15 && x - state.halfWidth < hi + 15;
   };
 
+  // Finishing (anvil r8, 2026-10-29, Logan: "once it's taken out what seems to be a threat, it pops a laser out and
+  // finishes the job"): a target whose guns, lasers and bays are mostly gone (`zapArms`, or `zapShare` of the most it
+  // had) is not rammed or bombed any more. Passes and rams stopped breaking anything on what was left of a woodpecker
+  // (its keep, plates round the core) and a hive: hits on a ground base are held slow so they do not spin the brick, and
+  // a pass's shells do a tenth to plates. So it parks `zapGap` over the tallest part under it, right over the core,
+  // pushes its lasers out of the slab and burns down the line to the core, every floor gun firing too. Burning from
+  // one spot `zapStall` s without breaking anything, it moves to the next spot (left, then right of the core) for
+  // another line in.
+  const perchZap = (tx, ty, sh, tvx, tvy, nowParts) => {
+    if (state.zapId !== state.mainId) {
+      state.zapId = state.mainId;
+      state.zapOff = 0;
+      state.zapProg = time;
+      state.zapParts = nowParts;
+      if (say > 0.5) log('finishing: lasers out, arms left', sh ? sh.arms : -1, 'of', state.armsMax);
+    }
+    if (nowParts >= 0 && (state.zapParts < 0 || nowParts < state.zapParts)) {
+      state.zapParts = nowParts;
+      state.zapProg = time;
+    }
+    if (state.zapFiring === 0 && time - state.zapProg > 2) state.zapProg += dt; // the stall counts only time spent burning
+    if (time - state.zapProg > zapStall) {
+      state.zapOff++;
+      state.zapProg = time;
+      if (say > 0.5) log('finishing: nothing breaks, burning from spot', state.zapOff % 3);
+    }
+    const offs = [0, -0.45, 0.45];
+    const aimX = clamp(tx + offs[state.zapOff % 3] * state.halfWidth + tvx * 0.5, -edge, edge);
+    wantVx = tvx + clamp(0.6 * (aimX - x), -lineUp, lineUp);
+    let top = -1e9;
+    if (sh && sh.prof) {
+      const a = Math.floor(x - state.halfWidth - 6 - (tx + sh.profX));
+      const b = Math.ceil(x + state.halfWidth + 6 - (tx + sh.profX));
+      for (let k = Math.max(0, a); k <= Math.min(sh.prof.length - 1, b); k++) if (sh.prof[k] > top) top = sh.prof[k];
+    }
+    top = top > -1e8 ? ty + top : ty + (sh ? sh.high : 10);
+    wantH = Math.max(top, 0) + zapGap + state.bottom + state.halfWidth * Math.abs(Math.sin(self.angle)) + clamp(tvy, -10, 10);
+    if (Math.abs(aimX - x) < 80) calm = true;
+    state.overSpan = sh ? x + state.halfWidth > tx + sh.hullLo - 15 && x - state.halfWidth < tx + sh.hullHi + 15 : Math.abs(tx - x) < state.halfWidth;
+    state.zapAim = { x: tx, y: ty };
+    state.zapOut = Math.abs(aimX - x) < 150;
+    state.perched = Math.abs(aimX - x) < 8 && Math.abs(wantH - y) < 8;
+  };
+
+  // Gunnery (anvil r8, 2026-10-29, Logan watching it come in from high up firing down at an angle: "that was a smart
+  // strategy, I'm impressed"): a ground enemy `gunMass` times heavier with more than `bombGuns` guns up (a
+  // juggernaut) is never rammed (rams on 74 t broke nothing, and it shoved the brick out of the arena at 77 to 97 s,
+  // pinned between it and the edge) or bombed (its guns shot the floor away). It holds `gunRange` to one side and as
+  // high as tilts its near face `gunTilt` down onto where its upward guns stand, so the guns on that face rake them
+  // from out of its turrets' reach, and guns pointing up never bear. Every `gunSwap` s, or with less than `gunRoom`
+  // behind it, it crosses over to the other side (Logan: "get to the other side, where it could start destroying the
+  // thrusters at the back"), high: a juggernaut's mast stands 243 m over its core, plates up to about 100 m and a
+  // column of frames above, so it crosses 30 m under the top of what stands there, and a mast in the way is rammed
+  // through where it is frames.
+  const rake = (t, sh) => {
+    const roomOn = (sd) => (arena ? edge - (t.x + sd * gunRange) * sd : 1e9);
+    if (!state.gunSide) {
+      state.gunSide = x < t.x ? -1 : 1;
+      state.gunAt = time;
+    }
+    if (time - state.gunAt > gunSwap || roomOn(state.gunSide) < gunRoom) {
+      if (roomOn(-state.gunSide) > gunRoom) {
+        state.gunSide = -state.gunSide;
+        if (say > 0.5) log('raking: crossing over to its', state.gunSide > 0 ? 'right' : 'left');
+      }
+      state.gunAt = time;
+    }
+    const sd = state.gunSide;
+    const aimY = t.y + (sh.upY || 0);
+    const px = t.x + sd * gunRange;
+    const py = aimY + gunRange * Math.tan((gunTilt * Math.PI) / 180);
+    const across = (x - t.x) * sd < gunRange * 0.5; // still on the far side, or over it
+    if (across) {
+      const over = clamp(t.y + sh.high - 30, t.y + 150, ceiling);
+      const far = (x - t.x) * sd < -0.5 * gunRange;
+      wantH = over;
+      // Climb on its own side first, then across at full speed.
+      wantVx = t.vx + (y > over - 25 || !far ? sd * lineUp : clamp(0.5 * (t.x - sd * gunRange - x), -sweepSpeed, sweepSpeed));
+    } else {
+      wantH = py;
+      wantVx = t.vx + clamp(0.5 * (px - x), -lineUp, lineUp);
+      if (Math.abs(px - x) < 60 && Math.abs(py - y) < 40) state.gunLean = sd * ((gunTilt * Math.PI) / 180);
+      state.perched = Math.abs(px - x) < 10 && Math.abs(py - y) < 10;
+    }
+  };
+
   state.finish = false;
   state.overSpan = false;
+  state.zapAim = null;
+  state.zapOut = false;
+  state.perched = false;
+  state.gunLean = null;
   const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
+  // Hidden from the radar while raking or finishing it: it goes on with that where it was last seen (see below).
+  const stickyHidden = !target && state.mainId >= 0 && state.last && state.shape && time - state.last.t < 30 && (state.rakeId === state.mainId || (state.zapping && state.zapId === state.mainId));
   if (state.won && !target) {
     plan('done: landing, watching for the next enemy');
     land = true;
@@ -969,24 +1152,45 @@ function tick() {
       state.passDir = 0;
       if (say > 0.5) log('rams break nothing: bombing again');
     }
-    const bombing = bombIt && state.dry < bombDry;
+    const finishing = zap > 0.5 && zaps.length > 0 && shape && state.armsId === state.mainId && !state.finish && shape.arms <= Math.max(zapArms, zapShare * state.armsMax);
+    state.zapping = finishing;
+    if (finishing) {
+      if (state.way !== '') endTry(main);
+      plan('finishing: burning its core');
+      perchZap(target.x, target.y, shape, target.vx, target.vy, main ? main.parts : -1);
+    }
+    // Gunnery (anvil r8, 2026-10-29, Logan watching it come in from high up firing down at an angle: "that was a smart
+    // strategy, I'm impressed"): a ground enemy `gunMass` times heavier with more than `bombGuns` guns up (a
+    // juggernaut) is never rammed (rams on 74 t broke nothing, and it shoved the brick out of the arena at 77 to 97 s,
+    // pinned between it and the edge) or bombed (its guns shot the floor away). It holds `gunRange` to one side and as
+    // high as tilts its near face `gunTilt` down onto it, so the guns on that face rake its top from out of its turrets'
+    // reach, and its roof guns, pointing up, never bear. Every `gunSwap` s, or with less than `gunRoom` behind it, it
+    // crosses over at the ceiling to the other side, where its back is.
+    const raking = gunnery > 0.5 && !finishing && shape && shape.ground && target.m > gunMass * m && shape.upArms > bombGuns;
+    state.rakeId = raking ? state.mainId : -1;
+    if (raking) {
+      if (state.way !== '') endTry(main);
+      plan('raking it from high up');
+      rake(target, shape);
+    } else state.gunSide = 0;
+    const bombing = !finishing && !raking && bombIt && state.dry < bombDry;
     if (bombing) {
       if (state.way !== '') endTry(main);
       plan('bombing passes');
       bombPass(target.x, target.y, shape, target.x + shape.hullLo, target.x + shape.hullHi, still ? 0 : target.vx);
-    } else if (state.misses >= giveUp && shape && shape.ground && !state.finish) {
+    } else if (!finishing && !raking && state.misses >= giveUp && shape && shape.ground && !state.finish) {
       state.regroupUntil = time + regroup;
       state.misses = 0;
       state.way = '';
       for (const w of WAYS) state.fails[w] = 0;
     }
-    if (!bombing && time < state.regroupUntil) {
+    if (!bombing && !finishing && !raking && time < state.regroupUntil) {
       plan('regrouping out of reach');
       wantVx = clamp(0.5 * (clamp(target.x - Math.sign(target.x - x || 1) * 250, -edge, edge) - x), -sweepSpeed, sweepSpeed);
       wantH = hideHeight;
     }
     let way = state.way;
-    if (bombing || time < state.regroupUntil) way = '';
+    if (bombing || finishing || raking || time < state.regroupUntil) way = '';
     else if (way === '' || state.fails[way] >= tries) {
       let best = '';
       let cost = 1e9;
@@ -1014,7 +1218,7 @@ function tick() {
     }
     if (way !== '') begin(way);
     if (way === '') {
-      // bombing or regrouping (above)
+      // finishing, raking, bombing or regrouping (above)
     } else if (way === 'B') {
       plan('ramming from below');
       if (fromBelow(target.x, under, target.vx, target.vy)) endTry(main);
@@ -1035,7 +1239,7 @@ function tick() {
       if (fromSide(target, prefer, over) && state.dir !== prefer) endTry(main); // it flew on past (or backs off): that run is over
       else if (prefer !== 0 && (target.x - x) * prefer < 0 && Math.abs(target.x) > limit - 60 && target.x * prefer > 0) state.fails[way] = tries; // on its far side with no room to come round: another way
     }
-  } else if (pings.length > 0) {
+  } else if (pings.length > 0 && !stickyHidden) {
     // Hidden from radar, touched by gun sights. In the air: climb into it from below, at the middle of what the
     // sights touched, then toward each end in turn (its core is somewhere along it). On the ground: from the side.
     let lo = 1e9;
@@ -1078,6 +1282,15 @@ function tick() {
     // and searches.
     plan('resting, watching for an enemy');
     land = true;
+  } else if (stickyHidden && state.rakeId === state.mainId) {
+    // Raking one hidden from the radar (its own jammer pods blind it too): where it was last seen, going its way.
+    plan('raking where it was last seen');
+    const age = time - state.last.t;
+    rake({ x: clamp(state.last.x + state.last.vx * Math.min(age, 5), -edge, edge), y: state.last.y, vx: 0, vy: 0, m: state.last.m }, state.shape);
+  } else if (stickyHidden) {
+    // Finishing one that hid from the radar: it burns on where the core was last seen.
+    plan('finishing: burning where its core was last seen');
+    perchZap(state.last.x, state.last.y, state.shape, 0, 0, -1);
   } else if (bomb > 0.5 && state.mainId >= 0 && state.last && state.shape && state.shape.ground && Math.hypot(state.last.vx, state.last.vy) < 4) {
     // A base that hid from the radar (titans round 7, 2026-10, Logan): it has not gone anywhere. Round 6 searched for
     // one high up (where its floor guns reached nothing) and floated there, over a bastion's dart lane, until its
@@ -1133,7 +1346,7 @@ function tick() {
   // Going nowhere is reckoned by progress, not speed (titans round 7: rocking on a base's end at 1 to 6 m/s it never
   // read as still): it has not moved `free` m in `stuckTime` s while it wants to.
   const wants = Math.hypot(vx, vy) < 1.5 || Math.abs(wantVx - vx) > 6 || Math.abs(ramVy !== null ? ramVy : wantH - y) > 6;
-  if (land || state.escape || !wants || !state.prog || Math.hypot(x - state.prog.x, y - state.prog.y) > 5) state.prog = { x, y, t: time };
+  if (land || state.escape || state.perched || !wants || !state.prog || Math.hypot(x - state.prog.x, y - state.prog.y) > 5) state.prog = { x, y, t: time };
   if (time - state.prog.t > stuckTime) {
     {
       // Stuck again soon after: the other way first this time.
@@ -1178,10 +1391,15 @@ function tick() {
     wantH = floor;
   }
   wantH = clamp(wantH, floor, ceiling);
-  const room = Math.max(0, y - floor);
-  const sink = Math.max(1, Math.sqrt(2 * brake * 0.8 * room));
+  // What it can brake a fall by now (anvil r8): tilted, the lift rows hold up less (a lean at the start went on
+  // sinking past the height it wanted and scraped the ground at 39 m/s). Room is to its lowest corner, and the sink
+  // toward a wanted height is held to what it can stop by there, not only by the ground.
+  const brakeNow = Math.max(0.6, Math.min(brake, (0.85 * state.liftForce * Math.cos(Math.min(1, Math.abs(self.angle)))) / m - 9.81));
+  const room = Math.max(0, y - floor - state.halfWidth * Math.abs(Math.sin(self.angle)));
+  const sink = Math.max(1, Math.sqrt(2 * brakeNow * 0.8 * room));
+  const sinkTo = Math.max(2, Math.sqrt(2 * brakeNow * 0.8 * Math.max(0, y - wantH)));
   const rise = Math.sqrt(2 * 8 * Math.max(0, ceiling + 15 - y)); // gravity alone stops a climb before the arena's roof
-  const wantVy = ramVy !== null && !land ? clamp(ramVy, -Math.min(fall, sink), Math.min(uppercut + 10, rise)) : clamp(1.0 * (wantH - y), -Math.min(16, sink), Math.min(12, rise));
+  const wantVy = ramVy !== null && !land ? clamp(ramVy, -Math.min(fall, sink), Math.min(uppercut + 10, rise)) : clamp(1.0 * (wantH - y), -Math.min(16, sink, sinkTo), Math.min(12, rise));
   const ay = clamp(2.5 * (wantVy - vy), -9.81, 6);
 
   // Lean (titans v2, 2026-10, Logan: "tilt to accelerate faster"): when the wanted speed change is more than the
@@ -1208,6 +1426,7 @@ function tick() {
   const tReach = target && shape ? (target.x > x ? -shape.hullLo : shape.hullHi) : 0;
   const clear = y - floor > 25 && (!target || Math.abs(target.x - x) > state.halfWidth + tReach + 60);
   if (force !== null) lean = force;
+  else if (state.gunLean !== null && !land) lean = state.gunLean;
   else if (!land && !calm && clear && tilt > 0) {
     const pushA = (dvx > 0 ? state.pushRight : state.pushLeft) / m;
     const need = 0.25 * Math.abs(dvx) - pushA;
@@ -1260,4 +1479,17 @@ function tick() {
   set('pa', 'throttle', clamp(u * state.paDir, 0, 1));
   set('pb', 'throttle', clamp(-u * state.paDir, 0, 1));
   state.push = u * (u > 0 ? state.pushRight : state.pushLeft);
+
+  // The lasers: out while finishing, burning while the energy left covers hovering to the end (see runZap).
+  if (zaps.length > 0) {
+    const spare = self.energy.stored - zapKeep * hoverPower * timeLeft;
+    const wasOut = state.zapWasOut;
+    state.zapFiring = runZap(state.zapAim, state.zapOut && !land, spare > 0);
+    if (say > 0.5 && state.zapOut && time - (state.zapSaid || -100) > 10) {
+      state.zapSaid = time;
+      log('lasers: burning', state.zapFiring, 'of', zaps.length, 'charge', charge.toFixed(2), 'spare kJ', (spare / 1000).toFixed(0));
+    }
+    state.zapWasOut = state.zapOut && !land;
+    if (say > 0.5 && wasOut !== state.zapWasOut) log(state.zapWasOut ? 'lasers out' : 'lasers stowed');
+  }
 }

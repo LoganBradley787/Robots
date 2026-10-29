@@ -41,10 +41,10 @@
   "A  A  F  F  F  F  F  F  p  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  q  F  F  F  F  F  F  A  A",
   ".  M< A  F  F  F  F  F  p  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  q  F  F  F  F  F  A  M> .",
   "A  A  F  F  F  F  F  F  p  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  q  F  F  F  F  F  F  A  A",
-  ".  M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  O  C  O  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M> .",
-  "A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A",
-  ".  M< A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  A  A  A  A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  A  M> .",
-  "A  A  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  A  A  A  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  A  A  A"
+  ".  M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .  x  .  A  A  A  A  A  .  x  .  A  A  A  A  A  O  C  O  A  A  A  A  A  .  x  .  A  A  A  A  A  .  x  .  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M> .",
+  "A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .  y  .  A  A  A  A  A  .  y  .  A  A  A  A  A  A  A  A  A  A  A  A  A  .  y  .  A  A  A  A  A  .  y  .  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A",
+  ".  M< A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  A  z  A  A  Mv A  Mv A  A  z  A  A  Mv A  Mv A  A  A  A  A  Mv A  Mv A  A  z  A  A  Mv A  Mv A  A  z  A  A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  A  M> .",
+  "A  A  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  =  .  A  .  A  .  A  .  =  .  A  .  A  .  A  A  A  A  A  .  A  .  A  .  =  .  A  .  A  .  A  .  =  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  A  A  A"
  ],
  "legend": {
   "l": {
@@ -76,6 +76,30 @@
    "rot": 90,
    "tags": [
     "pb"
+   ],
+   "auto": false
+  },
+  "x": {
+   "part": "piston",
+   "rot": 180,
+   "tags": [
+    "zpush"
+   ],
+   "auto": false
+  },
+  "y": {
+   "part": "rotator",
+   "rot": 180,
+   "tags": [
+    "zrot"
+   ],
+   "auto": false
+  },
+  "z": {
+   "part": "laser",
+   "rot": 180,
+   "tags": [
+    "zap"
    ],
    "auto": false
   }
