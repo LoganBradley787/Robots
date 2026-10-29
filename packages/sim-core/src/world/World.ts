@@ -1064,7 +1064,8 @@ export class World {
    * - Review S3, as before: a body of a jointed robot feels its robot's whole velocity change (its bodies' weighted by
    *   mass), never more than the robot's hardest felt hit this step, at the distance from all the robot's hits; a part
    *   takes the larger of that and its own body's hits. So a car's hull feels its wheel stopped by a wall.
-   * - Bodies in `unsettled` take nothing (as before); what they hit still takes its share.
+   * - Bodies in `unsettled` take nothing (as before); what they hit still takes its share. Their contacts with the
+   *   terrain are left out altogether: a rebuilt titan's kick settling onto the ground is not a hit.
    */
   private contactCrash(): Map<PartInstance, number> {
     const staged = new Map<PartInstance, number>();
@@ -1152,6 +1153,9 @@ export class World {
       const s1 = sideOf(c.body1);
       const s2 = sideOf(c.body2);
       if (s1 === 't' && s2 === 't') continue;
+      // A kicked body settling onto the terrain (a rebuilt piece, a release) is not a hit, as before: left out, energy
+      // and load, so it neither hurts nor takes a share of a real hit on the same step.
+      if ((s1 === 't' && this.unsettled.has(c.body2)) || (s2 === 't' && this.unsettled.has(c.body1))) continue;
       // In order: the dynamic side first, then by body id, so both orders of a pair are one interface.
       const flip = s1 === 't' || (s2 !== 't' && c.body2 < c.body1);
       const key = flip ? `${s2}|${s1}` : `${s1}|${s2}`;
