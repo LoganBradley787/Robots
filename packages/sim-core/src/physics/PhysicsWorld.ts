@@ -128,6 +128,25 @@ export interface MassProperties {
   inertia: number;
 }
 
+/**
+ * Crash: one contact manifold between two colliders on the last step, in Rapier's own order for the pair (side 1 is
+ * its first collider, side 2 its second), so both sides read the same record. `jx`, `jy` is the whole impulse (normal
+ * plus friction, N s) side 1 put on side 2 over the step; side 1 took the opposite. (`px`, `py`) is where it acted: the mean of the solver points, or the middle of the two colliders when
+ * Rapier kept none.
+ */
+export interface ContactImpulse {
+  body1: BodyId;
+  owner1: string | undefined;
+  body2: BodyId;
+  owner2: string | undefined;
+  jx: number;
+  jy: number;
+  px: number;
+  py: number;
+  /** The solver points, for where the hit landed. */
+  points: { x: number; y: number }[];
+}
+
 export interface DebugBuffers {
   vertices: Float32Array;
   colors: Float32Array;
@@ -152,6 +171,11 @@ function readState(body: RAPIER.RigidBody): BodyState {
   const t = body.translation();
   const v = body.linvel();
   return { x: t.x, y: t.y, angle: body.rotation(), vx: v.x, vy: v.y, w: body.angvel() };
+}
+
+/** A manifold's key: its pair's collider handles in the pair's own order and its place in the pair. */
+function manifoldKey(h1: number, h2: number, index: number): string {
+  return `${h1}|${h2}|${index}`;
 }
 
 const handleBits = new Float64Array(1);
@@ -384,6 +408,11 @@ export class PhysicsWorld {
       if (x.torque !== 0) x.body.addTorque(x.torque, false);
     }
     return true;
+  }
+
+  /** Whether the body moves (a robot's body, a world file's dynamic box), not fixed terrain. */
+  isDynamic(id: BodyId): boolean {
+    return this.body(id).isDynamic();
   }
 
   /**
@@ -841,6 +870,109 @@ export class PhysicsWorld {
       return true;
     });
     return out.sort((a, b) => a.distance - b.distance || a.body - b.body || compareText(a.owner ?? '', b.owner ?? ''));
+  }
+
+  /** A body's colliders: its owned ones (robot cells) in creation order, else Rapier's (a world box). */
+  private collidersOf(id: BodyId): number[] {
+    const owned = this.owned.get(id);
+    if (owned) return owned;
+    const body = this.bodies.get(id);
+    if (!body) return [];
+    const out: number[] = [];
+    for (let i = 0; i < body.numColliders(); i++) out.push(body.collider(i).handle);
+    return out;
+  }
+
+  /**
+   * The manifolds of one collider with everything it touches, each once per pair (keyed by both handles in the pair's
+   * own order and the manifold's index), into `into`.
+   *
+   * Rapier's signs, measured on 0.20 (a box sliding on fixed ground and on a dynamic one, both creation orders; a slab
+   * sliding over a jointed car): `normal()` points from the pair's first collider to its second whichever collider
+   * asks, `contactImpulse` pushes the second along it, and `contactTangentImpulse` pushes the second along the normal
+   * turned a quarter counterclockwise, (-ny, nx). So the impulse is worked out once in the pair's own order.
+   */
+  private manifoldsOf(handle: number, into: Map<string, ContactImpulse>): void {
+    const collider = this.world.getCollider(handle);
+    this.world.contactPairsWith(collider, (other) => {
+      let index = 0;
+      this.world.contactPair(collider, other, (manifold, flipped) => {
+        const c1 = flipped ? other : collider;
+        const c2 = flipped ? collider : other;
+        const key = manifoldKey(c1.handle, c2.handle, index++);
+        if (into.has(key)) return;
+        const n = manifold.normal();
+        let imp = 0;
+        let tan = 0;
+        for (let i = 0; i < manifold.numContacts(); i++) {
+          imp += manifold.contactImpulse(i);
+          tan += manifold.contactTangentImpulse(i);
+        }
+        const points: { x: number; y: number }[] = [];
+        let px = 0;
+        let py = 0;
+        for (let i = 0; i < manifold.numSolverContacts(); i++) {
+          const p = manifold.solverContactPoint(i);
+          if (!p) continue;
+          points.push({ x: p.x, y: p.y });
+          px += p.x;
+          py += p.y;
+        }
+        if (imp === 0 && tan === 0 && points.length === 0) return;
+        if (points.length > 0) {
+          px /= points.length;
+          py /= points.length;
+        } else {
+          const a = c1.translation();
+          const b = c2.translation();
+          px = (a.x + b.x) / 2;
+          py = (a.y + b.y) / 2;
+        }
+        const p1 = c1.parent();
+        const p2 = c2.parent();
+        const body1 = p1 ? this.byHandle.get(p1.handle) : undefined;
+        const body2 = p2 ? this.byHandle.get(p2.handle) : undefined;
+        if (body1 === undefined || body2 === undefined) return;
+        into.set(key, {
+          body1,
+          owner1: this.owners.get(c1.handle),
+          body2,
+          owner2: this.owners.get(c2.handle),
+          jx: imp * n.x - tan * n.y,
+          jy: imp * n.y + tan * n.x,
+          px,
+          py,
+          points,
+        });
+      });
+    });
+  }
+
+  /**
+   * Crash: every manifold the bodies' colliders were in on the last step (`ContactImpulse`), each pair once whichever
+   * side was asked, in a canonical order (body ids, then owners, then the manifold's place in its pair), so nothing
+   * depends on which body was asked first. `more` may name more bodies to ask once the first ones are in (bodies
+   * whose every contact must be known).
+   *
+   * A kick step is two Rapier steps (`applyKicks`); the impulses read after the second are the whole step's, a hit in
+   * the first substep included (measured on 0.20: they match the bodies' momentum change, where adding the first
+   * step's own impulses counted that hit twice).
+   */
+  contactImpulses(ids: Iterable<BodyId>, more?: (found: Iterable<ContactImpulse>, asked: ReadonlySet<BodyId>) => Iterable<BodyId>): ContactImpulse[] {
+    const found = new Map<string, ContactImpulse>();
+    const asked = new Set<BodyId>();
+    const ask = (list: Iterable<BodyId>): void => {
+      for (const id of list) {
+        if (asked.has(id)) continue;
+        asked.add(id);
+        for (const handle of this.collidersOf(id)) this.manifoldsOf(handle, found);
+      }
+    };
+    ask(ids);
+    if (more) ask([...more(found.values(), asked)]);
+    const out = [...found];
+    out.sort(([ka, a], [kb, b]) => a.body1 - b.body1 || a.body2 - b.body2 || compareText(a.owner1 ?? '', b.owner1 ?? '') || compareText(a.owner2 ?? '', b.owner2 ?? '') || compareText(ka, kb));
+    return out.map(([, c]) => c);
   }
 
   /**

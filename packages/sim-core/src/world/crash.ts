@@ -70,11 +70,16 @@ export function crashDistance(touches: readonly CrashTouch[], ux: number, uy: nu
     const face = lead();
     return (x, y) => face - (x * ux + y * uy) + CRASH_HALF_CELL;
   }
+  return nearestDistance(landed);
+}
+
+/** The distance from a point to the nearest of `points` (at least one), as a function of the point. */
+export function nearestDistance(landed: readonly { x: number; y: number }[]): (x: number, y: number) => number {
   // Touches in squares as wide as the reach: a point looks only in its square and the eight around it, and anything
   // farther is past the reach anyway (a long slab landing flat has hundreds of touches).
   const far = CRASH_REACH + CRASH_HALF_CELL;
   const key = (ix: number, iy: number): number => (ix + 32768) * 65536 + (iy + 32768);
-  const squares = new Map<number, CrashTouch[]>();
+  const squares = new Map<number, { x: number; y: number }[]>();
   for (const t of landed) {
     const k = key(Math.floor(t.x / far), Math.floor(t.y / far));
     const list = squares.get(k);
@@ -95,4 +100,53 @@ export function crashDistance(touches: readonly CrashTouch[], ux: number, uy: nu
     }
     return Math.sqrt(best);
   };
+}
+
+/**
+ * Crash by contact: how hard a part is to crush (`crash.hardness` on its def). Two touching parts share the energy
+ * their contact takes out of a hit, the softer one taking more (`crashShare`). Static terrain is infinitely hard.
+ */
+export const CRASH_HARDNESS = 1;
+/** Crash by contact: the hardness of a world file's dynamic box. */
+export const CRASH_BOX_HARDNESS = 1;
+/**
+ * Crash by contact: a contact counts as where its hit landed when it took at least this share of the largest one's
+ * energy between the same two sides, so a part resting on the same enemy far from the ram is not where the ram hit.
+ */
+export const CRASH_LANDED_SHARE = 0.05;
+
+/** The share of a contact's energy a side of hardness `own` takes against a side of hardness `other` (springs in series). */
+export function crashShare(own: number, other: number): number {
+  if (other === Infinity) return own === Infinity ? 0.5 : 1;
+  if (own === Infinity) return 0;
+  return other / (own + other);
+}
+
+/**
+ * The energy (J) a contact took out over one step: its impulse `(jx, jy)` on side 2, times the average over the step of
+ * side 1's velocity at the contact point relative to side 2's (before `b`, after `a`). Exact for one impulse between
+ * rigid bodies, turning included; it is the kinetic energy a hit loses, and nothing for a load resting still or a
+ * perfectly elastic bounce. Never below 0 (pushing apart, as when the solver separates overlapping parts).
+ */
+export function contactEnergy(jx: number, jy: number, bx: number, by: number, ax: number, ay: number): number {
+  return Math.max(0, (jx * (bx + ax) + jy * (by + ay)) / 2);
+}
+
+/**
+ * The mass a side's share of a hit is spread over: the touching body's own, `mass`, raised when its joints pushed it
+ * into the hit (a car's wheel driven into a wall stops the whole car). `(jx, jy)` is the impulse the hit gave the body
+ * and `(px, py)` that impulse plus what its joints gave it (its momentum change less its other contacts'), so the
+ * mass is `mass * |j| / (p along j)`; at least `mass` and at most `most`, the robot's.
+ */
+export function crashMass(mass: number, most: number, jx: number, jy: number, px: number, py: number): number {
+  const j = Math.sqrt(jx * jx + jy * jy);
+  if (!(j > 0)) return mass;
+  const along = (px * jx + py * jy) / j;
+  if (!(along > (mass * j) / most)) return most;
+  return Math.min(most, Math.max(mass, (mass * j) / along));
+}
+
+/** The speed a side feels from its share of a hit's energy, spread over `mass`: `sqrt(2 E / m)`. Against terrain, a body that stops dead feels the speed it hit at. */
+export function crashFelt(energy: number, mass: number): number {
+  return energy > 0 && mass > 0 ? Math.sqrt((2 * energy) / mass) : 0;
 }

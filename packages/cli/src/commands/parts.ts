@@ -117,7 +117,8 @@ function details(d: PartDef): string[] {
     out.push(`grapple rope: reel (-1 to 1, positive pulls in) shortens it up to ${g.reelSpeed} m/s (taking up slack first), negative pays it out; release above 0.5 drops it (and wins over fire on the same tick); it is gone when either end's part is destroyed; outputs hooked (0 or 1) and length (meters, 0 with no rope); no energy`);
   }
   if (d.impact) out.push(`${d.arming ? 'once armed, ' : ''}breaks when a hit stops it by more than ${d.impact.speed} m/s (a fall of about ${((d.impact.speed * d.impact.speed) / (2 * G)).toFixed(1)} m)`);
-  if (d.crash) out.push(`crash damage from hits over ${d.crash.safe} m/s (a fall of about ${((d.crash.safe * d.crash.safe) / (2 * G)).toFixed(1)} m; others 12)`);
+  if (d.crash?.safe !== undefined) out.push(`crash damage from hits over ${d.crash.safe} m/s (a fall of about ${((d.crash.safe * d.crash.safe) / (2 * G)).toFixed(1)} m; others 12)`);
+  if (d.crash?.hardness !== undefined) out.push(`crash hardness ${d.crash.hardness} (others 1): against a part of hardness 1 it takes ${fractionText(1 / (1 + d.crash.hardness))} of the hit's energy, the other part the rest`);
   return out;
 }
 
@@ -138,6 +139,12 @@ export function partRows(registry: PartRegistry): PartRow[] {
   }));
 }
 
+/** A share as a small fraction where it is one (1/7), else a percentage. */
+function fractionText(x: number): string {
+  const n = Math.round(1 / x);
+  return Math.abs(1 / n - x) < 1e-9 ? `1/${n}` : `${(100 * x).toFixed(0)}%`;
+}
+
 export function formatParts(rows: readonly PartRow[]): string {
   const head = ['key', 'part', 'legend', 'mass kg', 'health', 'attaches', 'power J/s'];
   const cells = rows.map((r) => [r.key, r.id, r.legend.join(' ') || '-', String(r.mass), String(r.health), r.faces.join(' '), String(r.power)]);
@@ -146,7 +153,7 @@ export function formatParts(rows: readonly PartRow[]): string {
   const out = [
     'Parts, in builder palette order. One cell is 1 m. Faces are at rotation 0 (N up); rotations are counterclockwise.',
     'Legend arrows point the way a part acts (T^ pushes up, D> releases right, W sits below what it mounts to).',
-    `Crash damage: a hit that changes a body's speed by more than ${CRASH_SAFE} m/s in one step hurts the parts near where it lands, most at the contact and none past ${CRASH_REACH} m from it (armor that deep protects).`,
+    `Crash damage: a hit hurts the parts near where it lands, most at the contact and none past ${CRASH_REACH} m from it (armor that deep protects). The energy a contact takes out of a hit is shared by the two touching parts by hardness (the softer takes more; terrain is infinitely hard), and each side feels its share spread over its own mass: past ${CRASH_SAFE} m/s (a body stopped dead against the ground at that speed) it hurts.`,
     '',
     line(head),
   ];
