@@ -93,6 +93,7 @@ const giveUp = param('giveUp', 6, { min: 2, max: 100 }); // tries in a row that 
 const regroup = param('regroup', 6, { min: 0, max: 120 }); // s it waits high, out of reach of ground guns, before trying again (titans round 6: was 20, Logan: never idle)
 const stuckTime = param('stuckTime', 3, { min: 1, max: 30 }); // s going nowhere before it climbs out and backs off
 const tilt = param('tilt', 25, { min: 0, max: 40 }); // degrees it leans at most to speed up or slow down
+const sinkLean = param('sinkLean', 4, { min: 0, max: 100 }); // m/s: sinking faster than this while it wants to climb, it does not lean (anvil-hard, 2026-10-29)
 const forget = param('forget', 30, { min: 1, max: 10000 }); // s a main enemy that vanished alive is kept, with no arena
 const pingKeep = param('pingKeep', 15, { min: 1, max: 60 }); // s it keeps going for the place gun sights last touched the enemy
 const lead = param('lead', 0.4, { min: 0, max: 1 }); // share of the climb or dive of a target flying at it that it leads
@@ -1206,8 +1207,12 @@ function tick() {
   // its leading corner into the base's end, 26 m off, and rocked there for 180 s).
   const tReach = target && shape ? (target.x > x ? -shape.hullLo : shape.hullHi) : 0;
   const clear = y - floor > 25 && (!target || Math.abs(target.x - x) > state.halfWidth + tReach + 60);
+  // Not while it sinks and wants to climb (anvil-hard, 2026-10-29): leaning 25 degrees toward an enemy high up at the
+  // start, it lost 53 m in 7 s and skidded onto the ground at 48 m/s (a crash rule that counts skidding broke its
+  // core row). The lean's spare lift is not enough for a 12.6 t brick to climb while it leans.
+  const sinking = vy < -sinkLean && wantVy > vy + sinkLean;
   if (force !== null) lean = force;
-  else if (!land && !calm && clear && tilt > 0) {
+  else if (!land && !calm && clear && !sinking && tilt > 0) {
     const pushA = (dvx > 0 ? state.pushRight : state.pushLeft) / m;
     const need = 0.25 * Math.abs(dvx) - pushA;
     if (need > 0) lean = -Math.sign(dvx) * Math.min((tilt * Math.PI) / 180, Math.atan(need / 9.81));
