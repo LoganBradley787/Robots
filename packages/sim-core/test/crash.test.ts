@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
-import { CRASH_FLOOR, CRASH_REACH, CRASH_SAFE, crashDistance, crashFraction, crashWeight } from '../src/world/crash';
+import { CRASH_FLOOR, CRASH_REACH, CRASH_SAFE, crashFraction, crashWeight, nearestDistance } from '../src/world/crash';
 import { defaultRegistry } from '../src/parts/registry';
 import type { PartInstance } from '../src/world/Robot';
 
@@ -41,18 +41,14 @@ describe('crash damage (Batch)', () => {
     expect(crashWeight(40)).toBe(0);
   });
 
-  it('the distance: to the nearest touch that pushed the way the body went, else the depth behind the leading face', () => {
-    // Hit from the right (the body was pushed left): the touch on the right counts, the ground under it does not.
-    const touches = [{ x: 10, y: 0, nx: -1, ny: 0 }, { x: 0, y: -5, nx: 0, ny: 1 }];
-    const near = crashDistance(touches, 1, 0, () => { throw new Error('not needed'); });
+  it('the distance: to the nearest point where the hit landed, nothing past the reach', () => {
+    const near = nearestDistance([{ x: 10, y: 0 }, { x: 0, y: -5 }]);
     expect(near(10, 0)).toBe(0);
     expect(near(7, 4)).toBeCloseTo(5);
-    expect(near(0, -5)).toBeCloseTo(Math.hypot(10, 5));
+    expect(near(0, -5)).toBe(0);
+    expect(near(3, -1)).toBeCloseTo(5);
+    // Points only look in their square of the reach and the eight around it: anything farther is past the reach.
     expect(near(-40, 0)).toBe(Infinity);
-    // No touch pushed it that way: the depth behind the leading face (the leading part is half a cell from it).
-    const deep = crashDistance([{ x: 0, y: -5, nx: 0, ny: 1 }], 1, 0, () => 9.5);
-    expect(deep(9.5, 3)).toBeCloseTo(0.5);
-    expect(deep(2.5, -8)).toBeCloseTo(7.5);
   });
 
   it('a car and a drone set down from the 6 m spawn height take nothing', async () => {
