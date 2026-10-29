@@ -48,8 +48,17 @@ const TOP_PAD = opt('topPad', 4); // low layout: frame rows over the lift rows
 // the slab's bottom row every `floorEvery` columns, between plates, so only a shot from straight below meets them.
 const FLOOR_GUNS = optStr('floorGuns', LOWD ? 'flush' : 'hang');
 const FLOOR_EVERY = opt('floorEvery', 2);
+// Ram faces (anvil-hard, 2026-10-29): 'teeth' gives every face it rams with a hard front, so a crash rule that asks
+// what touched what meets plate, not a gun. Each side face gets a column of plate teeth on every second row (corners
+// included), the side guns sit one cell back in the notches between them (one every second row, 20 a side, was 41),
+// with a plate behind each tooth and the side skin plate behind each gun; the floor guns move up one row so the
+// slab's bottom row is plate teeth with an empty notch under each gun; the roof guns sit in the roof row with a frame
+// tooth over every other column (plates up there would lift its center of mass). 'studs' is the layout before it:
+// guns stand one cell outside every face.
+const FACES = optStr('faces', LOWD ? 'teeth' : 'studs');
+const TEETH = FACES === 'teeth';
 
-const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1 };
+const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, '.': 0 };
 const g = [];
 if (LAYOUT === 'low') lowLayout();
 else {
@@ -167,13 +176,45 @@ for (let x = 0; x < W; x++) {
 top.push('.');
 bottom.push('.');
 if (FLOOR_GUNS === 'flush') {
-  // Into the bottom row, never under the core's column (a laser from below meets the plates there).
+  // Into the bottom row, never under the core's column (a laser from below meets the plates there). With teeth, one
+  // row up, over an empty notch in the bottom row.
   const cxg = W / 2;
-  for (let x = SIDE_A; x < W - SIDE_A; x++) if (x % FLOOR_EVERY === 1 && Math.abs(x - cxg) > 1) g[0][x] = 'Mv';
+  for (let x = SIDE_A; x < W - SIDE_A; x++) {
+    if (x % FLOOR_EVERY !== 1 || Math.abs(x - cxg) <= 1) continue;
+    if (TEETH) {
+      g[1][x] = 'Mv';
+      g[0][x] = '.';
+    } else g[0][x] = 'Mv';
+  }
 }
-rows.push(top);
-for (let y = H - 1; y >= 0; y--) rows.push(['M<', ...g[y], 'M>']);
-if (FLOOR_GUNS !== 'flush') rows.push(bottom);
+if (TEETH) {
+  // Side faces: a plate tooth on every even row (row 0 and the roof row are corners), a gun in the notch on every odd
+  // row, a plate behind each tooth; the skin plate stays behind each gun and becomes a frame behind each tooth's plate
+  // (outside the slab), so every line in from the side still meets a plate and the weight stays near today's.
+  const skin = (c, y) => (y >= SLAB && c === 'A' ? 'F' : c);
+  const sideRow = (y, cells) => {
+    if (y % 2 === 1) return ['.', 'M<', ...cells, 'M>', '.'];
+    const mid = cells.slice();
+    for (let i = 0; i < SIDE_A; i++) {
+      mid[i] = skin(mid[i], y);
+      mid[W - 1 - i] = skin(mid[W - 1 - i], y);
+    }
+    return ['A', 'A', ...mid, 'A', 'A'];
+  };
+  // Roof: guns in the roof row on even columns (as before, one row lower), a frame tooth over each odd column.
+  const roofTeeth = ['.', '.'];
+  for (let x = 0; x < W; x++) {
+    if (x % 2 === 0) g[H - 1][x] = x < SIDE_A || x >= W - SIDE_A ? g[H - 1][x] : 'M^';
+    roofTeeth.push(x % 2 === 1 ? 'F' : '.');
+  }
+  roofTeeth.push('.', '.');
+  rows.push(roofTeeth);
+  for (let y = H - 1; y >= 0; y--) rows.push(sideRow(y, g[y]));
+} else {
+  rows.push(top);
+  for (let y = H - 1; y >= 0; y--) rows.push(['M<', ...g[y], 'M>']);
+  if (FLOOR_GUNS !== 'flush') rows.push(bottom);
+}
 const wide = (t) => t.padEnd(3, ' ');
 const grid = rows.map((r) => r.map(wide).join('').trimEnd());
 
