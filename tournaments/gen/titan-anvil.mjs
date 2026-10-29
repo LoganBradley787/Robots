@@ -56,6 +56,7 @@ const FLOOR_EVERY = opt('floorEvery', 2);
 // tooth over every other column (plates up there would lift its center of mass). 'studs' is the layout before it:
 // guns stand one cell outside every face.
 const FACES = optStr('faces', LOWD ? 'teeth' : 'studs');
+const KEEL = opt('keel', LOWD ? 2 : 0);
 const TEETH = FACES === 'teeth';
 
 const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, '=': 0, '.': 0 };
@@ -243,6 +244,14 @@ if (TEETH) {
   roofTeeth.push('.', '.');
   rows.push(roofTeeth);
   for (let y = H - 1; y >= 0; y--) rows.push(sideRow(y, g[y]));
+  // A keel (anvil r8): `keel` rows of plates under the core, 5 wide (the floor guns 3 either side stay clear). Under the
+  // core the slab held 2 plates and a radar on the steepest lines from below, and crossing over a juggernaut its two
+  // beams burnt through them in under 2 s.
+  for (let k = 0; k < KEEL; k++) {
+    const row = new Array(W + 4).fill('.');
+    for (let x = W / 2 - 2; x <= W / 2 + 2; x++) row[x + 2] = 'A';
+    rows.push(row);
+  }
 } else {
   rows.push(top);
   for (let y = H - 1; y >= 0; y--) rows.push(['M<', ...g[y], 'M>']);

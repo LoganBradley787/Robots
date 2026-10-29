@@ -117,11 +117,13 @@ const zapStall = param('zapStall', 15, { min: 3, max: 120 }); // s of burning th
 const zapKeep = param('zapKeep', 1.15, { min: 1, max: 3 }); // the lasers burn only while the energy left covers this many times hovering to the match's end
 const gunnery = param('gunnery', 1, { min: 0, max: 1 }); // 1: a heavy ground gun titan is raked from high and to the side, never rammed (see Gunnery)
 const gunMass = param('gunMass', 3, { min: 1, max: 100 }); // times its own mass from which a ground enemy with more than `bombGuns` guns up is raked
-const gunRange = param('gunRange', 110, { min: 30, max: 290 }); // m from its near end to the brick's near face while raking (its turrets fire within 150 m, our shells fly 300)
-const gunTilt = param('gunTilt', 20, { min: 0, max: 35 }); // degrees it tilts its near face down at it while raking
+const gunRange = param('gunRange', 170, { min: 30, max: 290 }); // m from its near end to the brick's near face while raking (its turrets fire within 150 m, our shells fly 300)
+const gunTilt = param('gunTilt', 25, { min: 0, max: 35 }); // degrees it tilts its near face down at it while raking
+const gunCross = param('gunCross', 0, { min: 0, max: 1 }); // 1: crosses over to rake the other side (see rake; off: a juggernaut's mast cannot be rammed through)
+const gunHigh = param('gunHigh', 125, { min: 0, max: 220 }); // m over its core its underside keeps while raking (a juggernaut sweeps its mast through a heavy flier lower than 112 m, and parks under one higher up)
 const gunSwap = param('gunSwap', 45, { min: 10, max: 1000 }); // s on one side before it crosses over to rake the other side
-const gunRoom = param('gunRoom', 450, { min: 50, max: 900 }); // m of room it wants behind its back toward the edge, or it crosses over now
-const cutRun = param('cutRun', 220, { min: 50, max: 600 }); // m off its end it climbs before crossing over, for the run-up
+const gunRoom = param('gunRoom', 550, { min: 50, max: 900 }); // m of room it wants behind its back toward the edge, or it crosses over now
+const cutRun = param('cutRun', 110, { min: 50, max: 600 }); // m off its end it climbs before crossing over (the run-up; backing off 220 m first used up the room a juggernaut chasing at 30 m/s left)
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
@@ -1034,11 +1036,17 @@ function tick() {
       // things), whichever side it starts on: Logan, "get to the other side, where it could start destroying the
       // thrusters at the back".
       const tail = Math.abs(sh.topX) > 20 ? -Math.sign(sh.topX) : x < t.x ? -1 : 1;
-      state.gunSide = roomOn(tail) > 0.5 * gunRoom ? tail : -tail;
+      state.gunSide = gunCross < 0.5 ? (x < t.x ? -1 : 1) : roomOn(tail) > 0.5 * gunRoom ? tail : -tail;
       state.gunAt = time;
     }
-    if (time - state.gunAt > gunSwap || roomOn(state.gunSide) < gunRoom) {
-      if (roomOn(-state.gunSide) > gunRoom) {
+    // To the other side when it has more room than this one and this one is short, or after `gunSwap` s if it has room.
+    const here = roomOn(state.gunSide);
+    const there = roomOn(-state.gunSide);
+    // Never mid-crossing, and only 10 s after it got there (the side it starts on is kept even when short of room: the
+    // first crossing, while the target is still far and slow, is the one that cuts a mast).
+    const settled = !state.gunCrossing && time - (state.gunArrive || 0) > 10;
+    if (gunCross > 0.5 && settled && ((here < gunRoom && there > here + 100) || (time - state.gunAt > gunSwap && there > gunRoom))) {
+      {
         state.gunSide = -state.gunSide;
         if (say > 0.5) log('raking: crossing over to its', state.gunSide > 0 ? 'right' : 'left');
       }
@@ -1047,10 +1055,13 @@ function tick() {
     const sd = state.gunSide;
     const aimY = t.y + (sh.upY || 0);
     const px = t.x + sd * (endOn(sd) + state.halfWidth + gunRange);
-    const py = aimY + (gunRange + 0.5 * endOn(sd)) * Math.tan((gunTilt * Math.PI) / 180); // its face tilted down onto the middle of that end
+    const py = Math.max(t.y + gunHigh + state.bottom, aimY + (gunRange + 0.5 * endOn(sd)) * Math.tan((gunTilt * Math.PI) / 180)); // its face tilted down onto the middle of that end
     const across = (x - t.x) * sd < endOn(sd) + state.halfWidth + 0.3 * gunRange; // still on the far side, or over it
+    if (state.gunCrossing && !across) state.gunArrive = time;
+    state.gunCrossing = across;
     if (across) {
-      const over = clamp(t.y + sh.high - 30, t.y + 150, ceiling - 10);
+      // Over whatever stands there if it can; else 30 m under its top, through the frames (a mast cut once is flown over).
+      const over = t.y + sh.high + 10 < ceiling - 10 ? Math.max(t.y + sh.high + 10, t.y + 120) : clamp(t.y + sh.high - 30, t.y + 150, ceiling - 10);
       const far = (x - t.x) * sd < -(endOn(-sd) + state.halfWidth + 0.3 * gunRange);
       wantH = over;
       calm = false;
