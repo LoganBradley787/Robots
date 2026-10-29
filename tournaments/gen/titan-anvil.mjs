@@ -194,20 +194,28 @@ if (FLOOR_GUNS === 'flush') {
 // of the slab, met only from straight below. Pushed out (2 m), the barrel's end hangs 2 m under the slab and the
 // rotator swings it to the enemy's core. A piston or a rotator carries whatever touches its sides, so the cells beside
 // them stay empty, and so do the floor guns beside the laser (they would hang from those cells): plates instead.
+// `zapLow` 1 is the first try (anvil r8): the barrel flush with the slab's bottom; Bastion's darts, coming up from
+// straight below, took all four in the first bombing pass. Now (`zapLow` 0) each turret sits one row higher, its
+// barrel over an empty notch in the bottom row, like the floor guns beside it (which stay). A plate under the barrel
+// does not work: a robot's own bodies touch, and the piston stalled against it at 14% of its stroke. Out, the barrel's
+// end hangs 1 m under the slab, so it swings up to about 50 degrees before its beam would meet the slab.
 const ZAP = opt('zap', LOWD && TEETH ? 1 : 0);
 const ZAP_AT = optStr('zapAt', '8,16').split(',').map(Number);
+const ZAP_LOW = opt('zapLow', 0);
 if (ZAP) {
   const cxz = W / 2;
+  const b = ZAP_LOW ? 0 : 1; // the barrel's row
   for (const d of ZAP_AT) {
     for (const x of [cxz - d, cxz + d]) {
-      g[3][x] = 'x';
-      g[2][x] = 'y';
-      g[1][x] = 'z';
-      g[0][x] = '=';
+      g[b + 3][x] = 'x';
+      g[b + 2][x] = 'y';
+      g[b + 1][x] = 'z';
+      g[b][x] = '=';
+      if (!ZAP_LOW) g[0][x] = '.';
       for (const e of [x - 1, x + 1]) {
-        g[3][e] = '.';
-        g[2][e] = '.';
-        g[1][e] = 'A';
+        g[b + 3][e] = '.';
+        g[b + 2][e] = '.';
+        if (ZAP_LOW) g[1][e] = 'A'; // the floor guns beside it would hang from the empty cells
       }
     }
   }

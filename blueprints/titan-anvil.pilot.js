@@ -121,6 +121,7 @@ const gunRange = param('gunRange', 110, { min: 30, max: 290 }); // m from its ne
 const gunTilt = param('gunTilt', 20, { min: 0, max: 35 }); // degrees it tilts its near face down at it while raking
 const gunSwap = param('gunSwap', 45, { min: 10, max: 1000 }); // s on one side before it crosses over to rake the other side
 const gunRoom = param('gunRoom', 450, { min: 50, max: 900 }); // m of room it wants behind its back toward the edge, or it crosses over now
+const cutRun = param('cutRun', 220, { min: 50, max: 600 }); // m off its end it climbs before crossing over, for the run-up
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
@@ -374,7 +375,8 @@ function volleyFaces() {
 
 // The pop-out lasers (anvil r8, 2026-10-29, Logan: "once it's taken out what seems to be a threat, it pops a laser out
 // and finishes the job"). Each sits in a notch of the floor slab on a piston, under a rotator, pointing down. `out`:
-// the pistons push them 2 m clear of the slab, and each rotator swings its laser onto `aim` (the enemy's core); stowed,
+// the pistons push them 2 m down (the barrel's end 1 m under the slab), and each rotator swings its laser onto `aim`
+// (the enemy's core, at most 50 degrees off straight down); stowed,
 // they are pulled back in, pointing down. A laser burns while it is out, within 4 degrees of its aim, `burn` is set,
 // the core is within its reach, and its sight does not read its own robot or the ground (both would only cost energy).
 // Aiming goes by the rotator's `angle` (its share of 90 degrees from how it was built, pointing down from the slab), so
@@ -399,7 +401,7 @@ function runZap(aim, out, burn) {
       const bx = l.pos.x + 1.5 * Math.cos(l.out.aim);
       const by = l.pos.y + 1.5 * Math.sin(l.out.aim);
       dist = Math.hypot(aim.x - bx, aim.y - by);
-      want = clamp(wrapA(Math.atan2(aim.y - by, aim.x - bx) - rest) / (sg * (Math.PI / 2)), -0.8, 0.8);
+      want = clamp(wrapA(Math.atan2(aim.y - by, aim.x - bx) - rest) / (sg * (Math.PI / 2)), -0.55, 0.55); // 50 degrees: past that its beam meets the slab
       off = Math.abs(wrapA(Math.atan2(aim.y - by, aim.x - bx) - l.out.aim));
     }
     set(z.rot.id, 'turn', clamp(3 * (want - ang) - (sg * self.angVel) / 2, -1, 1));
@@ -1031,7 +1033,8 @@ function tick() {
       // Its tail side first (away from its tallest part, a juggernaut's mast: its nose and the end that drives at
       // things), whichever side it starts on: Logan, "get to the other side, where it could start destroying the
       // thrusters at the back".
-      state.gunSide = Math.abs(sh.topX) > 20 ? -Math.sign(sh.topX) : x < t.x ? -1 : 1;
+      const tail = Math.abs(sh.topX) > 20 ? -Math.sign(sh.topX) : x < t.x ? -1 : 1;
+      state.gunSide = roomOn(tail) > 0.5 * gunRoom ? tail : -tail;
       state.gunAt = time;
     }
     if (time - state.gunAt > gunSwap || roomOn(state.gunSide) < gunRoom) {
@@ -1047,12 +1050,17 @@ function tick() {
     const py = aimY + (gunRange + 0.5 * endOn(sd)) * Math.tan((gunTilt * Math.PI) / 180); // its face tilted down onto the middle of that end
     const across = (x - t.x) * sd < endOn(sd) + state.halfWidth + 0.3 * gunRange; // still on the far side, or over it
     if (across) {
-      const over = clamp(t.y + sh.high - 30, t.y + 150, ceiling);
+      const over = clamp(t.y + sh.high - 30, t.y + 150, ceiling - 10);
       const far = (x - t.x) * sd < -(endOn(-sd) + state.halfWidth + 0.3 * gunRange);
       wantH = over;
-      ramVy = clamp(1.5 * (over - y), -16, 25); // a 10 s climb at 12 m/s let the juggernaut, 30 m/s behind, pin it at the edge
-      // Climb on its own side first (going its way), then across at full speed.
-      wantVx = t.vx + (y > over - 25 || !far ? sd * lineUp : clamp(0.5 * (t.x - sd * (endOn(-sd) + state.halfWidth + gunRange) - x), -lineUp, lineUp));
+      calm = false;
+      // A 10 s climb at 12 m/s let the juggernaut, 30 m/s behind, pin it at the edge; climbing at 25 m/s it must stop in
+      // time (with the lift cut it slows by about 7 m/s², and at 1.5 times the gap it coasted 27 m past, to 249 m).
+      ramVy = over > y ? Math.min(25, Math.sqrt(2 * 5 * (over - y))) : clamp(over - y, -16, 0);
+      // Climb on its own side first, `cutRun` off its end, then across as fast as it goes: a mast in the way is rammed
+      // through where it is frames (met at 8 m/s with no run-up, it held, spun the brick, and pinned it at the edge).
+      if (y > over - 20 || !far) wantVx = sd * vmax;
+      else wantVx = t.vx + clamp(0.5 * (t.x - sd * (endOn(-sd) + state.halfWidth + cutRun) - x), -lineUp, lineUp);
     } else {
       wantH = py;
       // Never faster than it can stop by there (it flew in at 62 m/s, past the spot and into the mast).
