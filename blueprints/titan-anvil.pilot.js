@@ -93,7 +93,7 @@ const giveUp = param('giveUp', 6, { min: 2, max: 100 }); // tries in a row that 
 const regroup = param('regroup', 6, { min: 0, max: 120 }); // s it waits high, out of reach of ground guns, before trying again (titans round 6: was 20, Logan: never idle)
 const stuckTime = param('stuckTime', 3, { min: 1, max: 30 }); // s going nowhere before it climbs out and backs off
 const tilt = param('tilt', 25, { min: 0, max: 40 }); // degrees it leans at most to speed up or slow down
-const sinkLean = param('sinkLean', 4, { min: 0, max: 100 }); // m/s: sinking faster than this while it wants to climb, it does not lean (anvil-hard, 2026-10-29)
+const keepLow = param('keepLow', 80, { min: 0, max: 250 }); // m over the floor under which levelling never costs height (anvil-hard, 2026-10-29)
 const forget = param('forget', 30, { min: 1, max: 10000 }); // s a main enemy that vanished alive is kept, with no arena
 const pingKeep = param('pingKeep', 15, { min: 1, max: 60 }); // s it keeps going for the place gun sights last touched the enemy
 const lead = param('lead', 0.4, { min: 0, max: 1 }); // share of the climb or dive of a target flying at it that it leads
@@ -1207,12 +1207,8 @@ function tick() {
   // its leading corner into the base's end, 26 m off, and rocked there for 180 s).
   const tReach = target && shape ? (target.x > x ? -shape.hullLo : shape.hullHi) : 0;
   const clear = y - floor > 25 && (!target || Math.abs(target.x - x) > state.halfWidth + tReach + 60);
-  // Not while it sinks and wants to climb (anvil-hard, 2026-10-29): leaning 25 degrees toward an enemy high up at the
-  // start, it lost 53 m in 7 s and skidded onto the ground at 48 m/s (a crash rule that counts skidding broke its
-  // core row). The lean's spare lift is not enough for a 12.6 t brick to climb while it leans.
-  const sinking = vy < -sinkLean && wantVy > vy + sinkLean;
   if (force !== null) lean = force;
-  else if (!land && !calm && clear && !sinking && tilt > 0) {
+  else if (!land && !calm && clear && tilt > 0) {
     const pushA = (dvx > 0 ? state.pushRight : state.pushLeft) / m;
     const need = 0.25 * Math.abs(dvx) - pushA;
     if (need > 0) lean = -Math.sign(dvx) * Math.min((tilt * Math.PI) / 180, Math.atan(need / 9.81));
@@ -1232,7 +1228,13 @@ function tick() {
   // Tipping over (a spin from a hit, or a tilt well past the lean): all it has goes into righting, height or not.
   const tipping = Math.abs(self.angle) > Math.abs(lean) + 0.2 || Math.abs(self.angVel) > 0.12;
   const cap = tipping ? 0.5 : Math.abs(self.angle - lean) > 0.3 ? 0.35 : clamp(1 - lift, 0.12, 0.35);
-  const diff = clamp(torque / state.leanTorque, -cap, cap);
+  // Never at the cost of height when low (anvil-hard, 2026-10-29): starting a lean, or a lean it wanted going to 0
+  // while tilted 0.35 rad, counted as tipping, so one lift half went to 0 and the other to full, half of what holds it
+  // up, and from 60 m it fell onto the ground in 4 to 7 s (the contact crash model broke its core row in the skid).
+  // Low or falling, and not past 45 degrees, the difference is held to the lift it can spare over hovering.
+  const hoverNeed = (m * 9.81) / state.liftForce / Math.max(0.5, Math.cos(self.angle));
+  const capped = (y - floor < keepLow || vy < -8) && Math.abs(self.angle) < 0.8 ? Math.min(cap, Math.max(0.08, 1 - hoverNeed - 0.05)) : cap;
+  const diff = clamp(torque / state.leanTorque, -capped, capped);
   // Near the ceiling while still climbing, nothing is kept on: only a cut lift stops the climb in time (a kept half
   // let it coast through the arena's roof, titans v2, 2026-10).
   const keep = y > ceiling - 60 && vy > 0 ? 0 : Math.abs(diff);
