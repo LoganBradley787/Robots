@@ -103,33 +103,42 @@ export function nearestDistance(landed: readonly { x: number; y: number }[]): (x
 }
 
 /**
- * Crash by contact: how hard a part is to crush (`crash.hardness` on its def). Two touching parts share the energy
- * their contact takes out of a hit, the softer one taking more (`crashShare`). Static terrain is infinitely hard.
+ * Crash by contact: how hard a part is to crush (`crash.hardness` on its def). Where two sides touch, the softer one
+ * takes more of the hit: each side's share is its softness (1 / hardness) over the two sides' together, like two
+ * springs pressed together. Static terrain is infinitely hard (softness 0).
  */
 export const CRASH_HARDNESS = 1;
 /** Crash by contact: the hardness of a world file's dynamic box. */
 export const CRASH_BOX_HARDNESS = 1;
 /**
- * Crash by contact: a contact counts as where its hit landed when it took at least this share of the largest one's
- * energy between the same two sides, so a part resting on the same enemy far from the ram is not where the ram hit.
+ * Crash by contact: a contact counts as where its hit landed when it pushed at least this share as hard as the
+ * hardest contact of its interface, so a part resting on the same enemy far from the ram is not where the ram hit.
  */
 export const CRASH_LANDED_SHARE = 0.05;
 
-/** The share of a contact's energy a side of hardness `own` takes against a side of hardness `other` (springs in series). */
-export function crashShare(own: number, other: number): number {
-  if (other === Infinity) return own === Infinity ? 0.5 : 1;
-  if (own === Infinity) return 0;
-  return other / (own + other);
+/**
+ * The work (J) a contact did over one step: its impulse `(jx, jy)` on side 2, times the average over the step of
+ * side 1's velocity at the contact point relative to side 2's (before `b`, after `a`). Positive when it took energy
+ * out (a hit), negative when it put some in (the solver pushing overlapping parts apart). Summed over every contact of
+ * a group of bodies it is the kinetic energy they lost to their contacts (exact when nothing else pushed them: the
+ * velocities change linearly with the impulses), turning included; a load resting still does no work, and neither
+ * does a perfectly elastic bounce.
+ */
+export function contactWork(jx: number, jy: number, bx: number, by: number, ax: number, ay: number): number {
+  return (jx * (bx + ax) + jy * (by + ay)) / 2;
 }
 
 /**
- * The energy (J) a contact took out over one step: its impulse `(jx, jy)` on side 2, times the average over the step of
- * side 1's velocity at the contact point relative to side 2's (before `b`, after `a`). Exact for one impulse between
- * rigid bodies, turning included; it is the kinetic energy a hit loses, and nothing for a load resting still or a
- * perfectly elastic bounce. Never below 0 (pushing apart, as when the solver separates overlapping parts).
+ * How much of a group's lost energy an interface takes (the contacts between two sides): the square of its impulse
+ * `(jx, jy)` (the vector sum, so pushes that cancel do not count), times its softness, the impulse-weighted sum
+ * `soft` of its sides' softness over the sum of its contacts' impulse sizes `push`. Two springs carrying the same
+ * force in series store energy in proportion to their softness, and to the force squared: a slab driven through a box
+ * into a wall puts the hit on both faces of the box, a robot crushed under a ram onto the ground takes it top and
+ * bottom.
  */
-export function contactEnergy(jx: number, jy: number, bx: number, by: number, ax: number, ay: number): number {
-  return Math.max(0, (jx * (bx + ax) + jy * (by + ay)) / 2);
+export function crashLoad(jx: number, jy: number, push: number, soft: number): number {
+  if (!(push > 0)) return 0;
+  return (jx * jx + jy * jy) * (soft / push);
 }
 
 /**

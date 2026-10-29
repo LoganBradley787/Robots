@@ -20,7 +20,7 @@ import { jammed, jamNear, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, smokeBlocks, type SmokeCloud } from '../sensors/smoke';
 import type { ContactImpulse, TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
-import { CRASH_BOX_HARDNESS, CRASH_FLOOR, CRASH_HARDNESS, CRASH_LANDED_SHARE, contactEnergy, crashDistance, crashFelt, crashFraction, crashHit, crashMass, crashShare, crashWeight, nearestDistance, type CrashTouch } from './crash';
+import { CRASH_BOX_HARDNESS, CRASH_FLOOR, CRASH_HARDNESS, CRASH_LANDED_SHARE, contactWork, crashDistance, crashFelt, crashFraction, crashHit, crashLoad, crashMass, crashWeight, nearestDistance, type CrashTouch } from './crash';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -1091,20 +1091,23 @@ export class World {
   }
 
   /**
-   * Crash by contact (`world/crash.ts`): the damage each part takes this step, from the contacts that took energy out
-   * of a hit. Fuzes and the `impact` sound event still read each body's velocity change (`checkImpacts`).
+   * Crash by contact (`world/crash.ts`): the damage each part takes this step from what it touched. Fuzes and the
+   * `impact` sound event still read each body's velocity change (`checkImpacts`).
    *
    * - Which bodies: every robot body and dynamic world box whose velocity changed by more than `CRASH_FLOOR` this step
-   *   (gravity aside), or whose turning changed that fast at its farthest part. Their contacts are read, so a body
-   *   that hardly moved (a robot pinned under a ram, the far side of a clamp) is found through what hit it.
-   * - Each contact (`PhysicsWorld.contactImpulses`): the energy it took out (`contactEnergy`, from the two sides'
-   *   velocities at the contact before and after the step, turning included), shared by the touching parts' hardness
-   *   (`crashShare`; terrain infinitely hard, a dynamic box `CRASH_BOX_HARDNESS`). Contacts between a robot's own
-   *   bodies do not count.
-   * - Each body sums its shares per other side (terrain, one robot, one box), and feels `crashFelt` of that over its
-   *   mass (`crashMass`: its own, more when its joints pushed it into the hit). Opposing hits never cancel: each
-   *   side's energy is its own. The parts of that body take the hit by their distance from the contacts that carried
-   *   it (`crashWeight`), hits from different sides adding up.
+   *   (gravity aside), or whose turning changed that fast at its farthest part, and every body on the other side of
+   *   one of their contacts that took energy out. So a body that hardly moved (a robot pinned under a ram, the far side
+   *   of a squeeze) is found through what hit it, and its other contacts (the ground under it) are read too.
+   * - Contacts (`PhysicsWorld.contactImpulses`) between the same two sides (two bodies, or a body and the terrain,
+   *   which counts as one side) make an interface. Contacts between a robot's own bodies do not count.
+   * - The energy a group of touching bodies lost this step (each contact's `contactWork`, from the two sides'
+   *   velocities at the contact before and after, turning included, summed) is spread over the group's interfaces by
+   *   how hard each was pushed and how soft it is (`crashLoad`): springs in series. So a slab driven into a wall
+   *   through a box feels it at the box, and a robot crushed between a ram and the ground at both faces.
+   * - Each interface's share is split between its two sides by the touching parts' hardness (the softer takes more;
+   *   terrain infinitely hard, a dynamic box `CRASH_BOX_HARDNESS`), and a robot body feels its share spread over its
+   *   mass (`crashMass`: its own, more when its joints pushed it into the hit; `crashFelt`). Shares from opposite
+   *   sides never cancel. The parts of that body take each hit by their distance from where it landed (`crashWeight`).
    * - Review S3, as before: a body of a jointed robot feels its robot's whole velocity change (its bodies' weighted by
    *   mass), never more than the robot's hardest felt hit this step, at the distance from all the robot's hits; a part
    *   takes the larger of that and its own body's hits. So a car's hull feels its wheel stopped by a wall.
@@ -1148,18 +1151,15 @@ export class World {
     for (const b of this.looseBoxes) if (jolted(b.id, b.radius)) active.push(b.id);
     if (active.length === 0) return staged;
 
-    const hardnessOf = (body: BodyId, partId: string | undefined): number => {
-      const robot = owner.get(body);
-      if (robot) return robot.parts.get(partId ?? '')?.def.crash?.hardness ?? CRASH_HARDNESS;
-      return this.physics.isDynamic(body) ? CRASH_BOX_HARDNESS : Infinity;
+    const internal = (c: ContactImpulse): boolean => {
+      const r = owner.get(c.body1);
+      return r !== undefined && r === owner.get(c.body2);
     };
-    const sideKey = (body: BodyId): string => {
-      const robot = owner.get(body);
-      if (robot) return `r${robot.id}`;
-      return this.physics.isDynamic(body) ? `b${body}` : 't';
-    };
-    // The energy a contact took out, from the two sides' velocities at its point.
-    const energyOf = (c: ContactImpulse): number => {
+    // The work a contact did on the step (J), from the two sides' velocities at its point.
+    const works = new Map<ContactImpulse, number>();
+    const workOf = (c: ContactImpulse): number => {
+      const known = works.get(c);
+      if (known !== undefined) return known;
       const m1 = motionOf(c.body1);
       const m2 = motionOf(c.body2);
       const at = (m: Motion | null, after: boolean): { x: number; y: number } => {
@@ -1171,62 +1171,129 @@ export class World {
       const b2 = at(m2, false);
       const a1 = at(m1, true);
       const a2 = at(m2, true);
-      return contactEnergy(c.jx, c.jy, b1.x - b2.x, b1.y - b2.y, a1.x - a2.x, a1.y - a2.y);
+      const e = contactWork(c.jx, c.jy, b1.x - b2.x, b1.y - b2.y, a1.x - a2.x, a1.y - a2.y);
+      works.set(c, e);
+      return e;
     };
-    const linkedRobotBody = (body: BodyId): boolean => {
-      const robot = owner.get(body);
-      return robot !== undefined && robot.groups.length > 1 && this.physics.isLinked(body) && !this.unsettled.has(body);
-    };
-    // A jointed body hit hard needs all its contacts (what its joints pushed is its momentum change less them).
     const contacts = this.physics.contactImpulses(active, (found, asked) => {
-      const share = new Map<BodyId, number>();
+      const more = new Set<BodyId>();
       for (const c of found) {
-        if (owner.get(c.body1) !== undefined && owner.get(c.body1) === owner.get(c.body2)) continue;
-        const e = energyOf(c);
-        if (!(e > 0)) continue;
-        const h1 = hardnessOf(c.body1, c.owner1);
-        const h2 = hardnessOf(c.body2, c.owner2);
-        if (!asked.has(c.body1) && linkedRobotBody(c.body1)) share.set(c.body1, (share.get(c.body1) ?? 0) + e * crashShare(h1, h2));
-        if (!asked.has(c.body2) && linkedRobotBody(c.body2)) share.set(c.body2, (share.get(c.body2) ?? 0) + e * crashShare(h2, h1));
+        if (internal(c) || !(workOf(c) > 0)) continue;
+        for (const body of [c.body1, c.body2]) if (!asked.has(body) && motionOf(body)) more.add(body);
       }
-      const more: BodyId[] = [];
-      for (const [body, e] of share) if (crashFelt(e, motionOf(body)?.m ?? 0) > CRASH_FLOOR) more.push(body);
       return more;
     });
 
-    // Each body's hits, one per other side, and the sum of every outside contact's impulse on it.
-    type Hit = { energy: number; jx: number; jy: number; points: { x: number; y: number; e: number }[]; top: number; other: string };
-    const otherName = (h: Hit): string => (h.other.startsWith('r') ? (this.byId.get(Number(h.other.slice(1)))?.name ?? h.other) : h.other);
-    const hits = new Map<BodyId, Map<string, Hit>>();
-    const outside = new Map<BodyId, { x: number; y: number }>();
-    const add = (body: BodyId, other: string, energy: number, jx: number, jy: number, c: ContactImpulse, e: number): void => {
-      if (!owner.has(body)) return;
-      const o = outside.get(body);
-      if (o) {
-        o.x += jx;
-        o.y += jy;
-      } else outside.set(body, { x: jx, y: jy });
-      let byOther = hits.get(body);
-      if (!byOther) hits.set(body, (byOther = new Map()));
-      let hit = byOther.get(other);
-      if (!hit) byOther.set(other, (hit = { energy: 0, jx: 0, jy: 0, points: [], top: 0, other }));
-      hit.energy += energy;
-      hit.jx += jx;
-      hit.jy += jy;
-      if (e > 0) {
-        for (const p of c.points.length > 0 ? c.points : [{ x: c.px, y: c.py }]) hit.points.push({ x: p.x, y: p.y, e });
-        if (e > hit.top) hit.top = e;
-      }
+    // Interfaces: the contacts between the same two sides. A side is a body, or the terrain (every fixed body as one).
+    type Side = { body: BodyId | undefined; soft: number };
+    type Face = { a: Side; b: Side; jx: number; jy: number; push: number; work: number; points: { x: number; y: number; j: number }[]; top: number; group: number };
+    const faces = new Map<string, Face>();
+    const sideOf = (body: BodyId): string => (motionOf(body) ? String(body) : 't');
+    const softOf = (body: BodyId, partId: string | undefined): number => {
+      const robot = owner.get(body);
+      if (robot) return 1 / (robot.parts.get(partId ?? '')?.def.crash?.hardness ?? CRASH_HARDNESS);
+      return motionOf(body) ? 1 / CRASH_BOX_HARDNESS : 0;
     };
     for (const c of contacts) {
-      const r1 = owner.get(c.body1);
-      if (r1 !== undefined && r1 === owner.get(c.body2)) continue;
-      const e = energyOf(c);
-      const h1 = hardnessOf(c.body1, c.owner1);
-      const h2 = hardnessOf(c.body2, c.owner2);
-      add(c.body1, sideKey(c.body2), e * crashShare(h1, h2), -c.jx, -c.jy, c, e);
-      add(c.body2, sideKey(c.body1), e * crashShare(h2, h1), c.jx, c.jy, c, e);
+      if (internal(c)) continue;
+      const s1 = sideOf(c.body1);
+      const s2 = sideOf(c.body2);
+      if (s1 === 't' && s2 === 't') continue;
+      // In order: the dynamic side first, then by body id, so both orders of a pair are one interface.
+      const flip = s1 === 't' || (s2 !== 't' && c.body2 < c.body1);
+      const key = flip ? `${s2}|${s1}` : `${s1}|${s2}`;
+      let f = faces.get(key);
+      if (!f) {
+        f = { a: { body: flip ? c.body2 : c.body1, soft: 0 }, b: { body: (flip ? s1 : s2) === 't' ? undefined : flip ? c.body1 : c.body2, soft: 0 }, jx: 0, jy: 0, push: 0, work: 0, points: [], top: 0, group: -1 };
+        faces.set(key, f);
+      }
+      // The impulse on side a.
+      const jx = flip ? c.jx : -c.jx;
+      const jy = flip ? c.jy : -c.jy;
+      const j = Math.sqrt(jx * jx + jy * jy);
+      f.jx += jx;
+      f.jy += jy;
+      f.push += j;
+      f.a.soft += j * softOf(flip ? c.body2 : c.body1, flip ? c.owner2 : c.owner1);
+      f.b.soft += j * softOf(flip ? c.body1 : c.body2, flip ? c.owner1 : c.owner2);
+      f.work += workOf(c);
+      for (const p of c.points.length > 0 ? c.points : [{ x: c.px, y: c.py }]) f.points.push({ x: p.x, y: p.y, j });
+      if (j > f.top) f.top = j;
     }
+    // What every outside interface pushed each body with, for what its joints pushed it with (`crashMass`).
+    const outside = new Map<BodyId, { x: number; y: number }>();
+    for (const f of faces.values()) {
+      for (const [body, sign] of [[f.a.body, 1], [f.b.body, -1]] as const) {
+        if (body === undefined) continue;
+        const o = outside.get(body);
+        if (o) {
+          o.x += sign * f.jx;
+          o.y += sign * f.jy;
+        } else outside.set(body, { x: sign * f.jx, y: sign * f.jy });
+      }
+    }
+    // Groups of touching bodies (a robot's bodies are one), the terrain joining none.
+    const parent = new Map<string, string>();
+    const root = (k: string): string => {
+      let r = k;
+      while (parent.has(r) && parent.get(r) !== r) r = parent.get(r)!;
+      parent.set(k, r);
+      return r;
+    };
+    const join = (x: string, y: string): void => {
+      const rx = root(x);
+      const ry = root(y);
+      if (rx !== ry) parent.set(ry < rx ? rx : ry, ry < rx ? ry : rx);
+    };
+    const groupKey = (body: BodyId): string => {
+      const robot = owner.get(body);
+      return robot ? `r${robot.id}` : `b${body}`;
+    };
+    for (const f of faces.values()) {
+      if (f.a.body === undefined) continue;
+      const ka = groupKey(f.a.body);
+      if (!parent.has(ka)) parent.set(ka, ka);
+      if (f.b.body !== undefined) {
+        const kb = groupKey(f.b.body);
+        if (!parent.has(kb)) parent.set(kb, kb);
+        join(ka, kb);
+      }
+    }
+    const energy = new Map<string, number>();
+    const load = new Map<string, number>();
+    for (const f of faces.values()) {
+      if (f.a.body === undefined) continue;
+      const g = root(groupKey(f.a.body));
+      energy.set(g, (energy.get(g) ?? 0) + f.work);
+      load.set(g, (load.get(g) ?? 0) + crashLoad(f.jx, f.jy, f.push, f.a.soft + f.b.soft));
+    }
+
+    // Each robot body's hits: its sides' shares of the interfaces it is on.
+    type Hit = { energy: number; jx: number; jy: number; at: (x: number, y: number) => number; landed: { x: number; y: number }[]; other: string };
+    const hits = new Map<BodyId, Hit[]>();
+    for (const [key, f] of faces) {
+      if (f.a.body === undefined) continue;
+      const g = root(groupKey(f.a.body));
+      const total = energy.get(g) ?? 0;
+      const all = load.get(g) ?? 0;
+      if (!(total > 0) || !(all > 0)) continue;
+      const share = (total * crashLoad(f.jx, f.jy, f.push, f.a.soft + f.b.soft)) / all;
+      if (!(share > 0)) continue;
+      const soft = f.a.soft + f.b.soft;
+      const landed = f.points.filter((p) => p.j >= CRASH_LANDED_SHARE * f.top);
+      const [ka, kb] = key.split('|');
+      for (const [side, sign, other] of [[f.a, 1, kb], [f.b, -1, ka]] as const) {
+        if (side.body === undefined || !owner.has(side.body) || !(soft > 0)) continue;
+        let list = hits.get(side.body);
+        if (!list) hits.set(side.body, (list = []));
+        list.push({ energy: (share * side.soft) / soft, jx: sign * f.jx, jy: sign * f.jy, at: nearestDistance(landed), landed, other: other ?? '' });
+      }
+    }
+    const otherName = (k: string): string => {
+      if (k === 't') return 't';
+      const robot = owner.get(Number(k));
+      return robot ? robot.name : `box${k}`;
+    };
 
     for (const robot of this.robots) {
       let most = 0;
@@ -1236,27 +1303,26 @@ export class World {
       const felt = new Map<number, { speed: number; at: (x: number, y: number) => number }[]>();
       const landedAll: { x: number; y: number }[] = [];
       robot.groups.forEach((g, index) => {
-        const byOther = hits.get(g.bodyId);
+        const list = hits.get(g.bodyId);
         const m = motionOf(g.bodyId);
-        if (!byOther || !m) return;
-        for (const hit of byOther.values()) {
+        if (!list || !m) return;
+        const ox = outside.get(g.bodyId)?.x ?? 0;
+        const oy = outside.get(g.bodyId)?.y ?? 0;
+        for (const hit of list) {
           let effective = m.m;
           if (robot.groups.length > 1 && this.physics.isLinked(g.bodyId)) {
-            const o = outside.get(g.bodyId) ?? { x: 0, y: 0 };
-            const px = m.m * (m.ax - m.bx) - (o.x - hit.jx);
-            const py = m.m * (m.ay - m.by - this.gravityY * this.dt) - (o.y - hit.jy);
+            const px = m.m * (m.ax - m.bx) - (ox - hit.jx);
+            const py = m.m * (m.ay - m.by - this.gravityY * this.dt) - (oy - hit.jy);
             effective = crashMass(m.m, mass, hit.jx, hit.jy, px, py);
           }
           const speed = crashFelt(hit.energy, effective);
-          this.crashTrace?.({ tick: this.tickCount, robot: robot.name, body: index, other: otherName(hit), energy: hit.energy, mass: m.m, effective, speed, jx: hit.jx, jy: hit.jy, unsettled: this.unsettled.has(g.bodyId) });
-          if (!(speed > CRASH_FLOOR) || hit.points.length === 0) continue;
-          const landed = hit.points.filter((p) => p.e >= CRASH_LANDED_SHARE * hit.top);
-          for (const p of landed) landedAll.push(p);
-          let list = felt.get(index);
-          if (!list) felt.set(index, (list = []));
-          list.push({ speed, at: nearestDistance(landed) });
-          if (this.unsettled.has(g.bodyId)) continue;
-          if (speed > most) most = speed;
+          this.crashTrace?.({ tick: this.tickCount, robot: robot.name, body: index, other: otherName(hit.other), energy: hit.energy, mass: m.m, effective, speed, jx: hit.jx, jy: hit.jy, unsettled: this.unsettled.has(g.bodyId) });
+          if (!(speed > CRASH_FLOOR) || hit.landed.length === 0) continue;
+          for (const p of hit.landed) landedAll.push(p);
+          let own = felt.get(index);
+          if (!own) felt.set(index, (own = []));
+          own.push({ speed, at: hit.at });
+          if (!this.unsettled.has(g.bodyId) && speed > most) most = speed;
         }
       });
       if (felt.size === 0) continue;
