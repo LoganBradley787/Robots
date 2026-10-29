@@ -119,7 +119,7 @@ const gunnery = param('gunnery', 1, { min: 0, max: 1 }); // 1: a heavy ground gu
 const gunMass = param('gunMass', 3, { min: 1, max: 100 }); // times its own mass from which a ground enemy with more than `bombGuns` guns up is raked
 const gunRange = param('gunRange', 170, { min: 30, max: 290 }); // m from its near end to the brick's near face while raking (its turrets fire within 150 m, our shells fly 300)
 const gunTilt = param('gunTilt', 25, { min: 0, max: 35 }); // degrees it tilts its near face down at it while raking
-const gunCross = param('gunCross', 0, { min: 0, max: 1 }); // 1: crosses over to rake the other side (see rake; off: a juggernaut's mast cannot be rammed through)
+const gunCross = param('gunCross', 1, { min: 0, max: 1 }); // 1: crosses over to rake the other side, over what stands there (see rake)
 const gunHigh = param('gunHigh', 125, { min: 0, max: 220 }); // m over its core its underside keeps while raking (a juggernaut sweeps its mast through a heavy flier lower than 112 m, and parks under one higher up)
 const gunSwap = param('gunSwap', 45, { min: 10, max: 1000 }); // s on one side before it crosses over to rake the other side
 const gunRoom = param('gunRoom', 550, { min: 50, max: 900 }); // m of room it wants behind its back toward the edge, or it crosses over now
@@ -1045,7 +1045,10 @@ function tick() {
     // Never mid-crossing, and only 10 s after it got there (the side it starts on is kept even when short of room: the
     // first crossing, while the target is still far and slow, is the one that cuts a mast).
     const settled = !state.gunCrossing && time - (state.gunArrive || 0) > 10;
-    if (gunCross > 0.5 && settled && ((here < gunRoom && there > here + 100) || (time - state.gunAt > gunSwap && there > gunRoom))) {
+    // Only over what stands there: a juggernaut's mast cannot be rammed through (a hit is felt over all its 74.6 t, and
+    // the frames held at 49 m/s), so with the mast still up it stays and shoots the mast down first (below).
+    const towering = t.y + sh.high + 10 > ceiling - 10;
+    if (gunCross > 0.5 && !towering && settled && ((here < gunRoom && there > here + 100) || (time - state.gunAt > gunSwap && there > gunRoom))) {
       {
         state.gunSide = -state.gunSide;
         if (say > 0.5) log('raking: crossing over to its', state.gunSide > 0 ? 'right' : 'left');
@@ -1076,7 +1079,10 @@ function tick() {
       wantH = py;
       // Never faster than it can stop by there (it flew in at 62 m/s, past the spot and into the mast).
       wantVx = t.vx + Math.sign(px - x) * Math.min(lineUp, 0.5 * Math.abs(px - x), Math.sqrt(2 * 2.5 * Math.abs(px - x)));
-      if (Math.abs(px - x) < 60 && Math.abs(py - y) < 40) state.gunLean = sd * ((gunTilt * Math.PI) / 180);
+      // On the side its mast stands (the end toward its tallest part) and with the mast up, level: the guns on that face
+      // then fire straight into the mast's frames, a quarter of a shell each, and cut it for the crossing.
+      const mastSide = Math.abs(sh.topX) > 20 && Math.sign(sh.topX) === sd;
+      if (Math.abs(px - x) < 60 && Math.abs(py - y) < 40) state.gunLean = towering && mastSide ? 0 : sd * ((gunTilt * Math.PI) / 180);
       state.perched = Math.abs(px - x) < 10 && Math.abs(py - y) < 10;
     }
   };
