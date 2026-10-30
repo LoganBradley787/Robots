@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { drainContainers, grantFactor, poolTotals, type Container } from '../src/resources/pools';
+import { drainContainers, drainHeld, grantFactor, heldTotals, poolTotals, type Container, type Holder } from '../src/resources/pools';
 
 const pool = (): Container[] => [
   { id: 'battery@2,0', stored: 1500, capacity: 1500 },
@@ -33,6 +33,25 @@ describe('pools', () => {
     drainContainers(b, 777.7);
     const byId = (cs: Container[]): Record<string, number> => Object.fromEntries(cs.map((c) => [c.id, c.stored]));
     expect(byId(b)).toEqual(byId(a));
+  });
+
+  it('parts holding their own amounts sum and drain exactly as containers do', () => {
+    const held = (cs: Container[]): Holder[] => [...cs].sort((a, b) => (a.id < b.id ? -1 : 1)).map((c) => ({ stored: c.stored, def: { resource: { capacity: c.capacity } } }));
+    for (const amount of [0, 0.1, 240, 777.7, 2399.9, 2400, 5000]) {
+      const containers = pool();
+      const parts = held(containers);
+      expect(heldTotals(parts)).toEqual(poolTotals(containers));
+      const { stored } = heldTotals(parts);
+      expect(drainHeld(parts, stored, amount)).toBe(drainContainers(containers, amount));
+      expect(parts.map((p) => p.stored)).toEqual([...containers].sort((a, b) => (a.id < b.id ? -1 : 1)).map((c) => c.stored));
+    }
+  });
+
+  it('a part with nothing to hold counts for nothing', () => {
+    const parts: Holder[] = [{ stored: 5, def: { resource: { capacity: 9 } } }, { def: { resource: { capacity: 9 } } }, { stored: 1, def: {} }];
+    expect(heldTotals(parts)).toEqual({ stored: 5, capacity: 9 });
+    expect(drainHeld(parts, 5, 2)).toBe(2);
+    expect(parts.map((p) => p.stored)).toEqual([3, undefined, 1]);
   });
 
   it('grants everything, a fair share, or nothing', () => {

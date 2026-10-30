@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { loadRapier, rapierVersion } from '../src/physics/rapier';
 import { PhysicsWorld } from '../src/physics/PhysicsWorld';
 import { StateHasher } from '../src/replay/StateHasher';
+import { cos, sin } from '../src/math/fdlibm';
 
 beforeAll(async () => {
   await loadRapier();
@@ -21,6 +22,45 @@ describe('PhysicsWorld', () => {
     expect(s.y).toBeCloseTo(0.5, 1);
     expect(Math.abs(s.vy)).toBeLessThan(0.05);
     expect(pw.bodyIds).toEqual([1, 2]);
+    pw.free();
+  });
+
+  it('a body read twice between steps reads the same, and moves on with the step', () => {
+    const pw = new PhysicsWorld(-9.81, 1 / 60);
+    const box = pw.createDynamicBox(0, 5, 1, 1, 1, 0.3);
+    const before = pw.state(box);
+    expect(pw.state(box)).toBe(before);
+    expect(pw.massProperties(box)).toBe(pw.massProperties(box));
+    const { c, n } = pw.turn(box);
+    expect(c).toBe(cos(before.angle));
+    expect(n).toBe(sin(before.angle));
+    pw.step();
+    expect(pw.state(box).y).toBeLessThan(before.y);
+    expect(pw.massProperties(box).comY).toBeLessThan(5);
+    pw.free();
+  });
+
+  it('a velocity set between steps reads at once, and a kick on top of a reading', () => {
+    const pw = new PhysicsWorld(0, 1 / 60);
+    const box = pw.createDynamicBox(0, 5, 1, 1, 1);
+    expect(pw.state(box).vx).toBe(0);
+    pw.setVelocity(box, 3, 0, 0);
+    expect(pw.state(box).vx).toBe(3);
+    pw.kick(box, 7, 0, 0);
+    expect(pw.state(box).vx).toBe(7);
+    pw.free();
+  });
+
+  it('a ray told whose colliders may be skipped hits as one that looks at every collider', () => {
+    const pw = new PhysicsWorld(0, 1 / 60);
+    const body = pw.createBody({ x: 0, y: 0, kind: 'dynamic' });
+    pw.addCollider(body, { shape: 'box', hx: 0.5, hy: 0.5 }, { offsetX: 0, offsetY: 0, mass: 1 }, 'near');
+    pw.addCollider(body, { shape: 'box', hx: 0.5, hy: 0.5 }, { offsetX: 3, offsetY: 0, mass: 1 }, 'far');
+    pw.step();
+    const skip = (_: number, owner: string | undefined): boolean => owner === 'near';
+    expect(pw.castRay(-5, 0, 1, 0, 20, skip, 'near')).toEqual(pw.castRay(-5, 0, 1, 0, 20, skip));
+    expect(pw.castRay(-5, 0, 1, 0, 20, skip, 'near')?.owner).toBe('far');
+    expect(pw.castRay(-5, 0, 1, 0, 20)?.owner).toBe('near');
     pw.free();
   });
 

@@ -42,6 +42,16 @@ function run(s: ReturnType<typeof compile>, frame: ScriptFrame): number | undefi
 }
 
 describe('script frames (M9)', () => {
+  it('fills values by name whatever the name looks like, and parts of one shape from their own numbers', () => {
+    const odd = 'not-a name';
+    const reader = compile(`function tick() { set('out', 'a', parts[0].in['${odd}']); set('out', 'b', parts[1].in['${odd}']); set('out', 'c', parts[1].out['9lives']); set('out', 'd', parts[2].in.plain); set('out', 'e', parts[0].pos.x); }`);
+    const part = (id: string, x: number, inputs: Record<string, number>, outputs: Record<string, number>): ScriptInput['parts'][number] => ({ id, type: 't', tags: [id], pos: { x, y: 0 }, angle: 0, mass: 1, in: inputs, out: outputs });
+    const r = reader.tick(inputToFrame(base({ parts: [part('a', 1, { [odd]: 10 }, { '9lives': 11 }), part('b', 2, { [odd]: 20 }, { '9lives': 21 }), part('c', 3, { plain: 30 }, {})] }), 1));
+    if (!r.ok) throw new Error(r.error.message);
+    expect(r.writes.map((w) => w.value)).toEqual([10, 20, 21, 30, 1]);
+    reader.dispose();
+  });
+
   it('writes -0 as 0 and reports whether a number is finite', () => {
     const n = new Float64Array(3);
     expect(put(n, 0, -0)).toBe(true);

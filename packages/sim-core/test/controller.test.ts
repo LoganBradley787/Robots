@@ -20,6 +20,62 @@ function values(c: Controller): Record<string, Record<string, number>> {
 }
 
 describe('Controller', () => {
+  it('hands back the same maps tick to tick, with this tick\'s values', () => {
+    const c = new Controller([], parts);
+    const first = c.values();
+    const wheel = first.get('wheel@0,0');
+    c.scriptWrite('wheels', 'speed', 0.5);
+    expect(c.values()).toBe(first);
+    expect(first.get('wheel@0,0')).toBe(wheel);
+    expect(wheel?.get('speed')).toBe(0.5);
+    c.endTick();
+    expect(c.values().get('wheel@0,0')?.get('speed')).toBe(0);
+  });
+
+  it('a latched read is a copy, and leaves the kept maps alone', () => {
+    const c = new Controller([], parts);
+    c.scriptWrite('wheels', 'speed', 0.5);
+    const kept = c.values();
+    const latched = c.values(true);
+    expect(latched).not.toBe(kept);
+    expect(latched.get('wheel@0,0')).not.toBe(kept.get('wheel@0,0'));
+    expect(latched.get('wheel@0,0')?.get('speed')).toBe(0.5);
+    expect(new Controller([], parts).values(true).has('frame@1,1')).toBe(false);
+  });
+
+  it('keeps -0 apart from 0, as a new map would', () => {
+    const c = new Controller([], parts);
+    c.values();
+    c.scriptWrite('wheels', 'speed', -0);
+    expect(Object.is(c.values().get('wheel@0,0')?.get('speed'), -0)).toBe(true);
+    c.endTick();
+    expect(Object.is(c.values().get('wheel@0,0')?.get('speed'), 0)).toBe(true);
+  });
+
+  it('a script write reaches the same parts after parts leave, and this tick\'s writes stay', () => {
+    const c = new Controller([], parts);
+    c.scriptWrite('wheels', 'speed', 0.5);
+    c.scriptWrite('wheels', 'throttle', 0.25);
+    c.restrict(new Set(['wheel@4,0', 'thruster@2,0']));
+    const after = c.values();
+    expect([...after.keys()]).toEqual(['wheel@4,0', 'thruster@2,0']);
+    expect(after.get('wheel@4,0')?.get('speed')).toBe(0.5);
+    c.endTick();
+    c.scriptWrite('wheels', 'speed', 1);
+    expect(c.values().get('wheel@4,0')?.get('speed')).toBe(1);
+    expect(c.values().get('wheel@0,0')).toBeUndefined();
+  });
+
+  it('a new controller takes this tick\'s script writes over for the parts it has', () => {
+    const old = new Controller([], parts);
+    old.scriptWrite('wheels', 'speed', 0.5);
+    const grown = new Controller([], parts.slice(1));
+    grown.carryFrom(old);
+    expect(grown.values().get('wheel@4,0')?.get('speed')).toBe(0.5);
+    grown.endTick();
+    expect(grown.values().get('wheel@4,0')?.get('speed')).toBe(0);
+  });
+
   it('gives every channel its default with no writer', () => {
     const c = new Controller([hold('d', 'wheels', 'speed', 1)], parts);
     expect(values(c)).toEqual({ 'wheel@0,0': { speed: 0 }, 'wheel@4,0': { speed: 0 }, 'thruster@2,0': { throttle: 0 } });
