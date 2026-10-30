@@ -107,14 +107,19 @@ describe('swarm fab drone, done when', () => {
     const d = w.spawnBlueprint(blueprint('swarm-fab-drone'), { x: -100, y: 15 });
     // A frame lying in the hollow (the bay is at grid cell (5, 3): the hollow starts one cell above it).
     const junk = w.spawnBlueprint({ format: 1, name: 'lump', parts: [{ part: 'frame', x: 0, y: 0 }] }, { x: -101, y: 19 });
-    for (let t = 0; t < 9 * 60; t++) w.step();
+    let top = 0;
+    for (let t = 0; t < 9 * 60; t++) {
+      w.step();
+      top = Math.max(top, w.physics.state(junk.groups[0]?.bodyId as number).y);
+    }
     const blocked = of(w, d, 'buildBlocked');
     const built = of(w, d, 'built');
     expect(blocked.length).toBeGreaterThanOrEqual(1);
     expect(built).toHaveLength(1);
     // Ready at 4.9 s but for the junk: a second's wait, then the push out.
     expect((built[0]?.tick ?? 0) - (blocked[0]?.tick ?? 0)).toBeGreaterThan(55);
-    expect(w.physics.state(junk.groups[0]?.bodyId as number).y).toBeGreaterThan(25);
+    // Up and out at the bay's exit speed (it rises about 5 m, then comes back down on what was built).
+    expect(top).toBeGreaterThan(23);
     w.dispose();
   });
 });
