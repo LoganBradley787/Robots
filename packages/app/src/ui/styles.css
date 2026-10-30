@@ -462,6 +462,16 @@ button kbd { margin: 0; opacity: 0.75; }
 #ui .dialog input:focus { border-color: var(--accent); }
 .dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 .notice { position: absolute; top: calc(var(--top-h) + 10px); left: 50%; transform: translateX(-50%); padding: 7px 14px; max-width: 70%; z-index: 70; border-color: var(--warn); box-shadow: inset 0 1px 0 var(--edge-hi), 0 10px 30px rgba(0, 0, 0, 0.5); }
+/* The card while a duel from the page address loads (`loadingCard.ts`). Outside #ui: it shows before the UI is mounted. */
+.loading-backdrop { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 90; background: rgba(0, 0, 0, 0.45); font: 13px/1.35 var(--body); color: var(--ink); }
+.loading-card { min-width: 340px; max-width: 520px; padding: 16px 18px; }
+.loading-card h2 { margin: 0 0 8px; font: 700 16px var(--head); text-transform: uppercase; letter-spacing: var(--head-space); }
+.loading-card p { margin: 0; }
+.loading-step { color: var(--dim); font: 12px var(--mono); }
+.loading-card:not(.failed)::after { content: ""; display: block; height: 3px; margin-top: 12px; background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat; background-size: 40% 100%; animation: loading-sweep 1.2s linear infinite; }
+@keyframes loading-sweep { from { background-position: -70% 0; } to { background-position: 170% 0; } }
+.loading-card.failed { border-color: var(--bad); }
+.loading-card p.loading-error { color: var(--bad); margin-bottom: 14px; white-space: pre-line; }
 
 /* ---------- keys and behaviors (today's panels, restyled) ---------- */
 .row { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; align-items: center; }

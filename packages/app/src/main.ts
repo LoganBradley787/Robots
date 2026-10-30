@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite, UPDATE_PRIORITY } from 'pixi.js';
-import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, inArena, MATCH_ARENA, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
+import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, inArena, MATCH_ARENA, nearestNames, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, renameScript, updateScript } from './builder/scripts';
@@ -35,8 +35,12 @@ import { Builder } from './builder/Builder';
 import { handFull } from './builder/editorState';
 import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
+import { showLoading, type LoadingCard } from './ui/loadingCard';
 import type { AppActions } from './ui/App';
 import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadScriptFile, loadShelfFiles, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile, setBlueprintKind } from './storage/blueprintApi';
+
+/** The duel's loading card (`?duel=`), kept here so a failed boot can say so on it. */
+let loading: LoadingCard | undefined;
 
 async function boot(): Promise<void> {
   const root = document.getElementById('app');
@@ -48,6 +52,16 @@ async function boot(): Promise<void> {
     mountSoundboard(uiEl);
     return;
   }
+  // `?duel=a,b` (the titans tournament): the two blueprints fight on the arena (the flat world without its boxes), as
+  // `pnpm sim duel` sets them up. `&ya=` and `&yb=` are their cores' heights (resting on the ground when left out),
+  // `&xa=` and `&xb=` their x (-400 and 400 when left out).
+  const query = new URLSearchParams(window.location.search);
+  const duel = (query.get('duel') ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '');
+  // Setting up a duel takes seconds (titans have thousands of parts): a card says what is happening until it is ready.
+  if (query.has('duel')) {
+    loading = showLoading(duel.length === 2 ? `Loading duel: ${duel[0]} vs ${duel[1]}` : 'Loading duel');
+    await loading.step('Starting the renderer, physics and scripts');
+  }
   const renderer = new Renderer();
   await renderer.init(root);
   const textures = await loadTextures();
@@ -55,11 +69,6 @@ async function boot(): Promise<void> {
   // The script sandbox (QuickJS in WASM, the browser build of the same engine the CLI uses).
   // Wrapped in a timer (M9) for the debug overlay's perf readout; the sim never sees the clock.
   const { host: scriptHost, clock: scriptClock } = timedHost(await createQuickJsHost(quickjsBrowser));
-  // `?duel=a,b` (the titans tournament): the two blueprints fight on the arena (the flat world without its boxes), as
-  // `pnpm sim duel` sets them up. `&ya=` and `&yb=` are their cores' heights (resting on the ground when left out),
-  // `&xa=` and `&xb=` their x (-400 and 400 when left out).
-  const query = new URLSearchParams(window.location.search);
-  const duel = (query.get('duel') ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '');
   // A duel's scripts read the same edge as `pnpm sim duel` gives them (the global `arena`); a plain sandbox has none.
   const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock, duel.length === 2 ? MATCH_ARENA : null);
 
@@ -624,12 +633,16 @@ async function boot(): Promise<void> {
     if (doc.isDirty()) e.preventDefault();
   });
 
-  // Palette icons come from the same textures the canvas draws.
-  const icons: Record<string, string> = {};
-  for (const d of registry.list()) {
-    icons[d.id] = await renderer.app.renderer.extract.base64({ target: new Sprite(textures.part(d.sprite.frame)) });
-  }
-  store.set({ icons });
+  // Palette icons come from the same textures the canvas draws. A duel draws them once it is loaded: they are for the
+  // builder, and reading pixels back is slow where the browser draws without a graphics card.
+  const drawIcons = async (): Promise<void> => {
+    const icons: Record<string, string> = {};
+    for (const d of registry.list()) {
+      icons[d.id] = await renderer.app.renderer.extract.base64({ target: new Sprite(textures.part(d.sprite.frame)) });
+    }
+    store.set({ icons });
+  };
+  if (duel.length !== 2) await drawIcons();
   let modes: ModeState = { mode: 'world', paused: false, pausedBeforeBuilder: false };
   const setMode = (next: ModeState): void => {
     // Leaving the world releases the controlled robot's keys, so none sticks down while you are away (`11`).
@@ -640,32 +653,53 @@ async function boot(): Promise<void> {
     hudEl.style.display = next.mode === 'world' ? '' : 'none';
     store.set({ mode: next.mode });
   };
-  setMode(toggleMode(modes)); // the app opens in the builder
-  if (duel.length === 2) {
+  // The app opens in the builder; a duel goes straight to the world, paused, to load there.
+  setMode(duel.length === 2 ? { mode: 'world', paused: true, pausedBeforeBuilder: true } : toggleMode(modes));
+  if (loading && duel.length !== 2) loading.fail(`A duel needs two blueprint names, like ?duel=titan-anvil,titan-juggernaut (got ${duel.length}).`);
+  if (loading && duel.length === 2) {
+    const card = loading;
     const [a, b] = duel as [string, string];
     const load = async (name: string, flip: boolean): Promise<unknown> => {
       const bp = await doc.loadForPlacing(`${name}.json`);
-      if (!bp) throw new Error(`duel: no blueprint named ${name}`);
+      // Unreadable: the notice it just gave says why.
+      if (!bp) throw new Error(store.get().notice ?? `${name}.json could not be loaded`);
       return orientRaw(toFileJson({ ...bp, scripts: (bp.scripts ?? []).map((sc) => ({ ...sc, enabled: true })) }, registry, { inlineScripts: true }), { flip }, registry);
     };
     // The lowest core height the world takes it at, from the ground up, unless the page address gives one.
-    const height = (raw: unknown, x: number, given: string | null): number => {
+    const height = (name: string, raw: unknown, x: number, given: string | null): number => {
       if (given !== null && Number.isFinite(Number(given))) return Number(given);
-      for (let y = 0.5; y < 200; y += 0.05) if (worldScreen.world.canPlace(raw, { x, y }).ok) return y;
-      throw new Error('duel: no room to spawn on the ground');
+      const r = worldScreen.world.lowestPlace(raw, x);
+      if (!r.ok) throw new Error(`No room to put ${name} on the ground at x ${x}: ${r.reason}.`);
+      return r.y;
     };
     const go = async (): Promise<void> => {
+      // A name with no file gets a clear answer, with the nearest names there are, before anything is loaded.
+      const names = (await listBlueprints()).map((l) => l.file.replace(/\.json$/, ''));
+      const missing = [a, b].filter((n) => !names.includes(n));
+      if (missing.length > 0) {
+        throw new Error(
+          missing
+            .map((n) => {
+              const near = nearestNames(n, names, 3);
+              return `No blueprint named "${n}" in blueprints/.${near.length > 0 ? ` Did you mean ${near.join(', ')}?` : ''}`;
+            })
+            .join('\n'),
+        );
+      }
+      await card.step(`Loading ${a}`);
       const left = await load(a, false);
+      await card.step(`Loading ${b}`);
       const right = await load(b, true);
-      setMode(enterWorld({ ...modes, paused: true, pausedBeforeBuilder: true }));
       // Teams and order as `pnpm sim duel` gives them, so the fight is the same one: the left one first (robot 1,
       // team 0: yours, so the camera follows it), then the right one (robot 2, team 1).
       // M14: `&xa=` and `&xb=` move them (the default 800 m apart is past a laser's reach).
       const at = (given: string | null, fallback: number): number => (given !== null && Number.isFinite(Number(given)) ? Number(given) : fallback);
       const xa = at(query.get('xa'), -400);
       const xb = at(query.get('xb'), 400);
-      const ra = worldScreen.spawn(left, { x: xa, y: height(left, xa, query.get('ya')) }, 0);
-      const rb = worldScreen.spawn(right, { x: xb, y: height(right, xb, query.get('yb')) }, 1);
+      await card.step(`Placing ${a} (left)`);
+      const ra = worldScreen.spawn(left, { x: xa, y: height(a, left, xa, query.get('ya')) }, 0);
+      await card.step(`Placing ${b} (right)`);
+      const rb = worldScreen.spawn(right, { x: xb, y: height(b, right, xb, query.get('yb')) }, 1);
       // The match as `pnpm sim duel` judges it: a titan loses when its main core is destroyed or leaves the arena (past
       // x 1000 or above y 250, MATCH_ARENA); both lost within 2 s, or 240 s gone with both alive, is a draw. The world runs on after the result.
       const world = worldScreen.world;
@@ -697,9 +731,12 @@ async function boot(): Promise<void> {
           notify(store, 'Draw: 240 s gone with both main cores alive. The world runs on.');
         }
       };
+      card.done();
       notify(store, `${a} (left, yours) against ${b} (right), ${Math.abs(xb - xa)} m apart. Click either to follow it and read its panel. Paused: press play to start.`);
     };
-    go().catch((e: unknown) => notify(store, e instanceof Error ? e.message : String(e)));
+    go()
+      .catch((e: unknown) => card.fail(e instanceof Error ? e.message : String(e)))
+      .finally(() => void drawIcons());
   }
 
   const canvas = renderer.app.canvas;
@@ -829,6 +866,7 @@ async function boot(): Promise<void> {
 
 boot().catch((err: unknown) => {
   console.error(err);
+  loading?.fail(`The page could not start: ${String(err)}`);
   const hud = document.getElementById('hud');
   if (hud) hud.textContent = String(err);
 });
