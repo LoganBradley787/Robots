@@ -451,7 +451,7 @@ export class World {
    * Pushes (N s) waiting for the next physics step, by part: they land on whatever body holds the part by then, so a
    * robot rebuilt again before the step keeps them. Simulation state, hashed.
    */
-  private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true }[] = [];
+  private pendingPushes: { part: PartInstance; jx: number; jy: number; quiet?: true; release?: true }[] = [];
   /** M13: shells in flight, oldest first. Simulation state, hashed. */
   private shells: Shell[] = [];
   /** Shells that hit on the last tick, for drawing only. Not hashed. */
@@ -478,10 +478,16 @@ export class World {
   /** Bodies given their velocity (`launch`, `kickRobot`) since the last step, to unsettle. Not hashed. */
   private launched: BodyId[] = [];
   /**
-   * Bodies whose velocity jumps for a reason other than a hit (a kick after a rebuild, a blast push), by the last tick
-   * the impact check ignores them. Not hashed: it is derived from what happened on recent ticks.
+   * Bodies whose velocity jumps for a reason other than a hit (a rebuild, a kick, a push), by the last tick the fuzes
+   * ignore them. Not hashed: it is derived from what happened on recent ticks.
    */
   private readonly unsettled = new Map<BodyId, number>();
+  /**
+   * Of those, the bodies really thrown (`kickRobot`, a release, a push that moved their robot), by the last tick they
+   * take no crash damage: what they run into was not their doing. A rebuild is not one: it hands a body the velocity
+   * it had, so a robot under fire crashes like any other. Not hashed, like `unsettled`.
+   */
+  private readonly kicked = new Map<BodyId, number>();
   /** Crash: the world file's dynamic boxes, with the radius their turning is measured at. */
   private looseBoxes: { id: BodyId; radius: number }[] = [];
   /** Crash: how far each of a robot's bodies reaches from its origin (m), for its turning, until it is rebuilt. */
@@ -905,6 +911,7 @@ export class World {
     for (const g of robot.groups) {
       this.physics.kick(g.bodyId, vx, vy, w);
       this.launched.push(g.bodyId);
+      this.kicked.set(g.bodyId, this.tickCount + 2);
     }
   }
 
@@ -1006,12 +1013,13 @@ export class World {
    * contacts on multibody links (a bomb bouncing off a car's roof went unnoticed). Thrust changes a body's speed by a
    * fraction of a meter per second per step, so only hits count.
    *
-   * The fuzes above feel the jolt anywhere on the body. Bodies in `unsettled` (kicks, blast pushes) never count. Review
+   * The fuzes above feel the jolt anywhere on the body. Bodies in `unsettled` (rebuilds, kicks, pushes) never count. Review
    * S3: a body that touches nothing feels its robot's velocity change instead of its own, so a fast-spinning robot does
    * not set off its own wheels' fuzes. Every part takes crash damage from what it touched (`contactCrash`).
    */
   private checkImpacts(): void {
     for (const [body, until] of this.unsettled) if (until < this.tickCount) this.unsettled.delete(body);
+    for (const [body, until] of this.kicked) if (until < this.tickCount) this.kicked.delete(body);
     const staged = this.contactCrash();
     for (const robot of this.robots) {
       const lists = partLists(robot);
@@ -1107,8 +1115,9 @@ export class World {
    * - Review S3, as before: a body of a jointed robot feels its robot's whole velocity change (its bodies' weighted by
    *   mass), never more than the robot's hardest felt hit this step, at the distance from all the robot's hits; a part
    *   takes the larger of that and its own body's hits. So a car's hull feels its wheel stopped by a wall.
-   * - Bodies in `unsettled` take nothing (as before); what they hit still takes its share. Their contacts with the
-   *   terrain are left out altogether: a rebuilt titan's kick settling onto the ground is not a hit.
+   * - Bodies in `kicked` take nothing; what they hit still takes its share. Their contacts with the terrain are left
+   *   out altogether: a thrown body landing back on the ground within those ticks is not a hit. A rebuilt body is not
+   *   `kicked`: it has the velocity it had, and takes its crashes.
    */
   private contactCrash(): Map<PartInstance, number> {
     const staged = new Map<PartInstance, number>();
@@ -1199,9 +1208,9 @@ export class World {
       const s1 = sideOf(c.body1);
       const s2 = sideOf(c.body2);
       if (s1 === 't' && s2 === 't') continue;
-      // A kicked body settling onto the terrain (a rebuilt piece, a release) is not a hit, as before: left out, energy
-      // and load, so it neither hurts nor takes a share of a real hit on the same step.
-      if ((s1 === 't' && this.unsettled.has(c.body2)) || (s2 === 't' && this.unsettled.has(c.body1))) continue;
+      // A thrown body pressed onto the terrain (a recoil, a release) is not a hit: left out, energy and load, so it
+      // neither hurts nor takes a share of a real hit on the same step.
+      if ((s1 === 't' && this.kicked.has(c.body2)) || (s2 === 't' && this.kicked.has(c.body1))) continue;
       // In order: the dynamic side first, then by body id, so both orders of a pair are one interface.
       const flip = s1 === 't' || (s2 !== 't' && c.body2 < c.body1);
       const key = flip ? `${s2}|${s1}` : `${s1}|${s2}`;
@@ -1317,13 +1326,13 @@ export class World {
           let own = felt.get(index);
           if (!own) felt.set(index, (own = []));
           own.push({ speed, at: hit.at });
-          if (!this.unsettled.has(g.bodyId) && speed > most) most = speed;
+          if (!this.kicked.has(g.bodyId) && speed > most) most = speed;
         }
       });
       if (felt.size === 0) continue;
       // Review S3: the robot's whole velocity change, never past its hardest felt hit, for a jointed robot.
       let passed = 0;
-      if (robot.groups.length > 1 && !robot.groups.some((g) => this.unsettled.has(g.bodyId))) {
+      if (robot.groups.length > 1 && !robot.groups.some((g) => this.kicked.has(g.bodyId))) {
         let mx = 0;
         let my = 0;
         for (const g of robot.groups) {
@@ -1338,7 +1347,7 @@ export class World {
       const frames = new Map<number, { x: number; y: number; c: number; n: number }>();
       for (const part of partLists(robot).all) {
         const group = robot.groups[part.group];
-        if (!group || this.unsettled.has(group.bodyId)) continue;
+        if (!group || this.kicked.has(group.bodyId)) continue;
         const own = felt.get(part.group);
         if (!own && !passedAt) continue;
         let f = frames.get(part.group);
@@ -1528,6 +1537,9 @@ export class World {
       const grew = this.grown.delete(robot);
       const controller = this.controllers.get(robot.id);
       const latched = controller ? controller.values(true) : (this.channels.get(robot.id) ?? new Map<string, Map<string, number>>());
+      // A body thrown a tick ago is still thrown when it is rebuilt: its pieces keep the rest of its time.
+      let thrown = -1;
+      for (const g of robot.groups) thrown = Math.max(thrown, this.kicked.get(g.bodyId) ?? -1);
       const pieces = rebuildRobot(
         {
           physics: this.physics,
@@ -1540,6 +1552,7 @@ export class World {
         },
         robot,
       );
+      if (thrown >= 0) for (const piece of pieces) for (const g of piece.groups) this.kicked.set(g.bodyId, thrown);
       if (pieces.length === 0) {
         // Wiped whole in one step (a big blast): its core went with the rest, so it is lost here as it is when it goes alone.
         if (controller) this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'coreLost' });
@@ -1589,7 +1602,8 @@ export class World {
    * Gives a new body (a rebuilt piece's) its velocity. A body with no joints has it set outright, so it is the body's
    * velocity at once and everything that acts on it in the next step counts (review S1). A multibody link cannot be
    * written to: it gets a kick, in the first substep of the next step (`PhysicsWorld.applyKicks`), and reads as moving
-   * so until then. Either way the body is unsettled for that step and the one after.
+   * so until then. Either way the body is unsettled for that step and the two after (fuzes only: it has the velocity
+   * it had, so it is not `kicked`).
    */
   private launch(body: BodyId, kick: Kick): void {
     if (this.physics.isLinked(body)) this.physics.kick(body, kick.vx, kick.vy, kick.w);
@@ -1605,7 +1619,7 @@ export class World {
     return this.physics.state(body);
   }
 
-  /** The impact check ignores the body this step and the next. */
+  /** The fuzes ignore the body this step and the next two. */
   private unsettle(body: BodyId): void {
     this.unsettled.set(body, Math.max(this.unsettled.get(body) ?? 0, this.tickCount + 2));
   }
@@ -1664,8 +1678,10 @@ export class World {
 
   /**
    * Just before the physics step: pushes at each surviving part's cell, as forces for this step. Every body of a pushed
-   * robot, and every body given its velocity outright since the last step (`launch`), is unsettled for the next two
-   * steps: its velocity jumps for a reason other than a hit.
+   * robot, and every body given its velocity outright since the last step (`launch`), is unsettled for this step and
+   * the next two: its velocity jumps for a reason other than a hit. A pushed robot is `kicked` as well, for the same
+   * ticks, when the push was a release or when all of its pushes this tick together could move it past `CRASH_FLOOR`:
+   * a blast or a bolt that barely stirs a titan does not make it crash proof.
    */
   private applyPendingForces(): void {
     const settle = (body: BodyId): void => this.unsettle(body);
@@ -1674,6 +1690,7 @@ export class World {
     if (this.pendingPushes.length === 0) return;
     // Every robot's lists up to date, so a part held by a robot in the world has that robot as its `holder`.
     for (const robot of this.robots) partLists(robot);
+    const pushed = new Map<Robot, { jx: number; jy: number; release: boolean }>();
     for (const p of this.pendingPushes) {
       const holder = p.part.holder;
       const robot = holder && holder.parts.get(p.part.id) === p.part && this.byId.get(holder.id) === holder ? holder : undefined;
@@ -1682,9 +1699,21 @@ export class World {
       const pose = partWorldPose(this, robot, p.part.id);
       this.physics.addForceAt(group.bodyId, p.jx / this.dt, p.jy / this.dt, pose.x, pose.y);
       // A gun's kick and a shell's hit (M13) are too small to set off a fuze, and a robot under fire must keep its fuzes.
-      if (!p.quiet) for (const g of robot.groups) settle(g.bodyId);
+      if (p.quiet) continue;
+      for (const g of robot.groups) settle(g.bodyId);
+      let sum = pushed.get(robot);
+      if (!sum) pushed.set(robot, (sum = { jx: 0, jy: 0, release: false }));
+      sum.jx += p.jx;
+      sum.jy += p.jy;
+      sum.release ||= p.release === true;
     }
     this.pendingPushes = [];
+    for (const [robot, sum] of pushed) {
+      let mass = 0;
+      for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
+      if (!sum.release && sum.jx * sum.jx + sum.jy * sum.jy <= CRASH_FLOOR * CRASH_FLOOR * mass * mass) continue;
+      for (const g of robot.groups) this.kicked.set(g.bodyId, Math.max(this.kicked.get(g.bodyId) ?? 0, this.tickCount + 2));
+    }
   }
 
   /**
@@ -1714,8 +1743,8 @@ export class World {
     const n = sin(s.angle);
     const nx = c * d.x - n * d.y;
     const ny = n * d.x + c * d.y;
-    this.pendingPushes.push({ part, jx: -nx * impulse, jy: -ny * impulse });
-    if (neighbor) this.pendingPushes.push({ part: neighbor, jx: nx * impulse, jy: ny * impulse });
+    this.pendingPushes.push({ part, jx: -nx * impulse, jy: -ny * impulse, release: true });
+    if (neighbor) this.pendingPushes.push({ part: neighbor, jx: nx * impulse, jy: ny * impulse, release: true });
     const at = partWorldPose(this, robot, part.id);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'decoupled', part: part.id, x: at.x + 0.5 * nx, y: at.y + 0.5 * ny });
   }
@@ -2377,7 +2406,7 @@ export class World {
     const n = sin(s.angle);
     const nx = c * d.x - n * d.y;
     const ny = n * d.x + c * d.y;
-    for (const l of loose) this.pendingPushes.push({ part: l.part, jx: nx * l.mass * BAY_CLEAR_SPEED, jy: ny * l.mass * BAY_CLEAR_SPEED });
+    for (const l of loose) this.pendingPushes.push({ part: l.part, jx: nx * l.mass * BAY_CLEAR_SPEED, jy: ny * l.mass * BAY_CLEAR_SPEED, release: true });
   }
 
   /** A finished build that cannot be placed (M12): told once per wait, then tried again every tick. */
@@ -2411,8 +2440,8 @@ export class World {
     if (held.length > 0) {
       // Spread over the held parts, so it slides out without spinning.
       const j = spec.separation / held.length;
-      for (const p of held) this.pendingPushes.push({ part: p, jx: nx * j, jy: ny * j });
-      this.pendingPushes.push({ part: bay, jx: -nx * spec.separation, jy: -ny * spec.separation });
+      for (const p of held) this.pendingPushes.push({ part: p, jx: nx * j, jy: ny * j, release: true });
+      this.pendingPushes.push({ part: bay, jx: -nx * spec.separation, jy: -ny * spec.separation, release: true });
     }
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'released', part: bay.id, scope });
   }
@@ -3577,6 +3606,7 @@ export class World {
       h.addF64(p.jx);
       h.addF64(p.jy);
       if (p.quiet) h.addInt(1);
+      if (p.release) h.addInt(2);
     }
     // Batch: bays waiting on loose pieces, bays watching a copy leave, and the parts of copies that never got out. None
     // adds nothing, so worlds without a blocked bay or a copy still in its bay hash as before.

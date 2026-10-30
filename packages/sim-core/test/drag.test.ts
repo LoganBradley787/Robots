@@ -26,9 +26,11 @@ describe('air drag', () => {
     const r = w.spawnBlueprint({ format: 1, name: 'hop', grid: ['F  T^ C  B  T^ F', 'W  .  .  .  .  W'] }, { x: 0, y: 1.45 });
     w.step([{ robot: r.id, pressed: ['w'], released: [] }]);
     let top = 0;
-    for (let i = 0; i < 60 * 40; i++) {
+    const parts = r.parts.size;
+    // It tumbles and comes down after about 8 s, and a crash that hard wrecks it: only its flight counts.
+    for (let i = 0; i < 60 * 40 && r.parts.size === parts; i++) {
       w.step();
-      top = Math.max(top, sampleRobot(w, r).speed);
+      if (r.parts.size === parts) top = Math.max(top, sampleRobot(w, r).speed);
     }
     expect(top).toBeGreaterThan(50);
     expect(top).toBeLessThan(90);
