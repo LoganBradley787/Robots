@@ -12,6 +12,7 @@ export const PRELUDE = String.raw`
   delete globalThis.__send;
   var stringify = JSON.stringify;
   var parse = JSON.parse;
+  var newFunction = Function;
   var hasOwn = Object.prototype.hasOwnProperty;
   var writes = [];
   var logs = [];
@@ -171,23 +172,32 @@ export const PRELUDE = String.raw`
   // Made again from the rows after the layout changes (null until then), for the refill: the rows' part objects in
   // order (each tick's parts is a copy of it; its constructor is its own undefined, so the copy is a plain array
   // whatever a script does to Array), their pos objects, how many numbers each part has, and the rows with values
-  // with where their values start (counted from the first part's numbers).
+  // grouped by the names they have (shapes), each group with where its rows' values start (counted from the first
+  // part's numbers).
   var objs = null;
   var poses = null;
   var widths = null;
-  var named = null;
-  var namedAt = null;
+  var shapes = null;
   function refillLists() {
     var n = rows.length;
     objs = parse(nulls);
     poses = parse(nulls);
     widths = new Int32Array(n);
-    var count = 0;
-    for (var i = 0; i < n; i++) if (rows[i].inN.length + rows[i].outN.length > 0) count++;
-    named = parse(nullsFor(count));
-    namedAt = new Int32Array(count);
+    // Each row with values gets its shape's key, and each shape a count and its place in the list.
+    var keys = parse(nulls);
+    var found = create(null);
+    var kinds = 0;
+    for (var i = 0; i < n; i++) {
+      var r = rows[i];
+      if (r.inN.length + r.outN.length === 0) continue;
+      var key = stringify([r.inN, r.outN]);
+      keys[i] = key;
+      var f = found[key];
+      if (f === undefined) found[key] = { n: 1, i: kinds++ };
+      else f.n++;
+    }
+    shapes = parse(nullsFor(kinds));
     var at = 0;
-    var q = 0;
     for (var i = 0; i < n; i++) {
       var r = rows[i];
       objs[i] = r.o;
@@ -195,13 +205,44 @@ export const PRELUDE = String.raw`
       var w = 3 + r.inN.length + r.outN.length;
       widths[i] = w;
       if (w > 3) {
-        named[q] = r;
-        namedAt[q] = at + 3;
-        q++;
+        var f = found[keys[i]];
+        var s = shapes[f.i];
+        if (s === null) {
+          s = { fill: shapeFill(keys[i], r.inN, r.outN), rows: parse(nullsFor(f.n)), at: new Int32Array(f.n), n: 0 };
+          shapes[f.i] = s;
+        }
+        s.rows[s.n] = r;
+        s.at[s.n] = at + 3;
+        s.n++;
       }
       at += w;
     }
     defineProperty(objs, 'constructor', { value: undefined });
+  }
+  // The refill of one shape's values, made once per script for each different list of names: the names are written
+  // into the code, so QuickJS sets each value by its name directly instead of looking a name up per value per tick
+  // (about half the cost of refilling a big robot).
+  var shapeFills = null;
+  function shapeFill(key, inN, outN) {
+    if (shapeFills === null) shapeFills = create(null);
+    var fill = shapeFills[key];
+    if (fill !== undefined) return fill;
+    var body = 'for (var q = 0; q < n; q++) { var r = rows[q]; var a = base + at[q]; var t = r.inO;';
+    for (var j = 0; j < inN.length; j++) body += ' t' + member(inN[j]) + ' = f[a + ' + j + '];';
+    body += ' t = r.outO;';
+    for (var j = 0; j < outN.length; j++) body += ' t' + member(outN[j]) + ' = f[a + ' + (inN.length + j) + '];';
+    fill = newFunction('rows', 'at', 'n', 'f', 'base', body + ' }');
+    shapeFills[key] = fill;
+    return fill;
+  }
+  /** A name as code that reads that property: .name when it is a plain name, else ["name"]. */
+  function member(name) {
+    var plain = name.length > 0;
+    for (var j = 0; plain && j < name.length; j++) {
+      var c = charCode(name, j);
+      plain = c === 36 || c === 95 || (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (j > 0 && c >= 48 && c <= 57);
+    }
+    return plain ? '.' + name : '[' + stringify(name) + ']';
   }
   var F64 = Float64Array;
   var freeze = Object.freeze;
@@ -216,6 +257,7 @@ export const PRELUDE = String.raw`
   var copyWithin = bind(call, Array.prototype.copyWithin);
   var slice = bind(call, Array.prototype.slice);
   var repeat = bind(call, String.prototype.repeat);
+  var charCode = bind(call, String.prototype.charCodeAt);
   var keysOf = Object.keys;
   var fixed = ['id', 'type', 'tags', 'pos', 'mass', 'in', 'out'];
   // The tick's contacts as numbers and their by lists (frame.ts, contactFrame), and the list made from them once the
@@ -456,23 +498,20 @@ export const PRELUDE = String.raw`
       // Every part's place and angle, then the values of the parts that have any. Only the numbers are written, into
       // objects nothing outside this closure holds a setter on, so the order they are written in cannot be seen.
       var base = k;
-      var n = poses.length;
+      var P = poses;
+      var O = objs;
+      var W = widths;
+      var n = P.length;
       for (var i = 0; i < n; i++) {
-        var pos = poses[i];
+        var pos = P[i];
         pos.x = f[k];
         pos.y = f[k + 1];
-        objs[i].angle = f[k + 2];
-        k += widths[i];
+        O[i].angle = f[k + 2];
+        k += W[i];
       }
-      for (var q = 0; q < named.length; q++) {
-        var r = named[q];
-        var at = base + namedAt[q];
-        var names = r.inN;
-        var target = r.inO;
-        for (var j = 0; j < names.length; j++) target[names[j]] = f[at++];
-        names = r.outN;
-        target = r.outO;
-        for (var j = 0; j < names.length; j++) target[names[j]] = f[at++];
+      for (var g = 0; g < shapes.length; g++) {
+        var s = shapes[g];
+        s.fill(s.rows, s.at, s.n, f, base);
       }
     } else {
       for (var i = 0; i < rows.length; i++) {
