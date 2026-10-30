@@ -295,7 +295,11 @@ const FEED_LOOK = 64;
 /** A robot's script layout (M9, `script/frame.ts`), kept until the robot changes. */
 interface ScriptFeed {
   /** `Robot.version` and the core the scripts run on. */
-  key: string;
+  version: number;
+  coreId: string;
+  /** The robot's map of parts and its size when this was made: while both stand, every part here is still there. */
+  map: Robot['parts'];
+  size: number;
   /** The chunk the scripts see (the core's), and the robot's mass: both fixed until the robot is rebuilt. */
   chunk: number;
   /** The scope the core's controls see tags through (`scopedView`), if any. */
@@ -306,7 +310,8 @@ interface ScriptFeed {
   rows: LayoutPart[];
   /** The chunk's energy container parts, in part order: its pool is added up from these, not by walking every part. */
   pool: PartInstance[];
-  parts: { id: string; part: PartInstance; in: readonly string[]; out: readonly string[] }[];
+  /** `seen`: the map of input values last read for the part. A map keeps its keys, so its names need no second look. */
+  parts: { id: string; part: PartInstance; in: readonly string[]; out: readonly string[]; seen?: ReadonlyMap<string, number> }[];
   numbers: Float64Array;
 }
 
@@ -2262,20 +2267,20 @@ export class World {
    */
   private scriptFrame(robot: Robot, keys: ScriptInput['keys']): ScriptFrame {
     const coreId = robot.primaryCoreId ?? robot.rootId;
-    const key = `${robot.version}:${coreId}`;
     let feed = this.feeds.get(robot);
-    if (!feed || feed.key !== key || !this.fillFeed(robot, feed)) {
-      feed = this.buildFeed(robot, key, feed);
+    if (!feed || feed.version !== robot.version || feed.coreId !== coreId || !this.fillFeed(robot, feed)) {
+      feed = this.buildFeed(robot, feed);
       if (!this.fillFeed(robot, feed)) throw new Error(`script layout of ${robot.name} did not match right after it was built`);
     }
-    const inbox = (robot.parts.get(coreId)?.inbox ?? []).filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown }));
+    const held = robot.parts.get(coreId)?.inbox;
+    const inbox = held === undefined ? [] : held.filter((m) => m.tick < this.tickCount).map((m) => ({ from: m.from, tick: m.tick, data: JSON.parse(m.data) as unknown }));
     const contacts = contactFrame(this.contactsFor(robot, true));
     const extras = extrasJson({ keys, inbox }, contacts?.by ?? []);
     return contacts ? { layout: feed.layout, numbers: feed.numbers, extras, contacts: contacts.numbers } : { layout: feed.layout, numbers: feed.numbers, extras };
   }
 
   /** A new layout for the robot's controlled chunk, with the values present on each part right now. */
-  private buildFeed(robot: Robot, key: string, last?: ScriptFeed): ScriptFeed {
+  private buildFeed(robot: Robot, last?: ScriptFeed): ScriptFeed {
     const coreId = robot.primaryCoreId ?? robot.rootId;
     const chunk = chunkIndex(robot, coreId);
     const chans = this.channels.get(robot.id);
@@ -2346,7 +2351,7 @@ export class World {
       ...(last && patch !== undefined ? { patch: { from: last.layout.id, json: patch } } : {}),
     };
     containers.sort(byPartId);
-    const feed: ScriptFeed = { key, chunk, scope, mass, layout: handed, rows: layout, pool: containers, parts, numbers: new Float64Array(numberCount(layout)) };
+    const feed: ScriptFeed = { version: robot.version, coreId, map: robot.parts, size: robot.parts.size, chunk, scope, mass, layout: handed, rows: layout, pool: containers, parts, numbers: new Float64Array(numberCount(layout)) };
     this.feeds.set(robot, feed);
     return feed;
   }
@@ -2367,18 +2372,21 @@ export class World {
     const bodyOf = (group: number): BodyPose => {
       let b = bodies[group];
       if (!b) {
-        const s = this.bodyState(robot.groups[group]?.bodyId ?? 0);
-        b = { s, c: cos(s.angle), n: sin(s.angle) };
+        const id = robot.groups[group]?.bodyId ?? 0;
+        const s = this.bodyState(id);
+        const { c, n: sn } = this.physics.turn(id);
+        b = { s, c, n: sn };
         bodies[group] = b;
       }
       return b;
     };
     const reads: OutputReads = { robot, spin: (group) => (robot.groups[group] ? bodyOf(group).s.w : 0) };
+    const whole = feed.map === robot.parts && feed.size === robot.parts.size;
     let ok = true;
     let k = HEADER + SELF;
     for (const fp of feed.parts) {
       const part = fp.part;
-      if (robot.parts.get(fp.id) !== part || !robot.groups[part.group]) return false;
+      if (!whole && (robot.parts.get(fp.id) !== part || !robot.groups[part.group])) return false;
       const { s, c, n: sn } = bodyOf(part.group);
       ok = put(n, k++, s.x + c * part.localX - sn * part.localY) && ok;
       ok = put(n, k++, s.y + sn * part.localX + c * part.localY) && ok;
@@ -2387,10 +2395,15 @@ export class World {
       const values = part.def.inputs.length === 0 ? undefined : chans?.get(fp.id);
       if ((values?.size ?? 0) !== fp.in.length) return false;
       if (values) {
-        let j = 0;
-        for (const [name, v] of values) {
-          if (fp.in[j++] !== name) return false;
-          ok = put(n, k++, v) && ok;
+        if (fp.seen === values) {
+          for (const name of fp.in) ok = put(n, k++, values.get(name) as number) && ok;
+        } else {
+          let j = 0;
+          for (const [name, v] of values) {
+            if (fp.in[j++] !== name) return false;
+            ok = put(n, k++, v) && ok;
+          }
+          fp.seen = values;
         }
       }
       let j = 0;
