@@ -21,7 +21,7 @@ export const COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
   bench: ['n', 'seconds', 'json'],
   hashes: ['seconds', 'save', 'against'],
   duel: ['ya', 'yb', 'seed', 'seconds', 'world', 'bounds', 'no-smoke-jam', 'add', 'json'],
-  tournament: ['seeds', 'seconds', 'jobs', 'out', 'only', 'world', 'bounds', 'speed-seconds', 'add'],
+  tournament: ['seeds', 'seconds', 'jobs', 'out', 'only', 'world', 'bounds', 'speed-seconds', 'add', 'fresh'],
 };
 
 const dashed = (names: readonly string[]): string => (names.length === 0 ? 'no flags' : names.map((n) => `--${n}`).join(', '));

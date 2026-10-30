@@ -34,6 +34,8 @@ export interface MatchResult {
   seed: number;
   /** How long the duel took to run here, seconds. */
   wallSeconds: number;
+  /** The result was already known (`duelCache.ts`): `wallSeconds` and the report's timing are the run that made it. */
+  cached?: true;
   report?: DuelReport;
   /** Why the duel did not run (a refused spawn spot, a broken blueprint). */
   error?: string;
@@ -149,7 +151,7 @@ function progress(done: number, of: number, r: MatchResult): string {
   const head = `${r.kind === 'speed' ? 'speed' : 'match'} ${done}/${of}`;
   const stops = r.report?.scriptCrashes ?? [];
   const stopped = stops.length > 0 ? `  scripts stopped: ${(['a', 'b'] as const).map((k) => `${k} ${stops.filter((c) => c.side === k).length}`).join(', ')}` : '';
-  const took = `${stopped}  [${r.wallSeconds.toFixed(0)} s]`;
+  const took = `${stopped}  [${r.cached ? 'kept result' : `${r.wallSeconds.toFixed(0)} s`}]`;
   if (!r.report) return `${head}  ${r.a} against ${r.kind === 'speed' ? 'itself' : r.b}: did not run: ${(r.error ?? '').split('\n')[0] ?? ''}${took}`;
   const t = r.report.timing;
   if (r.kind === 'speed') return `${head}  ${r.a} against itself: ${t.avgMs.toFixed(2)} ms average, ${t.p95Ms.toFixed(2)} ms 95th percentile: ${speedVerdict(r.report)}${took}`;

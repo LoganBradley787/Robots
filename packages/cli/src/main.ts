@@ -18,7 +18,8 @@ import { parseDrop } from './drops';
 import { flagProblem } from './flags';
 import { bench, BENCH_SCENES, formatBench, type BenchScene } from './commands/bench';
 import { duel, formatDuel, parseAdd, SpawnRefused, type Bounds, type DuelAdd, type DuelEntry } from './commands/duel';
-import { formatResults, parseRoster, rankingTable, runTournament, speedTable } from './commands/tournament';
+import { cachedDuels } from './commands/duelCache';
+import { childDuel, formatResults, parseRoster, rankingTable, runTournament, speedTable } from './commands/tournament';
 import { compareTickHashes, formatTickHashes, HASH_SCENES, readTickHashes, sceneReplay, tickHashes, type HashScene, type TickHashes } from './commands/hashes';
 
 const USAGE = `robots sim <command> <blueprint> [flags]
@@ -82,14 +83,16 @@ commands
                      decide the match and are left out of the sides' counts; the report lists each:
                      --add enemy-gun-drone@-700,30,team=b,at=60
   tournament <roster.json> [--seeds 1,2,3] [--seconds 240] [--jobs <n>] [--out <dir>] [--only <name>]
-                     [--world <path>] [--bounds <x>,<y>] [--speed-seconds <n>] [--add <as for duel>]
+                     [--world <path>] [--bounds <x>,<y>] [--speed-seconds <n>] [--add <as for duel>] [--fresh]
                      every pair of the roster's titans ({ "titans": [{ "name": "titan-x", "y": 40 }] }, y
                      optional) duels on each seed, both ways round, --jobs at once (default: cores minus 2).
                      First each titan meets a copy of itself, one at a time, as its speed check (average at
                      most 16 ms per tick; a 95th percentile over 33 is a warning). Writes results.json and
                      results.md (ranking with 1 point a win and a half a draw, pair by pair, speed, what beat
                      each titan, scripts that stopped) to --out (default tournaments/out). --only <name> runs
-                     just that titan's pairings. --add (repeatable) is passed to every duel, speed checks too
+                     just that titan's pairings. --add (repeatable) is passed to every duel, speed checks too.
+                     A duel already run with the same code, robots, scripts and settings is not run again: its
+                     result is kept in ~/.cache/robots-sim/duels (shared by worktrees). --fresh runs them all
 
 flags (for run and determinism unless a command lists its own; a flag a command does not read is refused, exit 2)
   --world <path>     world json (default: worlds/flat.json; for duel and tournament, worlds/arena.json)
@@ -407,7 +410,8 @@ async function tournamentCommand(positional: string[], flags: Map<string, string
   // Checked here so a bad one stops the run before any duel; every duel gets the same text.
   addFlags(adds);
   const out = flags.has('out') ? resolveUserPath(flags.get('out') ?? '') : resolve(REPO_ROOT, 'tournaments/out');
-  const result = await runTournament(titans, { seeds, seconds, jobs, ...(speedSeconds !== undefined ? { speedSeconds } : {}), ...(only !== undefined ? { only } : {}), ...(world !== undefined ? { world } : {}), ...(bounds !== undefined ? { bounds } : {}), ...(adds.length > 0 ? { add: [...adds] } : {}) });
+  const opts = { seeds, seconds, jobs, ...(speedSeconds !== undefined ? { speedSeconds } : {}), ...(only !== undefined ? { only } : {}), ...(world !== undefined ? { world } : {}), ...(bounds !== undefined ? { bounds } : {}), ...(adds.length > 0 ? { add: [...adds] } : {}) };
+  const result = await runTournament(titans, opts, cachedDuels(childDuel, { fresh: flags.has('fresh') }));
   mkdirSync(out, { recursive: true });
   writeFileSync(resolve(out, 'results.json'), `${JSON.stringify(result, null, 2)}\n`);
   writeFileSync(resolve(out, 'results.md'), formatResults(result));

@@ -5,6 +5,7 @@ Rosters for `pnpm sim tournament <roster.json>`. The rules: two robots that run 
 - A roster is `{ "titans": [{ "name": "titan-x", "y": 40 }] }`: `name` is a blueprint in `blueprints/`, `y` its main core's spawn height (left out: on the ground).
 - `pnpm sim duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>]` runs one match and prints who won and why; `pnpm sim help` has every flag.
 - Results go to `tournaments/out/` (`results.md`, `results.json`) unless `--out` says otherwise.
+- A duel is run once: the same code, robots, scripts, seed and settings reuse the result kept in `~/.cache/robots-sim/duels` (shared by worktrees; `XDG_CACHE_HOME` moves it). A kept speed check shows the timing of the run that made it. `--fresh` runs everything again.
 
 How the commands read the rules where a rule left room (the constants are at the top of `packages/cli/src/commands/duel.ts` and `tournament.ts`):
 

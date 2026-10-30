@@ -1,6 +1,10 @@
+import { mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import carJson from '../../../blueprints/car.json';
 import { duel, verdict, type DuelReport, type SideReport } from '../src/commands/duel';
+import { cachedDuels, engineStamp } from '../src/commands/duelCache';
 import { childDuel, formatResults, parseRoster, runTournament, schedule, speedVerdict, standings, stoppedScripts, whatBeat, type MatchResult, type MatchRunner, type MatchSpec } from '../src/commands/tournament';
 
 const titans = [{ name: 'ant', y: 40 }, { name: 'bee' }, { name: 'cat' }];
@@ -179,5 +183,63 @@ describe('results', () => {
     expect(md).toContain('- script stopped: pilot on the robot with its main core (throw): boom, in 3 duels');
     expect(md).toContain('- a bee against b cat, seed 1: cat cannot spawn with its core at (400, 0.2): below the ground');
     expect(md).not.toContain('\u2014');
+  });
+});
+
+describe('cachedDuels', () => {
+  const spec: MatchSpec = { kind: 'match', a: { name: 'ant' }, b: { name: 'bee' }, seed: 1 };
+  const opts = { seeds: [1], seconds: 5, jobs: 1 };
+
+  /** A runner that counts its runs, with blueprints read from `robots`. */
+  function setup(robots: Record<string, unknown> = { ant: { parts: 1 }, bee: { parts: 2 } }) {
+    const dir = mkdtempSync(join(tmpdir(), 'duel-cache-'));
+    const count = { runs: 0 };
+    const run: MatchRunner = async (m) => {
+      count.runs++;
+      return { kind: m.kind, a: m.a.name, b: m.b.name, seed: m.seed, wallSeconds: 7, report: report({ share: 1 }, { share: 0.5 }) };
+    };
+    return { dir, count, run, load: (name: string) => robots[name] };
+  }
+
+  it('runs a duel once and hands the kept result back after, for any key that matches', async () => {
+    const { dir, count, run, load } = setup();
+    const first = await cachedDuels(run, { dir, stamp: 's', load })(spec, opts);
+    const again = await cachedDuels(run, { dir, stamp: 's', load })(spec, opts);
+    expect(count.runs).toBe(1);
+    expect(first.cached).toBeUndefined();
+    expect(again).toMatchObject({ cached: true, wallSeconds: 7, a: 'ant', report: { finalHash: '00000000' } });
+  });
+
+  it('runs it again when the code, a robot, the seed, the length or the height differs', async () => {
+    const { dir, count, run, load } = setup();
+    const robots = { ant: { parts: 1 }, bee: { parts: 2 } };
+    await cachedDuels(run, { dir, stamp: 's', load })(spec, opts);
+    await cachedDuels(run, { dir, stamp: 't', load })(spec, opts);
+    await cachedDuels(run, { dir, stamp: 's', load: (n) => (n === 'ant' ? { parts: 9 } : robots.bee) })(spec, opts);
+    await cachedDuels(run, { dir, stamp: 's', load })({ ...spec, seed: 2 }, opts);
+    await cachedDuels(run, { dir, stamp: 's', load })(spec, { ...opts, seconds: 6 });
+    await cachedDuels(run, { dir, stamp: 's', load })({ ...spec, a: { name: 'ant', y: 40 } }, opts);
+    expect(count.runs).toBe(6);
+  });
+
+  it('--fresh runs it again and keeps the new result; a duel that did not run is not kept', async () => {
+    const { dir, count, run, load } = setup();
+    await cachedDuels(run, { dir, stamp: 's', load })(spec, opts);
+    const fresh = await cachedDuels(run, { dir, stamp: 's', fresh: true, load })(spec, opts);
+    expect(count.runs).toBe(2);
+    expect(fresh.cached).toBeUndefined();
+    const failing: MatchRunner = async (m) => ({ kind: m.kind, a: m.a.name, b: m.b.name, seed: m.seed, wallSeconds: 1, error: 'no' });
+    await cachedDuels(failing, { dir, stamp: 'other', load })(spec, opts);
+    expect(readdirSync(dir)).toHaveLength(1);
+  });
+
+  it('the stamp changes with the code it covers', () => {
+    const root = mkdtempSync(join(tmpdir(), 'duel-stamp-'));
+    mkdirSync(join(root, 'packages/sim-core/src'), { recursive: true });
+    writeFileSync(join(root, 'packages/sim-core/src/a.ts'), 'one');
+    const before = engineStamp(root);
+    expect(engineStamp(root)).toBe(before);
+    writeFileSync(join(root, 'packages/sim-core/src/a.ts'), 'two');
+    expect(engineStamp(root)).not.toBe(before);
   });
 });
