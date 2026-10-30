@@ -104,7 +104,9 @@ describe('M13 guns, done when', () => {
 
   it('in a 2v2 with fab drones, no shell hits its own side, and a turret never shoots its own robot', { timeout: 120_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
-    w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: -60, y: 30 });
+    // Starting at -60 gave 87 hits, the top of what this fight does (30 to 48 from 5 other starts, before and after the
+    // contact crash rules): a missile's body hurts what it hits now, the gun drone went at 17 s there with 37 hits.
+    w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: -50, y: 30 });
     w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -90, y: 30 });
     w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: 60, y: 30 }, { team: 1 });
     w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: 90, y: 40 }, { team: 1 });

@@ -10,6 +10,12 @@ export const BAY_CLEAR_AFTER_S = 1;
 
 /** Speed (m/s) each push adds to a piece in the way, along the bay's acts face (up and out of the U). */
 export const BAY_CLEAR_SPEED = 2;
+/**
+ * The speed (m/s) along the acts face, relative to the bay, past which a piece is not pushed. A piece that can move is
+ * on its way: pushed on every tick it left at 33 m/s, flew 55 m up, and came back hard enough to crush the bay under
+ * it. This one rises 5 m and lands under any part's safe speed.
+ */
+export const BAY_CLEAR_EXIT = 10;
 
 /** Ticks a bay waits on a coreless blocker before it starts pushing. */
 export function bayClearAfterTicks(dt: number): number {

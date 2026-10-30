@@ -82,7 +82,9 @@ describe('spotter and artillery (Batch), done when', () => {
         nearest = Math.min(nearest, Math.hypot(a.x - b.x, a.y - b.y));
       }
     }
-    expect(seenReleases).toBeGreaterThanOrEqual(5);
+    // 3 by the time the first one lands: a missile's body hurts what it hits now, so that hit ends the hunter's core
+    // at 17.8 s (the 5 of the old rules kept coming because it lived to 31 s) and the artillery has no target left.
+    expect(seenReleases).toBeGreaterThanOrEqual(3);
     expect(nearest).toBeGreaterThan(450);
     expect(partsLost(w, target)).toBeGreaterThanOrEqual(30);
     expect(partsLost(w, art) + partsLost(w, spot)).toBeLessThanOrEqual(6);

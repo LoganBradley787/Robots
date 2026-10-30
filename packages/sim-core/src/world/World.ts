@@ -35,7 +35,7 @@ import { blastEffects, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face, JammerSpec } from '../parts/types';
 import type { BodyGroup, PartInstance, Robot } from './Robot';
-import { BAY_CLEAR_SPEED, bayClearAfterTicks, copyLeaveTicks } from './bayclear';
+import { BAY_CLEAR_EXIT, BAY_CLEAR_SPEED, bayClearAfterTicks, copyLeaveTicks } from './bayclear';
 import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Beam } from '../weapons/beams';
@@ -2385,12 +2385,12 @@ export class World {
    */
   private clearHollow(robot: Robot, bay: PartInstance, probes: readonly { x: number; y: number; shape: ShapeSpec }[]): void {
     const bodies = this.physics.overlappingBodies(probes);
-    const loose: { part: PartInstance; mass: number }[] = [];
+    const loose: { part: PartInstance; mass: number; body: BodyId }[] = [];
     for (const other of this.robots) {
       if (other === robot || (this.controllers.has(other.id) && !this.gaveUpOn(other))) continue;
       for (const g of other.groups) {
         const part = other.parts.get(g.originId);
-        if (part && bodies.includes(g.bodyId)) loose.push({ part, mass: this.physics.massProperties(g.bodyId).mass });
+        if (part && bodies.includes(g.bodyId)) loose.push({ part, mass: this.physics.massProperties(g.bodyId).mass, body: g.bodyId });
       }
     }
     if (loose.length === 0) {
@@ -2406,7 +2406,12 @@ export class World {
     const n = sin(s.angle);
     const nx = c * d.x - n * d.y;
     const ny = n * d.x + c * d.y;
-    for (const l of loose) this.pendingPushes.push({ part: l.part, jx: nx * l.mass * BAY_CLEAR_SPEED, jy: ny * l.mass * BAY_CLEAR_SPEED, release: true });
+    for (const l of loose) {
+      const v = this.physics.state(l.body);
+      const out = (v.vx - s.vx) * nx + (v.vy - s.vy) * ny;
+      const add = Math.min(BAY_CLEAR_SPEED, BAY_CLEAR_EXIT - out);
+      if (add > 0) this.pendingPushes.push({ part: l.part, jx: nx * l.mass * add, jy: ny * l.mass * add, release: true });
+    }
   }
 
   /** A finished build that cannot be placed (M12): told once per wait, then tried again every tick. */

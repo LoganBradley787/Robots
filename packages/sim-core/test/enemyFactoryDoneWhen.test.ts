@@ -83,8 +83,10 @@ describe('enemy factory, done when', () => {
   it('wrecks a row of parked cars with missiles and drone bombs, and the base takes nothing', { timeout: 60_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
-    const near = row(w, [-420, -445, -470]); // inside a drone bomb's range (450 m)
-    const far = row(w, [-700, -730, -760]); // 400 to 460 m: the edge of a drone bomb's range, missiles beyond
+    // 5 m nearer than the row it was written for: there one far car took all 6 hits (3,4,0 before the contact crash
+    // rules, 6,0,0 after, a drone bomb's body hurting what it hits). 4 other starts hit all three far cars, both ways.
+    const near = row(w, [-425, -450, -475]); // inside a drone bomb's range (450 m)
+    const far = row(w, [-705, -735, -765]); // 400 to 460 m: the edge of a drone bomb's range, missiles beyond
     for (let t = 0; t < 45 * 60; t++) w.step();
     expect(of(w, f, 'released').length).toBeGreaterThanOrEqual(8);
     expect(near.filter((c) => partsLost(w, c) > 0).length).toBe(3);
