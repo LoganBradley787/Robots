@@ -378,6 +378,24 @@ describe('boxes of cells in a world', () => {
     w2.dispose();
   });
 
+  it('runs the same twice: rams, lost parts and rebuilds on boxes give one hash', async () => {
+    const run = async (): Promise<{ hash: string; lost: number }> => {
+      const w = await World.create({ seed: 1, gravityY: 0 }, space);
+      const target = w.spawnBlueprint({ format: 1, name: 'target', grid: slab(10, 14, 'F', { '9,7': 'C', '3,3': 'B', '4,3': 'B', '3,9': 'A' }) }, { x: 25, y: 40 }, { team: 1 });
+      const ram = w.spawnBlueprint({ format: 1, name: 'ram', grid: slab(8, 8, 'F', { '0,4': 'C', '7,2': 'A', '7,5': 'B' }) }, { x: -15, y: 41 });
+      w.kickRobot(ram, 90, 0);
+      for (let i = 0; i < 180; i++) w.step();
+      const lost = w.events.filter((e) => e.kind === 'partDestroyed').length;
+      expect(target.id).not.toBe(ram.id);
+      const hash = w.hash();
+      w.dispose();
+      return { hash, lost };
+    };
+    const first = await run();
+    expect(first.lost).toBeGreaterThan(0);
+    expect(await run()).toEqual(first);
+  });
+
   it('a hit takes the hardness of the cell that touched, not of the box it is in', async () => {
     // Ten rows of frames with one column of armor or of batteries on the face: one rectangle each way.
     const faced = async (face: string): Promise<{ ram: number; target: number; boxes: number }> => {
