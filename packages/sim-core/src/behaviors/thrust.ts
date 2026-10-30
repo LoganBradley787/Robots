@@ -36,8 +36,7 @@ function push(ctx: BehaviorContext, acts: Face, t: number, tilt: number): void {
   // Turn the push direction by the swivel (exactly the face direction when there is none).
   const dir = tilt === 0 ? face : { x: cos(tilt) * face.x - sin(tilt) * face.y, y: sin(tilt) * face.x + cos(tilt) * face.y };
   const s = ctx.physics.state(ctx.group.bodyId);
-  const c = cos(s.angle);
-  const n = sin(s.angle);
+  const { c, n } = ctx.physics.turn(ctx.group.bodyId);
   const dx = c * dir.x - n * dir.y;
   const dy = n * dir.x + c * dir.y;
   const px = s.x + c * ctx.part.localX - n * ctx.part.localY;

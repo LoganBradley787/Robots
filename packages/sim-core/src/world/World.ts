@@ -1765,7 +1765,7 @@ export class World {
 
   /** One laser's beam this tick: drawn always, and what it would burn (applied once every beam is cast). */
   private beam(robot: Robot, part: PartInstance, spec: { dps: number; range: number }, power: number, m: { x: number; y: number; dx: number; dy: number }, bodies: Map<BodyId, Robot>): { hitRobot: Robot; hitPart: PartInstance; damage: number; x: number; y: number } | undefined {
-    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, spec.range, (b, owner) => owner === part.id && bodies.get(b) === robot);
+    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, spec.range, (b, owner) => owner === part.id && bodies.get(b) === robot, part.id);
     const distance = hit?.distance ?? spec.range;
     const x2 = m.x + m.dx * distance;
     const y2 = m.y + m.dy * distance;
@@ -1814,14 +1814,12 @@ export class World {
     if (!group || part.def.acts === undefined) return undefined;
     const s = this.bodyState(group.bodyId);
     const com = this.physics.massProperties(group.bodyId);
-    const pose = partWorldPose(this, robot, part.id);
     const f = faceDir(rotateFace(part.def.acts, part.rot));
-    const c = cos(s.angle);
-    const n = sin(s.angle);
+    const { c, n } = this.physics.turn(group.bodyId);
     const dx = c * f.x - n * f.y;
     const dy = n * f.x + c * f.y;
-    let x = pose.x + 0.5 * dx;
-    let y = pose.y + 0.5 * dy;
+    let x = s.x + c * part.localX - n * part.localY + 0.5 * dx;
+    let y = s.y + n * part.localX + c * part.localY + 0.5 * dy;
     // M14: a part of several cells (a laser's base and barrel) fires from the cell farthest along its `acts`.
     const cells = part.footprint ?? part.def.footprint;
     if (cells.length > 1) {
@@ -1913,7 +1911,7 @@ export class World {
     const m = range !== undefined && part.health > 0 ? this.muzzle(robot, part) : undefined;
     if (range === undefined || !m) return;
     const sight: GunSight = { distance: range, side: SIGHT.nothing, id: 0, aim: atan2(m.dy, m.dx) };
-    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, range, (b, owner) => owner === part.id && bodies.get(b) === robot);
+    const hit = this.physics.castRay(m.x, m.y, m.dx, m.dy, range, (b, owner) => owner === part.id && bodies.get(b) === robot, part.id);
     if (hit) {
       sight.distance = hit.distance;
       const hitRobot = bodies.get(hit.body);

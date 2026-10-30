@@ -163,6 +163,17 @@ function arenaIndex(handle: number): number {
   return handleWords[0]!;
 }
 
+/**
+ * What has been read of a body since the last step: asking Rapier costs a call into WASM per value and a vector made
+ * and freed each time, and a titan's guns ask for the same body a thousand times a tick. Rapier only changes a body in
+ * a step or when told to (`setVelocity`), so these hold until then. Shared: nothing may write to them.
+ */
+interface BodyReading {
+  state: BodyState;
+  turn: { c: number; n: number } | undefined;
+  mass: MassProperties | undefined;
+}
+
 /** A collider created since the last step (`PhysicsWorld.fresh`). */
 interface FreshCollider {
   handle: number;
@@ -182,6 +193,8 @@ export class PhysicsWorld {
   private readonly world: RAPIER.World;
   private readonly bodies = new Map<BodyId, RAPIER.RigidBody>();
   private readonly prev = new Map<BodyId, BodyState>();
+  /** Each body's `BodyReading`, empty after every step. */
+  private readonly readings = new Map<BodyId, BodyReading>();
   /** Bodies that hang on a joint (wheels): no spin drag. */
   private readonly jointChildren = new Set<BodyId>();
   /** Bodies with forces or torques added for the next step; cleared after it. */
@@ -223,6 +236,8 @@ export class PhysicsWorld {
    * tests them directly. Nothing moves a collider between steps, so a place once read holds until the step.
    */
   private fresh: FreshCollider[] = [];
+  /** What `vectors` reuses. */
+  private rawPair: { a: RawVector; b: RawVector } | undefined;
   /** What `makeCollider` reuses, from the first collider made on. */
   private rawKit: { tra: RawVector; com: RawVector; shapes: Map<string, ReturnType<RAPIER.Shape['intoRaw']>>; turns: Map<number | string, ReturnType<typeof RAPIER.RotationOps.intoRaw>> } | undefined;
 
@@ -257,6 +272,7 @@ export class PhysicsWorld {
     let desc = base.setTranslation(place.offsetX, place.offsetY).setRotation(place.angle ?? 0).setMass(place.mass);
     if (place.friction !== undefined) desc = desc.setFriction(place.friction);
     const collider = this.makeCollider(desc, this.body(bodyId), shape.shape === 'box' ? `b${shape.hx},${shape.hy}` : `r${shape.radius}`);
+    this.readings.delete(bodyId);
     this.fresh.push({ handle: collider.handle, r: shape.shape === 'box' ? shape.hx + shape.hy : shape.radius, x: NaN, y: NaN });
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
@@ -284,6 +300,7 @@ export class PhysicsWorld {
     this.world.removeRigidBody(body);
     this.bodies.delete(id);
     this.prev.delete(id);
+    this.readings.delete(id);
     this.jointChildren.delete(id);
     this.linked.delete(id);
     this.forced.delete(id);
@@ -301,12 +318,14 @@ export class PhysicsWorld {
     const root = this.createBody({ x: s.x, y: s.y, kind: 'dynamic' }, HELPER_MASS);
     this.addHelper(id, root);
     this.linked.add(id);
+    this.readings.delete(id);
     const weld = this.world.createMultibodyJoint(RAPIER.JointData.fixed({ x: 0, y: 0 }, angle, { x: 0, y: 0 }, 0), this.body(root), this.body(id), true);
     weld.setContactsEnabled(false);
   }
 
   private noteJoint(jointId: JointId, parent: BodyId, child: BodyId): void {
     for (const body of [parent, child]) {
+      this.readings.delete(body);
       this.linked.add(body);
       const list = this.jointsAt.get(body);
       if (list) list.push(jointId);
@@ -339,8 +358,8 @@ export class PhysicsWorld {
   private velocity(id: BodyId, body: RAPIER.RigidBody): { x: number; y: number; w: number } {
     const k = this.kicks.get(id);
     if (k) return { x: k.vx, y: k.vy, w: k.w };
-    const v = body.linvel();
-    return { x: v.x, y: v.y, w: body.angvel() };
+    const s = this.reading(id, body).state;
+    return { x: s.vx, y: s.vy, w: s.w };
   }
 
   /**
@@ -404,6 +423,7 @@ export class PhysicsWorld {
     this.kicks.delete(id);
     body.setLinvel({ x: vx, y: vy }, true);
     body.setAngvel(w, true);
+    this.readings.delete(id);
     // It has not been stepped: its state a step ago is its state now.
     this.prev.set(id, readState(body));
   }
@@ -692,8 +712,21 @@ export class PhysicsWorld {
    * multibody links, whose velocities Rapier recomputes from the joints, so a direct impulse on a link is lost.
    */
   addForceAt(id: BodyId, fx: number, fy: number, px: number, py: number): void {
-    this.body(id).addForceAtPoint({ x: fx, y: fy }, { x: px, y: py }, true);
+    const body = this.body(id);
+    const { a, b } = this.vectors(fx, fy, px, py);
+    // `addForceAtPoint` as Rapier's own wrapper makes it, with two kept vectors in place of two made and freed each call.
+    this.world.bodies.raw.rbAddForceAtPoint(body.handle, a, b, true);
     this.forced.add(id);
+  }
+
+  /** Two raw vectors kept for calls into Rapier, which only reads them, set to these values. */
+  private vectors(ax: number, ay: number, bx: number, by: number): { a: RawVector; b: RawVector } {
+    const pair = (this.rawPair ??= { a: RAPIER.VectorOps.intoRaw({ x: 0, y: 0 }), b: RAPIER.VectorOps.intoRaw({ x: 0, y: 0 }) });
+    pair.a.x = ax;
+    pair.a.y = ay;
+    pair.b.x = bx;
+    pair.b.y = by;
+    return pair;
   }
 
   /**
@@ -712,9 +745,26 @@ export class PhysicsWorld {
   }
 
   massProperties(id: BodyId): MassProperties {
+    const r = this.reading(id);
+    if (r.mass) return r.mass;
     const body = this.body(id);
     const com = body.worldCom();
-    return { mass: body.mass(), comX: com.x, comY: com.y, inertia: body.principalInertia() };
+    return (r.mass = { mass: body.mass(), comX: com.x, comY: com.y, inertia: body.principalInertia() });
+  }
+
+  /** The cosine and sine of the body's angle (`state`). Shared: nothing may write to it. */
+  turn(id: BodyId): { c: number; n: number } {
+    const r = this.reading(id);
+    return (r.turn ??= { c: cos(r.state.angle), n: sin(r.state.angle) });
+  }
+
+  private reading(id: BodyId, body?: RAPIER.RigidBody): BodyReading {
+    let r = this.readings.get(id);
+    if (!r) {
+      r = { state: readState(body ?? this.body(id)), turn: undefined, mass: undefined };
+      this.readings.set(id, r);
+    }
+    return r;
   }
 
   /** Adds a torque (N m, counterclockwise positive) for the next step only. Works on multibody links. */
@@ -810,20 +860,34 @@ export class PhysicsWorld {
    * gun sights): its body, its owner (the part id; undefined for terrain), and how far along. A ray that starts inside a
    * collider hits it at 0. `skip` leaves out colliders it returns true for. Uses Rapier's query index, which is fresh
    * right after a step: colliders created since (a robot rebuilt after the step) are missed until the next one.
+   * `only`: `skip` can be true only for colliders of this owner, so no other collider needs looking at (a gun's sight
+   * is asked a thousand times a tick, and every collider its ray meets was asked after).
    */
-  castRay(x: number, y: number, dx: number, dy: number, length: number, skip?: (body: BodyId, owner: string | undefined) => boolean): { body: BodyId; owner: string | undefined; distance: number } | undefined {
-    const ray = new RAPIER.Ray({ x, y }, { x: dx, y: dy });
-    const filter = skip ? (c: RAPIER.Collider): boolean => {
-      const parent = c.parent();
-      const body = parent ? this.byHandle.get(parent.handle) : undefined;
-      return body === undefined || !skip(body, this.owners.get(c.handle));
-    } : undefined;
-    const hit = this.world.castRay(ray, length, true, undefined, undefined, undefined, undefined, filter);
-    if (!hit) return undefined;
-    const parent = hit.collider.parent();
-    const body = parent ? this.byHandle.get(parent.handle) : undefined;
+  castRay(x: number, y: number, dx: number, dy: number, length: number, skip?: (body: BodyId, owner: string | undefined) => boolean, only?: string): { body: BodyId; owner: string | undefined; distance: number } | undefined {
+    const { a, b } = this.vectors(x, y, dx, dy);
+    const colliders = this.world.colliders;
+    const filter = (handle: number): boolean | undefined => {
+      if (!skip) return undefined;
+      const owner = this.owners.get(handle);
+      if (only !== undefined && owner !== only) return true;
+      const body = this.bodyOf(handle);
+      return body === undefined || !skip(body, owner);
+    };
+    // `world.castRay` as Rapier's own wrappers make it, with kept vectors and no objects for each collider asked about.
+    const raw = this.world.broadPhase.raw.castRay(this.world.narrowPhase.raw, this.world.bodies.raw, colliders.raw, a, b, length, true, undefined as unknown as number, undefined, undefined, undefined, filter);
+    if (!raw) return undefined;
+    const handle = raw.colliderHandle();
+    const distance = raw.timeOfImpact();
+    raw.free();
+    const body = this.bodyOf(handle);
     if (body === undefined) return undefined;
-    return { body, owner: this.owners.get(hit.collider.handle), distance: hit.timeOfImpact };
+    return { body, owner: this.owners.get(handle), distance };
+  }
+
+  /** The body a collider is on. */
+  private bodyOf(handle: number): BodyId | undefined {
+    const parent = this.world.colliders.get(handle)?.parent();
+    return parent ? this.byHandle.get(parent.handle) : undefined;
   }
 
   /**
@@ -946,7 +1010,7 @@ export class PhysicsWorld {
       let want: number;
       if (j.kind === 'velocity') want = j.factor * (j.target - rel);
       else {
-        const err = wrapAngle(j.target - wrapAngle(c.rotation() - p.rotation()));
+        const err = wrapAngle(j.target - wrapAngle(this.reading(j.child, c).state.angle - this.reading(j.parent, p).state.angle));
         const pd = j.factor * err - j.damping * (rel - j.rate);
         want = pd + j.integral;
         if (j.integralGain > 0) {
@@ -992,7 +1056,7 @@ export class PhysicsWorld {
       const speed = Math.sqrt(v.x * v.x + v.y * v.y);
       const w = v.w;
       if (speed === 0 && w === 0) continue;
-      b.addForce({ x: -AIR_DRAG * cells * speed * v.x, y: -AIR_DRAG * cells * speed * v.y }, false);
+      this.world.bodies.raw.rbAddForce(b.handle, this.vectors(-AIR_DRAG * cells * speed * v.x, -AIR_DRAG * cells * speed * v.y, 0, 0).a, false);
       // A wheel spinning on its joint is not tumbling through the air: spin drag is for free bodies only.
       if (!this.jointChildren.has(id)) b.addTorque(-AIR_SPIN_DRAG * cells * Math.abs(w) * w, false);
       this.forced.add(id);
@@ -1006,6 +1070,7 @@ export class PhysicsWorld {
       this.world.timestep = this.stepSeconds;
       this.world.numSolverIterations = SOLVER_ITERATIONS;
     } else this.world.step();
+    this.readings.clear();
     this.fresh = [];
     for (const id of this.forced) {
       const b = this.body(id);
@@ -1017,7 +1082,7 @@ export class PhysicsWorld {
 
   /** A body's pose and velocity; a waiting kick's velocity until the step that applies it (`kick`). */
   state(id: BodyId): BodyState {
-    const s = readState(this.body(id));
+    const s = this.reading(id).state;
     const k = this.kicks.get(id);
     return k ? { ...s, vx: k.vx, vy: k.vy, w: k.w } : s;
   }
