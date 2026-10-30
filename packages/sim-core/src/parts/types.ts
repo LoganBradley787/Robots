@@ -111,16 +111,18 @@ export interface SensorSpec {
 }
 
 /**
- * Batch: how a part takes a crash (a hard hit to its body, see `world/crash.ts`). A hit whose velocity change in one
- * step passes `safe` (default 12 m/s) costs health * ((dv - safe) / range)^2, `range` default 8 m/s. A tougher part
- * (a frame) raises `safe`; a harder one (`hardness`) takes less of a hit it shares with what it touched.
+ * Batch: how a part takes a crash (a hard hit, see `world/crash.ts`). A felt speed past `safe` (default 12 m/s, a body
+ * stopped dead against the ground feels the speed it hit at) costs health * ((felt - safe) / range)^2 at the hit, `range`
+ * default 8 m/s, falling off with distance. A tougher part (a frame) raises `safe`; a harder one (`hardness`) takes less
+ * of a hit it shares with what it touched. Give at least one; the others keep their defaults.
  */
 export interface CrashSpec {
   safe?: number;
   range?: number;
   /**
-   * How hard the part is to crush (default 1; frame 2, heavy armor 6). Two touching parts share the energy their contact
-   * takes out of a hit, each `other / (own + other)` of it, so the softer one takes more. Terrain is infinitely hard.
+   * How hard the part is to crush (default 1; frame 2, heavy armor 6; from 0.001 to 1000). Two touching parts share the
+   * energy their contact takes out of a hit, each `other / (own + other)` of it, so the softer one takes more, and only
+   * the part that touched counts, not what backs it. Terrain is infinitely hard.
    */
   hardness?: number;
 }

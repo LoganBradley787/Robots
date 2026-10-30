@@ -69,10 +69,10 @@ const DEF_KEYS = [
   'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
 ] as const;
 
-/** `crash.hardness`: a positive finite number, with what the scale means in the error. */
+/** `crash.hardness`: a positive finite number no sum of shares can overflow, with what the scale means in the error. */
 function hardness(r: Reader, co: Obj): number {
   const v = co.hardness;
-  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) r.fail('crash.hardness', 'must be a positive finite number: 1 is a default part, 2 a frame, 6 heavy armor');
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0.001 || v > 1000) r.fail('crash.hardness', 'must be a positive finite number from 0.001 to 1000: 1 is a default part, 2 a frame, 6 heavy armor');
   return v;
 }
 

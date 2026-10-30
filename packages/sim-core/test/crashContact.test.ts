@@ -4,7 +4,7 @@ import { loadRapier } from '../src/physics/rapier';
 import { PhysicsWorld, type ContactImpulse } from '../src/physics/PhysicsWorld';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
-import { contactWork, crashFelt, crashLoad, crashMass } from '../src/world/crash';
+import { CRASH_SAFE, contactWork, crashFelt, crashFraction, crashLoad, crashMass } from '../src/world/crash';
 import { parsePartDef } from '../src/parts/parsePartDef';
 import { defaultRegistry } from '../src/parts/registry';
 import type { Robot } from '../src/world/Robot';
@@ -62,7 +62,12 @@ describe('crash by contact: the pure parts', () => {
     const raw = JSON.parse(JSON.stringify(defaultRegistry().get('frame'))) as Record<string, unknown>;
     expect(parsePartDef(raw, 'f.json').crash).toEqual({ safe: 24, hardness: 2 });
     expect(parsePartDef({ ...raw, crash: { hardness: 3 } }, 'f.json').crash).toEqual({ hardness: 3 });
-    for (const bad of [0, -1, Number.NaN, Infinity, '2']) expect(() => parsePartDef({ ...raw, crash: { hardness: bad } }, 'f.json')).toThrow('crash.hardness must be a positive finite number');
+    for (const bad of [0, -1, Number.NaN, Infinity, -Infinity, 1e-308, 1e308, '2', null]) expect(() => parsePartDef({ ...raw, crash: { hardness: bad } }, 'f.json')).toThrow('crash.hardness must be a positive finite number');
+    // A block with only hardness (or only range) keeps the other defaults; the sim reads them so.
+    expect(parsePartDef({ ...raw, crash: { hardness: 1000 } }, 'f.json').crash).toEqual({ hardness: 1000 });
+    expect(parsePartDef({ ...raw, crash: { range: 4 } }, 'f.json').crash).toEqual({ range: 4 });
+    expect(crashFraction(13, { hardness: 3 })).toBeCloseTo(crashFraction(13, undefined));
+    expect(crashFraction(CRASH_SAFE, { hardness: 3 })).toBe(0);
     expect(() => parsePartDef({ ...raw, crash: {} }, 'f.json')).toThrow('needs at least one of');
     expect(() => parsePartDef({ ...raw, crash: { soft: 1 } }, 'f.json')).toThrow('not a known field');
   });

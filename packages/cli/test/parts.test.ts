@@ -1,9 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { defaultRegistry } from '@robots/sim-core';
+import { defaultRegistry, PartRegistry } from '@robots/sim-core';
 import { formatParts, partRows } from '../src/commands/parts';
 
 describe('parts', () => {
   const rows = partRows(defaultRegistry());
+
+  it('says how hard a part is, and a part with only a hardness says nothing of a safe speed', () => {
+    const details = (id: string): string => rows.find((r) => r.id === id)?.details.join('\n') ?? '';
+    expect(details('frame')).toContain('crash damage from hits over 24 m/s');
+    expect(details('frame')).toContain('crash hardness 2 (others 1): against a part of hardness 1 it takes 1/3');
+    expect(details('armorplate')).toContain('crash hardness 6 (others 1): against a part of hardness 1 it takes 1/7');
+    expect(details('core')).not.toContain('crash hardness');
+    const soft = defaultRegistry().get('frame');
+    const only = new PartRegistry([{ ...soft, crash: { hardness: 3 } }]);
+    const text = partRows(only)[0]?.details.join('\n') ?? '';
+    expect(text).toContain('crash hardness 3');
+    expect(text).not.toContain('undefined');
+    expect(formatParts(rows)).toContain('shared by the two touching parts by hardness');
+  });
 
   it('has a row per part in builder order, with its key and legend tokens', () => {
     expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
