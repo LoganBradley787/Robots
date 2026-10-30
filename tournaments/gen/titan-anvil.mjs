@@ -24,6 +24,10 @@
 //
 // Round 9 (2026-10-30): an armored lid under each pop-out laser, dropped with two decouplers when the finish begins
 // (see ZAP), and a keel 5 rows deep. 3096 parts, 12.92 t.
+//
+// Righting (2026-10-30, Logan: "anvil flipped over and got stuck upside down"): every booster it had pushes it down or
+// along the ground when it lies on its back, so a roll ended the match for it. Now the frames in each end pad are
+// boosters pushing the other way (see RIGHT), 231 an end: no more parts, 0.5 kg more each. 3096 parts, 13.15 t.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -60,9 +64,17 @@ const FLOOR_EVERY = opt('floorEvery', 2);
 // guns stand one cell outside every face.
 const FACES = optStr('faces', LOWD ? 'teeth' : 'studs');
 const KEEL = opt('keel', LOWD ? 5 : 0);
+// Righting boosters (2026-10-30): `RIGHT` rows of the end pad's frames, from the top down, and `RIGHT_TOP` columns of
+// two rows of the top pad, pushing toward the floor (the opposite of the lift rows). Lying on its back it is
+// tipped by one end: a corner lifts once they give its weight times the half width over the brick's length, 12.9 t
+// needs 169 of them (68 kN) at the end's 71 m. Only those at the far end do it, so both ends carry them. With the lift
+// half at the other end they make a pure turn in the air too: nothing left over pushing it at the ground.
+const RIGHT = opt('right', LOWD ? 37 : 0);
+const RIGHT_COLS = opt('rightCols', 5);
+const RIGHT_TOP = opt('rightTop', 28);
 const TEETH = FACES === 'teeth';
 
-const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, d: 1, '=': 0, '.': 0 };
+const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, u: 1.5, v: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, d: 1, '=': 0, '.': 0 };
 const g = [];
 if (LAYOUT === 'low') lowLayout();
 else {
@@ -146,6 +158,22 @@ function lowLayout() {
     for (let x = PAD; x < W - PAD; x++) {
       const fromMid = x < W / 2 ? W / 2 - 1 - x : x - W / 2;
       g[y][x] = fromMid % 8 === 7 ? 'F' : x < W / 2 ? 'l' : 'r';
+    }
+  }
+  // Righting boosters in the end pads: column 0 stays skin, the spine that ties the rows together (a booster has no
+  // face on its nozzle, so a column of them holds to nothing above it, and the two rows under the roof guns stay frames).
+  for (let y = H - 3; y >= Math.max(SLAB, H - RIGHT); y--) {
+    for (let i = 1; i <= RIGHT_COLS; i++) {
+      g[y][i] = 'u';
+      g[y][W - 1 - i] = 'v';
+    }
+  }
+  if (RIGHT > 0) {
+    for (let y = H - 4; y < H - 2; y++) {
+      for (let i = RIGHT_COLS + 1; i <= RIGHT_COLS + RIGHT_TOP; i++) {
+        g[y][i] = 'u';
+        g[y][W - 1 - i] = 'v';
+      }
     }
   }
 }
@@ -298,6 +326,10 @@ const blueprint = {
     r: { part: 'booster', rot: 0, tags: ['lb'], auto: false },
     p: { part: 'booster', rot: 270, tags: ['pa'], auto: false },
     q: { part: 'booster', rot: 90, tags: ['pb'], auto: false },
+    ...(RIGHT > 0 ? {
+      u: { part: 'booster', rot: 180, tags: ['ra'], auto: false },
+      v: { part: 'booster', rot: 180, tags: ['rb'], auto: false },
+    } : {}),
     ...(ZAP ? {
       x: { part: 'piston', rot: 180, tags: ['zpush'], auto: false },
       y: { part: 'rotator', rot: 180, tags: ['zrot'], auto: false },
