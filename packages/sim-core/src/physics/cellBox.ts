@@ -26,7 +26,9 @@ export function cellAt(box: CellBox, x: number, y: number): string {
  * Visits each cell of a box that a ray meets within `length`, nearest first, with how far along the ray the cell's own
  * box starts (0 for a ray starting inside it), until `visit` returns true. The ray starts at (ox, oy) along the unit
  * vector (dx, dy), both in the body's frame. Walks the grid: the cells' boxes have gaps between them, as they would as
- * separate colliders, so a ray that starts in a gap meets the next cell where that cell starts.
+ * separate colliders, so a ray that starts in a gap meets the next cell where that cell starts. A ray that threads the
+ * whole box along a gap (a straight one down the 2 cm between two columns of a level robot) met the box all the same:
+ * it stops at the cell where it came in, or a floor of grapples on a 5 m grid goes through a level hull in one tick.
  */
 export function walkCells(box: CellBox, ox: number, oy: number, dx: number, dy: number, length: number, visit: (owner: string, distance: number) => boolean): void {
   const lastX = box.x + box.w - 1;
@@ -61,6 +63,9 @@ export function walkCells(box: CellBox, ox: number, oy: number, dx: number, dy: 
   const eachY = dy === 0 ? Infinity : 1 / Math.abs(dy);
   let nextX = dx === 0 ? Infinity : (cx + stepX / 2 - ox) / dx;
   let nextY = dy === 0 ? Infinity : (cy + stepY / 2 - oy) / dy;
+  const startX = cx;
+  const startY = cy;
+  let met = false;
   for (;;) {
     // This cell's own box.
     let enter = near;
@@ -80,17 +85,21 @@ export function walkCells(box: CellBox, ox: number, oy: number, dx: number, dy: 
       enter = Math.max(enter, Math.min(a, b));
       exit = Math.min(exit, Math.max(a, b));
     }
-    if (meets && enter <= exit && visit(box.owners[(cx - box.x) * box.h + (cy - box.y)] as string, enter)) return;
+    if (meets && enter <= exit) {
+      met = true;
+      if (visit(box.owners[(cx - box.x) * box.h + (cy - box.y)] as string, enter)) return;
+    }
     if (nextX < nextY) {
-      if (nextX > far) return;
+      if (nextX > far) break;
       cx += stepX;
       nextX += eachX;
-      if (cx < box.x || cx > lastX) return;
+      if (cx < box.x || cx > lastX) break;
     } else {
-      if (nextY > far) return;
+      if (nextY > far) break;
       cy += stepY;
       nextY += eachY;
-      if (cy < box.y || cy > lastY) return;
+      if (cy < box.y || cy > lastY) break;
     }
   }
+  if (!met) visit(box.owners[(startX - box.x) * box.h + (startY - box.y)] as string, near);
 }

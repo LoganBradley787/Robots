@@ -42,6 +42,21 @@ describe('walking a ray through a box of cells', () => {
     expect(walk(box(-2, -2, 1, 3), -2, -5, 0, 1).map((h) => h[0])).toEqual(['-2,-2', '-2,-1', '-2,0']);
   });
 
+  it('a ray threading the gap between two columns stops at the cell where it came in', () => {
+    // Straight down the 2 cm between columns 2 and 3, from above: what a level grapple floor does over a level hull.
+    const hit = walk(box(0, 0, 6, 4), 2.5, 20, 0, -1, 30);
+    expect(hit).toHaveLength(1);
+    expect(hit[0]?.[0]).toBe('3,3');
+    expect(hit[0]?.[1]).toBeCloseTo(20 - 3 - CELL_HALF, 9);
+    // Starting inside the box along the gap, it is there at once.
+    expect(walk(box(0, 0, 6, 4), 2.5, 1, 0, -1, 30)[0]?.[1]).toBe(0);
+    // Past the box's side it still meets nothing.
+    expect(walk(box(0, 0, 6, 4), 6, 20, 0, -1, 30)).toHaveLength(0);
+    // One that crosses a gap and goes on into a cell is as before.
+    const across = walk(box(0, 0, 6, 1), -2, 0, 1, 0, 100);
+    expect(across).toHaveLength(6);
+  });
+
   it('starting in a gap meets the next cell where it starts; starting inside a cell meets it at 0', () => {
     const gap = walk(box(0, 0, 3, 1), 0.5, 0, 1, 0);
     expect(gap[0]?.[0]).toBe('1,0');
