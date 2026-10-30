@@ -290,7 +290,8 @@ function scriptsOn(raw: unknown): unknown {
 /** The core height at which the blueprint's lowest part sits on the ground (y 0), measured as `World.canPlace` does. */
 function restingY(world: World, raw: unknown): number {
   const bp = validateBlueprint(raw, world.registry).blueprint;
-  const root = bp?.parts.find((p) => p.id === rootPartId(bp, world.registry));
+  const rootId = bp ? rootPartId(bp, world.registry) : undefined;
+  const root = bp?.parts.find((p) => p.id === rootId);
   if (!bp || !root) return 0;
   let lowest = Infinity;
   for (const p of bp.parts) {

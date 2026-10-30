@@ -23,7 +23,8 @@ export function stampSpots(stamp: Stamp, cell: { x: number; y: number }, mirror:
     // The mirror image of "flip, then turn by r" is "flip the other way, then turn by -r". A flip keeps the root on its
     // own cells (`placeBlueprint`), so a root wider than a cell (a cannon) is held by an origin that many cells back.
     const rot = ((360 - stamp.rot) % 360) as Rotation;
-    const root = stamp.bp.parts.find((p) => p.id === rootPartId(stamp.bp, registry));
+    const rootId = rootPartId(stamp.bp, registry);
+    const root = stamp.bp.parts.find((p) => p.id === rootId);
     const back = rotateCell({ x: root ? rootFlipAxis(root, registry) : 0, y: 0 }, rot);
     spots.push({ at: { x: mx - back.x + 0, y: cell.y - back.y + 0 }, rot, mirror: !stamp.flipped });
   }
