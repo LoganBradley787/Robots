@@ -44,7 +44,10 @@
   ".  M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .  y  .  A  A  A  A  A  .  y  .  A  A  A  A  A  O  C  O  A  A  A  A  A  .  y  .  A  A  A  A  A  .  y  .  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M> .",
   "A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  .  z  .  A  A  A  A  A  .  z  .  A  A  A  A  A  A  A  A  A  A  A  A  A  .  z  .  A  A  A  A  A  .  z  .  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A",
   ".  M< A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  .  =  .  A  Mv A  Mv A  .  =  .  A  Mv A  Mv A  A  A  A  A  Mv A  Mv A  .  =  .  A  Mv A  Mv A  .  =  .  A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  Mv A  A  M> .",
-  "A  A  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  .  .  A  .  A  .  A  .  .  .  A  .  A  .  A  A  A  A  A  .  A  .  A  .  .  .  A  .  A  .  A  .  .  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  A  A  A",
+  "A  A  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  d  .  .  .  d  .  A  .  d  .  .  .  d  .  A  .  A  A  A  A  A  .  A  .  d  .  .  .  d  .  A  .  d  .  .  .  d  .  A  .  A  .  A  .  A  .  A  .  A  .  A  .  A  A  A  A",
+  ".  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  A  A  A  A  A  .  .  .  A  A  A  A  A  .  .  .  A  A  A  A  A  .  .  .  A  A  A  A  A  .  .  .  A  A  A  A  A  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .",
+  ".  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  A  A  A  .  .  .  .  .  A  A  A  .  .  .  .  A  A  A  A  A  .  .  .  .  A  A  A  .  .  .  .  .  A  A  A  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .",
+  ".  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  A  A  A  A  A  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .",
   ".  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  A  A  A  A  A  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .",
   ".  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  A  A  A  A  A  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  .  ."
  ],
@@ -102,6 +105,14 @@
    "rot": 180,
    "tags": [
     "zap"
+   ],
+   "auto": false
+  },
+  "d": {
+   "part": "decoupler",
+   "rot": 180,
+   "tags": [
+    "zlid"
    ],
    "auto": false
   }

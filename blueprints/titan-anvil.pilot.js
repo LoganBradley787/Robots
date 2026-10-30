@@ -114,6 +114,8 @@ const zapArms = param('zapArms', 2, { min: 0, max: 1000 }); // guns, lasers and 
 const zapShare = param('zapShare', 0.12, { min: 0, max: 1 }); // or this share of the most it was seen with, whichever is more
 const zapGap = param('zapGap', 15, { min: 3, max: 100 }); // m its slab keeps over the tallest part under it while it burns
 const zapStall = param('zapStall', 15, { min: 3, max: 120 }); // s of burning that break nothing before it burns from another spot
+const zapEdge = param('zapEdge', 80, { min: 0, max: 500 }); // m: a flier closer than this to where its side would meet the edge is rammed, not finished
+const lidFall = param('lidFall', 0.6, { min: 0, max: 5 }); // s after a bay's lid is dropped before its laser is pushed out
 const zapKeep = param('zapKeep', 1.15, { min: 1, max: 3 }); // the lasers burn only while the energy left covers this many times hovering to the match's end
 const gunnery = param('gunnery', 1, { min: 0, max: 1 }); // 1: a heavy ground gun titan is raked from high and to the side, never rammed (see Gunnery)
 const gunMass = param('gunMass', 3, { min: 1, max: 100 }); // times its own mass from which a ground enemy with more than `bombGuns` guns up is raked
@@ -123,6 +125,13 @@ const gunCross = param('gunCross', 1, { min: 0, max: 1 }); // 1: crosses over to
 const gunHigh = param('gunHigh', 125, { min: 0, max: 220 }); // m over its core its underside keeps while raking (a juggernaut sweeps its mast through a heavy flier lower than 112 m, and parks under one higher up)
 const gunSwap = param('gunSwap', 45, { min: 10, max: 1000 }); // s on one side before it crosses over to rake the other side
 const gunRoom = param('gunRoom', 550, { min: 50, max: 900 }); // m of room it wants behind its back toward the edge, or it crosses over now
+// Round 9 tried crossing only at the start (`gunCrossBy` 30), a hard first crossing (`hardCross` 1: met the mast at 75
+// m/s instead of 50, which spun the brick into a tumble), and never crossing into a standing mast: each lost all 6
+// seeded juggernaut duels (shoved out at 84 to 121 s, or burnt in its beams' reach at 40 s). Round 8's rules with the
+// deeper keel went 2-1-3, so they stay the default; the switches are kept to try again.
+const gunCrossBy = param('gunCrossBy', 1000, { min: 0, max: 1000 }); // s into the match after which it never crosses over a raked target
+const gunCrossLate = param('gunCrossLate', 0, { min: 0, max: 1 }); // 1: after `gunCrossBy` it still crosses once nothing stands over the ceiling there
+const hardCross = param('hardCross', 0, { min: 0, max: 1 }); // 1: the crossing at the start is one run from where it starts, climbing as it closes
 const cutRun = param('cutRun', 110, { min: 50, max: 600 }); // m off its end it climbs before crossing over (the run-up; backing off 220 m first used up the room a juggernaut chasing at 30 m/s left)
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
@@ -274,11 +283,13 @@ function runGuns() {
     const lasers = [];
     const rots = [];
     const pushes = [];
+    const lids = [];
     for (const p of parts) {
       if (p.type === 'gun') guns.push(p);
       else if (p.type === 'laser') lasers.push(p);
       else if (p.type === 'rotator') rots.push(p);
       else if (p.type === 'piston') pushes.push(p);
+      else if (p.type === 'decoupler') lids.push(p);
       else if (p.type === 'jammer') {
         if (!(p.out.jamming > 0.5)) pods.push(p);
       } else if (p.type === 'booster') {
@@ -289,6 +300,7 @@ function runGuns() {
       }
     }
     // Each laser with the rotator and the piston over it (the nearest of each).
+    const zaps0 = zaps;
     zaps = [];
     const nearest = (list, p) => {
       let best = null;
@@ -297,7 +309,11 @@ function runGuns() {
     };
     for (const l of lasers) {
       const rot = nearest(rots, l);
-      if (rot) zaps.push({ laser: l, rot, push: nearest(pushes, l) });
+      if (!rot) continue;
+      const old = zaps0.find((z) => z.laser.id === l.id);
+      // The decouplers that hold this bay's lid (2 m either side of it, in the slab's bottom row).
+      const mine = lids.filter((d) => Math.hypot(d.pos.x - l.pos.x, d.pos.y - l.pos.y) < 4);
+      zaps.push({ laser: l, rot, push: nearest(pushes, l), lids: mine, lidAt: old ? old.lidAt : undefined, sign: old ? old.sign : undefined });
     }
     state.liftForce = Math.max(lifts * 400, 1);
     state.pushRight = Math.max((state.paDir > 0 ? pa : pb) * 400, 1); // push toward +x
@@ -392,7 +408,19 @@ function runZap(aim, out, burn) {
     // piston stalled at 37%. So it swings once the piston is all the way out, and goes back in only once straight.
     const pos = z.push ? z.push.out.position || 0 : 1;
     const clear = pos > 0.97;
-    if (z.push) set(z.push.id, 'extend', out ? 1 : pos > 0.02 && Math.abs(ang) < 0.03 ? -1 : 0);
+    // The lid (anvil r9): dropped once, when it first has to come out. The piston waits `lidFall` s after the drop, so
+    // the barrel does not push the falling lid (or ride down on it). A lid shot loose, or never there, does not wait.
+    let held = false;
+    for (const d of z.lids) {
+      if (!(d.out.armed > 0.5)) continue;
+      held = true;
+      if (out && !(d.in.fire > 0.5)) {
+        set(d.id, 'fire', 1);
+        if (z.lidAt === undefined) z.lidAt = time;
+      }
+    }
+    const lidOpen = !held && (z.lidAt === undefined || time - z.lidAt > lidFall);
+    if (z.push) set(z.push.id, 'extend', out && lidOpen ? 1 : pos > 0.02 && Math.abs(ang) < 0.03 ? -1 : 0);
     const rest = self.angle - Math.PI / 2; // straight down from the slab, in the world
     const swung = wrapA(l.out.aim - rest);
     if (Math.abs(ang) > 0.05 && Math.abs(swung) > 0.03) z.sign = Math.sign(swung * ang);
@@ -409,7 +437,7 @@ function runZap(aim, out, burn) {
     }
     set(z.rot.id, 'turn', clamp(3 * (want - ang) - (sg * self.angVel) / 2, -1, 1));
     const side = l.out.sightSide;
-    if (z === zaps[0]) state.zapWhy = 'first: out ' + (z.push ? (z.push.out.position || 0).toFixed(2) : '-') + ' off ' + off.toFixed(3) + ' sight ' + side + ' at ' + (l.out.sight || 0).toFixed(0) + ' core ' + (dist < 1e8 ? dist.toFixed(0) + ' m' : '-');
+    if (z === zaps[0]) state.zapWhy = 'first: lid ' + (held ? 'on' : lidOpen ? 'off' : 'falling') + ' out ' + (z.push ? (z.push.out.position || 0).toFixed(2) : '-') + ' off ' + off.toFixed(3) + ' sight ' + side + ' at ' + (l.out.sight || 0).toFixed(0) + ' core ' + (dist < 1e8 ? dist.toFixed(0) + ' m' : '-');
     const ready = out && aim && burn && clear && off < 0.07 && dist < 295 && side !== 1 && side !== 5;
     if (ready) firing++;
     if (ready !== l.in.fire > 0.5) set(l.id, 'fire', ready ? 1 : 0);
@@ -974,12 +1002,23 @@ function tick() {
   // one spot `zapStall` s without breaking anything, it moves to the next spot (left, then right of the core) for
   // another line in.
   const perchZap = (tx, ty, sh, tvx, tvy, nowParts) => {
+    // A target lodged on it moves as it does (anvil r9: under today's crash rule a hive stuck to its face after a hit,
+    // and following the hive's speed, its own, it ran away with it to 83 m/s and out at the edge). Close and moving as
+    // it does, the target is not led.
+    if (Math.hypot(tx - x, ty - y) < state.halfWidth + 25 && Math.hypot(tvx - vx, tvy - vy) < 6 && Math.hypot(vx, vy) > 8) {
+      tvx = 0;
+      tvy = 0;
+    }
     if (state.zapId !== state.mainId) {
       state.zapId = state.mainId;
       state.zapOff = 0;
       state.zapProg = time;
       state.zapParts = nowParts;
-      if (say > 0.5) log('finishing: lasers out, arms left', sh ? sh.arms : -1, 'of', state.armsMax);
+      if (say > 0.5) {
+        let lids = 0;
+        for (const z of zaps) if (z.lids.some((d) => d.out.armed > 0.5)) lids++;
+        log('finishing: lasers out, arms left', sh ? sh.arms : -1, 'of', state.armsMax, 'lasers', zaps.length, 'lids on', lids);
+      }
     }
     if (nowParts >= 0 && (state.zapParts < 0 || nowParts < state.zapParts)) {
       state.zapParts = nowParts;
@@ -1001,7 +1040,7 @@ function tick() {
     const ca = Math.cos(self.angle);
     const inner = pick ? (pick.laser.pos.x - x) / Math.max(0.5, ca) : 0; // in its own frame, so a tilt does not move the spot
     const offs = [0, -0.45, 0.45];
-    const aimX = clamp(tx - inner + offs[state.zapOff % 3] * state.halfWidth + tvx * 0.5, -edge, edge);
+    const aimX = clamp(tx - inner + offs[state.zapOff % 3] * state.halfWidth + tvx * 0.5, -edge + state.halfWidth, edge - state.halfWidth); // its whole width inside
     wantVx = tvx + clamp(0.6 * (aimX - x), -lineUp, lineUp);
     let top = -1e9;
     if (sh && sh.prof) {
@@ -1050,18 +1089,30 @@ function tick() {
     // Only over what stands there: a juggernaut's mast cannot be rammed through (a hit is felt over all its 74.6 t, and
     // the frames held at 49 m/s), so with the mast still up it stays and shoots the mast down first (below).
     const towering = t.y + sh.high + 10 > ceiling - 10;
-    if (gunCross > 0.5 && !towering && settled && ((here < gunRoom && there > here + 100) || (time - state.gunAt > gunSwap && there > gunRoom))) {
+    // Only at the start (anvil r9, Logan: "cross over it only at the very start of a match"): later crossings climbed
+    // within its beams' reach and they burnt up through the keel (4 of 6 contact model losses, at 42 to 46 s).
+    const early = time < gunCrossBy || (gunCrossLate > 0.5 && !towering);
+    if (gunCross > 0.5 && early && !towering && settled && ((here < gunRoom && there > here + 100) || (time - state.gunAt > gunSwap && there > gunRoom))) {
       {
         state.gunSide = -state.gunSide;
         if (say > 0.5) log('raking: crossing over to its', state.gunSide > 0 ? 'right' : 'left');
       }
       state.gunAt = time;
     }
+    // Not across by `gunCrossBy` (its mast held, or threw it back): it stays and rakes from the side it is on. Later, a
+    // target that drives clear under it to the other side leaves it on that side, never crossing back over.
+    const clearOf = Math.abs(x - t.x) > (x < t.x ? -sh.hullLo : sh.hullHi) + state.halfWidth;
+    if (!early && (state.gunCrossing || (clearOf && (x - t.x) * state.gunSide < 0))) {
+      state.gunSide = x < t.x ? -1 : 1;
+      if (state.gunCrossing && say > 0.5) log('raking: not across by', gunCrossBy, 's, staying on its', state.gunSide > 0 ? 'right' : 'left');
+      state.gunCrossing = false;
+      state.gunArrive = time;
+    }
     const sd = state.gunSide;
     const aimY = t.y + (sh.upY || 0);
     const px = t.x + sd * (endOn(sd) + state.halfWidth + gunRange);
     const py = Math.max(t.y + gunHigh + state.bottom, aimY + (gunRange + 0.5 * endOn(sd)) * Math.tan((gunTilt * Math.PI) / 180)); // its face tilted down onto the middle of that end
-    const across = (x - t.x) * sd < endOn(sd) + state.halfWidth + 0.3 * gunRange; // still on the far side, or over it
+    const across = early && (x - t.x) * sd < endOn(sd) + state.halfWidth + 0.3 * gunRange; // still on the far side, or over it
     if (state.gunCrossing && !across) state.gunArrive = time;
     state.gunCrossing = across;
     if (across) {
@@ -1075,7 +1126,13 @@ function tick() {
       ramVy = over > y ? Math.min(25, Math.sqrt(2 * 5 * (over - y))) : clamp(over - y, -16, 0);
       // Climb on its own side first, `cutRun` off its end, then across as fast as it goes: a mast in the way is rammed
       // through where it is frames (met at 8 m/s with no run-up, it held, spun the brick, and pinned it at the edge).
+      // Hard or not at all (anvil r9, Logan: the crossing met the mast at 50 m/s, "a little nudge"): from the start it
+      // climbs while it closes, as fast as it can still be up there by the time it reaches its end, so the whole run
+      // from where it starts is run-up.
+      const toEnd = Math.max(0, (t.x - sd * (endOn(-sd) + state.halfWidth) - x) * sd);
+      const climbT = Math.max(0, over - 20 - y) / 20 + 1;
       if (y > over - 20 || !far) wantVx = sd * vmax;
+      else if (hardCross > 0.5) wantVx = t.vx + sd * clamp(toEnd / climbT, 0, vmax);
       else wantVx = t.vx + clamp(0.5 * (t.x - sd * (endOn(-sd) + state.halfWidth + cutRun) - x), -lineUp, lineUp);
     } else {
       wantH = py;
@@ -1198,7 +1255,10 @@ function tick() {
     }
     // Once at it, it keeps at it unless clearly more comes back (a woodpecker's bay holding a new burner read as 3 arms).
     const zapLimit = state.zapping && state.zapId === state.mainId ? Math.max(zapArms + 4, 0.3 * state.armsMax) : Math.max(zapArms, zapShare * state.armsMax);
-    const finishing = zap > 0.5 && zaps.length > 0 && shape && state.armsId === state.mainId && !state.finish && shape.arms <= zapLimit;
+    // A flier near the edge is left to the rams (anvil r9): under today's crash rule a perch that followed a hive out
+    // there was thrown past the edge with it (2 of 3 hive matches not won).
+    const byEdge = arena && shape && !shape.ground && Math.abs(target.x) > edge - state.halfWidth - zapEdge;
+    const finishing = zap > 0.5 && zaps.length > 0 && shape && state.armsId === state.mainId && !state.finish && shape.arms <= zapLimit && !byEdge;
     state.zapping = finishing;
     if (finishing) {
       if (state.way !== '') endTry(main);

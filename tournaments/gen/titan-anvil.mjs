@@ -21,6 +21,9 @@
 // boosters, 432 lift boosters; 13.0 t. Tried and dropped: the core 10 rows up in a 9 by 9 box (lasers from the side
 // went through 5 plates: Woodpecker's burners ended it in 30 to 38 s), a wide low box and a 5 row slab (worse
 // against Woodpecker).
+//
+// Round 9 (2026-10-30): an armored lid under each pop-out laser, dropped with two decouplers when the finish begins
+// (see ZAP), and a keel 5 rows deep. 3096 parts, 12.92 t.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,10 +59,10 @@ const FLOOR_EVERY = opt('floorEvery', 2);
 // tooth over every other column (plates up there would lift its center of mass). 'studs' is the layout before it:
 // guns stand one cell outside every face.
 const FACES = optStr('faces', LOWD ? 'teeth' : 'studs');
-const KEEL = opt('keel', LOWD ? 2 : 0);
+const KEEL = opt('keel', LOWD ? 5 : 0);
 const TEETH = FACES === 'teeth';
 
-const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, '=': 0, '.': 0 };
+const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, d: 1, '=': 0, '.': 0 };
 const g = [];
 if (LAYOUT === 'low') lowLayout();
 else {
@@ -205,6 +208,14 @@ const ZAP = opt('zap', LOWD && TEETH ? 1 : 0);
 const ZAP_AT = optStr('zapAt', '8,16').split(',').map(Number);
 const ZAP_LOW = opt('zapLow', 0);
 const ZAP_CLEAR = opt('zapClear', 1);
+// Armored lids (anvil r9, 2026-10-30, Logan: the lasers were "literally just exposed at the bottom, which is where most
+// people aim anyway"; the Juggernaut's one beam took all four as the brick charged in, Bastion's darts three): a lid of
+// plates under each bay, hung below the slab from two decouplers releasing down (the slab's bottom row, 2 columns
+// either side of the laser), `lidRows` deep: 5 plates wide on the first row, the middle 3 on the next. A 1 m gap (the
+// open notch row) keeps the barrel off it, since a robot's own bodies touch. When the finish begins the pilot fires the
+// decouplers and the lid drops away (a one-shot deploy, like a missile leaving its rail), then the pistons push out.
+const LID_ROWS = ZAP && TEETH ? opt('lidRows', 2) : 0;
+const lidCells = []; // [x, depth under the slab (1 is the row just under it)]
 if (ZAP) {
   const cxz = W / 2;
   const b = ZAP_LOW ? 0 : 1; // the barrel's row
@@ -226,6 +237,11 @@ if (ZAP) {
           g[b + 1][e] = '.';
           g[b][e] = '.';
         }
+      }
+      if (LID_ROWS > 0) {
+        g[0][x - 2] = 'd';
+        g[0][x + 2] = 'd';
+        for (let k = 1; k <= LID_ROWS; k++) for (let e = x - 2; e <= x + 2; e++) if (k === 1 || Math.abs(e - x) <= 1) lidCells.push([e, k]);
       }
     }
   }
@@ -256,9 +272,12 @@ if (TEETH) {
   // A keel (anvil r8): `keel` rows of plates under the core, 5 wide (the floor guns 3 either side stay clear). Under the
   // core the slab held 2 plates and a radar on the steepest lines from below, and crossing over a juggernaut its two
   // beams burnt through them in under 2 s.
-  for (let k = 0; k < KEEL; k++) {
+  // Round 9: 5 rows (300 kg more); crossing over a juggernaut its beams still burnt up through 2 rows. The lids hang in
+  // the same rows under the lasers.
+  for (let k = 0; k < Math.max(KEEL, LID_ROWS); k++) {
     const row = new Array(W + 4).fill('.');
-    for (let x = W / 2 - 2; x <= W / 2 + 2; x++) row[x + 2] = 'A';
+    if (k < KEEL) for (let x = W / 2 - 2; x <= W / 2 + 2; x++) row[x + 2] = 'A';
+    for (const [x, d] of lidCells) if (d === k + 1) row[x + 2] = 'A';
     rows.push(row);
   }
 } else {
@@ -284,6 +303,7 @@ const blueprint = {
       y: { part: 'rotator', rot: 180, tags: ['zrot'], auto: false },
       z: { part: 'laser', rot: 180, tags: ['zap'], auto: false },
     } : {}),
+    ...(LID_ROWS > 0 ? { d: { part: 'decoupler', rot: 180, tags: ['zlid'], auto: false } } : {}),
   },
   autoControls: false,
   scripts: [{ id: 'pilot', source: { file: 'titan-anvil.pilot.js' } }],
