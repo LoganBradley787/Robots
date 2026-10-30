@@ -86,7 +86,8 @@ describe('M11 flares, done when', () => {
   it("an enemy drone's own flares (popped by itself) save it from a hunter's volley that takes it apart without them", { timeout: 60_000 }, async () => {
     const volley = async (auto: number): Promise<{ lost: number; lit: number }> => {
       const w = await World.create({ seed: 1, scripts: host }, flat);
-      const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -130, y: 15 });
+      // From -130 this sat on the edge (20 and 10 parts, or 29 and 9, by how the blasts fell); -135 is the same fight.
+      const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -135, y: 15 });
       // It holds its own fire here (minRange), so only its flares and its dodging are tested.
       const enemy = w.spawnBlueprint(blueprint('enemy-drone', { flares: { auto }, pilot: { minRange: 2000 } }), { x: -50, y: 27 }, { team: 1 });
       // All four of the hunter's missiles, 1.5 s apart.

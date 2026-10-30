@@ -160,8 +160,9 @@ describe('crash by contact: contact impulses', () => {
     const slabBot = w.spawnBlueprint({ format: 1, name: 'slab', grid: slab(5, 3, 'F', { '2,1': 'C' }) }, { x: 0, y: 40 });
     const car = w.spawnBlueprint({ format: 1, name: 'car', grid: ['F  F  F  C  F', 'W  .  .  .  W'] }, { x: 4.6, y: 40 });
     w.step();
-    // A kick (the slab's own, here) splits the next physics step in two (`PhysicsWorld.applyKicks`).
-    w.kickRobot(slabBot, 40, 0);
+    // A kick (the slab's own, here) splits the next physics step in two (`PhysicsWorld.applyKicks`). Slow enough that
+    // nothing breaks: a part lost on the hit would rebuild the car before the impulses are read here.
+    w.kickRobot(slabBot, 30, 0);
     w.step();
     const body = slabBot.groups[0]?.bodyId ?? -1;
     const s = w.physics.state(body);

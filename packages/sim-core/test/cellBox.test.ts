@@ -5,6 +5,9 @@ import { cellAt, walkCells, type CellBox } from '../src/physics/cellBox';
 import { PhysicsWorld, pressureShares, type ContactImpulse } from '../src/physics/PhysicsWorld';
 import { loadRapier } from '../src/physics/rapier';
 import { Prng } from '../src/rng/Prng';
+import { parseWorldFile } from '../src/world/WorldFile';
+import { World } from '../src/world/World';
+import type { Robot } from '../src/world/Robot';
 
 beforeAll(async () => {
   await loadRapier();
@@ -316,5 +319,89 @@ describe('how a contact spreads along its line', () => {
     const nearly = pressureShares(1, 0.05, 10);
     expect(nearly[0]).toBeGreaterThan(0.3);
     expect(nearly[9]).toBe(0);
+  });
+});
+
+describe('boxes of cells in a world', () => {
+  const space = parseWorldFile({ name: 'space', ground: { width: 400, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] });
+  const slab = (cols: number, rows: number, fill: string, special: Record<string, string> = {}): string[] => {
+    const grid: string[] = [];
+    for (let y = rows - 1; y >= 0; y--) grid.push(Array.from({ length: cols }, (_, x) => (special[`${x},${y}`] ?? fill).padEnd(3)).join(''));
+    return grid;
+  };
+  const colliders = (w: World): number => (w.physics as unknown as { world: { colliders: { len(): number } } }).world.colliders.len();
+  const health = (r: Robot): number => [...r.parts.values()].reduce((s, p) => s + Math.max(0, p.health), 0);
+  /** A ray from far left along a row: the part it meets first, whatever the robot's pose. */
+  const firstOnRow = (w: World, r: Robot, y: number): string | undefined => {
+    const s = w.physics.state(r.groups[0]?.bodyId ?? 0);
+    return w.physics.castRay(s.x - 40, s.y + y, 1, 0, 80)?.owner;
+  };
+
+  it('a solid robot is a handful of colliders, and the world sees the same parts', async () => {
+    const w = await World.create({ seed: 1, gravityY: 0 }, space);
+    const before = colliders(w);
+    const r = w.spawnBlueprint({ format: 1, name: 'slab', grid: slab(20, 10, 'F', { '0,5': 'C' }) }, { x: 0, y: 40 });
+    w.step();
+    expect(colliders(w) - before).toBe(1);
+    expect(w.physics.colliderOwners().toSorted()).toEqual([...r.parts.keys()].toSorted());
+    w.dispose();
+  });
+
+  it('a lost part splits its rectangle: rays pass where it was, the rest stay, and mass and inertia are the new shape\'s', async () => {
+    const w = await World.create({ seed: 1, gravityY: 0 }, space);
+    const before = colliders(w);
+    const grid = slab(9, 5, 'F', { '0,2': 'C' });
+    const r = w.spawnBlueprint({ format: 1, name: 'slab', grid }, { x: 0, y: 40 });
+    w.step();
+    expect(firstOnRow(w, r, 0)).toBe('core@0,2');
+    // The part in the middle of the row of the core, then the core's own row reads through the hole from the right.
+    const hole = r.parts.get('frame@4,2');
+    if (!hole) throw new Error('no frame there');
+    hole.health = 0;
+    w.step();
+    w.step();
+    expect(r.parts.has('frame@4,2')).toBe(false);
+    expect(colliders(w) - before).toBeGreaterThan(1);
+    expect(colliders(w) - before).toBeLessThanOrEqual(5);
+    const s = w.physics.state(r.groups[0]?.bodyId ?? 0);
+    const hits = w.physics.rayHits(s.x + 40, s.y, -1, 0, 80).map((h) => h.owner);
+    expect(hits).toEqual(['frame@8,2', 'frame@7,2', 'frame@6,2', 'frame@5,2', 'frame@3,2', 'frame@2,2', 'frame@1,2', 'core@0,2']);
+    // The same shape spawned whole.
+    const w2 = await World.create({ seed: 1, gravityY: 0 }, space);
+    const same = w2.spawnBlueprint({ format: 1, name: 'slab', grid: slab(9, 5, 'F', { '0,2': 'C', '4,2': '.' }) }, { x: 0, y: 40 });
+    w2.step();
+    const m = w.physics.massProperties(r.groups[0]?.bodyId ?? 0);
+    const n = w2.physics.massProperties(same.groups[0]?.bodyId ?? 0);
+    expect(Math.abs(m.mass / n.mass - 1)).toBeLessThan(1e-5);
+    expect(Math.abs(m.inertia / n.inertia - 1)).toBeLessThan(1e-5);
+    w.dispose();
+    w2.dispose();
+  });
+
+  it('a hit takes the hardness of the cell that touched, not of the box it is in', async () => {
+    // Ten rows of frames with one column of armor or of batteries on the face: one rectangle each way.
+    const faced = async (face: string): Promise<{ ram: number; target: number; boxes: number }> => {
+      const w = await World.create({ seed: 1, gravityY: 0 }, space);
+      const before = colliders(w);
+      const special: Record<string, string> = { '0,5': 'C' };
+      for (let y = 0; y < 10; y++) special[`9,${y}`] = face;
+      const target = w.spawnBlueprint({ format: 1, name: 'target', grid: slab(10, 14, 'F', { '9,7': 'C' }) }, { x: 25, y: 40 }, { team: 1 });
+      const ram = w.spawnBlueprint({ format: 1, name: 'ram', grid: slab(10, 10, 'F', special) }, { x: -15, y: 40 });
+      w.step();
+      const boxes = colliders(w) - before;
+      const [ramFull, targetFull] = [health(ram), health(target)];
+      w.kickRobot(ram, 50, 0);
+      for (let i = 0; i < 90; i++) w.step();
+      const out = { ram: health(ram) / ramFull, target: health(target) / targetFull, boxes };
+      w.dispose();
+      return out;
+    };
+    const soft = await faced('B');
+    const hard = await faced('A');
+    expect(soft.boxes).toBe(2);
+    expect(hard.boxes).toBe(2);
+    // Batteries (hardness 1) take most of it; armor (6) passes it on to the target's frames.
+    expect(hard.ram).toBeGreaterThan(soft.ram);
+    expect(hard.target).toBeLessThan(soft.target);
   });
 });

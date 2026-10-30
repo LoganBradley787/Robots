@@ -21,7 +21,7 @@ import { jammed, jamNear, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, smokeBlocks, type SmokeCloud } from '../sensors/smoke';
 import type { ContactImpulse, TerrainBox } from '../physics/PhysicsWorld';
 import { partWorldPose } from '../metrics/robotMetrics';
-import { CRASH_BOX_HARDNESS, CRASH_FLOOR, CRASH_HARDNESS, CRASH_LANDED_SHARE, contactWork, crashFelt, crashFraction, crashHit, crashLoad, crashMass, crashWeight, nearestDistance } from './crash';
+import { CRASH_BOX_HARDNESS, CRASH_FLOOR, CRASH_HARDNESS, CRASH_JOLT, CRASH_LANDED_SHARE, contactWork, crashFelt, crashFraction, crashHit, crashLoad, crashMass, crashWeight, nearestDistance } from './crash';
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
@@ -1098,7 +1098,7 @@ export class World {
    * Crash by contact (`world/crash.ts`): the damage each part takes this step from what it touched. Fuzes and the
    * `impact` sound event still read each body's velocity change (`checkImpacts`).
    *
-   * - Which bodies: every robot body and dynamic world box whose velocity changed by more than `CRASH_FLOOR` this step
+   * - Which bodies: every robot body and dynamic world box whose velocity changed by more than `CRASH_JOLT` this step
    *   (gravity aside), or whose turning changed that fast at its farthest part, and every body on the other side of
    *   one of their contacts that took energy out. So a body that hardly moved (a robot pinned under a ram, the far side
    *   of a squeeze) is found through what hit it, and its other contacts (the ground under it) are read too.
@@ -1128,7 +1128,7 @@ export class World {
       const dx = s.vx - p.vx;
       const dy = s.vy - p.vy - this.gravityY * this.dt;
       const dw = (s.w - p.w) * reach;
-      return dx * dx + dy * dy > CRASH_FLOOR * CRASH_FLOOR || dw * dw > CRASH_FLOOR * CRASH_FLOOR;
+      return dx * dx + dy * dy > CRASH_JOLT * CRASH_JOLT || dw * dw > CRASH_JOLT * CRASH_JOLT;
     };
     // The usual tick nothing jolted anything: no contact is read and no part is looked at.
     const active: BodyId[] = [];

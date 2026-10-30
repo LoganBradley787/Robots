@@ -20,11 +20,18 @@ export const CRASH_PEAK = 1.5;
 export const CRASH_HALF_CELL = 0.5;
 /**
  * Review S3: a velocity change (m/s in one step) under which no part takes anything (the softest fuze is 5 m/s), so a
- * body that touches nothing is looked at no further, and a felt speed no part is hurt by. Crash round 2: a body jolted
- * past it (or turning faster or slower by it at its farthest part) has its contacts read. A part def with a lower
+ * body that touches nothing is looked at no further, and a felt speed no part is hurt by. A part def with a lower
  * threshold needs this lowered with it.
  */
 export const CRASH_FLOOR = 2;
+
+/**
+ * A body jolted past this (m/s in one step, or turning that fast at its farthest part) has its contacts read. Well under
+ * `CRASH_FLOOR`: a heavy body stopped by a light one with the ground behind it (a slab landing on a small robot) slows
+ * over several steps, the solver being slow to carry a push through a much lighter body, about 1 m/s a step for a
+ * 3.2 t slab on a 27 kg robot, and every step of that is a lot of energy.
+ */
+export const CRASH_JOLT = 0.5;
 
 /** A velocity change (m/s, gravity aside) as a hit: its size, and the unit direction it came from (the change points away from it). */
 export function crashHit(dvx: number, dvy: number): { dv: number; ux: number; uy: number } {

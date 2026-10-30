@@ -110,7 +110,8 @@ describe('enemy bomber, done when', () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('enemy-bomber'), { x: -300, y: 30 }, { team: 1 });
     w.spawnBlueprint(blueprint('car'), { x: -450, y: 1.45 });
-    const friend = w.spawnBlueprint(blueprint('car'), { x: -455, y: 1.45 }, { team: 1 });
+    // Side by side, not overlapping: two cars spawned one cell into each other are pushed apart, past where this tests.
+    const friend = w.spawnBlueprint(blueprint('car'), { x: -456, y: 1.45 }, { team: 1 });
     for (let t = 0; t < 40 * 60; t++) w.step();
     expect(of(w, d, 'armed')).toHaveLength(0);
     expect(partsLost(w, friend)).toBe(0);

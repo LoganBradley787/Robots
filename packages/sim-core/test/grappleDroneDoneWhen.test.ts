@@ -80,8 +80,9 @@ describe('grapple drone (Batch), done when', () => {
   it('with its guns on, what hangs under it is shot: it wrecks a hunter drone and loses next to nothing itself', { timeout: 90_000 }, async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // From 60 a loose missile's blast took 9 to 11 parts: with its batteries gone and the rope kept it came down from
-    // 127 m at 32 m/s, a crash of 19 parts. The other 6 starts lose 0, before and after the contact crash rules.
-    const me = w.spawnBlueprint(blueprint('enemy-grapple-drone'), { x: 85, y: 40 }, { team: 1 });
+    // 127 m at 32 m/s, a crash of 19 parts. From 85 it now kills the hunter's core at 26.5 s (34 s with a collider a
+    // cell) with 17 parts gone, and its guns stop, a nobody's wreck being no target. The other starts lose 0.
+    const me = w.spawnBlueprint(blueprint('enemy-grapple-drone'), { x: 95, y: 40 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -60, y: 40 });
     for (let t = 0; t < 40 * 60; t++) w.step();
     expect(w.events.some((e) => e.kind === 'hooked' && e.robot === me.id && e.to === hunter.id)).toBe(true);
