@@ -131,8 +131,9 @@ export interface MassProperties {
 }
 
 /**
- * Crash: one contact manifold between two colliders on the last step, in Rapier's own order for the pair (side 1 is
- * its first collider, side 2 its second), so both sides read the same record. `jx`, `jy` is the whole impulse (normal
+ * Crash: one contact manifold between two colliders on the last step, or a cell's share of one on a box of cells
+ * (`splitManifold`), in Rapier's own order for the pair (side 1 is its first collider, side 2 its second), so both
+ * sides read the same record. `owner1`, `owner2` are the parts that touched. `jx`, `jy` is the whole impulse (normal
  * plus friction, N s) side 1 put on side 2 over the step; side 1 took the opposite. (`px`, `py`) is where it acted: the mean of the solver points, or the middle of the two colliders when
  * Rapier kept none.
  */
@@ -1061,7 +1062,7 @@ export class PhysicsWorld {
   }
 
   /**
-   * The manifolds of one collider with everything it touches, each once per pair (keyed by both handles in the pair's
+   * The contacts of one collider with everything it touches, each once per pair (keyed by both handles in the pair's
    * own order and the manifold's index), into `into`.
    *
    * Rapier's signs, measured on 0.20 (a box sliding on fixed ground and on a dynamic one, both creation orders; a slab
@@ -1183,7 +1184,7 @@ export class PhysicsWorld {
   }
 
   /**
-   * Crash: every manifold the bodies' colliders were in on the last step (`ContactImpulse`), each pair once whichever
+   * Crash: every contact the bodies' colliders were in on the last step (`ContactImpulse`), each pair once whichever
    * side was asked, in a canonical order (body ids, then owners, then the manifold's place in its pair), so nothing
    * depends on which body was asked first. `more` may name more bodies to ask once the first ones are in (bodies
    * whose every contact must be known).
