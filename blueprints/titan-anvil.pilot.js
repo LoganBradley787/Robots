@@ -1519,9 +1519,15 @@ function tick() {
   // With the push boosters on one side lost, that side's braking counts a third of the lean instead (away from the
   // ground), or it could never fly toward that edge again (titans v3, 2026-10: it crept at 25 m/s into every ram).
   const leanStop = y - floor > 25 ? 0.35 * leanPush : 0;
+  // A lean toward the edge pushes on until it is taken back (anvil r9: leaning 34 degrees into a ram on a hive by the
+  // edge, the 12.9 t brick met 6.6 m/s² of its own lift against 3.8 of braking, and went out at x 1000). Half of what
+  // the lean pushes is counted against the brake, never more than half the brake.
+  const leanOn = (sg) => Math.max(0, 0.5 * m * 9.81 * Math.tan(clamp(-sg * self.angle, 0, 1)));
   const brakeR = Math.max(0.7 * state.pushLeft, state.pushLeft < 0.25 * state.pushRight ? leanStop : 0); // stops it going right
   const brakeL = Math.max(0.7 * state.pushRight, state.pushRight < 0.25 * state.pushLeft ? leanStop : 0);
-  if (limit < Infinity) wantVx = clamp(wantVx, -stopFrom(brakeL, x + limit), stopFrom(brakeR, limit - x));
+  const brakeRn = Math.max(0.5 * brakeR, brakeR - leanOn(1));
+  const brakeLn = Math.max(0.5 * brakeL, brakeL - leanOn(-1));
+  if (limit < Infinity) wantVx = clamp(wantVx, -stopFrom(brakeLn, x + limit), stopFrom(brakeRn, limit - x));
   const dvx = wantVx - vx;
   let lean = 0;
   // Never near the ground or the target: a leaning brick that scrapes something rolls over.
