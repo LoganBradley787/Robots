@@ -68,6 +68,8 @@ export interface PartInstance {
   stored?: number;
   /** M12: the part's cells when they differ from its def's (a stretchy part placed at another size). */
   footprint?: FootprintCell[];
+  /** The robot it was last listed under (`partLists`): the one holding it, once that robot's lists are up to date. Derived, never hashed. */
+  holder?: Robot;
   /** Index of the body group that owns this part. */
   group: number;
   /** Offset of this part's cell from its group's origin cell, in meters (body frame). */

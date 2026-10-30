@@ -1,4 +1,5 @@
 import { loadRapier } from '../physics/rapier';
+import { partLists } from './partLists';
 import { PhysicsWorld, type BodyId, type BodyState, type ShapeSpec } from '../physics/PhysicsWorld';
 import { Prng } from '../rng/Prng';
 import { StateHasher } from '../replay/StateHasher';
@@ -7,7 +8,7 @@ import { Controller } from '../control/controller';
 import type { ControlledPart, ControlTrace, RobotInput } from '../control/types';
 import { BEHAVIORS, type Behavior, type BehaviorContext, type OutputReads } from '../behaviors/registry';
 import { allBindings, autoBindings } from '../control/autoControls';
-import { drainContainers, fillContainers, grantFactor, poolTotals, type Container } from '../resources/pools';
+import { drainHeld, fillContainers, grantFactor, heldTotals, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner, type ScriptTickOutput } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
@@ -437,6 +438,8 @@ export class World {
    * parts and stayed as it was, `assembled` for one worked out from scratch. Reporting only, not hashed.
    */
   readonly rebuilds = { whole: 0, assembled: 0 };
+  /** `bodyOwners`, while the weapon passes of a tick run. */
+  private weaponBodies: Map<BodyId, Robot> | undefined;
   /** Blasts waiting because the per-tick cap was reached. Simulation state, hashed. */
   private queuedBlasts: QueuedBlast[] = [];
   /**
@@ -708,9 +711,11 @@ export class World {
     this.applyPendingForces();
     this.grapples.sync(this.gh());
     this.physics.step();
+    this.weaponBodies = undefined;
     this.runGuns();
     this.runLasers();
     this.runCannons();
+    this.weaponBodies = undefined;
     this.grapples.run(this.gh());
     this.damagePhase();
     this.fadeDebris();
@@ -729,7 +734,7 @@ export class World {
     this.driftSmoke();
     for (const robot of this.robots) {
       const chans = this.channels.get(robot.id);
-      for (const part of robot.parts.values()) {
+      for (const part of partLists(robot).arming) {
         if (part.def.smoke !== undefined) this.releaseSmoke(robot, part, chans?.get(part.id)?.get('on') ?? 0, part.def.smoke);
         if (part.def.decoy !== undefined) this.burnDecoy(robot, part, chans?.get(part.id)?.get('ignite') ?? 0, part.def.decoy.burn);
         if (part.def.jammer !== undefined) this.burnJammer(robot, part, chans?.get(part.id)?.get('ignite') ?? 0, part.def.jammer);
@@ -750,7 +755,7 @@ export class World {
     if (this.unlimited) return;
     for (const robot of this.robots) {
       let sums: Map<number, number> | undefined;
-      for (const part of robot.parts.values()) {
+      for (const part of partLists(robot).solar) {
         const spec = part.def.solar;
         if (spec === undefined || part.health <= 0) continue;
         const up = this.muzzle(robot, part)?.dy ?? 0;
@@ -996,19 +1001,15 @@ export class World {
   private checkImpacts(): void {
     for (const [body, until] of this.unsettled) if (until < this.tickCount) this.unsettled.delete(body);
     for (const robot of this.robots) {
+      const lists = partLists(robot);
       // Each body's velocity change this step (gravity aside), read once: undefined for a body that was just kicked.
-      const hits = new Map<number, { dv: number; ux: number; uy: number } | undefined>();
+      const hits: ({ dv: number; ux: number; uy: number } | undefined)[] = [];
       const ownHit = (index: number): { dv: number; ux: number; uy: number } | undefined => {
-        if (hits.has(index)) return hits.get(index);
         const group = robot.groups[index];
-        let hit: { dv: number; ux: number; uy: number } | undefined;
-        if (group && !this.unsettled.has(group.bodyId)) {
-          const s = this.physics.state(group.bodyId);
-          const p = this.physics.prevState(group.bodyId);
-          hit = crashHit(s.vx - p.vx, s.vy - p.vy - this.gravityY * this.dt);
-        }
-        hits.set(index, hit);
-        return hit;
+        if (!group || this.unsettled.has(group.bodyId)) return undefined;
+        const s = this.physics.state(group.bodyId);
+        const p = this.physics.prevState(group.bodyId);
+        return crashHit(s.vx - p.vx, s.vy - p.vy - this.gravityY * this.dt);
       };
       // Review S3: the robot's velocity change, its bodies' weighted by mass, gravity aside. What its joints do between
       // its own bodies cancels out of it, so a wheel or a turret swung round by a spinning robot (`w * w * r * dt` a
@@ -1033,71 +1034,28 @@ export class World {
       // The hit a body's parts feel: its own when it touches something (terrain, another robot, debris, its own
       // robot's other bodies), so a wheel landing or driven into a wall still takes its crash; else the robot's. A
       // single body is its robot, and a step that jolted nothing past `CRASH_FLOOR` either way breaks nothing.
-      const chosen = new Map<number, { dv: number; ux: number; uy: number } | undefined>();
-      const hitOf = (index: number): { dv: number; ux: number; uy: number } | undefined => {
-        if (chosen.has(index)) return chosen.get(index);
+      const chosen: ({ dv: number; ux: number; uy: number } | undefined)[] = [];
+      // Whether a hit could do anything to a part of this robot: the usual tick it cannot, and no part is looked at.
+      let felt = false;
+      for (const index of lists.groups) {
         const own = ownHit(index);
+        hits[index] = own;
         let hit = own;
         const group = robot.groups[index];
         if (own && group && robot.groups.length > 1) {
           const all = wholeHit();
           if (Math.max(own.dv, all?.dv ?? Infinity) > CRASH_FLOOR && this.physics.contactPoints(group.bodyId).length === 0) hit = all;
         }
-        chosen.set(index, hit);
-        return hit;
-      };
-      // Titans: crash damage is local (`world/crash.ts`): it falls off with a part's distance from where the hit landed
-      // on its robot (so a car's wheels, each their own body, are where its hull's hit landed). All of it is worked out
-      // only for a robot that takes crash damage this tick.
-      const frames = new Map<number, { x: number; y: number; c: number; n: number }>();
-      const poseOf = (part: PartInstance): { x: number; y: number } => {
-        let f = frames.get(part.group);
-        if (!f) {
-          const s = this.physics.state(robot.groups[part.group]?.bodyId ?? 0);
-          f = { x: s.x, y: s.y, c: cos(s.angle), n: sin(s.angle) };
-          frames.set(part.group, f);
-        }
-        return { x: f.x + f.c * part.localX - f.n * part.localY, y: f.y + f.n * part.localX + f.c * part.localY };
-      };
-      let touches: CrashTouch[] | undefined;
-      const distances = new Map<number, (x: number, y: number) => number>();
-      const distanceOf = (index: number, hit: { ux: number; uy: number }): ((x: number, y: number) => number) => {
-        const known = distances.get(index);
-        if (known) return known;
-        touches ??= robot.groups.flatMap((g) => this.physics.contactPoints(g.bodyId));
-        const made = crashDistance(touches, hit.ux, hit.uy, () => {
-          let lead = -Infinity;
-          for (const other of robot.parts.values()) {
-            const q = poseOf(other);
-            lead = Math.max(lead, q.x * hit.ux + q.y * hit.uy);
-          }
-          return lead;
-        });
-        distances.set(index, made);
-        return made;
-      };
-      for (const part of robot.parts.values()) {
-        const hit = hitOf(part.group);
-        if (!hit) continue;
-        // A part that needs arming has its fuze off until it is armed (M10).
-        if (part.def.impact && part.armed !== false && hit.dv > part.def.impact.speed) part.health = 0;
-        // An armed charge with a crash fuze goes off on a hard hit (a ram), before crash damage could break it as a dud.
-        const crash = part.def.charge?.crash;
-        if (crash !== undefined && part.armed === true && part.fired !== true && part.health > 0 && hit.dv > crash) {
-          part.fired = true;
-          part.health = 0;
-        }
-        const fraction = crashFraction(hit.dv, part.def.crash);
-        if (fraction > 0 && part.health > 0) {
-          const q = poseOf(part);
-          part.health -= part.def.health * fraction * crashWeight(distanceOf(part.group, hit)(q.x, q.y));
-        }
+        chosen[index] = hit;
+        if (hit && !(hit.dv <= lists.shrugsOff)) felt = true;
       }
+      if (felt) this.crashParts(robot, lists.all, chosen);
       // M15: the robot's hardest hit this step, for the app's sound. Not state: nothing in the sim reads it.
       // Only a body that touches something: thrust alone can change a light body's speed this fast.
       let hardest = -1;
       let dv = IMPACT_HEARD;
-      for (const [index, hit] of hits) {
+      for (const index of lists.groups) {
+        const hit = hits[index];
         const body = robot.groups[index]?.bodyId;
         if (hit && hit.dv > dv && body !== undefined && this.physics.contactPoints(body).length > 0) {
           hardest = index;
@@ -1112,6 +1070,57 @@ export class World {
     }
   }
 
+  /** What this step's hits do to each part of a robot that felt one (`checkImpacts`), `chosen` by body group. */
+  private crashParts(robot: Robot, parts: readonly PartInstance[], chosen: readonly ({ dv: number; ux: number; uy: number } | undefined)[]): void {
+    // Titans: crash damage is local (`world/crash.ts`): it falls off with a part's distance from where the hit landed
+    // on its robot (so a car's wheels, each their own body, are where its hull's hit landed). All of it is worked out
+    // only for a robot that takes crash damage this tick.
+    const frames = new Map<number, { x: number; y: number; c: number; n: number }>();
+    const poseOf = (part: PartInstance): { x: number; y: number } => {
+      let f = frames.get(part.group);
+      if (!f) {
+        const s = this.physics.state(robot.groups[part.group]?.bodyId ?? 0);
+        f = { x: s.x, y: s.y, c: cos(s.angle), n: sin(s.angle) };
+        frames.set(part.group, f);
+      }
+      return { x: f.x + f.c * part.localX - f.n * part.localY, y: f.y + f.n * part.localX + f.c * part.localY };
+    };
+    let touches: CrashTouch[] | undefined;
+    const distances = new Map<number, (x: number, y: number) => number>();
+    const distanceOf = (index: number, hit: { ux: number; uy: number }): ((x: number, y: number) => number) => {
+      const known = distances.get(index);
+      if (known) return known;
+      touches ??= robot.groups.flatMap((g) => this.physics.contactPoints(g.bodyId));
+      const made = crashDistance(touches, hit.ux, hit.uy, () => {
+        let lead = -Infinity;
+        for (const other of parts) {
+          const q = poseOf(other);
+          lead = Math.max(lead, q.x * hit.ux + q.y * hit.uy);
+        }
+        return lead;
+      });
+      distances.set(index, made);
+      return made;
+    };
+    for (const part of parts) {
+      const hit = chosen[part.group];
+      if (!hit) continue;
+      // A part that needs arming has its fuze off until it is armed (M10).
+      if (part.def.impact && part.armed !== false && hit.dv > part.def.impact.speed) part.health = 0;
+      // An armed charge with a crash fuze goes off on a hard hit (a ram), before crash damage could break it as a dud.
+      const crash = part.def.charge?.crash;
+      if (crash !== undefined && part.armed === true && part.fired !== true && part.health > 0 && hit.dv > crash) {
+        part.fired = true;
+        part.health = 0;
+      }
+      const fraction = crashFraction(hit.dv, part.def.crash);
+      if (fraction > 0 && part.health > 0) {
+        const q = poseOf(part);
+        part.health -= part.def.health * fraction * crashWeight(distanceOf(part.group, hit)(q.x, q.y));
+      }
+    }
+  }
+
   /**
    * Batch: an armed charge (`charge` in its def) goes off when any part cell of a robot of another team comes within its
    * `radius`: it is marked `fired` and set to 0 health, so the destroy step below gives it its blast (a charge destroyed
@@ -1122,8 +1131,8 @@ export class World {
   private checkCharges(): void {
     let charges: { robot: Robot; part: PartInstance }[] | undefined;
     for (const robot of this.robots) {
-      for (const part of robot.parts.values()) {
-        if (part.def.charge === undefined || part.armed !== true || part.health <= 0 || part.fired === true) continue;
+      for (const part of partLists(robot).charges) {
+        if (part.armed !== true || part.health <= 0 || part.fired === true) continue;
         (charges ??= []).push({ robot, part });
       }
     }
@@ -1217,7 +1226,7 @@ export class World {
     for (const robot of this.robots) {
       // A robot holds its parts in blueprint order (`Robot.parts`), so a small piece of a big robot looks at its own
       // parts only, not at every part its blueprint ever had.
-      for (const part of robot.parts.values()) {
+      for (const part of partLists(robot).all) {
         if (part.health > 0) continue;
         const pose = partWorldPose(this, robot, part.id);
         robot.parts.delete(part.id);
@@ -1391,10 +1400,11 @@ export class World {
     for (const body of this.launched) if (this.physics.hasBody(body)) settle(body);
     this.launched = [];
     if (this.pendingPushes.length === 0) return;
-    const owner = new Map<PartInstance, Robot>();
-    for (const robot of this.robots) for (const part of robot.parts.values()) owner.set(part, robot);
+    // Every robot's lists up to date, so a part held by a robot in the world has that robot as its `holder`.
+    for (const robot of this.robots) partLists(robot);
     for (const p of this.pendingPushes) {
-      const robot = owner.get(p.part);
+      const holder = p.part.holder;
+      const robot = holder && holder.parts.get(p.part.id) === p.part && this.byId.get(holder.id) === holder ? holder : undefined;
       const group = robot?.groups[p.part.group];
       if (!robot || !group) continue;
       const pose = partWorldPose(this, robot, p.part.id);
@@ -1521,36 +1531,45 @@ export class World {
    * way (anyone's but its own gun's) takes its damage and a push and stops it; terrain just stops it.
    */
   private runGuns(): void {
-    const guns: { robot: Robot; part: PartInstance }[] = [];
-    for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.gun !== undefined) guns.push({ robot, part });
     this.spent = [];
-    if (guns.length === 0 && this.shells.length === 0) return;
+    if (this.shells.length === 0 && !this.robots.some((r) => partLists(r).guns.length > 0)) return;
     // Shells in flight before this tick: only they can have met something coming the other way during it.
     const old = new Set(this.shells);
-    const bodies = new Map<BodyId, Robot>();
-    for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
-    for (const { robot, part } of guns) {
-      const spec = part.def.gun;
-      if (!spec) continue;
-      if ((part.cooldown ?? 0) > 0) part.cooldown = (part.cooldown ?? 0) - 1;
-      if (part.health <= 0 || !this.controllers.has(robot.id) || (part.cooldown ?? 0) > 0) continue;
-      if ((this.channels.get(robot.id)?.get(part.id)?.get('fire') ?? 0) <= 0.5) continue;
-      const m = this.muzzle(robot, part);
-      if (!m) continue;
-      // Spread: off the barrel's line by up to `spread` degrees, center weighted (two draws averaged).
-      const off = spec.spread > 0 ? ((spec.spread * Math.PI) / 180) * (noise(this.seed, this.tickCount, robot.id, part.id, 0) + noise(this.seed, this.tickCount, robot.id, part.id, 1) - 1) : 0;
-      const sx = m.dx * cos(off) - m.dy * sin(off);
-      const sy = m.dx * sin(off) + m.dy * cos(off);
-      this.shells.push({
-        x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + sx * spec.speed, vy: m.vy + sy * spec.speed,
-        robot: robot.id, gun: part.id, damage: spec.damage, push: spec.recoil, left: Math.max(1, Math.round(spec.life / this.dt)),
-      });
-      part.cooldown = Math.max(1, Math.round(1 / (spec.rate * this.dt)));
-      if (spec.recoil > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.recoil, jy: -m.dy * spec.recoil, quiet: true });
-      this.shots.set(robot.id, (this.shots.get(robot.id) ?? 0) + 1);
+    const bodies = this.bodyOwners();
+    for (const robot of this.robots) {
+      const chans = this.channels.get(robot.id);
+      const controlled = this.controllers.has(robot.id);
+      for (const part of partLists(robot).guns) {
+        const spec = part.def.gun;
+        if (!spec) continue;
+        if ((part.cooldown ?? 0) > 0) part.cooldown = (part.cooldown ?? 0) - 1;
+        if (part.health <= 0 || !controlled || (part.cooldown ?? 0) > 0) continue;
+        if ((chans?.get(part.id)?.get('fire') ?? 0) <= 0.5) continue;
+        const m = this.muzzle(robot, part);
+        if (!m) continue;
+        // Spread: off the barrel's line by up to `spread` degrees, center weighted (two draws averaged).
+        const off = spec.spread > 0 ? ((spec.spread * Math.PI) / 180) * (noise(this.seed, this.tickCount, robot.id, part.id, 0) + noise(this.seed, this.tickCount, robot.id, part.id, 1) - 1) : 0;
+        const sx = m.dx * cos(off) - m.dy * sin(off);
+        const sy = m.dx * sin(off) + m.dy * cos(off);
+        this.shells.push({
+          x: m.x, y: m.y, px: m.x, py: m.y, vx: m.vx + sx * spec.speed, vy: m.vy + sy * spec.speed,
+          robot: robot.id, gun: part.id, damage: spec.damage, push: spec.recoil, left: Math.max(1, Math.round(spec.life / this.dt)),
+        });
+        part.cooldown = Math.max(1, Math.round(1 / (spec.rate * this.dt)));
+        if (spec.recoil > 0) this.pendingPushes.push({ part, jx: -m.dx * spec.recoil, jy: -m.dy * spec.recoil, quiet: true });
+        this.shots.set(robot.id, (this.shots.get(robot.id) ?? 0) + 1);
+      }
     }
     if (this.shells.length > 0) this.flyShells(bodies, old);
-    for (const { robot, part } of guns) this.look(robot, part, bodies);
+    for (const robot of this.robots) for (const part of partLists(robot).guns) this.look(robot, part, bodies);
+  }
+
+  /** Which robot each body belongs to, made once for the weapon passes of a tick (nothing is rebuilt between them). */
+  private bodyOwners(): Map<BodyId, Robot> {
+    if (this.weaponBodies) return this.weaponBodies;
+    const bodies = new Map<BodyId, Robot>();
+    for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
+    return (this.weaponBodies = bodies);
   }
 
   /**
@@ -1562,10 +1581,9 @@ export class World {
   private runLasers(): void {
     this.beams = [];
     let lasers: { robot: Robot; part: PartInstance }[] | undefined;
-    for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.laser !== undefined) (lasers ??= []).push({ robot, part });
+    for (const robot of this.robots) for (const part of partLists(robot).lasers) (lasers ??= []).push({ robot, part });
     if (!lasers) return;
-    const bodies = new Map<BodyId, Robot>();
-    for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
+    const bodies = this.bodyOwners();
     // Every beam is cast before any burns (review: two lasers burning each other's lasers, the one earlier in the
     // list took the other to 0 first, which then never fired that tick though it had paid for it).
     const burns: { robot: Robot; part: PartInstance; hitRobot: Robot; hitPart: PartInstance; damage: number; x: number; y: number }[] = [];
@@ -1605,12 +1623,11 @@ export class World {
    */
   private runCannons(): void {
     let cannons: { robot: Robot; part: PartInstance }[] | undefined;
-    for (const robot of this.robots) for (const part of robot.parts.values()) if (part.def.cannon !== undefined) (cannons ??= []).push({ robot, part });
+    for (const robot of this.robots) for (const part of partLists(robot).cannons) (cannons ??= []).push({ robot, part });
     this.spentBoltList = [];
     if (!cannons && this.bolts.length === 0) return;
     const old = new Set(this.bolts);
-    const bodies = new Map<BodyId, Robot>();
-    for (const robot of this.robots) for (const g of robot.groups) bodies.set(g.bodyId, robot);
+    const bodies = this.bodyOwners();
     for (const { robot, part } of cannons ?? []) {
       const spec = part.def.cannon;
       const act = part.wind?.act ?? WIND_ACT.none;
@@ -2328,6 +2345,7 @@ export class World {
       },
       ...(last && patch !== undefined ? { patch: { from: last.layout.id, json: patch } } : {}),
     };
+    containers.sort(byPartId);
     const feed: ScriptFeed = { key, chunk, scope, mass, layout: handed, rows: layout, pool: containers, parts, numbers: new Float64Array(numberCount(layout)) };
     this.feeds.set(robot, feed);
     return feed;
@@ -2341,17 +2359,10 @@ export class World {
   private fillFeed(robot: Robot, feed: ScriptFeed): boolean {
     const chans = this.channels.get(robot.id);
     const n = feed.numbers;
-    // The chunk's pool, added up on first use from the containers the feed kept (the same parts in the same order as a
-    // walk over the chunk finds, as long as the feed matches the robot, which this checks part by part).
+    // The chunk's pool, added up on first use from the containers the feed kept, in id order (the same parts as a walk
+    // over the chunk finds, as long as the feed matches the robot, which this checks part by part).
     let totals: { stored: number; capacity: number } | undefined;
-    const pool = (): { stored: number; capacity: number } => {
-      if (!totals) {
-        const held: Container[] = [];
-        for (const p of feed.pool) if (p.stored !== undefined && p.def.resource) held.push({ id: p.id, stored: p.stored, capacity: p.def.resource.capacity });
-        totals = poolTotals(held);
-      }
-      return totals;
-    };
+    const pool = (): { stored: number; capacity: number } => (totals ??= heldTotals(feed.pool));
     const bodies: (BodyPose | undefined)[] = [];
     const bodyOf = (group: number): BodyPose => {
       let b = bodies[group];
@@ -3108,14 +3119,10 @@ export class World {
   private resolvePool(robot: Robot, chunk: number, requested: number, list: BehaviorList): number {
     if (requested <= 0) return 1;
     if (this.unlimited) return 1;
-    const containers = listedContainers((list.pools ??= []), robot, chunk);
-    const { stored } = poolTotals(containers);
+    const containers = energyParts((list.pools ??= []), robot, chunk);
+    const { stored } = heldTotals(containers);
     const grant = grantFactor(stored, requested);
-    const taken = drainContainers(containers, Math.min(requested, stored));
-    for (const c of containers) {
-      const part = robot.parts.get(c.id);
-      if (part) part.stored = c.stored;
-    }
+    const taken = drainHeld(containers, stored, Math.min(requested, stored));
     this.used.set(robot.id, (this.used.get(robot.id) ?? 0) + taken);
     const key = `${robot.id}:${chunk}`;
     // Only a pool this tick actually emptied: a chunk that never held energy never "runs out".
@@ -3572,7 +3579,7 @@ interface BehaviorList {
   early: BehaviorEntry[];
   late: BehaviorEntry[];
   back: Map<number, number> | undefined;
-  /** Each chunk's energy parts in chunk order, found on first use (`listedContainers`). */
+  /** Each chunk's energy parts in id order, found on first use (`energyParts`). */
   pools?: PartInstance[][];
 }
 
@@ -3615,11 +3622,10 @@ function eyesOf(robot: Robot, coreId: string): { sensors: readonly PartInstance[
 }
 
 /**
- * `poolContainers` from the chunk's energy parts found once and kept in `held` (a behavior list's, made again whenever
- * the robot changes): the same parts, each with what it holds now, kept in id order, the order every pool sum and
- * share is worked in (`pools.ts`), so those need not sort them again.
+ * The chunk's energy parts found once and kept in `held` (a behavior list's, made again whenever the robot changes),
+ * in id order, the order every pool sum and share is worked in (`pools.ts`).
  */
-function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): Container[] {
+function energyParts(held: PartInstance[][], robot: Robot, chunk: number): readonly PartInstance[] {
   let parts = held[chunk];
   if (!parts) {
     parts = [];
@@ -3627,12 +3633,14 @@ function listedContainers(held: PartInstance[][], robot: Robot, chunk: number): 
       const p = robot.parts.get(id);
       if (p?.def.resource?.kind === 'energy') parts.push(p);
     }
-    parts.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    parts.sort(byPartId);
     held[chunk] = parts;
   }
-  const out: Container[] = [];
-  for (const p of parts) if (p.stored !== undefined && p.def.resource) out.push({ id: p.id, stored: p.stored, capacity: p.def.resource.capacity });
-  return out;
+  return parts;
+}
+
+function byPartId(a: PartInstance, b: PartInstance): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */

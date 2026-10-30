@@ -70,6 +70,41 @@ export function fillContainers(containers: readonly Container[], amount: number)
   return added;
 }
 
+/** A part as a pool sees it: what it holds now, and its capacity from its def. */
+export interface Holder {
+  stored?: number;
+  def: { resource?: { capacity: number } | undefined };
+}
+
+/** `poolTotals` of parts in id order, read straight from them (a kept list: nothing to copy or sort every tick). */
+export function heldTotals(held: readonly Holder[]): { stored: number; capacity: number } {
+  let stored = 0;
+  let capacity = 0;
+  for (const p of held) {
+    if (p.stored === undefined || !p.def.resource) continue;
+    stored += p.stored;
+    capacity += p.def.resource.capacity;
+  }
+  return { stored, capacity };
+}
+
+/** `drainContainers` of parts in id order that together hold `total` (`heldTotals`), written straight to them. */
+export function drainHeld(held: readonly Holder[], total: number, amount: number): number {
+  if (amount <= 0 || total <= 0) return 0;
+  if (amount >= total) {
+    for (const p of held) if (p.stored !== undefined && p.def.resource) p.stored = 0;
+    return total;
+  }
+  let taken = 0;
+  for (const p of held) {
+    if (p.stored === undefined || !p.def.resource) continue;
+    const share = Math.min(p.stored, (amount * p.stored) / total);
+    p.stored -= share;
+    taken += share;
+  }
+  return taken;
+}
+
 /** The containers in part id order: as given when they already are (a kept list), else a sorted copy. */
 function inIdOrder(containers: readonly Container[]): readonly Container[] {
   for (let i = 1; i < containers.length; i++) if (byId(containers[i - 1]!, containers[i]!) > 0) return [...containers].sort(byId);

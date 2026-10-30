@@ -1,6 +1,7 @@
 import type { BodyId, PhysicsWorld, RopeId } from '../physics/PhysicsWorld';
 import type { StateHasher } from '../replay/StateHasher';
 import { faceDir, rotateFace } from '../parts/faces';
+import { partLists } from './partLists';
 import type { PartInstance, Robot } from './Robot';
 import type { WorldEvent } from './World';
 import { cos, sin } from '../math/fdlibm';
@@ -179,7 +180,7 @@ export class Grapples {
    */
   run(host: GrappleHost): void {
     const grapples: { robot: Robot; part: PartInstance }[] = [];
-    for (const robot of host.robots) for (const part of robot.parts.values()) if (part.def.grapple !== undefined) grapples.push({ robot, part });
+    for (const robot of host.robots) for (const part of partLists(robot).grapples) grapples.push({ robot, part });
     if (grapples.length === 0 && this.ropes.length === 0 && this.held.size === 0) return;
     const owner = this.owners(host);
     this.prune(host, owner);
