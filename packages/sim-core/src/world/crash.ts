@@ -1,11 +1,14 @@
 /**
  * Batch: crash damage. A hard hit hurts the parts near where it lands, not only a warhead's fuze (`impact`).
- * Pure functions: the World measures each body's velocity change in one step (gravity aside), finds where the hit
- * landed, and applies the result.
+ * Pure functions. Crash round 2: the World reads every contact's impulse (`PhysicsWorld.contactImpulses`), works out
+ * the energy a group of touching bodies lost to its contacts, spreads it over the interfaces that carried the hit
+ * (`crashLoad`), splits each interface's share between its two sides by hardness, and gives each side the speed that
+ * energy is over its mass (`crashFelt`, `crashMass`). That speed goes through the same curve and falloff as before
+ * (`crashFraction`, `crashWeight`): a body stopped dead against the ground feels the speed it hit at.
  */
 import type { CrashSpec } from '../parts/types';
 
-/** Batch: a velocity change (m/s in one step) a part shrugs off unless its def says otherwise. Drone landings are 2 to 5, a robot set down from the 6 m spawn 10. */
+/** Batch: a felt speed (m/s in one step) a part shrugs off unless its def says otherwise. Drone landings are 2 to 5, a robot set down from the 6 m spawn 10. */
 export const CRASH_SAFE = 12;
 /** Batch: meters per second over `safe` at which a part is destroyed (before the weighting by distance). */
 export const CRASH_RANGE = 8;
@@ -15,12 +18,11 @@ export const CRASH_REACH = 6;
 export const CRASH_PEAK = 1.5;
 /** A part's center is half a cell from its own face, so a part that close is at the hit. */
 export const CRASH_HALF_CELL = 0.5;
-/** How well a contact's push must line up with a body's velocity change to be where its hit landed (the cosine of 60 degrees), so the ground under a robot rammed from the side does not count. */
-export const CRASH_AGREE = 0.5;
-
 /**
  * Review S3: a velocity change (m/s in one step) under which no part takes anything (the softest fuze is 5 m/s), so a
- * body that touches nothing is looked at no further. A part def with a lower threshold needs this lowered with it.
+ * body that touches nothing is looked at no further, and a felt speed no part is hurt by. Crash round 2: a body jolted
+ * past it (or turning faster or slower by it at its farthest part) has its contacts read. A part def with a lower
+ * threshold needs this lowered with it.
  */
 export const CRASH_FLOOR = 2;
 
@@ -49,32 +51,13 @@ export function crashWeight(distance: number): number {
   return CRASH_PEAK * Math.max(0, 1 - d / CRASH_REACH);
 }
 
-/** A place a body was touched on the last step, with the unit direction the touch pushed it. */
-export interface CrashTouch {
-  x: number;
-  y: number;
-  nx: number;
-  ny: number;
-}
-
-/**
- * How far a point is from where a hit landed, as a function of the point. `touches` are the robot's contact points on
- * that step and (ux, uy) the unit direction the hit came from (the body's velocity change points away from it). The
- * touches that pushed the body that way are where it landed, and the distance is to the nearest of them. With none
- * (a rope pulled tight, a hit passed on by something that is not a contact), `lead` gives the robot's leading face:
- * the largest offset along (ux, uy) of any of its parts, and the distance is the depth behind that face.
- */
-export function crashDistance(touches: readonly CrashTouch[], ux: number, uy: number, lead: () => number): (x: number, y: number) => number {
-  const landed = touches.filter((t) => -(t.nx * ux + t.ny * uy) > CRASH_AGREE);
-  if (landed.length === 0) {
-    const face = lead();
-    return (x, y) => face - (x * ux + y * uy) + CRASH_HALF_CELL;
-  }
+/** The distance from a point to the nearest of `points` (at least one), as a function of the point. */
+export function nearestDistance(landed: readonly { x: number; y: number }[]): (x: number, y: number) => number {
   // Touches in squares as wide as the reach: a point looks only in its square and the eight around it, and anything
   // farther is past the reach anyway (a long slab landing flat has hundreds of touches).
   const far = CRASH_REACH + CRASH_HALF_CELL;
   const key = (ix: number, iy: number): number => (ix + 32768) * 65536 + (iy + 32768);
-  const squares = new Map<number, CrashTouch[]>();
+  const squares = new Map<number, { x: number; y: number }[]>();
   for (const t of landed) {
     const k = key(Math.floor(t.x / far), Math.floor(t.y / far));
     const list = squares.get(k);
@@ -95,4 +78,62 @@ export function crashDistance(touches: readonly CrashTouch[], ux: number, uy: nu
     }
     return Math.sqrt(best);
   };
+}
+
+/**
+ * Crash by contact: how hard a part is to crush (`crash.hardness` on its def). Where two sides touch, the softer one
+ * takes more of the hit: each side's share is its softness (1 / hardness) over the two sides' together, like two
+ * springs pressed together. Static terrain is infinitely hard (softness 0).
+ */
+export const CRASH_HARDNESS = 1;
+/** Crash by contact: the hardness of a world file's dynamic box. */
+export const CRASH_BOX_HARDNESS = 1;
+/**
+ * Crash by contact: a contact counts as where its hit landed when it pushed at least this share as hard as the
+ * hardest contact of its interface, so a part resting on the same enemy far from the ram is not where the ram hit.
+ */
+export const CRASH_LANDED_SHARE = 0.05;
+
+/**
+ * The work (J) a contact did over one step: its impulse `(jx, jy)` on side 2, times the average over the step of
+ * side 1's velocity at the contact point relative to side 2's (before `b`, after `a`). Positive when it took energy
+ * out (a hit), negative when it put some in (the solver pushing overlapping parts apart). Summed over every contact of
+ * a group of bodies it is the kinetic energy they lost to their contacts (exact when nothing else pushed them: the
+ * velocities change linearly with the impulses), turning included; a load resting still does no work, and neither
+ * does a perfectly elastic bounce.
+ */
+export function contactWork(jx: number, jy: number, bx: number, by: number, ax: number, ay: number): number {
+  return (jx * (bx + ax) + jy * (by + ay)) / 2;
+}
+
+/**
+ * How much of a group's lost energy an interface takes (the contacts between two sides): the square of its impulse
+ * `(jx, jy)` (the vector sum, so pushes that cancel do not count), times its softness, the impulse-weighted sum
+ * `soft` of its sides' softness over the sum of its contacts' impulse sizes `push`. Two springs carrying the same
+ * force in series store energy in proportion to their softness, and to the force squared: a slab driven through a box
+ * into a wall puts the hit on both faces of the box, a robot crushed under a ram onto the ground takes it top and
+ * bottom.
+ */
+export function crashLoad(jx: number, jy: number, push: number, soft: number): number {
+  if (!(push > 0)) return 0;
+  return (jx * jx + jy * jy) * (soft / push);
+}
+
+/**
+ * The mass a side's share of a hit is spread over: the touching body's own, `mass`, raised when its joints pushed it
+ * into the hit (a car's wheel driven into a wall stops the whole car). `(jx, jy)` is the impulse the hit gave the body
+ * and `(px, py)` that impulse plus what its joints gave it (its momentum change less its other contacts'), so the
+ * mass is `mass * |j| / (p along j)`; at least `mass` and at most `most`, the robot's.
+ */
+export function crashMass(mass: number, most: number, jx: number, jy: number, px: number, py: number): number {
+  const j = Math.sqrt(jx * jx + jy * jy);
+  if (!(j > 0)) return mass;
+  const along = (px * jx + py * jy) / j;
+  if (!(along > (mass * j) / most)) return most;
+  return Math.min(most, Math.max(mass, (mass * j) / along));
+}
+
+/** The speed a side feels from its share of a hit's energy, spread over `mass`: `sqrt(2 E / m)`. Against terrain, a body that stops dead feels the speed it hit at. */
+export function crashFelt(energy: number, mass: number): number {
+  return energy > 0 && mass > 0 ? Math.sqrt((2 * energy) / mass) : 0;
 }

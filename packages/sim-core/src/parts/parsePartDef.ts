@@ -69,6 +69,13 @@ const DEF_KEYS = [
   'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
 ] as const;
 
+/** `crash.hardness`: a positive finite number, with what the scale means in the error. */
+function hardness(r: Reader, co: Obj): number {
+  const v = co.hardness;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) r.fail('crash.hardness', 'must be a positive finite number: 1 is a default part, 2 a frame, 6 heavy armor');
+  return v;
+}
+
 function faces(r: Reader, v: unknown, path: string): Face[] {
   if (!Array.isArray(v)) r.fail(path, 'must be an array');
   const out: Face[] = [];
@@ -204,8 +211,13 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     def.impact = { speed: r.positive(io, 'speed', 'impact') };
   }
   if (o.crash !== undefined) {
-    const co = r.obj(o.crash, 'crash', ['safe', 'range']);
-    def.crash = { safe: r.positive(co, 'safe', 'crash'), ...(co.range !== undefined ? { range: r.positive(co, 'range', 'crash') } : {}) };
+    const co = r.obj(o.crash, 'crash', ['safe', 'range', 'hardness']);
+    if (co.safe === undefined && co.range === undefined && co.hardness === undefined) r.fail('crash', 'needs at least one of safe, range, hardness');
+    def.crash = {
+      ...(co.safe !== undefined ? { safe: r.positive(co, 'safe', 'crash') } : {}),
+      ...(co.range !== undefined ? { range: r.positive(co, 'range', 'crash') } : {}),
+      ...(co.hardness !== undefined ? { hardness: hardness(r, co) } : {}),
+    };
   }
   if (o.arming !== undefined) {
     if (o.arming !== true && o.arming !== false) r.fail('arming', 'must be true or false');

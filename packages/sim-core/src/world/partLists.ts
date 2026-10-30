@@ -1,4 +1,3 @@
-import { CRASH_SAFE } from './crash';
 import type { PartInstance, Robot } from './Robot';
 
 /**
@@ -23,7 +22,7 @@ export interface PartLists {
   grapples: PartInstance[];
   /** Its body groups, in the order its parts first name them. */
   groups: number[];
-  /** A velocity change in one step at or under this does nothing to any of its parts (`checkImpacts`). */
+  /** A velocity change in one step at or under this sets off none of its fuzes (`checkImpacts`). Crash damage has its own gate (`contactCrash`). */
   shrugsOff: number;
 }
 
@@ -49,7 +48,7 @@ export function partLists(robot: Robot): PartLists {
       seen.add(part.group);
       lists.groups.push(part.group);
     }
-    lists.shrugsOff = Math.min(lists.shrugsOff, def.crash?.safe ?? CRASH_SAFE, def.impact?.speed ?? Infinity, def.charge?.crash ?? Infinity);
+    lists.shrugsOff = Math.min(lists.shrugsOff, def.impact?.speed ?? Infinity, def.charge?.crash ?? Infinity);
   }
   kept.set(robot, lists);
   return lists;

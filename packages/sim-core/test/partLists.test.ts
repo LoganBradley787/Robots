@@ -29,10 +29,10 @@ describe('partLists', () => {
     expect(lists.groups).toEqual([3, 1, 0]);
   });
 
-  it('shrugs off a hit under the lowest threshold of any part', () => {
-    expect(partLists(robot([part('a', {})])).shrugsOff).toBe(12);
-    expect(partLists(robot([part('a', {}), part('b', { crash: { safe: 30 } })])).shrugsOff).toBe(12);
-    expect(partLists(robot([part('a', { crash: { safe: 30 } })])).shrugsOff).toBe(30);
+  it('shrugs off a hit under the lowest fuze of any part', () => {
+    // Crash damage has its own gate (`contactCrash`): only fuzes count here.
+    expect(partLists(robot([part('a', {})])).shrugsOff).toBe(Infinity);
+    expect(partLists(robot([part('a', { crash: { safe: 30 } })])).shrugsOff).toBe(Infinity);
     expect(partLists(robot([part('a', {}), part('b', { impact: { speed: 5 } as PartDef['impact'] })])).shrugsOff).toBe(5);
     expect(partLists(robot([part('a', {}), part('b', { charge: { radius: 1, crash: 3 } as PartDef['charge'] })])).shrugsOff).toBe(3);
   });
