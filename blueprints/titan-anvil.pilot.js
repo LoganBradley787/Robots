@@ -387,11 +387,12 @@ function runZap(aim, out, burn) {
   let firing = 0;
   for (const z of zaps) {
     const l = z.laser;
-    if (z.push) {
-      const pos = z.push.out.position || 0;
-      set(z.push.id, 'extend', out ? 1 : pos > 0.02 ? -1 : 0);
-    }
     const ang = z.rot.out.angle || 0;
+    // In its slot it swings only straight down: turned, it jams against the slab (a robot's own bodies touch) and the
+    // piston stalled at 37%. So it swings once the piston is all the way out, and goes back in only once straight.
+    const pos = z.push ? z.push.out.position || 0 : 1;
+    const clear = pos > 0.97;
+    if (z.push) set(z.push.id, 'extend', out ? 1 : pos > 0.02 && Math.abs(ang) < 0.03 ? -1 : 0);
     const rest = self.angle - Math.PI / 2; // straight down from the slab, in the world
     const swung = wrapA(l.out.aim - rest);
     if (Math.abs(ang) > 0.05 && Math.abs(swung) > 0.03) z.sign = Math.sign(swung * ang);
@@ -399,7 +400,7 @@ function runZap(aim, out, burn) {
     let want = 0;
     let off = 1;
     let dist = 1e9;
-    if (out && aim) {
+    if (out && aim && clear) {
       const bx = l.pos.x + 1.5 * Math.cos(l.out.aim);
       const by = l.pos.y + 1.5 * Math.sin(l.out.aim);
       dist = Math.hypot(aim.x - bx, aim.y - by);
@@ -408,7 +409,8 @@ function runZap(aim, out, burn) {
     }
     set(z.rot.id, 'turn', clamp(3 * (want - ang) - (sg * self.angVel) / 2, -1, 1));
     const side = l.out.sightSide;
-    const ready = out && aim && burn && z.push && (z.push.out.position || 0) > 0.9 && off < 0.07 && dist < 295 && side !== 1 && side !== 5;
+    if (z === zaps[0]) state.zapWhy = 'first: out ' + (z.push ? (z.push.out.position || 0).toFixed(2) : '-') + ' off ' + off.toFixed(3) + ' sight ' + side + ' at ' + (l.out.sight || 0).toFixed(0) + ' core ' + (dist < 1e8 ? dist.toFixed(0) + ' m' : '-');
+    const ready = out && aim && burn && clear && off < 0.07 && dist < 295 && side !== 1 && side !== 5;
     if (ready) firing++;
     if (ready !== l.in.fire > 0.5) set(l.id, 'fire', ready ? 1 : 0);
   }
@@ -1534,7 +1536,7 @@ function tick() {
     state.zapFiring = runZap(state.zapAim, state.zapOut && !land, spare > 0);
     if (say > 0.5 && state.zapOut && time - (state.zapSaid || -100) > 10) {
       state.zapSaid = time;
-      log('lasers: burning', state.zapFiring, 'of', zaps.length, 'charge', charge.toFixed(2), 'spare kJ', (spare / 1000).toFixed(0));
+      log('lasers: burning', state.zapFiring, 'of', zaps.length, 'charge', charge.toFixed(2), 'spare kJ', (spare / 1000).toFixed(0), state.zapWhy || '');
     }
     state.zapWasOut = state.zapOut && !land;
     if (say > 0.5 && wasOut !== state.zapWasOut) log(state.zapWasOut ? 'lasers out' : 'lasers stowed');

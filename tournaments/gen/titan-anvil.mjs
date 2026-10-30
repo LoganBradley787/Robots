@@ -199,10 +199,12 @@ if (FLOOR_GUNS === 'flush') {
 // straight below, took all four in the first bombing pass. Now (`zapLow` 0) each turret sits one row higher, its
 // barrel over an empty notch in the bottom row, like the floor guns beside it (which stay). A plate under the barrel
 // does not work: a robot's own bodies touch, and the piston stalled against it at 14% of its stroke. Out, the barrel's
-// end hangs 1 m under the slab, so it swings up to about 50 degrees before its beam would meet the slab.
+// end hangs 1 m under the slab, so it swings up to about 50 degrees before its beam would meet the slab. The floor
+// guns beside each laser are gone (`zapClear`, below): 25 floor guns, was 33.
 const ZAP = opt('zap', LOWD && TEETH ? 1 : 0);
 const ZAP_AT = optStr('zapAt', '8,16').split(',').map(Number);
 const ZAP_LOW = opt('zapLow', 0);
+const ZAP_CLEAR = opt('zapClear', 1);
 if (ZAP) {
   const cxz = W / 2;
   const b = ZAP_LOW ? 0 : 1; // the barrel's row
@@ -217,6 +219,13 @@ if (ZAP) {
         g[b + 3][e] = '.';
         g[b + 2][e] = '.';
         if (ZAP_LOW) g[1][e] = 'A'; // the floor guns beside it would hang from the empty cells
+        // Nothing beside the laser either: a robot's own bodies touch, and a laser between a plate and a floor gun
+        // shook against them, changing speed by 5 m/s every tick (414 impacts in 8 s at rest; its aim shook too). The
+        // two floor guns beside it go with them.
+        if (ZAP_CLEAR) {
+          g[b + 1][e] = '.';
+          g[b][e] = '.';
+        }
       }
     }
   }
