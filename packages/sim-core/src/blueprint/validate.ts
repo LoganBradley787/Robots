@@ -189,7 +189,8 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
   }
 
   const rootChunk = plan.chunks.find((c) => c.partIds.includes(rootId));
-  const disconnected = blueprint.parts.map((p) => p.id).filter((id) => !rootChunk?.partIds.includes(id) && !unattached.has(id));
+  const inRoot = new Set(rootChunk?.partIds);
+  const disconnected = blueprint.parts.map((p) => p.id).filter((id) => !inRoot.has(id) && !unattached.has(id));
   if (disconnected.length > 0) {
     const root = cores.length > 0 ? `the primary core ${rootId}` : `the first part ${rootId}`;
     const n = disconnected.length;
