@@ -1,7 +1,9 @@
 import * as RAPIER from '@dimforge/rapier2d-deterministic-compat';
+import type { CellRect } from '../assembly/merge';
 import type { StateHasher } from '../replay/StateHasher';
 import { compareText } from '../replay/compareText';
 import { cos, sin } from '../math/fdlibm';
+import { cellAt, walkCells, type CellBox } from './cellBox';
 
 /** Rapier's raw (WASM) vector, which its public types do not name. */
 type RawVector = ReturnType<typeof RAPIER.VectorOps.intoRaw>;
@@ -167,6 +169,35 @@ export const INTERNAL_PGS_ITERATIONS = 8;
 export const AIR_DRAG = 0.0025;
 export const AIR_SPIN_DRAG = 0.002;
 
+/**
+ * How a contact's impulse spreads over `count` equal stretches of the line between its two ends, from how hard each
+ * end pushed: the shares add up to 1. It is the pressure under a rigid footing. The two ends give the center of
+ * pressure; while that is in the middle third the pressure is a straight line, and past it a triangle at the loaded
+ * end. So a flat landing is even along the whole face, and a tilted one lands at its low corner, as separate cells did.
+ */
+export function pressureShares(pushA: number, pushB: number, count: number): number[] {
+  const total = pushA + pushB;
+  const center = total > 0 ? pushB / total : 0.5;
+  const shares: number[] = [];
+  let sum = 0;
+  for (let k = 0; k < count; k++) {
+    const t = (k + 0.5) / count;
+    let p: number;
+    if (center >= 1 / 3 && center <= 2 / 3) p = 4 - 6 * center + (12 * center - 6) * t;
+    else if (center > 2 / 3) p = Math.max(0, t - (1 - 3 * (1 - center)));
+    else p = Math.max(0, 3 * center - t);
+    shares.push(p);
+    sum += p;
+  }
+  if (!(sum > 0)) {
+    // All of it at one end, nearer than the first stretch's middle.
+    shares.fill(0);
+    shares[center > 0.5 ? count - 1 : 0] = 1;
+    return shares;
+  }
+  return shares.map((p) => p / sum);
+}
+
 function readState(body: RAPIER.RigidBody): BodyState {
   const t = body.translation();
   const v = body.linvel();
@@ -211,6 +242,9 @@ interface FreshCollider {
 /** Meters added to the reach test for colliders created since the last step, far more than any rounding. */
 const FRESH_SLACK = 0.1;
 
+/** Meters a box's face (Rapier's 32-bit floats) and the walk to its first cell may differ by and be the same place. */
+const CELL_SLACK = 0.001;
+
 export class PhysicsWorld {
   /** Gravity's y (m/s^2, negative is down), for things that feed it forward (Batch: the piston). */
   readonly gravityY: number;
@@ -230,11 +264,13 @@ export class PhysicsWorld {
   private readonly byHandle = new Map<number, BodyId>();
   /** Rapier colliders carry no user data, so owners (part ids) live here, keyed by the opaque handle. */
   private readonly owners = new Map<number, string>();
+  /** Colliders that are several cells (`addCellBox`): which part each cell is. A collider is here or in `owners`. */
+  private readonly boxes = new Map<number, CellBox>();
   /**
-   * Each body's owned colliders (their handles): its robot cells, counted for air drag, and forgotten with the body
-   * without asking Rapier for each (a body can have thousands).
+   * Each body's owned colliders (their handles) and how many robot cells they are, for air drag, forgotten with the
+   * body without asking Rapier for each.
    */
-  private readonly owned = new Map<BodyId, number[]>();
+  private readonly owned = new Map<BodyId, { handles: number[]; cells: number }>();
   /** The joints (turning and sliding) at each body, as parent or child, to forget them with it. */
   private readonly jointsAt = new Map<BodyId, JointId[]>();
   /** Invisible bodies that exist for another body (its multibody root, its joint pivot), removed with it. */
@@ -300,10 +336,34 @@ export class PhysicsWorld {
     this.fresh.push({ handle: collider.handle, r: shape.shape === 'box' ? shape.hx + shape.hy : shape.radius, x: NaN, y: NaN });
     if (owner !== undefined) {
       this.owners.set(collider.handle, owner);
-      const list = this.owned.get(bodyId);
-      if (list) list.push(collider.handle);
-      else this.owned.set(bodyId, [collider.handle]);
+      this.own(bodyId, collider.handle, 1);
     }
+  }
+
+  /**
+   * One collider for a rectangle of a body's cells (`assembly/merge.ts`), each cell a box of half side `half`: outer
+   * faces where the cells' are, mass, center of mass and inertia exactly the cells' sum. Rays and contacts answer with
+   * the cell they met (`rayHits`, `castRay`, `contactImpulses`).
+   */
+  addCellBox(bodyId: BodyId, rect: CellRect, half: number, friction: number): void {
+    const hx = (rect.w - 1) / 2 + half;
+    const hy = (rect.h - 1) / 2 + half;
+    const cx = rect.x + (rect.w - 1) / 2;
+    const cy = rect.y + (rect.h - 1) / 2;
+    const desc = RAPIER.ColliderDesc.cuboid(hx, hy).setTranslation(cx, cy).setMassProperties(rect.mass, { x: rect.comX - cx, y: rect.comY - cy }, rect.inertia).setFriction(friction);
+    const collider = this.makeCollider(desc, this.body(bodyId), `b${hx},${hy}`);
+    this.readings.delete(bodyId);
+    this.fresh.push({ handle: collider.handle, r: hx + hy, x: NaN, y: NaN });
+    this.boxes.set(collider.handle, { body: bodyId, half, x: rect.x, y: rect.y, w: rect.w, h: rect.h, owners: rect.owners });
+    this.own(bodyId, collider.handle, rect.owners.length);
+  }
+
+  private own(bodyId: BodyId, handle: number, cells: number): void {
+    const list = this.owned.get(bodyId);
+    if (list) {
+      list.handles.push(handle);
+      list.cells += cells;
+    } else this.owned.set(bodyId, { handles: [handle], cells });
   }
 
   /** Removes a body with its colliders, its joints, and its helper bodies. */
@@ -311,7 +371,10 @@ export class PhysicsWorld {
     for (const h of this.helpers.get(id) ?? []) this.removeBody(h);
     this.helpers.delete(id);
     const body = this.body(id);
-    for (const handle of this.owned.get(id) ?? []) this.owners.delete(handle);
+    for (const handle of this.owned.get(id)?.handles ?? []) {
+      this.owners.delete(handle);
+      this.boxes.delete(handle);
+    }
     this.owned.delete(id);
     for (const jointId of this.jointsAt.get(id) ?? []) {
       this.joints.delete(jointId);
@@ -526,7 +589,7 @@ export class PhysicsWorld {
   terrainBoxes(): TerrainBox[] {
     const out: TerrainBox[] = [];
     this.world.forEachCollider((c) => {
-      if (this.owners.has(c.handle) || !(c.shape instanceof RAPIER.Cuboid)) return;
+      if (this.owners.has(c.handle) || this.boxes.has(c.handle) || !(c.shape instanceof RAPIER.Cuboid)) return;
       const t = c.translation();
       const h = c.shape.halfExtents;
       out.push({ x: t.x, y: t.y, hx: h.x, hy: h.y, angle: c.rotation() });
@@ -887,30 +950,69 @@ export class PhysicsWorld {
   /**
    * The first collider a ray from (x, y) along the unit vector (dx, dy) touches within `length` meters (M13: shells and
    * gun sights): its body, its owner (the part id; undefined for terrain), and how far along. A ray that starts inside a
-   * collider hits it at 0. `skip` leaves out colliders it returns true for. Uses Rapier's query index, which is fresh
-   * right after a step: colliders created since (a robot rebuilt after the step) are missed until the next one.
-   * `only`: `skip` can be true only for colliders of this owner, so no other collider needs looking at (a gun's sight
-   * is asked a thousand times a tick, and every collider its ray meets was asked after).
+   * collider hits it at 0. `skip` leaves out what it returns true for: asked with an owner of undefined for a whole
+   * box of cells, then for each of its cells on the ray. Uses Rapier's query index, which is fresh right after a step:
+   * colliders created since (a robot rebuilt after the step) are missed until the next one.
+   * `only`: `skip` can be true only for colliders of this owner, and never for a whole box, so no other collider needs
+   * looking at (a gun's sight is asked a thousand times a tick, and every collider its ray meets was asked after).
    */
   castRay(x: number, y: number, dx: number, dy: number, length: number, skip?: (body: BodyId, owner: string | undefined) => boolean, only?: string): { body: BodyId; owner: string | undefined; distance: number } | undefined {
-    const { a, b } = this.vectors(x, y, dx, dy);
     const colliders = this.world.colliders;
+    /** Boxes already walked: what the ray could meet in them is in `best`. */
+    let walked: Set<number> | undefined;
     const filter = (handle: number): boolean | undefined => {
+      const box = this.boxes.get(handle);
+      if (box) return walked?.has(handle) !== true && (only !== undefined || skip?.(box.body, undefined) !== true);
       if (!skip) return undefined;
       const owner = this.owners.get(handle);
       if (only !== undefined && owner !== only) return true;
       const body = this.bodyOf(handle);
       return body === undefined || !skip(body, owner);
     };
-    // `world.castRay` as Rapier's own wrappers make it, with kept vectors and no objects for each collider asked about.
-    const raw = this.world.broadPhase.raw.castRay(this.world.narrowPhase.raw, this.world.bodies.raw, colliders.raw, a, b, length, true, undefined as unknown as number, undefined, undefined, undefined, filter);
-    if (!raw) return undefined;
-    const handle = raw.colliderHandle();
-    const distance = raw.timeOfImpact();
-    raw.free();
-    const body = this.bodyOf(handle);
-    if (body === undefined) return undefined;
-    return { body, owner: this.owners.get(handle), distance };
+    let reach = length;
+    let best: { body: BodyId; owner: string | undefined; distance: number } | undefined;
+    for (;;) {
+      const { a, b } = this.vectors(x, y, dx, dy);
+      // `world.castRay` as Rapier's own wrappers make it, with kept vectors and no objects for each collider asked about.
+      const raw = this.world.broadPhase.raw.castRay(this.world.narrowPhase.raw, this.world.bodies.raw, colliders.raw, a, b, reach, true, undefined as unknown as number, undefined, undefined, undefined, filter);
+      if (!raw) return best;
+      const handle = raw.colliderHandle();
+      const distance = raw.timeOfImpact();
+      raw.free();
+      const box = this.boxes.get(handle);
+      if (!box) {
+        const body = this.bodyOf(handle);
+        return body === undefined ? best : { body, owner: this.owners.get(handle), distance };
+      }
+      // The first cell of the box that counts. When it is deeper than the box's face, something else may come first.
+      const cell = this.firstCell(box, x, y, dx, dy, reach, skip);
+      (walked ??= new Set()).add(handle);
+      if (!cell) continue;
+      best = { body: box.body, owner: cell.owner, distance: cell.distance };
+      if (cell.distance <= distance + CELL_SLACK) return best;
+      reach = cell.distance;
+    }
+  }
+
+  /** The body-frame ray of a world ray, for `walkCells`. */
+  private rayIn(body: BodyId, x: number, y: number, dx: number, dy: number): { ox: number; oy: number; ux: number; uy: number } {
+    const { state } = this.reading(body);
+    const { c, n } = this.turn(body);
+    const rx = x - state.x;
+    const ry = y - state.y;
+    return { ox: c * rx + n * ry, oy: c * ry - n * rx, ux: c * dx + n * dy, uy: c * dy - n * dx };
+  }
+
+  /** The first cell of a box on a ray that `skip` allows. */
+  private firstCell(box: CellBox, x: number, y: number, dx: number, dy: number, length: number, skip?: (body: BodyId, owner: string | undefined) => boolean): { owner: string; distance: number } | undefined {
+    const r = this.rayIn(box.body, x, y, dx, dy);
+    let found: { owner: string; distance: number } | undefined;
+    walkCells(box, r.ox, r.oy, r.ux, r.uy, length, (owner, distance) => {
+      if (skip?.(box.body, owner)) return false;
+      found = { owner, distance };
+      return true;
+    });
+    return found;
   }
 
   /** The body a collider is on. */
@@ -920,13 +1022,24 @@ export class PhysicsWorld {
   }
 
   /**
-   * Every collider a ray from (x, y) along the unit vector (dx, dy) touches within `length` meters, nearest first (ties
-   * by body id, then owner, so the order never depends on Rapier's handles). Same rules as `castRay`.
+   * Every collider a ray from (x, y) along the unit vector (dx, dy) touches within `length` meters, each cell of a box
+   * as its own hit, nearest first (ties by body id, then owner, so the order never depends on Rapier's handles). Same
+   * rules as `castRay`.
    */
   rayHits(x: number, y: number, dx: number, dy: number, length: number, skip?: (body: BodyId, owner: string | undefined) => boolean): { body: BodyId; owner: string | undefined; distance: number }[] {
     const ray = new RAPIER.Ray({ x, y }, { x: dx, y: dy });
     const out: { body: BodyId; owner: string | undefined; distance: number }[] = [];
     this.world.intersectionsWithRay(ray, length, true, (hit) => {
+      const box = this.boxes.get(hit.collider.handle);
+      if (box) {
+        if (skip?.(box.body, undefined)) return true;
+        const r = this.rayIn(box.body, x, y, dx, dy);
+        walkCells(box, r.ox, r.oy, r.ux, r.uy, length, (owner, distance) => {
+          if (!skip?.(box.body, owner)) out.push({ body: box.body, owner, distance });
+          return false;
+        });
+        return true;
+      }
       const parent = hit.collider.parent();
       const body = parent ? this.byHandle.get(parent.handle) : undefined;
       const owner = this.owners.get(hit.collider.handle);
@@ -939,7 +1052,7 @@ export class PhysicsWorld {
   /** A body's colliders: its owned ones (robot cells) in creation order, else Rapier's (a world box). */
   private collidersOf(id: BodyId): number[] {
     const owned = this.owned.get(id);
-    if (owned) return owned;
+    if (owned) return owned.handles;
     const body = this.bodies.get(id);
     if (!body) return [];
     const out: number[] = [];
@@ -997,7 +1110,7 @@ export class PhysicsWorld {
         const body1 = p1 ? this.byHandle.get(p1.handle) : undefined;
         const body2 = p2 ? this.byHandle.get(p2.handle) : undefined;
         if (body1 === undefined || body2 === undefined) return;
-        into.set(key, {
+        const whole: ContactImpulse = {
           body1,
           owner1: this.owners.get(c1.handle),
           body2,
@@ -1007,8 +1120,65 @@ export class PhysicsWorld {
           px,
           py,
           points,
-        });
+        };
+        const box1 = this.boxes.get(c1.handle);
+        const box2 = this.boxes.get(c2.handle);
+        if (box1 === undefined && box2 === undefined) into.set(key, whole);
+        else this.splitManifold(manifold, whole, c1, c2, box1, box2, key, into);
       });
+    });
+  }
+
+  /**
+   * A manifold with a box of cells on either side, as one contact per cell along where they touch, so whoever reads
+   * contacts sees what separate cell colliders would have shown: which parts touched, and how the hit spread along the
+   * face. A box gives Rapier at most two points, its contact's two ends. The contacts are at most a meter apart on the
+   * line between those ends, each with the cells under it (found from the manifold's points on each collider's own
+   * surface, so how deep the two went and how far they have moved since do not matter) and a share of the impulse by
+   * `pressureShares`.
+   */
+  private splitManifold(manifold: RAPIER.TempContactManifold, whole: ContactImpulse, c1: RAPIER.Collider, c2: RAPIER.Collider, box1: CellBox | undefined, box2: CellBox | undefined, key: string, into: Map<string, ContactImpulse>): void {
+    // A contact's place on each collider, in its body's frame, and how hard it pushed.
+    const tracked: { x1: number; y1: number; x2: number; y2: number; push: number }[] = [];
+    const place1 = c1.translationWrtParent();
+    const place2 = c2.translationWrtParent();
+    for (let i = 0; i < manifold.numContacts(); i++) {
+      const l1 = manifold.localContactPoint1(i);
+      const l2 = manifold.localContactPoint2(i);
+      if (!l1 || !l2) continue;
+      tracked.push({ x1: (place1?.x ?? 0) + l1.x, y1: (place1?.y ?? 0) + l1.y, x2: (place2?.x ?? 0) + l2.x, y2: (place2?.y ?? 0) + l2.y, push: Math.abs(manifold.contactImpulse(i)) });
+    }
+    const start = tracked[0];
+    if (!start) {
+      into.set(key, whole);
+      return;
+    }
+    // Two tracked points and one the solver kept: that one is the one that pushed.
+    const end = tracked[tracked.length - 1] as (typeof tracked)[number];
+    const pair = whole.points.length === 1 && tracked.length > 1 ? (start.push >= end.push ? [start, start] : [end, end]) : [start, end];
+    const from = pair[0] as (typeof tracked)[number];
+    const to = pair[1] as (typeof tracked)[number];
+    const a = whole.points[0] ?? { x: whole.px, y: whole.py };
+    const b = whole.points[whole.points.length - 1] ?? a;
+    const span = from === to ? 0 : Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+    const shares = pressureShares(from.push, to.push, Math.max(1, Math.ceil(span)));
+    shares.forEach((share, k) => {
+      if (share === 0) return;
+      const t = (k + 0.5) / shares.length;
+      const x = a.x + (b.x - a.x) * t;
+      const y = a.y + (b.y - a.y) * t;
+      const contact: ContactImpulse = {
+        body1: whole.body1,
+        owner1: box1 ? cellAt(box1, from.x1 + (to.x1 - from.x1) * t, from.y1 + (to.y1 - from.y1) * t) : whole.owner1,
+        body2: whole.body2,
+        owner2: box2 ? cellAt(box2, from.x2 + (to.x2 - from.x2) * t, from.y2 + (to.y2 - from.y2) * t) : whole.owner2,
+        jx: whole.jx * share,
+        jy: whole.jy * share,
+        px: x,
+        py: y,
+        points: whole.points.length > 0 ? [{ x, y }] : [],
+      };
+      into.set(k === 0 ? key : `${key}|${k}`, contact);
     });
   }
 
@@ -1047,7 +1217,7 @@ export class PhysicsWorld {
    */
   contactPoints(id: BodyId): { x: number; y: number; nx: number; ny: number }[] {
     const out: { x: number; y: number; nx: number; ny: number }[] = [];
-    for (const handle of this.owned.get(id) ?? []) {
+    for (const handle of this.owned.get(id)?.handles ?? []) {
       const collider = this.world.getCollider(handle);
       this.world.contactPairsWith(collider, (other) => {
         this.world.contactPair(collider, other, (manifold, flipped) => {
@@ -1064,9 +1234,9 @@ export class PhysicsWorld {
     return out;
   }
 
-  /** Owners of every collider that has one, in creation order. */
+  /** Owners of every collider that has one, in creation order, then each cell of every box of cells. */
   colliderOwners(): string[] {
-    return [...this.owners.values()];
+    return [...this.owners.values(), ...[...this.boxes.values()].flatMap((b) => b.owners)];
   }
 
   createFixedBox(cx: number, cy: number, w: number, h: number, angle = 0): BodyId {
@@ -1179,8 +1349,7 @@ export class PhysicsWorld {
       this.body(sl.parent).addForceAtPoint({ x: -force * st.ax, y: -force * st.ay }, { x: st.px, y: st.py }, true);
       this.forced.add(sl.parent).add(sl.child);
     }
-    for (const [id, handles] of this.owned) {
-      const cells = handles.length;
+    for (const [id, { cells }] of this.owned) {
       const b = this.body(id);
       if (b.isSleeping()) continue;
       const v = this.velocity(id, b);

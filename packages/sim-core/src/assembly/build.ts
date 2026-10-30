@@ -1,4 +1,5 @@
 import { partMass } from '../parts/footprint';
+import { mergeCells, type MergeCell } from './merge';
 import type { JointId, PhysicsWorld, ShapeSpec } from '../physics/PhysicsWorld';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { BodyGroup, PartInstance } from '../world/Robot';
@@ -53,23 +54,37 @@ export function buildBodies(
     const origin = part(g.originId);
     const at = poses[g.index] as GroupPose;
     const bodyId = physics.createBody({ x: at.x, y: at.y, angle: at.angle, kind: 'dynamic' });
+    // A body's box cells by friction, merged below: its colliders are rectangles of cells, not one a cell.
+    const boxCells = new Map<number, MergeCell[]>();
     for (const id of g.partIds) {
       const p = part(id);
       const def = p.def;
       const cells = p.footprint ?? def.footprint;
       const cellMass = partMass(def, cells) / cells.length;
       const ball = def.collider?.shape === 'ball' ? def.collider : undefined;
-      const shape: ShapeSpec = ball ? { shape: 'ball', radius: ball.radius ?? 0.5 } : BOX;
-      const friction = ball ? ball.friction : (def.collider?.friction ?? PART_FRICTION);
+      const friction = def.collider?.friction ?? PART_FRICTION;
       for (const fc of cells) {
         // A part's own cell needs no turning (most parts are one cell: a big robot has thousands of them).
         const off = fc.x === 0 && fc.y === 0 ? fc : rotateCell(fc, p.rot);
-        // Cells are squares, so boxes need no rotation; keeping angle 0 avoids trig in collider poses.
-        physics.addCollider(bodyId, shape, { offsetX: p.x + off.x - origin.x, offsetY: p.y + off.y - origin.y, mass: cellMass, friction }, id);
+        const x = p.x + off.x - origin.x;
+        const y = p.y + off.y - origin.y;
+        if (ball) physics.addCollider(bodyId, { shape: 'ball', radius: ball.radius ?? 0.5 }, { offsetX: x, offsetY: y, mass: cellMass, ...(ball.friction !== undefined ? { friction: ball.friction } : {}) }, id);
+        else {
+          const list = boxCells.get(friction);
+          if (list) list.push({ x, y, owner: id, mass: cellMass });
+          else boxCells.set(friction, [{ x, y, owner: id, mass: cellMass }]);
+        }
       }
       p.group = g.index;
       p.localX = p.x - origin.x;
       p.localY = p.y - origin.y;
+    }
+    for (const [friction, cells] of boxCells) {
+      for (const rect of mergeCells(cells, CELL_HALF)) {
+        if (rect.owners.length > 1) physics.addCellBox(bodyId, rect, CELL_HALF, friction);
+        // A lone cell needs no walking: a plain collider, its owner by handle. Boxes need no rotation; keeping angle 0 avoids trig in collider poses.
+        else physics.addCollider(bodyId, BOX, { offsetX: rect.x, offsetY: rect.y, mass: rect.mass, friction }, rect.owners[0]);
+      }
     }
     groups.push({ index: g.index, bodyId, originId: g.originId, partIds: [...g.partIds] });
   }
