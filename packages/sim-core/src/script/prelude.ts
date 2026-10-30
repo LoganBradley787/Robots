@@ -183,18 +183,18 @@ export const PRELUDE = String.raw`
     objs = parse(nulls);
     poses = parse(nulls);
     widths = new Int32Array(n);
-    // Each row with values gets its shape's key, and each shape a count and its place in the list.
-    var keys = parse(nulls);
-    var found = create(null);
+    // Each shape in the rows gets its place in the list and its count.
+    mark++;
     var kinds = 0;
     for (var i = 0; i < n; i++) {
-      var r = rows[i];
-      if (r.inN.length + r.outN.length === 0) continue;
-      var key = stringify([r.inN, r.outN]);
-      keys[i] = key;
-      var f = found[key];
-      if (f === undefined) found[key] = { n: 1, i: kinds++ };
-      else f.n++;
+      var s = rows[i].shape;
+      if (s === null) continue;
+      if (s.mark !== mark) {
+        s.mark = mark;
+        s.n = 0;
+        s.place = kinds++;
+      }
+      s.n++;
     }
     shapes = parse(nullsFor(kinds));
     var at = 0;
@@ -204,36 +204,40 @@ export const PRELUDE = String.raw`
       poses[i] = r.pos;
       var w = 3 + r.inN.length + r.outN.length;
       widths[i] = w;
-      if (w > 3) {
-        var f = found[keys[i]];
-        var s = shapes[f.i];
-        if (s === null) {
-          s = { fill: shapeFill(keys[i], r.inN, r.outN), rows: parse(nullsFor(f.n)), at: new Int32Array(f.n), n: 0 };
-          shapes[f.i] = s;
+      var s = r.shape;
+      if (s !== null) {
+        if (shapes[s.place] === null) {
+          shapes[s.place] = s;
+          s.rows = parse(nullsFor(s.n));
+          s.at = new Int32Array(s.n);
+          s.k = 0;
         }
-        s.rows[s.n] = r;
-        s.at[s.n] = at + 3;
-        s.n++;
+        s.rows[s.k] = r;
+        s.at[s.k] = at + 3;
+        s.k++;
       }
       at += w;
     }
     defineProperty(objs, 'constructor', { value: undefined });
   }
-  // The refill of one shape's values, made once per script for each different list of names: the names are written
-  // into the code, so QuickJS sets each value by its name directly instead of looking a name up per value per tick
-  // (about half the cost of refilling a big robot).
-  var shapeFills = null;
-  function shapeFill(key, inN, outN) {
-    if (shapeFills === null) shapeFills = create(null);
-    var fill = shapeFills[key];
-    if (fill !== undefined) return fill;
+  // One shape per different list of names: its rows while the layout stands, and the refill of their values, made once
+  // for each shape: the names are written into the code, so QuickJS sets each value by its name directly instead of
+  // looking a name up per value per tick (about half the cost of refilling a big robot).
+  var mark = 0;
+  var shapeTable = null;
+  function shapeOf(inN, outN) {
+    if (inN.length + outN.length === 0) return null;
+    if (shapeTable === null) shapeTable = create(null);
+    var key = stringify([inN, outN]);
+    var s = shapeTable[key];
+    if (s !== undefined) return s;
     var body = 'for (var q = 0; q < n; q++) { var r = rows[q]; var a = base + at[q]; var t = r.inO;';
     for (var j = 0; j < inN.length; j++) body += ' t' + member(inN[j]) + ' = f[a + ' + j + '];';
     body += ' t = r.outO;';
     for (var j = 0; j < outN.length; j++) body += ' t' + member(outN[j]) + ' = f[a + ' + (inN.length + j) + '];';
-    fill = newFunction('rows', 'at', 'n', 'f', 'base', body + ' }');
-    shapeFills[key] = fill;
-    return fill;
+    s = { fill: newFunction('rows', 'at', 'n', 'f', 'base', body + ' }'), rows: null, at: null, n: 0, k: 0, mark: 0, place: 0 };
+    shapeTable[key] = s;
+    return s;
   }
   /** A name as code that reads that property: .name when it is a plain name, else ["name"]. */
   function member(name) {
@@ -352,7 +356,7 @@ export const PRELUDE = String.raw`
     var inO = parse(zeros(l[4]));
     var outO = parse(zeros(l[5]));
     var pos = { x: 0, y: 0 };
-    var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null };
+    var r = { pos: pos, type: l[1], tags: freeze(l[2]), inN: l[4], inO: inO, outN: l[5], outO: outO, o: null, shape: shapeOf(l[4], l[5]) };
     // How it was built turned, the joint that carries it (M16) and where its middle is come after out, and its type's spec last; each
     // only when the host sent it: without them a part is as it was before M16. Always a literal, never a property
     // added later, so a setter a script puts on Object.prototype never sees the part being made.
