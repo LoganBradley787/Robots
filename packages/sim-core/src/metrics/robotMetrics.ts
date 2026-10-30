@@ -1,6 +1,6 @@
 import type { Robot } from '../world/Robot';
 import type { World } from '../world/World';
-import { hypot } from '../math/fdlibm';
+import { cos, hypot, sin } from '../math/fdlibm';
 
 export interface RobotSample {
   tick: number;
@@ -31,7 +31,8 @@ export function partWorldPose(world: World, robot: Robot, partId: string): { x: 
   const group = part ? robot.groups[part.group] : undefined;
   if (!part || !group) throw new Error(`robot ${robot.name} has no part ${partId}`);
   const s = world.physics.state(group.bodyId);
-  const { c, n } = world.physics.turn(group.bodyId);
+  const c = cos(s.angle);
+  const n = sin(s.angle);
   return { x: s.x + c * part.localX - n * part.localY, y: s.y + n * part.localX + c * part.localY, angle: s.angle };
 }
 
