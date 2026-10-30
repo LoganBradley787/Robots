@@ -277,6 +277,14 @@ interface BodyPose {
   n: number;
 }
 
+/** A blueprint made ready to test spots for (`canPlace`, `lowestPlace`): validated once, its cells' shapes built once. */
+interface Placement {
+  cells: { x: number; y: number; shape: ShapeSpec }[];
+  root: { x: number; y: number };
+  /** The lowest bottom of any cell, from the root's cell (below 0 when parts hang under the root). */
+  bottom: number;
+}
+
 /** No names: shared by every part with no values present. Never written to. */
 const NO_NAMES: string[] = [];
 
@@ -581,21 +589,62 @@ export class World {
    * anything already in the world, terrain included. Parts are checked with the shapes they spawn with.
    */
   canPlace(raw: unknown, at: { x: number; y: number }): { ok: boolean; reason?: string } {
+    const prep = this.placement(raw);
+    return 'reason' in prep ? { ok: false, reason: prep.reason } : this.placeAt(prep, at);
+  }
+
+  /**
+   * The lowest core height at `x` the world takes the blueprint at, trying `from`, then every `step` m up to below `to`
+   * (0.5, 0.05 and 200 by default): the first height `canPlace` says yes to, the same answer as asking it at each one.
+   * The blueprint is validated and its shapes are built once, and heights that put a part under the ground are passed
+   * over without asking the physics, so a robot of thousands of parts whose core sits high costs one validation.
+   */
+  lowestPlace(raw: unknown, x: number, opts: { from?: number; to?: number; step?: number } = {}): { ok: true; y: number } | { ok: false; reason: string } {
+    const { from = 0.5, to = 200, step = 0.05 } = opts;
+    if (!(step > 0)) throw new Error(`step must be above 0, got ${step}`);
+    const prep = this.placement(raw);
+    if ('reason' in prep) return { ok: false, reason: prep.reason };
+    let reason = 'no height tried';
+    for (let y = from; y < to; y += step) {
+      // A small allowance for rounding: the exact check below decides at the edge.
+      if (y + prep.bottom < -0.02 - 1e-9) {
+        reason = 'below the ground';
+        continue;
+      }
+      const can = this.placeAt(prep, { x, y });
+      if (can.ok) return { ok: true, y };
+      reason = can.reason ?? reason;
+    }
+    return { ok: false, reason };
+  }
+
+  /** A validated blueprint's cells as `canPlace` checks them, its root part's cell, and the lowest bottom under the root. */
+  private placement(raw: unknown): Placement | { reason: string } {
     const v = validateBlueprint(raw, this.registry);
     if (!v.ok || !v.blueprint) {
       const first = v.issues.find((i) => i.severity === 'error');
-      return { ok: false, reason: first?.message ?? 'blueprint is invalid' };
+      return { reason: first?.message ?? 'blueprint is invalid' };
     }
     const bp = v.blueprint;
-    const root = bp.parts.find((p) => p.id === rootPartId(bp, this.registry));
-    if (!root) return { ok: false, reason: 'blueprint has no parts' };
-    const shapes = bp.parts.flatMap((p) => {
+    const rootId = rootPartId(bp, this.registry);
+    const root = bp.parts.find((p) => p.id === rootId);
+    if (!root) return { reason: 'blueprint has no parts' };
+    const cells = bp.parts.flatMap((p) => {
       const collider = this.registry.get(p.part).collider;
       const shape: ShapeSpec = collider?.shape === 'ball' ? { shape: 'ball', radius: collider.radius ?? 0.5 } : { shape: 'box', hx: 0.5, hy: 0.5 };
-      return partCells(p, this.registry).map(({ cell }) => ({ x: at.x + cell.x - root.x, y: at.y + cell.y - root.y, shape }));
+      return partCells(p, this.registry).map(({ cell }) => ({ x: cell.x, y: cell.y, shape }));
     });
+    let bottom = Infinity;
+    for (const c of cells) bottom = Math.min(bottom, c.y - root.y - (c.shape.shape === 'box' ? c.shape.hy : c.shape.radius));
+    return { cells, root: { x: root.x, y: root.y }, bottom };
+  }
+
+  private placeAt(prep: Placement, at: { x: number; y: number }): { ok: boolean; reason?: string } {
+    const { cells, root } = prep;
+    const shapes = cells.map((c) => ({ x: at.x + c.x - root.x, y: at.y + c.y - root.y, shape: c.shape }));
     // The ground surface is y = 0. Below it is solid earth to the player even where the physics slab ends.
-    const lowest = Math.min(...shapes.map((s) => s.y - (s.shape.shape === 'box' ? s.shape.hy : s.shape.radius)));
+    let lowest = Infinity;
+    for (const s of shapes) lowest = Math.min(lowest, s.y - (s.shape.shape === 'box' ? s.shape.hy : s.shape.radius));
     if (lowest < -0.02) return { ok: false, reason: 'below the ground' };
     return this.physics.overlapsShapes(shapes) ? { ok: false, reason: 'overlaps something already in the world' } : { ok: true };
   }
