@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "tumbler",
+  "autoControls": false,
+  "grid": [
+    ".  jv jv .  jv jv .",
+    "j> F  F  F  F  F  j<",
+    "j> F  .  F  Z  F  j<",
+    ".  F  F  C  F  F  .",
+    "j> F  Z  F  .  F  j<",
+    "j> F  F  F  F  F  j<",
+    ".  j^ j^ .  j^ j^ ."
+  ],
+  "legend": {
+    "j^": { "part": "thruster", "rot": 0, "tags": ["jets"], "auto": false },
+    "j<": { "part": "thruster", "rot": 90, "tags": ["jets"], "auto": false },
+    "jv": { "part": "thruster", "rot": 180, "tags": ["jets"], "auto": false },
+    "j>": { "part": "thruster", "rot": 270, "tags": ["jets"], "auto": false }
+  },
+  "scripts": [{ "id": "tumble", "source": { "file": "tumbler.tumble.js" } }]
+}
