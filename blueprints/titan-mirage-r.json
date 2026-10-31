@@ -1,0 +1,743 @@
+{
+ "format": 1,
+ "name": "titan-mirage-r",
+ "kind": "yours",
+ "grid": [
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . . . . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  ". q0 q0 q0 q0 q0 q0 q0 q0 q0 q0 q0 . j0 j1 j2 j3 j4 j5 j6 j7 j8 j9 j10 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . . .",
+  "ka A A A A A A A A A A A . j11 j12 j13 j14 j15 j16 j17 j18 j19 j20 j21 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . F kb",
+  "ka A Z Z Z Z Z Z = = = A . j22 j23 j24 j25 j26 j27 j28 j29 j30 j31 j32 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . F kb",
+  "ka A Z Z Z Z Z Z = = = A . j33 j34 j35 j36 j37 j38 j39 j40 j41 j42 j43 . . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . = . . . = . . . . . . . . . F kb",
+  "ka A Z Z Z Z Z Z Rc = = A . j44 j45 j46 j47 j48 j49 j50 j51 j52 j53 j54 . q1 q1 = ga = = = q1 q1 = gb = = = q1 q1 = gc = = = q2 q2 = gd = = = q2 q2 = ge = = = q2 q2 = gf = = = q3 q3 = gg = = = q3 q3 = gh = = = q3 q3 = gi = = = q4 q4 = gj = = = q4 q4 = gk = = = q4 q4 = gl = = = q4 q5 = gm = = = q5 q5 = gn = = = q5 q5 = go = = = q5 q5 = gp = = = q6 q6 = gq = = = q6 q6 = gr = = = q6 q6 = gs = = = q7 q7 = gt = = = q7 q7 q7 O N O q7 O q7 F kb",
+  "ka A Z Z Z A A A Z Z Z A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F kb",
+  "ka A Z Z Z A C A Z Z Z A . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F . F O F . F . F . F . F . F . F . F . F . F O F . F . F . F . F Z F . F . F . F . F O F . F . F . F . F . F . F . F . F . F O F . F . F . F . F . F . F . F . F . F O F . F . F . F . F . F . F . F . F . F O F . F . F . F . F . F Z F A kb",
+  "ka A Z Z Z A A A Z Z Z A Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z Z A kb",
+  "ka A = = = Z Z Z = = = A F q0 q0 q0 q0 F q0 q0 q0 q0 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 A kb",
+  "ka A = = = Z Z Z = = = A F q0 q0 q0 q0 F q0 q0 q0 q0 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 A kb",
+  "ka A Rc = = Z Z Z Rc = = A F q0 q0 q0 q0 F q0 q0 q0 q0 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q1 q1 q1 q1 q1 F q1 q1 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q2 q2 q2 q2 q2 q2 q2 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q3 F q3 q3 q3 q3 q3 q3 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q4 q4 q4 F q4 q4 q4 q4 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q5 q5 q5 q5 q5 F q5 q5 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q6 q6 q6 q6 q6 q6 q6 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 q7 q7 q7 F q7 q7 q7 q7 A kb",
+  "ka A A A A A A A A A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F kb",
+  ". kc kc kc kc kc kc kc kc kc kc kc . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."
+ ],
+ "legend": {
+  "ka": {
+   "part": "booster",
+   "rot": 270,
+   "tags": [
+    "pf"
+   ],
+   "auto": false
+  },
+  "kb": {
+   "part": "booster",
+   "rot": 90,
+   "tags": [
+    "pr"
+   ],
+   "auto": false
+  },
+  "kc": {
+   "part": "booster",
+   "rot": 0,
+   "tags": [
+    "l0"
+   ],
+   "auto": false
+  },
+  "j0": {
+   "part": "jammer",
+   "tags": [
+    "j0"
+   ]
+  },
+  "j1": {
+   "part": "jammer",
+   "tags": [
+    "j1"
+   ]
+  },
+  "j2": {
+   "part": "jammer",
+   "tags": [
+    "j2"
+   ]
+  },
+  "j3": {
+   "part": "jammer",
+   "tags": [
+    "j3"
+   ]
+  },
+  "j4": {
+   "part": "jammer",
+   "tags": [
+    "j4"
+   ]
+  },
+  "j5": {
+   "part": "jammer",
+   "tags": [
+    "j5"
+   ]
+  },
+  "j6": {
+   "part": "jammer",
+   "tags": [
+    "j6"
+   ]
+  },
+  "j7": {
+   "part": "jammer",
+   "tags": [
+    "j7"
+   ]
+  },
+  "j8": {
+   "part": "jammer",
+   "tags": [
+    "j8"
+   ]
+  },
+  "j9": {
+   "part": "jammer",
+   "tags": [
+    "j9"
+   ]
+  },
+  "j10": {
+   "part": "jammer",
+   "tags": [
+    "j10"
+   ]
+  },
+  "j11": {
+   "part": "jammer",
+   "tags": [
+    "j11"
+   ]
+  },
+  "j12": {
+   "part": "jammer",
+   "tags": [
+    "j12"
+   ]
+  },
+  "j13": {
+   "part": "jammer",
+   "tags": [
+    "j13"
+   ]
+  },
+  "j14": {
+   "part": "jammer",
+   "tags": [
+    "j14"
+   ]
+  },
+  "j15": {
+   "part": "jammer",
+   "tags": [
+    "j15"
+   ]
+  },
+  "j16": {
+   "part": "jammer",
+   "tags": [
+    "j16"
+   ]
+  },
+  "j17": {
+   "part": "jammer",
+   "tags": [
+    "j17"
+   ]
+  },
+  "j18": {
+   "part": "jammer",
+   "tags": [
+    "j18"
+   ]
+  },
+  "j19": {
+   "part": "jammer",
+   "tags": [
+    "j19"
+   ]
+  },
+  "j20": {
+   "part": "jammer",
+   "tags": [
+    "j20"
+   ]
+  },
+  "j21": {
+   "part": "jammer",
+   "tags": [
+    "j21"
+   ]
+  },
+  "j22": {
+   "part": "jammer",
+   "tags": [
+    "j22"
+   ]
+  },
+  "j23": {
+   "part": "jammer",
+   "tags": [
+    "j23"
+   ]
+  },
+  "j24": {
+   "part": "jammer",
+   "tags": [
+    "j24"
+   ]
+  },
+  "j25": {
+   "part": "jammer",
+   "tags": [
+    "j25"
+   ]
+  },
+  "j26": {
+   "part": "jammer",
+   "tags": [
+    "j26"
+   ]
+  },
+  "j27": {
+   "part": "jammer",
+   "tags": [
+    "j27"
+   ]
+  },
+  "j28": {
+   "part": "jammer",
+   "tags": [
+    "j28"
+   ]
+  },
+  "j29": {
+   "part": "jammer",
+   "tags": [
+    "j29"
+   ]
+  },
+  "j30": {
+   "part": "jammer",
+   "tags": [
+    "j30"
+   ]
+  },
+  "j31": {
+   "part": "jammer",
+   "tags": [
+    "j31"
+   ]
+  },
+  "j32": {
+   "part": "jammer",
+   "tags": [
+    "j32"
+   ]
+  },
+  "j33": {
+   "part": "jammer",
+   "tags": [
+    "j33"
+   ]
+  },
+  "j34": {
+   "part": "jammer",
+   "tags": [
+    "j34"
+   ]
+  },
+  "j35": {
+   "part": "jammer",
+   "tags": [
+    "j35"
+   ]
+  },
+  "j36": {
+   "part": "jammer",
+   "tags": [
+    "j36"
+   ]
+  },
+  "j37": {
+   "part": "jammer",
+   "tags": [
+    "j37"
+   ]
+  },
+  "j38": {
+   "part": "jammer",
+   "tags": [
+    "j38"
+   ]
+  },
+  "j39": {
+   "part": "jammer",
+   "tags": [
+    "j39"
+   ]
+  },
+  "j40": {
+   "part": "jammer",
+   "tags": [
+    "j40"
+   ]
+  },
+  "j41": {
+   "part": "jammer",
+   "tags": [
+    "j41"
+   ]
+  },
+  "j42": {
+   "part": "jammer",
+   "tags": [
+    "j42"
+   ]
+  },
+  "j43": {
+   "part": "jammer",
+   "tags": [
+    "j43"
+   ]
+  },
+  "j44": {
+   "part": "jammer",
+   "tags": [
+    "j44"
+   ]
+  },
+  "j45": {
+   "part": "jammer",
+   "tags": [
+    "j45"
+   ]
+  },
+  "j46": {
+   "part": "jammer",
+   "tags": [
+    "j46"
+   ]
+  },
+  "j47": {
+   "part": "jammer",
+   "tags": [
+    "j47"
+   ]
+  },
+  "j48": {
+   "part": "jammer",
+   "tags": [
+    "j48"
+   ]
+  },
+  "j49": {
+   "part": "jammer",
+   "tags": [
+    "j49"
+   ]
+  },
+  "j50": {
+   "part": "jammer",
+   "tags": [
+    "j50"
+   ]
+  },
+  "j51": {
+   "part": "jammer",
+   "tags": [
+    "j51"
+   ]
+  },
+  "j52": {
+   "part": "jammer",
+   "tags": [
+    "j52"
+   ]
+  },
+  "j53": {
+   "part": "jammer",
+   "tags": [
+    "j53"
+   ]
+  },
+  "j54": {
+   "part": "jammer",
+   "tags": [
+    "j54"
+   ]
+  },
+  "ga": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "ga"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gb": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gb"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gc": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gc"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gd": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gd"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "ge": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "ge"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gf": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gf"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gg": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gg"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gh": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gh"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gi": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gi"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gj": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gj"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gk": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gk"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gl": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gl"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gm": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gm"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gn": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gn"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "go": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "go"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gp": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gp"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gq": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gq"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gr": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gr"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gs": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gs"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "gt": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "gt"
+   ],
+   "makes": "ghost",
+   "size": [
+    3,
+    6
+   ]
+  },
+  "q0": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l0"
+   ],
+   "auto": false
+  },
+  "q1": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l1"
+   ],
+   "auto": false
+  },
+  "q2": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l2"
+   ],
+   "auto": false
+  },
+  "q3": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l3"
+   ],
+   "auto": false
+  },
+  "q4": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l4"
+   ],
+   "auto": false
+  },
+  "q5": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l5"
+   ],
+   "auto": false
+  },
+  "q6": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l6"
+   ],
+   "auto": false
+  },
+  "q7": {
+   "part": "propeller",
+   "rot": 0,
+   "tags": [
+    "l7"
+   ],
+   "auto": false
+  }
+ },
+ "autoControls": false,
+ "scripts": [
+  {
+   "id": "helm",
+   "params": {
+    "pods": 55,
+    "bays": 20,
+    "strips": 8
+   },
+   "source": {
+    "file": "titan-mirage.helm.js"
+   }
+  }
+ ],
+ "recipes": {
+  "ghost": {
+   "format": 1,
+   "name": "titan-mirage-ghost",
+   "grid": [
+    "Xd H",
+    "H  S^",
+    "N  C",
+    "y  E",
+    "E  J",
+    "k  k"
+   ],
+   "legend": {
+    "y": {
+     "part": "heavygyro",
+     "rot": 0,
+     "auto": false
+    },
+    "k": {
+     "part": "booster",
+     "rot": 0,
+     "auto": false
+    },
+    "H": {
+     "part": "heavywarhead",
+     "auto": false
+    }
+   },
+   "scripts": [
+    {
+     "id": "guide",
+     "source": {
+      "file": "titan-mirage.ghost.guide.js"
+     }
+    }
+   ]
+  }
+ },
+ "bindings": [
+  {
+   "key": "p",
+   "mode": "toggle",
+   "target": "reactor",
+   "channel": "push",
+   "value": 3
+  }
+ ]
+}

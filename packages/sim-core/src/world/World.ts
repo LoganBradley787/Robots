@@ -835,7 +835,8 @@ export class World {
       }
       const list = this.behaviorList(robot);
       power.forEach((made, chunk) => {
-        made.filled = fillHeld(energyParts((list.pools ??= []), robot, chunk), made.fill);
+        // Never more than was poured: a sum of shares can round past it, and past rating is overdrive.
+        made.filled = Math.min(made.fill, fillHeld(energyParts((list.pools ??= []), robot, chunk), made.fill));
       });
       list.power = power;
     }

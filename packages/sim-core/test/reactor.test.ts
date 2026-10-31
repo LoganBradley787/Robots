@@ -283,6 +283,21 @@ describe('reactor: overdrive and heat', () => {
     w.dispose();
   });
 
+  it('at rating it stays at rating: a sum of shares that rounds up is no overload, and a hot reactor at rating fries nothing', async () => {
+    const w = await world();
+    const bp = { format: 1, name: 'many', grid: ['Z  E  B  C  rc  Z  E  B', 'E  Z  Z  B  E   B  Z  E'] };
+    const r = w.spawnBlueprint(bp, { x: 0, y: 100 });
+    let i = 0.17;
+    for (const p of r.parts.values()) if (p.stored !== undefined) p.stored = (p.def.resource?.capacity ?? 0) * (i = (i * 7.3) % 0.9);
+    reactor(r).heat = 0.5;
+    run(w, 600);
+    expect(w.events.filter((e) => e.kind === 'overload')).toEqual([]);
+    expect(reactor(r).load).toBe(1);
+    expect(w.events.filter((e) => e.kind === 'partDestroyed')).toEqual([]);
+    for (const p of r.parts.values()) if (p.def.fuse === true) expect(p.health).toBe(p.def.health);
+    w.dispose();
+  });
+
   it('a little over rating still heats a little: no line to stop just short of', async () => {
     const w = await world();
     const bp = { format: 1, name: 'trickle', grid: ['C  rc  Z'], bindings: [{ key: 'p', mode: 'toggle', target: 'smallreactor', channel: 'push', value: 1.01 }] };
