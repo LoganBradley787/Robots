@@ -48,6 +48,11 @@ export interface PartInstance {
   progress?: number;
   built?: number;
   holds?: string;
+  /** A reactor's heat (0 to 1) and what it made last tick as times its rating. Undefined is 0. Hashed for reactors. */
+  heat?: number;
+  load?: number;
+  /** Killed by a reactor's heat: said on its `partDestroyed`. Transient, never hashed. */
+  cooked?: boolean;
   /** M13: a gun's ticks until it may fire again (undefined is 0: ready). */
   cooldown?: number;
   /** M14: the share of its energy a laser was granted this tick (0 when it is not firing). Hashed for lasers. */

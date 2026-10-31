@@ -8,7 +8,7 @@ import { Controller } from '../control/controller';
 import type { ControlledPart, ControlTrace, RobotInput } from '../control/types';
 import { BEHAVIORS, type Behavior, type BehaviorContext, type OutputReads } from '../behaviors/registry';
 import { allBindings, autoBindings } from '../control/autoControls';
-import { drainHeld, fillContainers, grantFactor, heldTotals, poolTotals, type Container } from '../resources/pools';
+import { drainHeld, fillContainers, fillHeld, grantFactor, heldTotals, poolTotals, type Container } from '../resources/pools';
 import type { PlannedAction } from '../behaviors/registry';
 import { ScriptRunner, type ScriptTickOutput } from '../script/runner';
 import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, ScriptMark, ScriptServices } from '../script/types';
@@ -73,7 +73,7 @@ export type WorldEvent =
     }
   | { tick: number; robot: number; kind: 'scriptCrashed'; script: string; error: ScriptError }
   /** A part reached 0 health and is gone. `x`, `y` is where its cell was; `exploded` when it set off a blast (M10). */
-  | { tick: number; robot: number; kind: 'partDestroyed'; part: string; partType: string; x: number; y: number; exploded: boolean; burntOut?: true }
+  | { tick: number; robot: number; kind: 'partDestroyed'; part: string; partType: string; x: number; y: number; exploded: boolean; burntOut?: true; cooked?: true }
   /** A blast went off (`robot` owned the part that exploded). */
   | { tick: number; robot: number; kind: 'explosion'; x: number; y: number; radius: number }
   /** A robot broke apart: it keeps one piece, the others are new robots. */
@@ -99,6 +99,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'lit'; part: string; of: number }
   /** M11: a decoy burnt out; it is destroyed this tick without a blast. */
   | { tick: number; robot: number; kind: 'burntOut'; part: string }
+  /** A piece's reactors first ran past their rating. */
+  | { tick: number; robot: number; kind: 'overload'; chunk: number }
   /** Batch: a jammer pod started jamming, in a bubble of `radius` meters around `x`, `y`. */
   | { tick: number; robot: number; kind: 'jamStarted'; part: string; x: number; y: number; radius: number }
   /** M12: a fabricator finished a copy of `recipe`, now held in it with its own `scope`. */
@@ -160,6 +162,11 @@ interface Hull {
   boxes: (HullBox | undefined)[];
   body: (group: number) => BodyPose;
 }
+
+/** A cooling reactor's heat under this is 0: a float falling toward 0 never gets there. */
+const REACTOR_COLD = 1e-6;
+/** Parts asking at least this share of the top draw count as the top draw (`World.topDrawer`). */
+const TOP_DRAW_BAND = 0.9;
 
 /** Added to a charge's radius for the box check only, so rounding can never hide a cell the exact check would find. */
 const CHARGE_SLACK = 0.01;
@@ -388,6 +395,8 @@ export class World {
   private readonly controllers = new Map<number, Controller>();
   /** Sandbox switch: every energy request is granted and nothing drains. Simulation state, logged and hashed. */
   private unlimited = false;
+  /** Pools (`robot:chunk`) whose reactors have run past their rating: the `overload` event fires once each. Never hashed. */
+  private readonly overloaded = new Set<string>();
   private pendingUnlimited: boolean | undefined;
   /**
    * Sandbox rule: what a part's `smoke` or `jammer` block does to sensors is off. Clouds are still released, drift and
@@ -725,10 +734,12 @@ export class World {
     }
     this.armParts();
     this.runSolar();
+    this.runReactors();
     // Structure first (a decoupler firing), so the pieces exist before anything pushes on this tick.
     this.runBehaviors(true);
     if (this.dirty.size > 0) this.rebuildDirty();
     this.runBehaviors(false);
+    this.settleReactors();
     this.applyPendingForces();
     this.grapples.sync(this.gh());
     this.physics.step();
@@ -796,6 +807,145 @@ export class World {
         }
       }
     }
+  }
+
+  /**
+   * Every reactor adds its rating to its chunk's pool, or `push` times that when pushed; each chunk's reactors are
+   * added up first, then poured in once, like solar panels, and a pool with no room takes less. What they may still
+   * make this tick goes on the robot's behavior list (`ReactorPower`), so it is gone if the robot is rebuilt mid-tick.
+   * Core or no core: a wreck's reactors run too (Logan). They make nothing in the sandbox's unlimited-energy mode.
+   */
+  private runReactors(): void {
+    if (this.unlimited) return;
+    for (const robot of this.robots) {
+      const reactors = partLists(robot).reactors;
+      if (reactors.length === 0) continue;
+      const power: ReactorPower[] = [];
+      const chans = this.channels.get(robot.id);
+      for (const part of reactors) {
+        const spec = part.def.reactor;
+        if (spec === undefined || part.health <= 0) continue;
+        const chunk = chunkIndex(robot, part.id);
+        const made = (power[chunk] ??= { rating: 0, fill: 0, limit: 0, filled: 0, extra: 0 });
+        const rated = spec.power * this.dt;
+        const push = chans?.get(part.id)?.get('push') ?? 0;
+        made.rating += rated;
+        made.fill += push >= 1 ? rated * push : rated;
+        made.limit += push >= 1 ? rated * push : push > 0 ? rated : rated * spec.cap;
+      }
+      const list = this.behaviorList(robot);
+      power.forEach((made, chunk) => {
+        made.filled = fillHeld(energyParts((list.pools ??= []), robot, chunk), made.fill);
+      });
+      list.power = power;
+    }
+  }
+
+  /**
+   * Once this tick's grants are settled: each reactor's load (what its chunk's reactors made, as times their rating)
+   * and heat, the same line heating and cooling, then each chunk over its rating cooks what it should (`fry`). A chunk
+   * that made nothing (Unlimited, or rebuilt mid-tick) just cools.
+   */
+  private settleReactors(): void {
+    for (const robot of this.robots) {
+      const reactors = partLists(robot).reactors;
+      if (reactors.length === 0) continue;
+      const list = this.behaviorList(robot);
+      const power = list.power;
+      const drew = list.drew;
+      list.power = undefined;
+      list.drew = undefined;
+      let burns: number[] | undefined;
+      for (const part of reactors) {
+        const spec = part.def.reactor;
+        if (spec === undefined) continue;
+        const chunk = chunkIndex(robot, part.id);
+        const made = power?.[chunk];
+        const x = made && made.rating > 0 ? (made.filled + made.extra) / made.rating : 0;
+        const over = Math.max(0, Math.min(1, (x - 1) / (spec.cap - 1)));
+        const was = part.heat ?? 0;
+        const heat = was + ((over * over - was) * this.dt) / spec.tau;
+        part.heat = over === 0 && heat < REACTOR_COLD ? 0 : heat;
+        part.load = x;
+        if (over > 0) (burns ??= [])[chunk] = (burns[chunk] ?? 0) + spec.burn * part.heat * this.dt;
+      }
+      burns?.forEach((hp, chunk) => {
+        const key = `${robot.id}:${chunk}`;
+        if (!this.overloaded.has(key)) {
+          this.overloaded.add(key);
+          this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'overload', chunk });
+        }
+        this.fry(robot, chunk, hp, drew ?? []);
+      });
+    }
+  }
+
+  /**
+   * `hp` of a chunk's health goes to its next victims: what a victim can take, the rest to the next, so a big robot is
+   * not held to one part a tick. Parts die in the damage phase like any other kill, each with its own blast.
+   */
+  private fry(robot: Robot, chunk: number, hp: number, drew: readonly (readonly PlannedDraw[])[]): void {
+    const fuses = partLists(robot).fuses;
+    let left = hp;
+    while (left > 0) {
+      const victim = this.nextFuse(robot, chunk, fuses) ?? this.topDrawer(chunk, drew);
+      if (!victim) return;
+      const take = Math.min(left, victim.health);
+      victim.health -= take;
+      left -= take;
+      if (victim.health <= 0) victim.cooked = true;
+    }
+  }
+
+  /** The chunk's weakest live fuse: lowest health sticks, so one battery goes at a time instead of all being scratched. */
+  private nextFuse(robot: Robot, chunk: number, fuses: readonly PartInstance[]): PartInstance | undefined {
+    const tied: PartInstance[] = [];
+    let low = Infinity;
+    for (const p of fuses) {
+      if (p.health <= 0 || p.health > low || chunkIndex(robot, p.id) !== chunk) continue;
+      if (p.health < low) tied.length = 0;
+      low = p.health;
+      tied.push(p);
+    }
+    return this.pickOne(tied);
+  }
+
+  /**
+   * What draws the most in the chunk this tick, both passes (a bay draws in the early one). Anything within
+   * `TOP_DRAW_BAND` of the top counts as the top, lowest health first: propellers a hover trims a little apart lose
+   * one at a time.
+   */
+  private topDrawer(chunk: number, drew: readonly (readonly PlannedDraw[])[]): PartInstance | undefined {
+    let top = 0;
+    for (const pass of drew) for (const d of pass) if (d.chunk === chunk && d.request > top && d.part.health > 0) top = d.request;
+    if (top <= 0) return undefined;
+    const tied: PartInstance[] = [];
+    let low = Infinity;
+    for (const pass of drew) {
+      for (const d of pass) {
+        const p = d.part;
+        if (d.chunk !== chunk || d.request < top * TOP_DRAW_BAND || p.health <= 0 || p.health > low) continue;
+        if (p.health < low) tied.length = 0;
+        low = p.health;
+        tied.push(p);
+      }
+    }
+    return this.pickOne(tied);
+  }
+
+  /** One of `tied`: the only one without touching the RNG, else one draw of the world's seeded RNG. */
+  private pickOne(tied: readonly PartInstance[]): PartInstance | undefined {
+    return tied.length > 1 ? tied[Math.floor(this.rng.next() * tied.length)] : tied[0];
+  }
+
+  /**
+   * A reactor's fill is only what fit, so a robot flying on overdrive ends every tick with an empty pool and still
+   * flies: powered is something stored, or a live reactor that made something this tick. For the app's flames and sound.
+   */
+  powered(robotId: number): boolean {
+    if ((this.energy(robotId)?.stored ?? 0) > 0) return true;
+    const robot = this.byId.get(robotId);
+    return robot !== undefined && partLists(robot).reactors.some((p) => (p.load ?? 0) > 0);
   }
 
   /**
@@ -1531,7 +1681,7 @@ export class World {
         // An unarmed part that needs arming breaks like any other part (M10). A charge blasts only when it was set off
         // (Batch): shot or caught in a blast, it breaks as a dud.
         const explode = part.armed === false || (part.def.charge !== undefined && part.fired !== true) ? undefined : part.def.onDestroyed?.explode;
-        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y, exploded: explode !== undefined, ...(part.burn === 0 ? { burntOut: true as const } : {}) });
+        this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y, exploded: explode !== undefined, ...(part.burn === 0 ? { burntOut: true as const } : {}), ...(part.cooked === true ? { cooked: true as const } : {}) });
         if (explode) this.queuedBlasts.push({ robot: robot.id, x: pose.x, y: pose.y, spec: explode });
       }
     }
@@ -2792,6 +2942,7 @@ export class World {
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
     if (name === 'jamming' && part.def.jammer !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
+    if (part.def.reactor !== undefined && (name === 'heat' || name === 'load')) return name === 'heat' ? (part.heat ?? 0) : (part.load ?? 0);
     if (part.def.gun !== undefined || part.def.laser !== undefined || part.def.cannon !== undefined) return gunOutput(part, name);
     if (part.def.grapple !== undefined) return this.grapples.output(part, name);
     return undefined;
@@ -3358,7 +3509,7 @@ export class World {
       const entries = early ? list.early : list.late;
       // Nothing plans: every chunk would ask for nothing, which grants in full and changes nothing.
       if (entries.length === 0) continue;
-      const planned: { action: PlannedAction; chunk: number; request: number }[] = [];
+      const planned: (PlannedDraw & { action: PlannedAction })[] = [];
       // Each chunk's requests, summed in planned order from 0 (as a filter and a reduce would), so the floats match.
       const sums: number[] = new Array<number>(robot.chunks.length).fill(0);
       const chans = this.channels.get(robot.id);
@@ -3378,11 +3529,12 @@ export class World {
         const load = Number.isFinite(action?.load) ? Math.max(0, Math.min(1, action?.load ?? 0)) : 0;
         if (action) {
           const request = entry.part.def.powerDraw * load * this.dt;
-          planned.push({ action, chunk: entry.chunk, request });
+          planned.push({ action, part: entry.part, chunk: entry.chunk, request });
           if (entry.chunk < sums.length) sums[entry.chunk] = (sums[entry.chunk] ?? 0) + request;
         }
       }
       const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0, list));
+      if (list.power) (list.drew ??= []).push(planned);
       // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
       for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
       const back = list.back as Map<number, number> | undefined;
@@ -3459,9 +3611,13 @@ export class World {
     if (this.unlimited) return 1;
     const containers = energyParts((list.pools ??= []), robot, chunk);
     const { stored } = heldTotals(containers);
-    const grant = grantFactor(stored, requested);
+    const made = list.power?.[chunk];
+    // Overdrive: the chunk's reactors make what the pool cannot pay, up to what is left of their limit this tick.
+    const extra = made ? Math.min(Math.max(0, requested - stored), Math.max(0, made.limit - made.filled - made.extra)) : 0;
+    if (made) made.extra += extra;
+    const grant = grantFactor(stored + extra, requested);
     const taken = drainHeld(containers, stored, Math.min(requested, stored));
-    this.used.set(robot.id, (this.used.get(robot.id) ?? 0) + taken);
+    this.used.set(robot.id, (this.used.get(robot.id) ?? 0) + taken + extra);
     const key = `${robot.id}:${chunk}`;
     // Only a pool this tick actually emptied: a chunk that never held energy never "runs out".
     if (taken > 0 && stored - taken <= 0 && !this.emptied.has(key)) {
@@ -3574,6 +3730,12 @@ export class World {
         if (part.def.laser !== undefined) {
           h.addF64(part.beam ?? 0);
           h.addString(part.burning ?? '');
+        }
+        // A reactor's heat, load, and push. Other parts add nothing.
+        if (part.def.reactor !== undefined) {
+          h.addF64(part.heat ?? 0);
+          h.addF64(part.load ?? 0);
+          h.addF64(this.channels.get(robot.id)?.get(part.id)?.get('push') ?? 0);
         }
         // A charged gun's charge (M15). Other parts add nothing.
         if (part.def.cannon !== undefined) {
@@ -3850,6 +4012,7 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
   if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
   if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
   if (name === 'jamming' && part.def.jammer !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
+  if (part.def.reactor !== undefined && (name === 'heat' || name === 'load')) return name === 'heat' ? (part.heat ?? 0) : (part.load ?? 0);
   const range = sightRange(part);
   if (range !== undefined) {
     if (name === 'sight') return part.sight?.distance ?? range;
@@ -3920,6 +4083,31 @@ interface BehaviorList {
   back: Map<number, number> | undefined;
   /** Each chunk's energy parts in id order, found on first use (`energyParts`). */
   pools?: PartInstance[][];
+  /** This tick, per chunk with live reactors (a sparse array): what they made and may make (`runReactors`). */
+  power?: ReactorPower[] | undefined;
+  /** This tick, on a robot with `power`: what each behavior pass asked for. */
+  drew?: PlannedDraw[][] | undefined;
+}
+
+/** One chunk's reactors on one tick, in joules. Lives on the behavior list, so a rebuild mid-tick drops it. */
+interface ReactorPower {
+  /** What their rating makes. */
+  rating: number;
+  /** What they pour in before behaviors: `rating`, or more when pushed. */
+  fill: number;
+  /** The most they make this tick: `cap` times `rating`, or less when `push` holds them back. */
+  limit: number;
+  /** What fit in the pool. */
+  filled: number;
+  /** What they made on top for what the pool could not pay, over both behavior passes. */
+  extra: number;
+}
+
+/** A part's request this tick, as far as who a reactor's heat cooks goes. */
+interface PlannedDraw {
+  part: PartInstance;
+  chunk: number;
+  request: number;
 }
 
 /** Each robot's part-to-chunk map, rebuilt when the robot is (its `version` changes). */

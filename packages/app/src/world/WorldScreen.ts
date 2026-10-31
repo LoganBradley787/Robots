@@ -880,7 +880,7 @@ export class WorldScreen {
         continue;
       }
       // A part that needs energy only looks busy (flame, spinning blades) while its robot has some to give.
-      const powered = this.world.unlimitedEnergy || (this.world.energy(id)?.stored ?? 0) > 0;
+      const powered = this.world.unlimitedEnergy || this.world.powered(id);
       const robot = this.world.robotById(id);
       v.sync(this.world.physics, alpha, (partId, channel) =>
         !powered && (robot?.parts.get(partId)?.def.powerDraw ?? 0) > 0 ? 0 : this.world.channelValue(id, partId, channel),

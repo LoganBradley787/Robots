@@ -524,7 +524,7 @@ export class LoopBank {
         this.parts.set(robot.id, cached);
       }
       if (cached.list.length === 0) continue;
-      const powered = world.unlimitedEnergy || (world.energy(robot.id)?.stored ?? 0) > 0;
+      const powered = world.unlimitedEnergy || world.powered(robot.id);
       const channels = world.robotChannels(robot.id);
       const root = robot.groups[0];
       if (!root) continue;

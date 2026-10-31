@@ -105,6 +105,26 @@ export function drainHeld(held: readonly Holder[], total: number, amount: number
   return taken;
 }
 
+/** `fillContainers` of parts in id order, written straight to them. */
+export function fillHeld(held: readonly Holder[], amount: number): number {
+  let room = 0;
+  for (const p of held) if (p.stored !== undefined && p.def.resource) room += Math.max(0, p.def.resource.capacity - p.stored);
+  if (amount <= 0 || room <= 0) return 0;
+  let added = 0;
+  for (const p of held) {
+    if (p.stored === undefined || !p.def.resource) continue;
+    const free = Math.max(0, p.def.resource.capacity - p.stored);
+    if (amount >= room) {
+      p.stored = Math.max(p.stored, p.def.resource.capacity);
+      continue;
+    }
+    const share = Math.min(free, (amount * free) / room);
+    p.stored = Math.min(p.def.resource.capacity, p.stored + share);
+    added += share;
+  }
+  return amount >= room ? room : added;
+}
+
 /** The containers in part id order: as given when they already are (a kept list), else a sorted copy. */
 function inIdOrder(containers: readonly Container[]): readonly Container[] {
   for (let i = 1; i < containers.length; i++) if (byId(containers[i - 1]!, containers[i]!) > 0) return [...containers].sort(byId);

@@ -413,7 +413,8 @@ export async function duel(a: DuelEntry, b: DuelEntry, opts: DuelOptions): Promi
         const w = watchOf(e.robot);
         if (!w) continue;
         if (e.kind === 'released') w.copies++;
-        if (e.kind === 'partDestroyed' && (e.exploded || e.burntOut === true)) w.ended(e.part);
+        // A part that went off or burnt out on purpose is no loss. One cooked by its own reactor is.
+        if (e.kind === 'partDestroyed' && e.cooked !== true && (e.exploded || e.burntOut === true)) w.ended(e.part);
         if (e.kind === 'scriptCrashed') {
           const core = world.robotById(e.robot)?.primaryCoreId;
           crashes.push({ side: w === wa ? 'a' : 'b', robot: e.robot, main: w.holds(e.robot), ...(core !== undefined ? { core } : {}), script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message });
