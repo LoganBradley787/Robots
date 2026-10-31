@@ -703,6 +703,38 @@ function drawSolar(): Canvas {
   return cv;
 }
 
+/** Reactor: a heavy steel block round a sealed drum with a blue-white heart. Three cells a side. */
+function drawReactor(): Canvas {
+  const size = CELL * 3;
+  const c = size / 2;
+  const cv = new Canvas(size, size);
+  plate(cv, 0, 0, size, size, hex('#5b616b'), OUTLINE, 3);
+  for (const [x, y] of [[14, 14], [size - 14, 14], [14, size - 14], [size - 14, size - 14]] as const) {
+    cv.fill(circle(x, y, 6), hex('#2c3037'));
+    cv.fill(circle(x, y, 3.5), hex('#8a9099'));
+  }
+  cv.fill(circle(c, c, 74), hex('#1b1e23'));
+  cv.fill(circle(c, c, 70), hex('#3d434c'));
+  cv.fill(circle(c, c, 50), hex('#1b1e23'));
+  cv.fill(circle(c, c, 44), hex('#1f3f86'));
+  cv.fill(circle(c, c, 28), hex('#8fb2ee'));
+  cv.fill(circle(c, c, 14), WHITE);
+  glow(cv, c, c, 56, hex('#8fb2ee'), 0.7);
+  return cv;
+}
+
+/** Small reactor: the same drum in one cell. */
+function drawSmallReactor(): Canvas {
+  const cv = new Canvas(CELL, CELL);
+  plate(cv, 0, 0, CELL, CELL, hex('#5b616b'), OUTLINE, 2.5);
+  cv.fill(circle(32, 32, 25), hex('#1b1e23'));
+  cv.fill(circle(32, 32, 21), hex('#1f3f86'));
+  cv.fill(circle(32, 32, 13), hex('#8fb2ee'));
+  cv.fill(circle(32, 32, 6), WHITE);
+  glow(cv, 32, 32, 20, hex('#8fb2ee'), 0.6);
+  return cv;
+}
+
 /**
  * Distance charge (Batch): a squat olive-drab case with a ring of small feeler studs around a central sensor dome.
  * Armed, the dome glows red; unarmed it is a dark socket.
@@ -1271,6 +1303,8 @@ function main(): void {
     { name: 'part.lance', canvas: drawLance() },
     { name: 'part.armorplate', canvas: drawArmorPlate() },
     { name: 'part.solar', canvas: drawSolar() },
+    { name: 'part.reactor', canvas: drawReactor() },
+    { name: 'part.smallreactor', canvas: drawSmallReactor() },
     { name: 'part.swivelthruster', canvas: drawSwivelThruster() },
     { name: 'part.fin', canvas: drawFin() },
     { name: 'part.charge', canvas: drawCharge() },

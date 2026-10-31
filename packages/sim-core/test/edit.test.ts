@@ -143,7 +143,7 @@ describe('staticStats', () => {
   });
 
   it('is zero mass and origin for an empty blueprint', () => {
-    expect(staticStats(blankBlueprint('b'), reg)).toEqual({ parts: 0, massKg: 0, comX: 0, comY: 0, energy: 0, fullDraw: 0 });
+    expect(staticStats(blankBlueprint('b'), reg)).toEqual({ parts: 0, massKg: 0, comX: 0, comY: 0, energy: 0, fullDraw: 0, power: 0 });
   });
 });
 

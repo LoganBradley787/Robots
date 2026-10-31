@@ -23,6 +23,8 @@ import fabbay from './defs/fabbay.json';
 import gun from './defs/gun.json';
 import armorplate from './defs/armorplate.json';
 import solar from './defs/solar.json';
+import reactor from './defs/reactor.json';
+import smallreactor from './defs/smallreactor.json';
 import swivelthruster from './defs/swivelthruster.json';
 import fin from './defs/fin.json';
 import charge from './defs/charge.json';
@@ -100,6 +102,8 @@ const SHIPPED: Array<[string, unknown]> = [
   ['cannon.json', cannon],
   ['lance.json', lance],
   ['heavyrotator.json', heavyrotator],
+  ['reactor.json', reactor],
+  ['smallreactor.json', smallreactor],
 ];
 
 let shipped: PartRegistry | null = null;

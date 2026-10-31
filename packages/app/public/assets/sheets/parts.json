@@ -640,9 +640,49 @@
         "h": 64
       }
     },
-    "part.swivelthruster": {
+    "part.reactor": {
+      "frame": {
+        "x": 271,
+        "y": 479,
+        "w": 192,
+        "h": 192
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 192
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 192
+      }
+    },
+    "part.smallreactor": {
       "frame": {
         "x": 71,
+        "y": 275,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.swivelthruster": {
+      "frame": {
+        "x": 139,
         "y": 275,
         "w": 64,
         "h": 64
@@ -662,7 +702,7 @@
     },
     "part.fin": {
       "frame": {
-        "x": 139,
+        "x": 207,
         "y": 275,
         "w": 64,
         "h": 64
@@ -682,7 +722,7 @@
     },
     "part.charge": {
       "frame": {
-        "x": 207,
+        "x": 275,
         "y": 275,
         "w": 64,
         "h": 64
@@ -702,7 +742,7 @@
     },
     "part.charge.armed": {
       "frame": {
-        "x": 275,
+        "x": 343,
         "y": 275,
         "w": 64,
         "h": 64
@@ -722,7 +762,7 @@
     },
     "part.radio": {
       "frame": {
-        "x": 343,
+        "x": 411,
         "y": 275,
         "w": 64,
         "h": 64
@@ -742,26 +782,6 @@
     },
     "part.smoke": {
       "frame": {
-        "x": 411,
-        "y": 275,
-        "w": 64,
-        "h": 64
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 64,
-        "h": 64
-      },
-      "sourceSize": {
-        "w": 64,
-        "h": 64
-      }
-    },
-    "part.grapple": {
-      "frame": {
         "x": 3,
         "y": 343,
         "w": 64,
@@ -780,7 +800,7 @@
         "h": 64
       }
     },
-    "part.piston": {
+    "part.grapple": {
       "frame": {
         "x": 71,
         "y": 343,
@@ -800,7 +820,7 @@
         "h": 64
       }
     },
-    "part.piston.mount": {
+    "part.piston": {
       "frame": {
         "x": 139,
         "y": 343,
@@ -820,27 +840,7 @@
         "h": 64
       }
     },
-    "part.fabbay": {
-      "frame": {
-        "x": 271,
-        "y": 479,
-        "w": 192,
-        "h": 384
-      },
-      "rotated": false,
-      "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 192,
-        "h": 384
-      },
-      "sourceSize": {
-        "w": 192,
-        "h": 384
-      }
-    },
-    "part.fabbay.floor": {
+    "part.piston.mount": {
       "frame": {
         "x": 207,
         "y": 343,
@@ -860,7 +860,27 @@
         "h": 64
       }
     },
-    "part.fabbay.corner": {
+    "part.fabbay": {
+      "frame": {
+        "x": 467,
+        "y": 479,
+        "w": 192,
+        "h": 384
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 192,
+        "h": 384
+      },
+      "sourceSize": {
+        "w": 192,
+        "h": 384
+      }
+    },
+    "part.fabbay.floor": {
       "frame": {
         "x": 275,
         "y": 343,
@@ -880,7 +900,7 @@
         "h": 64
       }
     },
-    "part.fabbay.wall": {
+    "part.fabbay.corner": {
       "frame": {
         "x": 343,
         "y": 343,
@@ -900,7 +920,7 @@
         "h": 64
       }
     },
-    "part.fabbay.mouth": {
+    "part.fabbay.wall": {
       "frame": {
         "x": 411,
         "y": 343,
@@ -920,9 +940,29 @@
         "h": 64
       }
     },
-    "part.fabbay.back": {
+    "part.fabbay.mouth": {
       "frame": {
         "x": 3,
+        "y": 411,
+        "w": 64,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 64,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 64,
+        "h": 64
+      }
+    },
+    "part.fabbay.back": {
+      "frame": {
+        "x": 71,
         "y": 411,
         "w": 64,
         "h": 64
@@ -945,7 +985,7 @@
     "image": "parts.png",
     "format": "RGBA8888",
     "size": {
-      "w": 478,
+      "w": 662,
       "h": 866
     },
     "scale": "1"

@@ -13,6 +13,8 @@ export interface StaticStats {
   energy: number;
   /** Energy per second with every part working at full command. */
   fullDraw: number;
+  /** Energy per second its reactors make at their rating. */
+  power: number;
 }
 
 /** Mass, balance, and energy from part defs alone, for the builder. Unknown parts are skipped. */
@@ -22,11 +24,13 @@ export function staticStats(bp: Blueprint, registry: PartRegistry): StaticStats 
   let my = 0;
   let energy = 0;
   let fullDraw = 0;
+  let power = 0;
   for (const p of bp.parts) {
     if (!registry.has(p.part)) continue;
     const def = registry.get(p.part);
     if (def.resource?.kind === 'energy') energy += def.resource.capacity;
     fullDraw += def.powerDraw;
+    power += def.reactor?.power ?? 0;
     const cells = partCells(p, registry);
     const m = partMass(def, footprintOf(def, p.size)) / cells.length;
     for (const { cell } of cells) {
@@ -35,5 +39,5 @@ export function staticStats(bp: Blueprint, registry: PartRegistry): StaticStats 
       my += m * cell.y;
     }
   }
-  return { parts: bp.parts.length, massKg: mass, comX: mass > 0 ? mx / mass : 0, comY: mass > 0 ? my / mass : 0, energy, fullDraw };
+  return { parts: bp.parts.length, massKg: mass, comX: mass > 0 ? mx / mass : 0, comY: mass > 0 ? my / mass : 0, energy, fullDraw, power };
 }

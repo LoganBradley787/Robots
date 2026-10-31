@@ -20,7 +20,7 @@ describe('parts', () => {
   });
 
   it('has a row per part in builder order, with its key and legend tokens', () => {
-    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+    expect(rows.map((r) => r.key)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
     const thruster = rows.find((r) => r.id === 'thruster');
     expect(thruster).toMatchObject({ key: '5', legend: ['T^', 'T<', 'Tv', 'T>'], mass: 1, health: 25, faces: ['N', 'E', 'W'], power: 20 });
     expect(thruster?.details.join('\n')).toContain('maxForce 160 N');
@@ -33,6 +33,8 @@ describe('parts', () => {
     expect(rows.find((r) => r.id === 'densebattery')).toMatchObject({ key: '', legend: ['Z'] });
     expect(rows.find((r) => r.id === 'fabbay')).toMatchObject({ key: '', legend: [], mass: 13, health: 150 });
     expect(rows.find((r) => r.id === 'gun')).toMatchObject({ key: '', legend: ['M^', 'M<', 'Mv', 'M>'], mass: 1, faces: ['S'], health: 25, power: 0 });
+    expect(rows.find((r) => r.id === 'reactor')).toMatchObject({ key: '', legend: ['Rc'], mass: 100, health: 300, power: 0 });
+    expect(rows.find((r) => r.id === 'smallreactor')).toMatchObject({ key: '', legend: ['rc'], mass: 20, faces: ['N', 'E', 'S', 'W'], health: 60, power: 0 });
     expect(rows.find((r) => r.id === 'armorplate')).toMatchObject({ key: '', legend: ['A'], mass: 20, faces: ['N', 'E', 'S', 'W'], health: 250, power: 0 });
     expect(rows.find((r) => r.id === 'armorplate')?.details.join('\n')).toMatch(/takes 0.1 of a shell's damage \(500 hits/);
     expect(rows.find((r) => r.id === 'solar')).toMatchObject({ key: '', legend: ['So'], mass: 0.5, faces: ['S'], health: 8, power: 0 });
@@ -76,6 +78,10 @@ describe('parts', () => {
     expect(text('lance')).toMatch(/a line: one part at a time/);
     expect(text('lance')).toMatch(/looking 400 m from the barrel's end/);
     expect(text('gun')).toMatch(/up to 1.5 degrees off the barrel's line/);
+    expect(text('reactor')).toMatch(/reactor: makes 1500 J\/s into its pool, core in charge or not.*up to 3 times its rating/);
+    expect(text('reactor')).toMatch(/push \(0 to 3, holds until changed.*0 automatic; 1 to 3 runs it at that many times its rating even with charge left; under 1 keeps it to its rating/);
+    expect(text('smallreactor')).toMatch(/time constant 4 s, and it cooks 40 times heat health a second: fuses \(batteries, full or empty, weakest first\), then the biggest draw/);
+    expect(text('densebattery')).toContain('fuse: a reactor run past its rating cooks this first');
     expect(text('solar')).toMatch(/solar: adds 6 J\/s \(times the cosine of the angle between its N face and straight up.*\) to its chunk's energy pool while its N face points up/);
     expect(text('swivelthruster')).toMatch(/tilts its push up to 15 degrees counterclockwise \(positive\) or clockwise \(negative\) from its N face/);
     expect(text('swivelthruster')).toContain('swivel 15 deg');

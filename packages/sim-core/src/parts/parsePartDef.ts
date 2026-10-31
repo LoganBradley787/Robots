@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'category', 'about', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage', 'beamDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'reactor', 'fuse', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
 ] as const;
 
 /** `crash.hardness`: a positive finite number no sum of shares can overflow, with what the scale means in the error. */
@@ -90,8 +90,13 @@ function faces(r: Reader, v: unknown, path: string): Face[] {
 function channels(r: Reader, o: Obj, key: string): ChannelDef[] {
   return r.arr(o, key, '').map((c, i) => {
     const path = `${key}[${i}]`;
-    const co = r.obj(c, path, ['name', 'min', 'max', 'default']);
-    const ch = { name: r.str(co, 'name', path), min: r.num(co, 'min', path), max: r.num(co, 'max', path), default: r.num(co, 'default', path) };
+    const co = r.obj(c, path, ['name', 'min', 'max', 'default', 'holds']);
+    const ch: ChannelDef = { name: r.str(co, 'name', path), min: r.num(co, 'min', path), max: r.num(co, 'max', path), default: r.num(co, 'default', path) };
+    if (co.holds !== undefined) {
+      if (co.holds !== true) r.fail(`${path}.holds`, 'must be true when present');
+      if (key === 'outputs') r.fail(`${path}.holds`, 'is for inputs: only a script write can hold');
+      ch.holds = true;
+    }
     if (ch.min > ch.max) r.fail(`${path}.min`, 'must not exceed max');
     if (ch.default < ch.min || ch.default > ch.max) r.fail(`${path}.default`, 'must be between min and max');
     return ch;
@@ -306,6 +311,20 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     const so = r.obj(o.solar, 'solar', ['power']);
     if (def.acts === undefined) r.fail('solar', 'a solar panel needs "acts" (the face that catches the sun)');
     def.solar = { power: r.positive(so, 'power', 'solar') };
+  }
+  if (o.reactor !== undefined) {
+    const ro = r.obj(o.reactor, 'reactor', ['power', 'cap', 'tau', 'burn']);
+    const spec = { power: r.positive(ro, 'power', 'reactor'), cap: r.positive(ro, 'cap', 'reactor'), tau: r.positive(ro, 'tau', 'reactor'), burn: r.positive(ro, 'burn', 'reactor') };
+    if (spec.cap <= 1) r.fail('reactor.cap', 'must be above 1: it is how many times its rating the reactor can run');
+    const push = def.inputs.find((c) => c.name === 'push');
+    if (!push) r.fail('reactor', 'a reactor must have a "push" input (0 automatic, 1 to cap: that many times its rating)');
+    if (push.min !== 0 || push.max !== spec.cap || push.default !== 0) r.fail('reactor', `a reactor's "push" input must go from 0 to its cap (${spec.cap}), default 0 (automatic)`);
+    for (const out of ['heat', 'load']) if (!def.outputs.some((c) => c.name === out)) r.fail('reactor', `a reactor must have a "${out}" output`);
+    def.reactor = spec;
+  }
+  if (o.fuse !== undefined) {
+    if (o.fuse !== true) r.fail('fuse', 'must be true when present');
+    def.fuse = true;
   }
   if (o.charge !== undefined) {
     const m = r.obj(o.charge, 'charge', ['radius', 'crash']);

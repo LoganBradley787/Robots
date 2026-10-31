@@ -1,0 +1,30 @@
+{
+  "id": "reactor",
+  "name": "Reactor",
+  "category": "Energy",
+  "about": "Fills its piece's batteries for as long as it lives. Run past its rating it heats, and the heat fries batteries.",
+  "footprint": [
+    { "x": 0, "y": 0, "faces": ["S", "W"] },
+    { "x": 1, "y": 0, "faces": ["S"] },
+    { "x": 2, "y": 0, "faces": ["E", "S"] },
+    { "x": 0, "y": 1, "faces": ["W"] },
+    { "x": 1, "y": 1, "faces": [] },
+    { "x": 2, "y": 1, "faces": ["E"] },
+    { "x": 0, "y": 2, "faces": ["N", "W"] },
+    { "x": 1, "y": 2, "faces": ["N"] },
+    { "x": 2, "y": 2, "faces": ["N", "E"] }
+  ],
+  "mass": 100,
+  "health": 300,
+  "build": 12.0,
+  "symmetry": 1,
+  "inputs": [{ "name": "push", "min": 0, "max": 3, "default": 0, "holds": true }],
+  "outputs": [
+    { "name": "heat", "min": 0, "max": 1, "default": 0 },
+    { "name": "load", "min": 0, "max": 3, "default": 0 }
+  ],
+  "powerDraw": 0,
+  "reactor": { "power": 1500, "cap": 3, "tau": 10, "burn": 40 },
+  "onDestroyed": { "explode": { "radius": 3, "damage": 80, "pushRadius": 5, "push": 30, "lift": 1 } },
+  "sprite": { "frame": "part.reactor" }
+}

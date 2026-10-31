@@ -15,6 +15,9 @@ export interface PartLists {
   /** Parts `armParts` looks at: smoke pods, decoys, jammers, and parts that need arming. */
   arming: PartInstance[];
   solar: PartInstance[];
+  reactors: PartInstance[];
+  /** What a reactor's heat cooks first (`World.fry`). */
+  fuses: PartInstance[];
   charges: PartInstance[];
   guns: PartInstance[];
   lasers: PartInstance[];
@@ -31,7 +34,7 @@ const kept = new WeakMap<Robot, PartLists>();
 export function partLists(robot: Robot): PartLists {
   const had = kept.get(robot);
   if (had && had.version === robot.version && had.parts === robot.parts && had.size === robot.parts.size) return had;
-  const lists: PartLists = { version: robot.version, parts: robot.parts, size: robot.parts.size, all: [], arming: [], solar: [], charges: [], guns: [], lasers: [], cannons: [], grapples: [], groups: [], shrugsOff: Infinity };
+  const lists: PartLists = { version: robot.version, parts: robot.parts, size: robot.parts.size, all: [], arming: [], solar: [], reactors: [], fuses: [], charges: [], guns: [], lasers: [], cannons: [], grapples: [], groups: [], shrugsOff: Infinity };
   const seen = new Set<number>();
   for (const part of robot.parts.values()) {
     const def = part.def;
@@ -39,6 +42,8 @@ export function partLists(robot: Robot): PartLists {
     lists.all.push(part);
     if (def.smoke !== undefined || def.decoy !== undefined || def.jammer !== undefined || def.arming === true) lists.arming.push(part);
     if (def.solar !== undefined) lists.solar.push(part);
+    if (def.reactor !== undefined) lists.reactors.push(part);
+    if (def.fuse === true) lists.fuses.push(part);
     if (def.charge !== undefined) lists.charges.push(part);
     if (def.gun !== undefined) lists.guns.push(part);
     if (def.laser !== undefined) lists.lasers.push(part);

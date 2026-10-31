@@ -18,6 +18,12 @@ export interface ChannelDef {
   min: number;
   max: number;
   default: number;
+  /**
+   * A script's write stays until a script writes it again, instead of lasting one tick. For a setting (a reactor's
+   * `push`), so a pilot sets it once and nothing has to send it every tick. Keys work as on any input; a key that lets
+   * go hands it back to what a script last set.
+   */
+  holds?: boolean;
 }
 
 /**
@@ -242,6 +248,22 @@ export interface SolarSpec {
 }
 
 /**
+ * A reactor: each tick it adds `power` J/s to its chunk's energy pool, filling the containers up to capacity, core or
+ * no core; with nothing to fill it makes nothing. Past that it makes what the pool cannot pay, up to `cap` times its
+ * rating: overdrive. Its `push` input sets that by hand and holds until changed: 0 is automatic (the default), a value
+ * from 1 to `cap` runs it at that many times its rating even with charge left, and one under 1 keeps it to its rating.
+ * Over its rating `heat` climbs toward the square of how far it is from rating to `cap`, with time constant `tau`
+ * seconds, and each tick over rating costs its chunk `burn * heat` health a second: parts with `fuse`, then whatever
+ * draws the most (`05`). Needs a `push` input up to `cap`, and `heat` and `load` outputs.
+ */
+export interface ReactorSpec {
+  power: number;
+  cap: number;
+  tau: number;
+  burn: number;
+}
+
+/**
  * A distance charge (Batch): once armed it goes off (its `onDestroyed.explode` blast, then it is gone) when any part of
  * a robot of another team comes within `radius` meters of it, or on a `detonate` pulse. Destroyed any other way (shot,
  * caught in a blast) it breaks without a blast. Needs `arming`, `onDestroyed.explode`, and a `detonate` input.
@@ -364,6 +386,10 @@ export interface PartDef {
   cannon?: CannonSpec;
   /** Batch: the part is a solar panel. It needs `acts`. */
   solar?: SolarSpec;
+  /** The part is a reactor. It needs a `push` input and `heat` and `load` outputs. */
+  reactor?: ReactorSpec;
+  /** What a reactor's heat cooks first: a part that burns out before anything else on its piece (batteries). */
+  fuse?: boolean;
   /** Batch: the part is a distance charge. */
   charge?: ChargeSpec;
   /** Batch: the part is a smoke pod. It needs an `on` input. */

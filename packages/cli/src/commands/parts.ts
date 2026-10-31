@@ -110,6 +110,13 @@ function details(d: PartDef): string[] {
   if (d.shellDamage !== undefined) out.push(`armor: takes ${d.shellDamage} of a shell's damage (${Math.ceil(d.health / (5 * d.shellDamage))} hits from a 5 damage shell); blasts hurt it in full`);
   if (d.beamDamage !== undefined) out.push(`armor: takes ${d.beamDamage} of a laser beam's damage`);
   if (d.solar) out.push(`solar: adds ${d.solar.power} J/s (times the cosine of the angle between its ${d.acts ?? 'N'} face and straight up, nothing when level or down) to its chunk's energy pool while its ${d.acts ?? 'N'} face points up; it fills batteries, cells, and cores up to their capacity; no inputs or outputs`);
+  if (d.reactor) {
+    const r = d.reactor;
+    out.push(`reactor: makes ${r.power} J/s into its pool, core in charge or not, and nothing when the pool is full; past that, when the pool cannot pay, up to ${r.cap} times its rating, the batteries going first`);
+    out.push(`push (0 to ${r.cap}, holds until changed, a key or a script): 0 automatic; 1 to ${r.cap} runs it at that many times its rating even with charge left; under 1 keeps it to its rating`);
+    out.push(`over its rating heat climbs toward ((load - 1) / ${r.cap - 1}) squared, time constant ${r.tau} s, and it cooks ${r.burn} times heat health a second: fuses (batteries, full or empty, weakest first), then the biggest draw; outputs heat (0 to 1) and load (times its rating)`);
+  }
+  if (d.fuse) out.push(`fuse: a reactor run past its rating cooks this first`);
   if (d.charge) out.push(`distance charge: once armed it goes off (the blast above, then it is gone) when any part of a robot of another team comes within ${d.charge.radius} m (a flare counts as the robot it stands in for; friends and wrecks do not set it off), or on a detonate pulse${d.charge.crash !== undefined ? `, or when a hit knocks its body over ${d.charge.crash} m/s (a ram; a shell never does)` : ''}; destroyed any other way (shot, caught in a blast) it breaks as a dud, without a blast; no impact fuze`);
   if (d.grapple) {
     const g = d.grapple;

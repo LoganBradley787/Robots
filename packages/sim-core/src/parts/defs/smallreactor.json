@@ -1,0 +1,20 @@
+{
+  "id": "smallreactor",
+  "name": "Small reactor",
+  "category": "Energy",
+  "about": "A reactor a drone can carry. Heats faster than the big one, and cooks parts just as hard.",
+  "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
+  "mass": 20,
+  "health": 60,
+  "build": 5.0,
+  "symmetry": 1,
+  "inputs": [{ "name": "push", "min": 0, "max": 3, "default": 0, "holds": true }],
+  "outputs": [
+    { "name": "heat", "min": 0, "max": 1, "default": 0 },
+    { "name": "load", "min": 0, "max": 3, "default": 0 }
+  ],
+  "powerDraw": 0,
+  "reactor": { "power": 300, "cap": 3, "tau": 4, "burn": 40 },
+  "onDestroyed": { "explode": { "radius": 2, "damage": 40, "pushRadius": 3.5, "push": 15, "lift": 1 } },
+  "sprite": { "frame": "part.smallreactor" }
+}
