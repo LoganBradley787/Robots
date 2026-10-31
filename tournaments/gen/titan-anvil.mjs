@@ -71,17 +71,17 @@ const KEEL = opt('keel', LOWD ? 5 : 0);
 // half at the other end they make a pure turn in the air too: nothing left over pushing it at the ground.
 const RIGHT = opt('right', LOWD ? 37 : 0);
 const RIGHT_COLS = opt('rightCols', 5);
-const RIGHT_TOP = opt('rightTop', 28);
+const RIGHT_TOP = opt('rightTop', 18);
 // Armor back in (anvil r10, 2026-10-30, Logan: "it's just all boosters, the top of the anvil looks very weak"): the flip
 // fix had turned 462 frames into boosters, and nothing armored stood in the top half. `ROOF_ARMOR` 'teeth': the frame
 // teeth over the roof guns are plates; 'row' as well: a row of plates under the guns over the lift rows. `SIDE_IN`: a
 // plate behind the skin on every gun row, the rows a shell or a blast reaches the end boosters through. Paid for by
 // `STRIPE`: on the columns with a plate tooth under them the slab's third row is a frame (see lowLayout).
 const ROOF_ARMOR = optStr('roofArmor', LOWD ? 'teeth' : 'none');
-const SIDE_IN = opt('sideIn', 0);
+const SIDE_IN = opt('sideIn', LOWD ? 1 : 0);
 const SIDE_EVEN = opt('sideEven', 0);
-const STRIPE = opt('stripe', 0); // columns clear of it each side of the core (0: no stripe)
-const STRIPE_LOW = opt('stripeLow', 0);
+const STRIPE = opt('stripe', LOWD ? 4 : 0); // columns clear of it each side of the core (0: no stripe)
+const STRIPE_LOW = opt('stripeLow', LOWD ? 1 : 0);
 const TEETH = FACES === 'teeth';
 
 const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, u: 1.5, v: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, d: 1, '=': 0, '.': 0 };

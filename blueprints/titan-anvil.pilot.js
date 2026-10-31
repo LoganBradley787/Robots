@@ -151,7 +151,7 @@ const burnEdge = param('burnEdge', 200, { min: 0, max: 800 }); // m to the edge 
 const burnTilt = param('burnTilt', 15, { min: 0, max: 35 }); // degrees its floor tilts in toward what its lasers burn
 const beamTilt = param('beamTilt', 12, { min: 0, max: 35 }); // degrees its floor tilts forward there, onto the end past the mast
 const cutTilt = param('cutTilt', 22, { min: 0, max: 35 }); // degrees it tilts its floor toward what its lasers burn
-const cutWait = param('cutWait', 9, { min: 1, max: 30 }); // s it holds off a standing mast with its lasers before it goes on without cutting it
+const cutWait = param('cutWait', 20, { min: 1, max: 30 }); // s it holds off a standing mast with its lasers before it goes on without cutting it
 const beamWait = param('beamWait', 9, { min: 1, max: 30 }); // s it holds there for a beam by the mast to go
 const threatParts = param('threatParts', 10, { min: 1, max: 500 }); // parts lost in `threatTime` s that make it look for who did it (see Threats)
 const threatTime = param('threatTime', 6, { min: 1, max: 30 }); // s it counts its own losses over
@@ -302,6 +302,7 @@ function setup() {
   state.partLogId = -1;
   state.burnOn = false; // guns stopped working: lasers on what they can reach (see Burning)
   state.burnList = [];
+  state.burnSkip = {};
   state.burnAt = -100;
   state.cutMast = false;
   state.cutFrom = -1;
@@ -513,7 +514,8 @@ function runZap(aim, out, burn, aimOf) {
     const side = l.out.sightSide;
     if (z === zaps[0]) state.zapWhy = 'first: lid ' + (held ? 'on' : lidOpen ? 'off' : 'falling') + ' out ' + (z.push ? (z.push.out.position || 0).toFixed(2) : '-') + ' off ' + off.toFixed(3) + ' sight ' + side + ' at ' + (l.out.sight || 0).toFixed(0) + ' core ' + (dist < 1e8 ? dist.toFixed(0) + ' m' : '-');
     // A beam on one part must land on it (1.5 m out at its distance) and on nothing of its own or the ground, or air.
-    const onIt = z.aim && aimOf ? off < Math.max(0.003, 1 / Math.max(1, dist)) && side === 3 : off < 0.07 && side !== 1 && side !== 5;
+    // (Wreckage in the way counts: a cut mast lay across a deck of guns.)
+    const onIt = z.aim && aimOf ? off < Math.max(0.003, 1 / Math.max(1, dist)) && (side === 3 || side === 4) : off < 0.07 && side !== 1 && side !== 5;
     const ready = out && at && burn && clear && onIt && dist < 295;
     if (z.aim && ready && z.aim.on < 0) z.aim.on = time;
     if (ready) firing++;
@@ -552,16 +554,17 @@ function burnList(main, t, sh) {
   // A mast first: cut at the height it can reach, as low as it can (frames, so a beam goes through it in a moment).
   if (state.cutMast && sh) {
     const mx = t.x + sh.topX;
-    const swing = 0.75 + Math.max(0, Math.sign(mx - fx) * self.angle); // its floor tilted toward it
-    const my = fy - Math.abs(mx - fx) / Math.tan(Math.min(swing, 1.4));
+    const swing = clamp(0.75 + Math.sign(mx - fx) * self.angle, 0.2, 1.4); // its swing that way, with its floor's tilt
+    const my = fy - Math.abs(mx - fx) / Math.tan(swing);
     const seen = scan(main.id, { of: 'frame', near: { x: mx, y: my }, most: 6 });
     if (seen) for (const p of seen) if (reach(p.pos.x, p.pos.y)) list.push({ rx: p.pos.x - t.x, ry: p.pos.y - t.y, core: false, wait: 0.5, score: -1 });
   }
-  if (state.burnOn) {
+  if (state.burnOn && !state.cutMast) {
     const seen = scan(main.id, { of: BURN_OF, from: { x: fx, y: fy }, wide: 0.5 });
     if (seen) {
       for (const p of seen) {
         if (!reach(p.pos.x, p.pos.y)) continue;
+        if ((state.burnSkip[Math.round((p.pos.x - t.x) / 4) + ',' + Math.round((p.pos.y - t.y) / 4)] || 0) > time) continue;
         const wait = 0.15 + p.cover / 150; // every plate in the way takes 1.7 s of a beam, the rest far less
         const core = p.type === 'core';
         if (wait > burnTime && !core) continue;
@@ -584,6 +587,8 @@ function burnPick(t) {
   for (const z of zaps) {
     const a = z.aim;
     if (a && !(a.on >= 0 ? time - a.on > a.wait : time - a.got > 3)) continue;
+    // One it could not get onto is left alone a while.
+    if (a && a.on < 0) state.burnSkip[Math.round(a.rx / 4) + ',' + Math.round(a.ry / 4)] = time + 15;
     z.aim = null;
     let best = -1;
     let bestD = 1e9;
@@ -1438,6 +1443,7 @@ function tick() {
           state.overSpan = true;
         }
         wantVx = t.vx + clamp(0.5 * (spot - x), -lineUp, lineUp);
+        state.perched = there;
       } else if (time >= (state.crossBack || 0) && (y > over - 20 || past)) wantVx = sd * vmax;
       else if (hardCross > 0.5) wantVx = t.vx + sd * clamp(toEnd / climbT, 0, vmax);
       else wantVx = t.vx + clamp(0.5 * (t.x - sd * (endOn(-sd) + state.halfWidth + cutRun) - x), -lineUp, lineUp);
@@ -1460,7 +1466,8 @@ function tick() {
         state.gunLean = -sd * ((burnTilt * Math.PI) / 180);
         state.overSpan = true;
       }
-      state.perched = Math.abs(px - x) < 10 && Math.abs(py - y) < 10;
+      if (mastUp && mastSide && !beamNear) state.perched = Math.abs(px - x) < 40 && Math.abs(wantH - y) < 30;
+      state.perched = state.perched || (Math.abs(px - x) < 10 && Math.abs(py - y) < 10);
     }
   };
 
