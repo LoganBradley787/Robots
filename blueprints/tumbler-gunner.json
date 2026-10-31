@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "tumbler-gunner",
+  "autoControls": false,
+  "grid": [
+    ".  jv jv g^ jv jv .",
+    "j> F  F  F  F  F  j<",
+    "j> F  O  F  Z  F  j<",
+    "g< F  F  C  F  F  g>",
+    "j> F  Z  F  O  F  j<",
+    "j> F  F  F  F  F  j<",
+    ".  j^ j^ gv j^ j^ ."
+  ],
+  "legend": {
+    "j^": { "part": "thruster", "rot": 0, "tags": ["jets"], "auto": false },
+    "j<": { "part": "thruster", "rot": 90, "tags": ["jets"], "auto": false },
+    "jv": { "part": "thruster", "rot": 180, "tags": ["jets"], "auto": false },
+    "j>": { "part": "thruster", "rot": 270, "tags": ["jets"], "auto": false },
+    "g^": { "part": "gun", "rot": 0, "tags": ["guns"], "auto": false },
+    "g<": { "part": "gun", "rot": 90, "tags": ["guns"], "auto": false },
+    "gv": { "part": "gun", "rot": 180, "tags": ["guns"], "auto": false },
+    "g>": { "part": "gun", "rot": 270, "tags": ["guns"], "auto": false }
+  },
+  "scripts": [{ "id": "gunner", "source": { "file": "tumbler-gunner.gunner.js" } }]
+}
