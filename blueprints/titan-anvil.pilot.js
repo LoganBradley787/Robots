@@ -156,6 +156,7 @@ const beamWait = param('beamWait', 9, { min: 1, max: 30 }); // s it holds there 
 const beamGuns = param('beamGuns', 6, { min: 0, max: 30 }); // s of that for its floor guns alone, before the lasers join in
 const threatParts = param('threatParts', 10, { min: 1, max: 500 }); // parts lost in `threatTime` s that make it look for who did it (see Threats)
 const threatTime = param('threatTime', 6, { min: 1, max: 30 }); // s it counts its own losses over
+const threatMass = param('threatMass', 1000, { min: 0, max: 100000 }); // kg: nothing lighter is worth turning on (a shatter's 58 kg gunship pulled it off the king and cost its lids)
 const threatHold = param('threatHold', 20, { min: 3, max: 120 }); // s it stays on a threat that has stopped hurting it
 const threatNear = param('threatNear', 400, { min: 50, max: 1500 }); // m: a lighter enemy this near while it is losing parts is the one doing it
 const threatDarts = param('threatDarts', 3, { min: 1, max: 100 }); // darts in the air from one enemy that make it the one doing it
@@ -798,7 +799,8 @@ function lostOver(s) {
 // It has to be on the radar: a mirage's jammers hide it past 150 m, and flying to where it was last seen or where its
 // darts first showed crossed the juggernaut and lost the core twice, so a hidden launcher is not hunted.
 // Each dart goes to the enemy nearest the line back along its flight, the first time it is seen. Only one under half
-// the main enemy's mass: the heavy one is already the main enemy, and one that much heavier cannot be rammed anyway.
+// the main enemy's mass and over `threatMass`: the heavy one is already the main enemy, and a swarm's small craft are
+// what its guns are for.
 function threatNow(m) {
   const now = parts.length;
   if (now < state.partCount0) for (let i = now; i < state.partCount0 && state.lost.length < 400; i++) state.lost.push(time);
@@ -834,7 +836,7 @@ function threatNow(m) {
   let pick = null;
   let score = 0;
   for (const h of heavies) {
-    if (h.id === state.mainId || h.mass > lightest) continue;
+    if (h.id === state.mainId || h.mass > lightest || h.mass < threatMass) continue;
     const darts = counts[h.id] || 0;
     const s = darts >= threatDarts ? 1000 + darts : h.distance < threatNear ? 1000 - h.distance : 0;
     if (s > score) {
