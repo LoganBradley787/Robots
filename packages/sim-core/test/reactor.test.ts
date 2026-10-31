@@ -396,6 +396,15 @@ describe('reactor: push', () => {
     expect(c.values().get('r')?.get('push')).toBe(0);
   });
 
+  it('a held value reads as a script\'s in the trace, on ticks nobody writes it', () => {
+    const c = new Controller([], [{ id: 'r', part: 'reactor', tags: ['r'], inputs: [{ name: 'push', min: 0, max: 3, default: 0, holds: true }] }]);
+    c.setTrace(true);
+    c.scriptWrite('r', 'push', 2, 'pilot');
+    expect(c.trace()?.inputs[0]).toMatchObject({ value: 2, source: 'script', script: { id: 'pilot', value: 2 } });
+    c.endTick();
+    expect(c.trace()?.inputs[0]).toMatchObject({ value: 2, source: 'script', script: { id: 'a script', value: 2 } });
+  });
+
   it('carries to a grown robot, and a key beats it only while active', () => {
     const inputs = [{ name: 'push', min: 0, max: 3, default: 0, holds: true }];
     const bind = [{ key: 'p', mode: 'hold' as const, target: 'r', channel: 'push', value: 3 }];

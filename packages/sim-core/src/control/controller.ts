@@ -243,7 +243,8 @@ export class Controller {
           source: sum !== undefined ? 'key' : scripted !== undefined ? 'script' : 'default',
           keys,
         };
-        if (scripted !== undefined) input.script = { id: t.by.get(id)?.get(c.name) ?? '', value: scripted };
+        // A held value was written on an earlier tick: who wrote it is only known for this tick's writes.
+        if (scripted !== undefined) input.script = { id: t.by.get(id)?.get(c.name) ?? 'a script', value: scripted };
         inputs.push(input);
       }
     }
