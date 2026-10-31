@@ -1,4 +1,5 @@
-import type { MassProperties } from '../physics/PhysicsWorld';
+import type { BodyId, MassProperties } from '../physics/PhysicsWorld';
+import type { BodyGroup, Robot } from '../world/Robot';
 
 /**
  * S4 (review 2026-10-09): what a joint motor actually turns or pushes. Its torque or force acts on both sides of the
@@ -43,4 +44,11 @@ export function motorLoad(carried: number, reduced: number): number {
 /** The reduced mass (kg) of two bodies pushed apart by a force pair: `m1 m2 / (m1 + m2)`. */
 export function reducedMass(a: number, b: number): number {
   return (a * b) / Math.max(a + b, 1e-9);
+}
+
+/** The bodies of a group and of every group carried on it by joints: what moves when its own joint does. */
+export function chainBodies(robot: Robot, group: BodyGroup, into: BodyId[] = []): BodyId[] {
+  into.push(group.bodyId);
+  for (const g of robot.groups) if (g.joint?.parentGroup === group.index) chainBodies(robot, g, into);
+  return into;
 }

@@ -84,23 +84,29 @@ interface JointEntry {
  * Batch: a prismatic (sliding) joint, the piston's. `axis` is the slide direction in the child's frame (which the
  * joint keeps aligned with the parent's rest frame). `position` counts meters of extension from the anchor's rest pose.
  * The motor is a spring, a damper, and an integral term that learns the load (a car parked on the head), plus a
- * feed-forward for the weight of the child body itself, capped at `maxForce`.
+ * feed-forward for the weight of the child and all it carries by joints, capped at `maxForce`.
  */
 interface SliderEntry {
   parent: BodyId;
   child: BodyId;
   anchorParent: { x: number; y: number };
   axis: { x: number; y: number };
+  stroke: number;
   target: number;
   rate: number;
   stiffness: number;
   damping: number;
   maxForce: number;
+  integralGain: number;
+  /** The mass (kg) whose weight is fed forward. */
+  fed: number;
   integral: number;
 }
 
-/** How fast the slider motor's integral term learns a load, per second (times the stiffness). */
-const SLIDER_INTEGRAL_RATE = 4;
+/** Within this distance (m) of a stop a slider's child counts as on it. */
+const SLIDER_STOP_BAND = 0.001;
+/** The fraction of a slider's load term bled per second while it presses the child into a stop. */
+const SLIDER_STOP_BLEED = 1;
 
 /** Batch: within this error (rad) a position motor counts as on target and its integral term bleeds. */
 export const INTEGRAL_DEADBAND = 0.0002;
@@ -681,22 +687,25 @@ export class PhysicsWorld {
     joint.setContactsEnabled(false);
     const id = this.nextJointId++;
     this.noteJoint(id, parent, child);
-    this.sliders.set(id, { parent, child, anchorParent, axis, target: e, rate: 0, stiffness: 0, damping: 0, maxForce: 0, integral: 0 });
+    this.sliders.set(id, { parent, child, anchorParent, axis, stroke, target: e, rate: 0, stiffness: 0, damping: 0, maxForce: 0, integralGain: 0, fed: 0, integral: 0 });
     return id;
   }
 
   /**
    * Holds a sliding joint at `target` meters of extension (rate = how fast the target moves, m/s, so a moving target
-   * is tracked without lag): force `stiffness * error + damping * (rate - speed)` plus a learned load, capped at
-   * `maxForce` N (0 = off). The child's own weight is fed forward, so a piston lifting a block needs no sag to hold it.
+   * is tracked without lag): force `stiffness * error + damping * (rate - speed)` plus a load learned at `integralGain`
+   * (N per m per second), capped at `maxForce` N (0 = off). The weight of `fed` kg is fed forward, so a piston lifting
+   * a block needs no sag to hold it.
    */
-  setSliderMotor(jointId: JointId, target: number, rate: number, stiffness: number, damping: number, maxForce: number): void {
+  setSliderMotor(jointId: JointId, target: number, rate: number, stiffness: number, damping: number, maxForce: number, integralGain: number, fed: number): void {
     const s = this.slider(jointId);
     s.target = target;
     s.rate = rate;
     s.stiffness = stiffness;
     s.damping = damping;
     s.maxForce = maxForce;
+    s.integralGain = integralGain;
+    s.fed = fed;
   }
 
   /** How far a sliding joint's child is from its rest pose along the axis, meters. */
@@ -718,6 +727,23 @@ export class PhysicsWorld {
     const g = this.gravityY;
     if (g === 0) return 0;
     return Math.max(0, (s.integral * -g * this.sliderState(s).ay) / (g * g));
+  }
+
+  /**
+   * Whether a contact pushes on `bodies` (a sliding joint's child and what it carries) against the motor's load term:
+   * the load is there to be felt. A push within 60 degrees of the slide counts. From the last step's contacts.
+   */
+  sliderPressed(jointId: JointId, bodies: readonly BodyId[]): boolean {
+    const s = this.slider(jointId);
+    const { ax, ay } = this.sliderState(s);
+    const against = s.integral > 0 ? -0.5 : 0.5;
+    for (const id of bodies) {
+      for (const c of this.contactPoints(id)) {
+        const along = c.nx * ax + c.ny * ay;
+        if (s.integral > 0 ? along < against : along > against) return true;
+      }
+    }
+    return false;
   }
 
   private slider(jointId: JointId): SliderEntry {
@@ -1338,13 +1364,17 @@ export class PhysicsWorld {
       const st = this.sliderState(sl);
       const c = this.body(sl.child);
       const err = sl.target - st.position;
-      const feed = -c.mass() * this.gravityY * st.ay;
+      const feed = -sl.fed * this.gravityY * st.ay;
       const want = sl.stiffness * err + sl.damping * (sl.rate - st.speed) + sl.integral + feed;
       const force = Math.max(-sl.maxForce, Math.min(sl.maxForce, want));
       // The load term only learns while the motor has force to spare.
       if (Math.abs(want) < sl.maxForce || want * err < 0) {
-        sl.integral = Math.max(-sl.maxForce, Math.min(sl.maxForce, sl.integral + SLIDER_INTEGRAL_RATE * sl.stiffness * err * this.stepSeconds));
+        sl.integral = Math.max(-sl.maxForce, Math.min(sl.maxForce, sl.integral + sl.integralGain * err * this.stepSeconds));
       }
+      // A stop only pushes back: a child held on it can swing off but not past, so the error has one sign and the load
+      // term has nothing to unlearn it with. What presses into the stop holds nothing up, so it bleeds until the child
+      // just stays there.
+      if (sl.integral < 0 ? st.position <= SLIDER_STOP_BAND : sl.integral > 0 && st.position >= sl.stroke - SLIDER_STOP_BAND) sl.integral *= 1 - SLIDER_STOP_BLEED * this.stepSeconds;
       if (force === 0) continue;
       c.addForceAtPoint({ x: force * st.ax, y: force * st.ay }, { x: st.px, y: st.py }, true);
       this.body(sl.parent).addForceAtPoint({ x: -force * st.ax, y: -force * st.ay }, { x: st.px, y: st.py }, true);

@@ -1,5 +1,5 @@
 import type { Behavior } from './registry';
-import { motorLoad, reducedMass } from './reduced';
+import { chainBodies, motorLoad, reducedMass } from './reduced';
 
 /**
  * A piston (Batch): a linear actuator, the rotator's sliding cousin. The part is the moving head: it slides out of its
@@ -11,6 +11,8 @@ import { motorLoad, reducedMass } from './reduced';
  */
 /** How far the target may run ahead of the head while it is moving, in meters. */
 const TARGET_LEAD = 0.25;
+/** How fast the integral term learns a load, per second (times the spring). */
+const INTEGRAL_RATE = 4;
 
 export const piston: Behavior = {
   config: ['stroke', 'extendSpeed', 'frequency'],
@@ -24,25 +26,34 @@ export const piston: Behavior = {
     const maxForce = spec.maxForce ?? 0;
     const extend = ctx.value('extend');
     const actual = ctx.physics.sliderPosition(joint.jointId);
-    // The gains follow the mass being moved: the head's own, plus the weight the motor has learned to carry (a car on
-    // it). A fixed gain that suits a light head would ring under a heavy load. S4: the force pushes the mount back as
-    // hard; a light mount under a heavy head is what moves, and gains sized for the head alone threw it, so the head's
-    // share is capped by the pair's reduced mass. The learned load is weight the mount already presses into whatever
-    // holds it up, so it is carried in full.
+    // The gains follow the mass being moved: the head's own and all it carries by joints (a rotator and its laser),
+    // plus the weight the motor has learned to carry (a car on it). A fixed gain that suits a light head would ring
+    // under a heavy load. S4: the force pushes the mount back as hard; a light mount under a heavy head is what moves,
+    // and gains sized for the head alone threw it, so the head's share is capped by the pair's reduced mass. The learned
+    // load is weight the mount already presses into whatever holds it up, so it is carried in full, but a jolt looks
+    // like a load too. The force is explicit, so past damping `moved / dt` one step would throw the head: gains go
+    // there only with something on the head to feel, and fall back the moment it lifts off.
     const parent = ctx.robot.groups[joint.parentGroup];
-    const head = Math.max(ctx.physics.massProperties(ctx.group.bodyId).mass, 1);
+    const chain = chainBodies(ctx.robot, ctx.group);
+    let head = 0;
+    for (const id of chain) head += ctx.physics.massProperties(id).mass;
+    head = Math.max(head, 1);
     const moved = parent ? motorLoad(head, reducedMass(head, ctx.physics.massProperties(parent.bodyId).mass)) : head;
     const carried = ctx.physics.sliderCarriedMass(joint.jointId);
-    const mass = moved + carried;
+    const f = ctx.config('frequency');
+    const sure = moved / (2 * f * ctx.dt);
+    const mass = moved + carried <= sure || ctx.physics.sliderPressed(joint.jointId, chain) ? moved + carried : sure;
     const speed = ctx.config('extendSpeed');
     let next = (ctx.part.aim ?? 0) + extend * speed * ctx.dt;
     if (extend !== 0) next = Math.max(actual - TARGET_LEAD, Math.min(actual + TARGET_LEAD, next));
     next = Math.max(0, Math.min(stroke, next));
     // How fast the target moves this tick, so the motor tracks it instead of lagging behind.
     const rate = Math.max(-speed, Math.min(speed, (next - (ctx.part.aim ?? 0)) / ctx.dt));
-    const f = ctx.config('frequency');
     const stiffness = mass * f * f;
     const damping = 2 * mass * f;
+    // The loop holds while `integral < damping * stiffness / load`: under a load past what the gains may follow, it
+    // learns slower, at half that.
+    const integral = stiffness * Math.min(INTEGRAL_RATE, damping / (2 * (moved + carried)));
     const need = Math.abs(stiffness * (next - actual)) / maxForce;
     // Holding a load up costs energy too: the weight of what the head carries, as a share of the force cap.
     const hold = ((head + carried) * Math.abs(ctx.physics.gravityY)) / maxForce;
@@ -50,7 +61,7 @@ export const piston: Behavior = {
       load: Math.min(1, Math.max(Math.abs(extend), need, hold)),
       run(grant) {
         if (grant > 0) ctx.part.aim = next;
-        ctx.physics.setSliderMotor(joint.jointId, ctx.part.aim ?? 0, grant > 0 ? rate : 0, stiffness, damping, maxForce * grant);
+        ctx.physics.setSliderMotor(joint.jointId, ctx.part.aim ?? 0, grant > 0 ? rate : 0, stiffness, damping, maxForce * grant, integral, head);
       },
     };
   },

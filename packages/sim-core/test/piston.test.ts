@@ -227,4 +227,122 @@ describe('piston (Batch)', () => {
     expect(gap() - gap0).toBeGreaterThan(1.9);
     w.dispose();
   });
+
+  /** A robot's piston: its motor as the physics holds it, and how far its head is out, in meters. */
+  function arm(w: World, r: Robot): { motor: { stiffness: number; integral: number; target: number }; out: number } {
+    const group = r.groups.find((g) => r.parts.get(g.joint?.partId ?? '')?.def.id === 'piston');
+    const jointId = group?.joint?.jointId ?? -1;
+    const motor = (w.physics as unknown as { sliders: Map<number, { stiffness: number; integral: number; target: number }> }).sliders.get(jointId);
+    if (!motor) throw new Error('no piston');
+    return { motor, out: w.physics.sliderPosition(jointId) };
+  }
+
+  /** Throws the whole robot up at `speed` m/s, so it comes down hard. */
+  function hop(w: World, r: Robot, speed: number): void {
+    for (const g of r.groups) w.physics.kick(g.bodyId, 0, speed, 0);
+  }
+
+  // A hull on legs with a piston hanging under it, as the Anvil's arms hang: a landing swings the head off the stop it
+  // is held on, and it can never swing past that stop, so the error only ever has one sign.
+  const LEGS = ['F  .  .  .  .  .  F', 'F  .  .  .  .  .  F', 'F  .  .  .  .  .  F', 'F  .  .  .  .  .  F'];
+  const BARE = { format: 1, name: 'bare', grid: ['F  F  F  C  F  F  F', 'F  .  .  Iv .  .  F', ...LEGS] };
+  const LOADED = { format: 1, name: 'loaded', grid: ['F  F  F  C  F  F  F', 'F  .  .  Iv .  .  F', 'F  .  .  Rv .  .  F', 'F  .  .  Lzv .  .  F', ...LEGS] };
+
+  /** Hops a robot `hops` times, and returns the worst of it: how far the head strayed once settled, and the gains. */
+  async function landings(blueprint: { format: number; name: string; grid: string[] }, hops: number, setup?: (w: World, r: Robot) => void): Promise<{ strayed: number; stiffness: number; left: number; lost: number }> {
+    const w = await World.create({ seed: 1 }, open);
+    const r = w.spawnBlueprint(blueprint, { x: -100, y: blueprint.grid.length - 0.5 });
+    const parts = r.parts.size;
+    for (let i = 0; i < 60; i++) w.step();
+    setup?.(w, r);
+    const rest = arm(w, r).motor.target;
+    let strayed = 0;
+    let stiffness = 0;
+    for (let n = 0; n < hops; n++) {
+      hop(w, r, 8);
+      for (let i = 0; i < 300; i++) {
+        w.step();
+        stiffness = Math.max(stiffness, arm(w, r).motor.stiffness);
+        // Up for about 1.6 s; by 4 s it has landed and should be still.
+        if (i > 240) strayed = Math.max(strayed, Math.abs(arm(w, r).out - rest));
+      }
+    }
+    for (let i = 0; i < 180; i++) w.step();
+    const left = Math.abs(arm(w, r).motor.integral);
+    const lost = parts - r.parts.size;
+    w.dispose();
+    return { strayed, stiffness, left, lost };
+  }
+
+  it('keeps a bare head still through hard landings: a jolt is not a load', async () => {
+    const m = await landings(BARE, 6);
+    expect(m.lost).toBe(0);
+    expect(m.strayed).toBeLessThan(0.02);
+    // A 2 kg head needs 200 N/m. It may follow what it thinks it carries, not past what one step can stand.
+    expect(m.stiffness).toBeLessThanOrEqual(600);
+    // Pressing a stop, it has bled away what the jolts taught it.
+    expect(m.left).toBeLessThan(20);
+  });
+
+  it('keeps a head carrying a rotator and a laser still through hard landings', async () => {
+    const m = await landings(LOADED, 6);
+    expect(m.lost).toBe(0);
+    expect(m.strayed).toBeLessThan(0.02);
+    expect(m.stiffness).toBeLessThanOrEqual(2400);
+  });
+
+  it('holds a commanded stroke through hard landings', async () => {
+    const m = await landings(BARE, 6, (w, r) => {
+      press(w, r, 'c', 40);
+      for (let i = 0; i < 60; i++) w.step();
+    });
+    expect(m.lost).toBe(0);
+    expect(m.strayed).toBeLessThan(0.02);
+    expect(m.stiffness).toBeLessThanOrEqual(600);
+  });
+
+  it('holds up what it carries by joints with no sag: its weight is fed forward', async () => {
+    const w = await World.create({ seed: 1 }, open);
+    const r = w.spawnBlueprint(LOADED, { x: -100, y: LOADED.grid.length - 0.5 });
+    let worst = 0;
+    for (let i = 0; i < 120; i++) {
+      w.step();
+      worst = Math.max(worst, Math.abs(arm(w, r).out));
+    }
+    expect(worst).toBeLessThan(0.02);
+    // Its gains are sized for all of it, and it has nothing to learn.
+    expect(arm(w, r).motor.stiffness).toBeGreaterThan(600);
+    expect(Math.abs(arm(w, r).motor.integral)).toBeLessThan(5);
+    w.dispose();
+  });
+
+  it('settles at once when the load it held is gone', async () => {
+    const w = await World.create({ seed: 1 }, open);
+    const plate = { format: 1, name: 'plate', grid: ['F  F  F  F  F  F  F', '.  .  .  I^ .  .  .', 'B  B  B  C  B  B  B'] };
+    const row = 'F  F  F  F  F  F  F  F  F  F  F  F  F  F  F';
+    const crate = { format: 1, name: 'crate', grid: [row, row, row, row, row, row, row, row, row, 'F  F  F  F  F  F  F  C  F  F  F  F  F  F  F'] };
+    const lift = w.spawnBlueprint(plate, { x: -100, y: 0.5 });
+    const load = w.spawnBlueprint(crate, { x: -100, y: 4.5 });
+    for (let i = 0; i < 300; i++) w.step();
+    press(w, lift, 'c', 50);
+    for (let i = 0; i < 240; i++) w.step();
+    const held = arm(w, lift);
+    expect(held.motor.integral).toBeGreaterThan(1000);
+    expect(held.motor.stiffness).toBeGreaterThan(5000);
+    w.removeRobots([load.id]);
+    // Up it goes, with 1400 N learned on a light head. It may hit the stop, then it comes back and stays.
+    for (let i = 0; i < 300; i++) w.step();
+    expect(lift.parts.size).toBe(15);
+    expect(arm(w, lift).motor.stiffness).toBeLessThan(5000);
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < 120; i++) {
+      w.step();
+      lo = Math.min(lo, arm(w, lift).out);
+      hi = Math.max(hi, arm(w, lift).out);
+    }
+    expect(hi - lo).toBeLessThan(0.01);
+    expect(Math.abs(hi - held.motor.target)).toBeLessThan(0.02);
+    w.dispose();
+  });
 });
