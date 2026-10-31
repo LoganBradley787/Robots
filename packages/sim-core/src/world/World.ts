@@ -2668,7 +2668,7 @@ export class World {
     // The chunk's pool, added up on first use from the containers the feed kept, in id order (the same parts as a walk
     // over the chunk finds, as long as the feed matches the robot, which this checks part by part).
     let totals: { stored: number; capacity: number } | undefined;
-    const pool = (): { stored: number; capacity: number } => (totals ??= heldTotals(feed.pool));
+    const pool = (): { stored: number; capacity: number } => (totals ??= this.asRead(heldTotals(feed.pool)));
     const bodies: (BodyPose | undefined)[] = [];
     const bodyOf = (group: number): BodyPose => {
       let b = bodies[group];
@@ -2723,7 +2723,7 @@ export class World {
     const lx = core?.localX ?? 0;
     const ly = core?.localY ?? 0;
     // The energy of the chunk the robot is controlled through (`energy()`): the core's, which is the feed's chunk.
-    const energy = robot.primaryCoreId === undefined ? poolTotals(poolContainers(robot, 0)) : pool();
+    const energy = robot.primaryCoreId === undefined ? this.asRead(poolTotals(poolContainers(robot, 0))) : pool();
     ok = put(n, 1, this.tickCount) && ok;
     ok = put(n, 2, this.dt) && ok;
     ok = put(n, 3, this.tickCount * this.dt) && ok;
@@ -2756,14 +2756,22 @@ export class World {
   /** A chunk's energy totals, added up on first use. */
   private lazyPool(robot: Robot, chunk: number): () => { stored: number; capacity: number } {
     let totals: { stored: number; capacity: number } | undefined;
-    return () => (totals ??= poolTotals(poolContainers(robot, chunk)));
+    return () => (totals ??= this.asRead(poolTotals(poolContainers(robot, chunk))));
+  }
+
+  /**
+   * A pool as its robot reads it. Unlimited energy takes nothing from a pool, so what is stored stands still; a robot
+   * can do anything it asks for, so it reads as full, or whatever stopped at low energy would stay stopped for good.
+   */
+  private asRead(pool: { stored: number; capacity: number }): { stored: number; capacity: number } {
+    return this.unlimited ? { stored: pool.capacity, capacity: pool.capacity } : pool;
   }
 
   /** `partOutput` for a part and an output name it is known to have, with its chunk's pool (M9: no lookups). */
   private outputOf(part: PartInstance, name: string, pool: () => { stored: number; capacity: number }, reads: OutputReads): number | undefined {
     const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name, reads);
     if (own !== undefined) return own;
-    if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
+    if (name === 'charge') return part.stored !== undefined && part.def.resource ? (this.unlimited ? 1 : part.stored / part.def.resource.capacity) : undefined;
     if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
@@ -2784,7 +2792,7 @@ export class World {
     const s = this.bodyState(coreBody);
     let mass = 0;
     for (const g of robot.groups) mass += this.physics.massProperties(g.bodyId).mass;
-    const energy = referenceEnergy(robot);
+    const energy = this.asRead(referenceEnergy(robot));
     const chunk = robot.chunks.find((c) => c.partIds.includes(coreId));
     const chans = this.channels.get(robot.id);
     const scope = coreControls(robot)?.scope;
@@ -2798,7 +2806,7 @@ export class World {
       const pose = partWorldPose(this, robot, id);
       const out: Record<string, number> = {};
       for (const o of p.def.outputs) {
-        const v = referenceOutput(robot, p, id, o.name, reads);
+        const v = referenceOutput(robot, p, id, o.name, reads, this.unlimited);
         if (v !== undefined) out[o.name] = v;
       }
       parts.push({ id, type: p.def.id, tags: [...scopedView({ id, part: p.def.id, tags: p.tags }, scope).tags], pos: { x: pose.x, y: pose.y }, angle: pose.angle, mass: partMass(p.def, p.footprint), in: Object.fromEntries(chans?.get(id) ?? []), out, rot: p.rot, on: carriedBy(robot, p), center: partCenter(p) ?? { x: 0, y: 0 }, spec: partSpec(p.def) });
@@ -3814,14 +3822,14 @@ function referenceEnergy(robot: Robot): { stored: number; capacity: number } {
   return poolTotals(poolContainers(robot, chunk));
 }
 
-function referenceOutput(robot: Robot, part: PartInstance, partId: string, name: string, reads: OutputReads): number | undefined {
+function referenceOutput(robot: Robot, part: PartInstance, partId: string, name: string, reads: OutputReads, unlimited: boolean): number | undefined {
   if (!part.def.outputs.some((o) => o.name === name)) return undefined;
   const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name, reads);
   if (own !== undefined) return own;
-  if (name === 'charge') return part.stored !== undefined && part.def.resource ? part.stored / part.def.resource.capacity : undefined;
+  if (name === 'charge') return part.stored !== undefined && part.def.resource ? (unlimited ? 1 : part.stored / part.def.resource.capacity) : undefined;
   if (name === 'energy' || name === 'energyCapacity') {
     const pool = poolTotals(poolContainers(robot, referenceChunkIndex(robot, partId)));
-    return name === 'energy' ? pool.stored : pool.capacity;
+    return name === 'energy' && !unlimited ? pool.stored : pool.capacity;
   }
   if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
   if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;

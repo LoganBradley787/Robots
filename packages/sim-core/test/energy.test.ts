@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import variant from '@jitl/quickjs-wasmfile-release-sync';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import { sampleRobot } from '../src/metrics/robotMetrics';
 import { buildReplay, runReplay } from '../src/replay/replayFile';
+import { createQuickJsHost } from '../src/script/quickjs';
+import type { ScriptInput } from '../src/script/types';
 
 const open = parseWorldFile({ name: 'open', ground: { width: 4000, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] });
 // Core (600) and two upward thrusters (20/s each at full throttle): 15 s of thrust.
@@ -78,6 +81,47 @@ describe('energy', () => {
     expect(again.matches).toBe(true);
     again.world.dispose();
     w.dispose();
+  });
+
+  it('a low pool reads as full under unlimited energy, and as it is again after', async () => {
+    // A pilot like the titans': under half its energy it stops pushing, and it waits to be charged.
+    const pilot = {
+      format: 1,
+      name: 'pilot',
+      grid: ['F  U  C  U  B'],
+      legend: { U: { part: 'thruster', tags: ['lift'], auto: false } },
+      scripts: [{ id: 'p', source: "function tick() { set('lift', 'throttle', self.energy.stored < 0.5 * self.energy.capacity ? 0 : 1); }" }],
+    };
+    const seen: number[] = [];
+    const w = await World.create({ seed: 1, scripts: await createQuickJsHost(variant), scriptProbe: (_robot: number, reference: () => ScriptInput) => seen.push(reference().self.energy.stored) }, open);
+    const r = w.spawnBlueprint(pilot, { x: 0, y: 0.5 });
+    const capacity = w.energy(r.id)?.capacity ?? 0;
+    for (const p of r.parts.values()) if (p.stored !== undefined) p.stored = p.stored * 0.1;
+    const low = capacity * 0.1;
+    const height = (): number => w.physics.state(r.groups[0]?.bodyId ?? -1).y;
+    const y0 = height();
+    for (let i = 0; i < 30; i++) w.step();
+    expect(Math.abs(height() - y0)).toBeLessThan(0.05);
+    expect(w.partOutput(r.id, 'battery@4,0', 'charge')).toBeCloseTo(0.1, 6);
+    expect(seen.at(-1)).toBeCloseTo(low, 6);
+
+    w.setUnlimitedEnergy(true);
+    for (let i = 0; i < 60; i++) w.step();
+    // It flies as if charged, on energy that comes from nowhere.
+    expect(height()).toBeGreaterThan(y0 + 1);
+    expect(w.partOutput(r.id, 'battery@4,0', 'charge')).toBe(1);
+    expect(w.partOutput(r.id, 'core@2,0', 'energy')).toBe(capacity);
+    expect(seen.at(-1)).toBe(capacity);
+    // What is really stored has not moved.
+    expect(w.energy(r.id)?.stored).toBeCloseTo(low, 6);
+
+    w.setUnlimitedEnergy(false);
+    for (let i = 0; i < 5; i++) w.step();
+    expect(w.partOutput(r.id, 'battery@4,0', 'charge')).toBeCloseTo(0.1, 6);
+    expect(seen.at(-1)).toBeCloseTo(low, 6);
+    const replay = JSON.parse(JSON.stringify(buildReplay(w)));
+    w.dispose();
+    expect(replay.inputs.filter((i: { world?: { unlimitedEnergy?: boolean } }) => i.world?.unlimitedEnergy !== undefined)).toHaveLength(2);
   });
 
   it('energy feeds the hash', async () => {

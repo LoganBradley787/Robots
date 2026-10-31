@@ -166,7 +166,7 @@ function tick() {
 
 Available inside `tick()`:
 - `tick`, `dt`, `time`: integers and seconds.
-- `self`: `{ pos, vel, acc, angle, angVel, mass, energy: { stored, capacity } }` for the script's chunk. Provided by the core's built-in sensors (Q2).
+- `self`: `{ pos, vel, acc, angle, angVel, mass, energy: { stored, capacity } }` for the script's chunk. Provided by the core's built-in sensors (Q2). Under Unlimited energy a pool reads as full (`05`).
 - `parts`: array of `{ id, type, tags, pos, angle, health, out }` for the chunk, where `out` holds that part's sensor outputs.
 - `set(target, channel, value)`, `get(target, channel)`: write and read channels by tag.
 - `keys.down(k)`, `keys.pressed(k)`, `keys.released(k)`.
