@@ -204,6 +204,9 @@ export class Tracer {
         case 'removed':
           push(e.robot, 'removed', 'is gone');
           break;
+        case 'fell':
+          push(e.robot, 'fell', 'fell off the world: every part is under the ground');
+          break;
         case 'energyEmpty':
           push(e.robot, 'energyEmpty', 'ran out of energy');
           break;

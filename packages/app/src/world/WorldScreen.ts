@@ -1000,6 +1000,8 @@ export class WorldScreen {
         }
       }
       if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
+      // The robot is gone by now, so the event carries its name. Only your own, and only a robot with a core: not scrap.
+      if (ev?.kind === 'fell' && ev.team === 0 && ev.core) this.onNotice?.(`${ev.name} fell off the edge of the world`);
       // Only your own: an enemy's missiles wake too, and you cannot take them over.
       if (ev?.kind === 'coreWoke' && who && who.team === 0) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);
     }

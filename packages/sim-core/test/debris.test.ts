@@ -3,6 +3,7 @@ import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import { DEBRIS_CAP, DEBRIS_REST_SECONDS } from '../src/world/debris';
+import { partWorldPose } from '../src/metrics/robotMetrics';
 
 const flat = parseWorldFile(flatJson);
 const space = parseWorldFile({ name: 'space', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 3 }, boxes: [] });
@@ -11,6 +12,8 @@ const space = parseWorldFile({ name: 'space', ground: { width: 10, thickness: 2 
 const ARM = { format: 1, name: 'arm', grid: ['C  F  F  F  F  F', 'W  .  .  .  .  W'] };
 const WALL = { format: 1, name: 'wall', grid: ['F  F  F'] };
 const BLOCK = { format: 1, name: 'block', grid: ['F'] };
+const CAR_FLAT = { format: 1, name: 'flat', grid: ['F  C  F'] };
+const SLAB = { format: 1, name: 'slab', grid: ['Aa  Aa  Aa  Aa  Aa', 'Aa  Aa  Aa  Aa  Aa'], legend: { Aa: { part: 'armorplate' } } };
 
 const HOLD_TICKS = Math.round(DEBRIS_REST_SECONDS * 60);
 
@@ -137,5 +140,81 @@ describe('debris fades (Batch)', () => {
       w.dispose();
     }
     expect(hashes[0]).toEqual(hashes[1]);
+  });
+});
+
+describe('falling off the world', () => {
+  // The ground ends at x = +-5 here, and it is 2 m thick with nothing under it.
+  const tall = { format: 1, name: 'tall', grid: ['F', 'F', 'F', 'F', 'C'] };
+
+  async function fallen(w: World, id: number, ticks: number): Promise<number | undefined> {
+    for (let i = 0; i < ticks; i++) {
+      w.step();
+      if (!has(w, id)) return w.tick;
+    }
+    return undefined;
+  }
+
+  it('a robot with a core that drops past the edge goes once every part is under the surface, and says so', async () => {
+    const w = await World.create({ seed: 1 }, space);
+    const r = w.spawnBlueprint(tall, { x: 8, y: 3 });
+    expect(await fallen(w, r.id, 300)).toBeDefined();
+    const kinds = w.events.filter((e) => e.robot === r.id).map((e) => e.kind);
+    expect(kinds.slice(-2)).toEqual(['fell', 'removed']);
+    const fell = w.events.find((e) => e.kind === 'fell');
+    expect(fell).toMatchObject({ name: 'tall', team: 0, core: true });
+  });
+
+  it('it stays until its top part is under the surface', async () => {
+    const w = await World.create({ seed: 1 }, space);
+    const r = w.spawnBlueprint(tall, { x: 8, y: 3 });
+    let last = Infinity;
+    while (has(w, r.id) && w.tick < 300) {
+      last = Math.max(...[...r.parts.values()].map((p) => partWorldPose(w, r, p.id).y));
+      w.step();
+    }
+    expect(has(w, r.id)).toBe(false);
+    // Its top part's center, the tick before it went: under the surface, and only a tick's fall above the line.
+    expect(last).toBeLessThan(0);
+    expect(last).toBeGreaterThan(-1.5);
+  });
+
+  it('a robot put under the middle of the ground goes on the first tick: nothing may fly about in there', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(BLOCK, { x: -60, y: -10 });
+    w.step();
+    expect(has(w, r.id)).toBe(false);
+  });
+
+  it('a robot hanging over the edge with a part still above the surface stays', async () => {
+    const w = await World.create({ seed: 1 }, space);
+    const low = w.spawnBlueprint(BLOCK, { x: 8, y: 30 });
+    const r = w.spawnBlueprint(tall, { x: 8, y: -1 });
+    w.step();
+    expect(has(w, r.id)).toBe(true);
+    expect(has(w, low.id)).toBe(true);
+  });
+
+  it('a robot at rest on the ground, or pressed flat under a heavy one, stays', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    const r = w.spawnBlueprint(CAR_FLAT, { x: -60, y: 1 });
+    const heavy = w.spawnBlueprint(SLAB, { x: -60, y: 3 });
+    for (let i = 0; i < 300; i++) w.step();
+    expect(has(w, r.id)).toBe(true);
+    expect(has(w, heavy.id)).toBe(true);
+    expect(w.events.some((e) => e.kind === 'fell')).toBe(false);
+  });
+
+  it('gives the same world, run twice', async () => {
+    const run = async (): Promise<string> => {
+      const w = await World.create({ seed: 1 }, space);
+      w.spawnBlueprint(tall, { x: 8, y: 3 });
+      w.spawnBlueprint(ARM, { x: 0, y: 3 });
+      for (let i = 0; i < 300; i++) w.step();
+      const h = w.hash();
+      w.dispose();
+      return h;
+    };
+    expect(await run()).toBe(await run());
   });
 });

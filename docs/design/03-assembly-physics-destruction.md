@@ -82,6 +82,7 @@ This preserves the velocity field of the rigid motion. The spike in `docs/resear
 ## Debris
 - A chunk with no core is debris. It keeps running latched actuators while it has energy.
 - No auto despawn in v1. A "clear debris" command removes core-less chunks that have been at rest for a few seconds.
+- A robot with every part wholly under the surface (each cell center below y = -0.5) has fallen off the world and goes, core or not (`World.removeFallen`, event `fell`). The ground is a 2 m slab that ends at its edges, with nothing under it, while to the player it is solid earth, so that is the only way there. Without this rule a drone that sank past the edge flew home under the slab and stayed pinned to its underside, drawn inside solid ground, and pieces fell for good.
 
 ## Joints are multibody joints (Gate 3, 2026-09-23)
 - Robots' revolute joints (wheels) are Rapier multibody joints, not impulse joints. Impulse joints stretch and feed energy back when a driven wheel slips and lands: a car driven off a 1 m ledge bounced higher each time and flipped (6 flips in 23 stress drives, and one drive reached 26 m/s, past the wheels' top speed). Multibody joints: 0 flips in the same drives. `test/stability.test.ts` keeps it that way.

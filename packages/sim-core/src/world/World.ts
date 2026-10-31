@@ -36,7 +36,7 @@ import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face, JammerSpec } from '../parts/types';
 import type { BodyGroup, PartInstance, Robot } from './Robot';
 import { BAY_CLEAR_EXIT, BAY_CLEAR_SPEED, bayClearAfterTicks, copyLeaveTicks } from './bayclear';
-import { DEBRIS_REST_SECONDS, sweepDebris } from './debris';
+import { DEBRIS_REST_SECONDS, isUnderground, sweepDebris } from './debris';
 import { SIGHT, type GunSight, type Shell } from '../weapons/shells';
 import type { Beam } from '../weapons/beams';
 import type { Bolt } from '../weapons/bolts';
@@ -89,6 +89,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'coreWoke'; from: number }
   /** A robot is gone: all its parts were destroyed, or Clear debris took it. */
   | { tick: number; robot: number; kind: 'removed' }
+  /** A robot fell off the world: every part is under the ground's surface. `removed` follows on the same tick. */
+  | { tick: number; robot: number; kind: 'fell'; name: string; team: number; core: boolean }
   /** A script sent a message to an attached core (M8); `data` is its JSON text. */
   | { tick: number; robot: number; kind: 'sent'; to: string; data: string }
   /** M10: a part that needs arming was armed by its `arm` input (a key or a script). */
@@ -738,6 +740,7 @@ export class World {
     this.grapples.run(this.gh());
     this.damagePhase();
     this.fadeDebris();
+    this.removeFallen();
     for (const c of this.controllers.values()) c.endTick();
     this.tickCount++;
   }
@@ -957,6 +960,19 @@ export class World {
   private fadeDebris(): void {
     const gone = sweepDebris(this.physics, this.robots, this.debrisRest, Math.max(1, Math.round(DEBRIS_REST_SECONDS / this.dt)));
     for (const robot of gone) this.removeRobot(robot);
+  }
+
+  /**
+   * A robot wholly under the ground has fallen off the world, and goes. The ground is a slab 2 m thick that ends at its
+   * edges, with nothing under it, while to the player it is solid earth. A drone that sank past the edge flew home
+   * under the slab and hung there against its underside for good (its pilot cannot see the ground), inside what looks
+   * like solid ground; pieces fell for 100 km. A robot only part way under, on the edge, stays.
+   */
+  private removeFallen(): void {
+    for (const robot of this.robots.filter((r) => isUnderground(this.physics, r))) {
+      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'fell', name: robot.name, team: robot.team, core: robot.primaryCoreId !== undefined });
+      this.removeRobot(robot);
+    }
   }
 
   private removeRobot(robot: Robot): void {
