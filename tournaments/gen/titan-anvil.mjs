@@ -28,6 +28,11 @@
 // Righting (2026-10-30, Logan: "anvil flipped over and got stuck upside down"): every booster it had pushes it down or
 // along the ground when it lies on its back, so a roll ended the match for it. Now the frames in each end pad are
 // boosters pushing the other way (see RIGHT), 231 an end: no more parts, 0.5 kg more each. 3096 parts, 13.15 t.
+//
+// Round 10 (2026-10-30, Logan: "it's just all boosters, the top of the anvil looks very weak", and Mirage's missiles broke
+// its side): armor back in (see ROOF_ARMOR). 194 righting boosters an end, 37 fewer, are enough to get up at this mass;
+// the rest are frames again. Plate teeth over the roof guns, a plate behind the skin on every gun row, and the slab pays
+// for them with frames in two rows of its tooth columns. The lid decouplers now fall with the lids.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

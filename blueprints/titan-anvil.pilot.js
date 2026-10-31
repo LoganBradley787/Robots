@@ -149,10 +149,11 @@ const burnHigh = param('burnHigh', 185, { min: 60, max: 215 }); // m over its co
 const burnGuns = param('burnGuns', 25, { min: 0, max: 500 }); // guns pointing up under which it crosses over the hull with its lids gone
 const burnEdge = param('burnEdge', 200, { min: 0, max: 800 }); // m to the edge behind it under which it crosses anyway
 const burnTilt = param('burnTilt', 15, { min: 0, max: 35 }); // degrees its floor tilts in toward what its lasers burn
-const beamTilt = param('beamTilt', 12, { min: 0, max: 35 }); // degrees its floor tilts forward there, onto the end past the mast
+const beamTilt = param('beamTilt', 20, { min: 0, max: 35 }); // degrees its floor tilts forward there, onto the end past the mast
 const cutTilt = param('cutTilt', 22, { min: 0, max: 35 }); // degrees it tilts its floor toward what its lasers burn
 const cutWait = param('cutWait', 20, { min: 1, max: 30 }); // s it holds off a standing mast with its lasers before it goes on without cutting it
 const beamWait = param('beamWait', 9, { min: 1, max: 30 }); // s it holds there for a beam by the mast to go
+const beamGuns = param('beamGuns', 6, { min: 0, max: 30 }); // s of that for its floor guns alone, before the lasers join in
 const threatParts = param('threatParts', 10, { min: 1, max: 500 }); // parts lost in `threatTime` s that make it look for who did it (see Threats)
 const threatTime = param('threatTime', 6, { min: 1, max: 30 }); // s it counts its own losses over
 const threatHold = param('threatHold', 20, { min: 3, max: 120 }); // s it stays on a threat that has stopped hurting it
@@ -551,9 +552,14 @@ function burnList(main, t, sh) {
   const rest = self.angle - Math.PI / 2;
   const reach = (px, py) => Math.hypot(px - fx, py - fy) < 305 && Math.abs(wrapA(Math.atan2(py - fy, px - fx) - rest)) < 0.85;
   const list = [];
-  // A mast first: cut at the height it can reach, as low as it can (frames, so a beam goes through it in a moment).
+  // A mast first: cut at the height it can reach, as low as it can (frames, so a beam goes through it in a moment). Before
+  // that a beam still standing by it, turret and all.
   if (state.cutMast && sh) {
     const mx = t.x + sh.topX;
+    if (sh.beams.some((b) => Math.abs(b.rx - sh.topX) < 60)) {
+      const guard = scan(main.id, { of: ['laser', 'rotator', 'heavyrotator'] });
+      if (guard) for (const p of guard) if (Math.abs(p.pos.x - mx) < 60 && reach(p.pos.x, p.pos.y)) list.push({ rx: p.pos.x - t.x, ry: p.pos.y - t.y, core: false, wait: 0.4, score: -2 });
+    }
     const swing = clamp(0.75 + Math.sign(mx - fx) * self.angle, 0.2, 1.4); // its swing that way, with its floor's tilt
     const my = fy - Math.abs(mx - fx) / Math.tan(swing);
     const seen = scan(main.id, { of: 'frame', near: { x: mx, y: my }, most: 6 });
@@ -789,6 +795,8 @@ function lostOver(s) {
 // things to worry about than the rake?", and it fights like its life is on the line). Losing `threatParts` parts in
 // `threatTime` s it looks for who is doing it: the lighter enemy with the most darts in the air, else the nearest
 // lighter enemy within `threatNear`. That one is the main enemy until it is gone or `threatHold` s after it stopped.
+// It has to be on the radar: a mirage's jammers hide it past 150 m, and flying to where it was last seen or where its
+// darts first showed crossed the juggernaut and lost the core twice, so a hidden launcher is not hunted.
 // Each dart goes to the enemy nearest the line back along its flight, the first time it is seen. Only one under half
 // the main enemy's mass: the heavy one is already the main enemy, and one that much heavier cannot be rammed anyway.
 function threatNow(m) {
@@ -1378,6 +1386,12 @@ function tick() {
     // With the edge close behind it, it crosses whatever is left: pinned there it would be over the guns for good.
     const mySide = x < t.x ? -1 : 1;
     if (stance) state.gunSide = arena && edge - x * mySide < burnEdge ? -mySide : tailBeam || sh.upArms > burnGuns ? mySide : tailDir;
+    // Its back to an edge the hull is coming at, with nothing that can stop it (a mast cut lets it over): the other side.
+    if (arena && !stance && !towering && !state.gunCrossing && roomOn(state.gunSide) < 150 && roomOn(-state.gunSide) > roomOn(state.gunSide)) {
+      state.gunSide = -state.gunSide;
+      state.gunAt = time;
+      if (say > 0.5) log('raking: the edge is behind me, crossing over');
+    }
     const sd = state.gunSide;
     const aimY = t.y + (sh.upY || 0);
     // A rake that stopped breaking things moves on (2026-10-30; anvil r10, Logan: "you're not even varying your approach
@@ -1437,7 +1451,9 @@ function tick() {
       const stowing = stance && zaps.some((z) => z.push && (z.push.out.position || 0) > 0.1);
       if (stowing) wantVx = t.vx + (x >= t.x ? 5 : -5);
       else if (holding) {
-        state.cutMast = !beamUp;
+        // Its floor guns get the first 3 s. A beam still up after that burnt through to the core by 52 s, so the lids drop
+        // anyway: this close and this still, the lasers shoot it themselves, and it is not aiming at them.
+        state.cutMast = !beamUp || (state.cutFrom >= 0 && time - state.cutFrom > beamGuns);
         if (there) {
           state.gunLean = beamUp ? sd * ((beamTilt * Math.PI) / 180) : 0;
           state.overSpan = true;
