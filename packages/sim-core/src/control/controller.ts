@@ -22,11 +22,13 @@ interface Channel {
   min: number;
   max: number;
   default: number;
+  /** A script's write lasts until the next one (`ChannelDef.holds`), not one tick. */
+  holds?: boolean;
 }
 
 /**
  * One input of one part. The script layer (`04`) lives here: `scripted` is the value scripts set this tick, when
- * `written` is the controller's `stamp`. `vals` is the part's map in the controller's kept output and `value` what it
+ * `written` is the controller's `stamp` (on a channel that `holds`, any write at all counts). `vals` is the part's map in the controller's kept output and `value` what it
  * holds for this input, so a tick that changes nothing writes nothing.
  */
 interface Slot {
@@ -182,7 +184,12 @@ export class Controller {
   /** What a script set on an input this tick. */
   private scripted(id: string, name: string): number | undefined {
     const s = this.slotsOf.get(id)?.find((x) => x.channel.name === name);
-    return s && s.written === this.stamp ? s.scripted : undefined;
+    return s && this.isScripted(s) ? s.scripted : undefined;
+  }
+
+  /** Whether a script's value stands this tick: written this tick, or ever on a channel that holds. */
+  private isScripted(s: Slot): boolean {
+    return s.written === this.stamp || (s.channel.holds === true && s.written !== 0);
   }
 
   /** Switches the trace on or off (M16). Off is the default, and costs nothing. */
@@ -283,7 +290,7 @@ export class Controller {
   private final(s: Slot, sums: Map<string, Map<string, number>> | undefined): number {
     const c = s.channel;
     const sum = sums?.get(s.id)?.get(c.name);
-    const v = sum ?? (s.written === this.stamp ? s.scripted : undefined);
+    const v = sum ?? (this.isScripted(s) ? s.scripted : undefined);
     return v === undefined ? c.default : Math.min(c.max, Math.max(c.min, v));
   }
 
@@ -322,7 +329,7 @@ export class Controller {
     for (const k of old.releasedNow) this.releasedNow.add(k);
     this.toggledScripts.push(...old.toggledScripts);
     for (const s of old.slots) {
-      if (s.written !== old.stamp) continue;
+      if (!old.isScripted(s)) continue;
       const own = this.slotsOf.get(s.id)?.find((x) => x.channel.name === s.channel.name);
       if (!own) continue;
       own.scripted = s.scripted;

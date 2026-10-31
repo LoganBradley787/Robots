@@ -13,7 +13,7 @@ export interface ControlledPart {
   id: string;
   part: string;
   tags: readonly string[];
-  inputs: readonly { name: string; min: number; max: number; default: number }[];
+  inputs: readonly { name: string; min: number; max: number; default: number; holds?: boolean }[];
 }
 
 /** Snapshot of a controller for the hash, the UI, and tests. Sorted so it is stable. */
