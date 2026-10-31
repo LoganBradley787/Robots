@@ -7,12 +7,22 @@ import { checkDeterminism } from '../src/commands/determinism';
 import { validateCommand } from '../src/commands/validate';
 import { showBlueprint } from '../src/commands/show';
 import { formatReplay, replayCommand } from '../src/commands/replay';
-import { buildReplay, defaultRegistry, expandBlueprint, placeBlueprint, toFileJson, World, type Blueprint } from '@robots/sim-core';
+import { buildReplay, defaultRegistry, expandBlueprint, parseKeyTimeline, placeBlueprint, toFileJson, World, type Blueprint } from '@robots/sim-core';
 import { listBlueprints, readBlueprint, resolveBlueprint } from '../src/blueprintFiles';
 
 const flat = parseWorldFile(flatJson);
 
 describe('runSim', () => {
+  it('reports a reactor: rating, peaks, and what it fried', async () => {
+    const bp = { format: 1, name: 'rx', grid: ['.  =', '.  Lz^', 'C  rc', 'B  .'], bindings: [{ key: 'f', mode: 'hold', target: 'laser', channel: 'fire', value: 1 }] };
+    const r = await runSim(flat, bp, { seconds: 8, seed: 1, at: { x: 0, y: 3 }, keys: parseKeyTimeline('f:0-8') });
+    expect(r.reactor).toMatchObject({ rating: 300, peakLoad: 3 });
+    expect(r.reactor?.fried).toBeGreaterThan(0);
+    expect(formatReport(r)).toMatch(/reactor: rating 300 J\/s {3}peak load 3\.00 {3}peak heat 0\.\d+ {3}parts fried \d+ \(first at t=/);
+    expect((await runSim(flat, carJson, { seconds: 1, seed: 1, at: { x: 0, y: 3 } })).reactor).toBeUndefined();
+    expect(showBlueprint(bp).text).toContain('steady power: 300 J/s from its reactors');
+  });
+
   it('samples the car once per second and ends at rest', async () => {
     const r = await runSim(flat, carJson, { seconds: 3, seed: 1, at: { x: 0, y: 3 } });
     expect(r.ticks).toBe(180);

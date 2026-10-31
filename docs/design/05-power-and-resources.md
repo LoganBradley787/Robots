@@ -6,7 +6,7 @@ Status: draft 2026-09-22; decisions with Logan 2026-09-23 (M4) below, which win 
 - `ResourceKind` is a string. v1 ships `"energy"`. Fuel later is a second kind with no engine changes.
 - Container parts declare `resource: { kind, capacity }` in their def. Each `PartInstance` of a container holds `stored`.
 - Consumer parts declare `powerDraw` (units per second at full command) and the kind they consume (default `"energy"`).
-- Producers (solar, generator) are a later addition: the same interface with a negative request.
+- Producers are parts that pour into a pool: solar panels, and reactors (below).
 
 ## Pools are derived, not stored
 - A chunk's pool for a kind is the set of container parts in that chunk. `capacity` and `stored` are sums over those parts.
@@ -46,3 +46,40 @@ Brownout is proportional rather than first-come so the result does not depend on
 - Under Unlimited energy a robot reads every pool as full (`self.energy.stored`, `energy`, `charge`), so a script that stopped at low energy starts again: the Juggernaut sat still at 2.7 percent because the pool stands still and its pilot read that (2026-10-30). Nothing is taken from the pool or put in it, so `World.energy` and the hash keep what is really stored, and the robot reads that again when the switch goes off.
 - Events: `energyEmpty` once per pool, in `World.events` (not hashed). The app shows it as a notice.
 - Measured (`pnpm sim tune`): car (core + battery, 2100) drives 210 s; hopper thrusts 53 s at full. With no air drag a hopper that thrusts for the whole 53 s reaches about 20 km: flagged to Logan for M5 planning.
+
+## Reactors (as built, 2026-10-31)
+Goal (Logan): long casual fights without Unlimited energy. A reactor is the part that gives a robot steady power; a battery stays the part that pays for spikes. Parts are data, `reactor` and `smallreactor`, both 15 J/s per kg.
+
+**Tick order**
+1. `runReactors`, right after `runSolar`: per chunk, the live reactors pour their rating in (`fillHeld`), times `push` when pushed. A pool with no room takes less, and what did not fit was never made. What they may make this tick goes on the robot's behavior list, so a rebuild mid-tick drops it the same way on every host.
+2. Both behavior passes: `resolvePool` makes up what the pool cannot pay, up to what is left of the limit, sharing one budget between the passes.
+3. `settleReactors`, right after the late pass: `x = (filled + extra) / rating`, `over = clamp((x - 1) / (cap - 1), 0, 1)`, then for each reactor `heat += (over * over - heat) * dt / tau`. If `over > 0`, the chunk burns `burn * heat * dt` for each reactor.
+
+**The rules**
+- Over rating is never "the laser is on": batteries pay for spikes, and a laser on a 1.5 kW reactor with charge in the pool makes no heat. Overdrive starts only when the pool cannot pay this tick's requests.
+- `x` is a chunk's, shared by its reactors: paralleled, they run at the same load.
+- At the cap, output stops, heat tends to 1, and anything still asked for browns out as ever.
+- **No core needed (Logan):** reactors keep running on a wreck. A reactor on a piece with nothing to fill and nothing drawing makes nothing.
+- **Split pieces do not share:** each piece has the reactors it holds. Heat lives on the part and goes with it.
+- **Output is full until the reactor is destroyed.** No fuel (Logan): a hover is not idling, so fuel and "stays up for good" cannot both hold.
+- **Unlimited energy:** reactors make nothing and cool.
+
+**`push` (the reactor's one input, holds until changed)**
+- 0, the default, is automatic: the rules above, no script needed.
+- 1 to `cap`: it runs at that many times its rating even with charge left, refilling the pool faster, and stops there; it does not go past `push` when the pool runs dry. It heats and fries by the same line.
+- Above 0 and under 1: it never goes past its rating.
+- It makes only what the pool can take, so a pushed reactor on a full pool stays cold. It heats once the pool has room for what it is pushed to. Batteries fry first, so it can burn the batteries it is filling. That is the price (Logan: "I don't care if I lose a couple batteries").
+- Mixed `push` values on one chunk add up, then all of its reactors share the load.
+
+**Who fries, each chunk, while its burn this tick is left**
+1. Parts with `fuse`, full or empty: lowest health first.
+2. Then what draws this tick, from both passes: the top drawer and anything within 10 percent of it, lowest health first.
+3. Exact ties go by the world's seeded RNG, one draw per pick.
+- A victim takes what it can and the rest spills to the next, so a big robot is not held to one part a tick. Lowest health first makes a victim stick, so parts go one at a time.
+- The core and the reactor are never picked: no `fuse`, no draw. With nothing drawing, nothing fries.
+- A fried part goes in the damage phase with its own blast (a cannon going up). `partDestroyed` says `cooked: true`, and duel reports count it as a loss even when it blasted.
+
+**Reads**
+- Scripts: `heat` and `load` outputs, `p.in.push`, `p.spec.reactor.power`, `cap`, `tau`, `burn`. `self.energy` still means what is stored, but no longer "time left": a reactor pilot adds steady power to its budget.
+- `World.reactors(id)` for readouts; `World.powered(id)` is "something stored or a reactor making something", because a robot on overdrive ends every tick with an empty pool and must keep its flames and sound.
+- Event `overload`, once per pool, not hashed.

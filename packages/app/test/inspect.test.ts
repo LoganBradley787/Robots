@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buildInspect, energyText, massText, positionText, velocityText } from '../src/world/inspect';
+import { buildInspect, energyText, massText, positionText, reactorText, velocityText } from '../src/world/inspect';
 
 describe('the followed robot in the left panel', () => {
   const enemy = buildInspect({ name: 'titan-mirage', team: 1, driving: false, x: 412.349, y: 6.06, speed: 23.44, energy: { stored: 2480.9, capacity: 4000 }, parts: 38, massKg: 4120.4 });
+
+  it('shows its reactors, to a hundredth so the view is not new every tick', () => {
+    const v = buildInspect({ name: 'r', team: 0, driving: true, x: 0, y: 0, speed: 0, reactor: { power: 4500, load: 0.7234, heat: 0.0049 }, parts: 1, massKg: 1 });
+    expect(reactorText(v.reactor!)).toBe('4.5 kW, load 0.72, heat 0');
+    expect(enemy.reactor).toBeUndefined();
+  });
 
   it('says whose it is, in its team color, and that you only watch an enemy', () => {
     expect(enemy.teamName).toBe('Enemy');

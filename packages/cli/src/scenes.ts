@@ -61,6 +61,9 @@ export const GOLDEN_SCENES: readonly Scene[] = [
   // picks an enemy laser drone apart from past its reach.
   { name: 'cannon-drone-vs-hunter', bp: 'enemy-cannon-drone', x: -300, y: 60, team: 1, seconds: 22, drops: ['hunter-drone@0:50,60'] },
   { name: 'lance-drone-vs-laser-drone', bp: 'enemy-lance-drone', x: -300, y: 60, team: 1, seconds: 24, drops: ['enemy-laser-drone@0:300,60'] },
+  // Reactors: past its rating on its own once the pool is dry is a slow road, so this one pushes it to 3 with charge
+  // left while the cannon charges: batteries cook, then the cannon.
+  { name: 'reactor-drone-pushed', bp: 'reactor-cannon-drone', x: 0, y: 60, team: 1, seconds: 24, keys: 'g:0.5, p:8', drops: ['hunter-drone@0:150,60'] },
   // M11: flares. The hunter pops a pair three times while the enemy flying silo fires at it (hunter-duel and the enemy
   // scenes above have the enemies popping their own).
   { name: 'hunter-flares', bp: 'hunter-drone', x: -250, y: 15, seconds: 12, keys: 'v:3.8, v:6, v:8.5', drops: ['enemy-flying-silo@0:-100,1.5:enemy'] },

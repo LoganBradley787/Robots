@@ -52,6 +52,11 @@ export function KeysBar({ store, actions }: { store: Store<AppState>; actions: K
             <div class={`energy-fill${pct < 15 ? ' low' : ''}${unlimited ? ' unlimited' : ''}`} style={{ width: `${unlimited ? 100 : pct}%` }} />
           </div>
           <span class="energy-text">{unlimited ? 'no limit' : e.capacity === 0 ? 'none' : `${pct}%`}</span>
+          {e.heat !== undefined && (
+            <div class="heat-track" title={`reactor heat ${e.heat}%`}>
+              <div class="heat-fill" style={{ width: `${e.heat}%` }} />
+            </div>
+          )}
         </div>
       )}
       {keys.map((k) => (

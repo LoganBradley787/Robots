@@ -46,6 +46,7 @@ export function showBlueprint(blueprint: unknown): { ok: boolean; text: string }
   const mx = st.comX * mass;
   const my = st.comY * mass;
   lines.push(`mass: ${mass.toFixed(3)} kg, center of mass at cell (${(mx / mass).toFixed(3)}, ${(my / mass).toFixed(3)})`);
+  if (st.power > 0) lines.push(`steady power: ${st.power} J/s from its reactors, against ${st.fullDraw} J/s with every part at full`);
   lines.push(`chunks: ${plan.chunks.length}, bodies: ${plan.groups.length}`);
   for (const grp of plan.groups) {
     const joint = grp.joint ? ` joint -> group ${grp.joint.parentGroup}` : '';

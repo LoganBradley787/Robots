@@ -207,6 +207,9 @@ export class Tracer {
         case 'fell':
           push(e.robot, 'fell', 'fell off the world: every part is under the ground');
           break;
+        case 'overload':
+          push(e.robot, 'overload', 'its reactors ran past their rating');
+          break;
         case 'energyEmpty':
           push(e.robot, 'energyEmpty', 'ran out of energy');
           break;

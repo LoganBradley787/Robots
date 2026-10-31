@@ -46,6 +46,8 @@ export interface RunReport {
   final: RobotSample;
   drive: DriveMetrics;
   energy: { used: number; remaining: number; capacity: number; ranDryAt?: number };
+  /** Its reactors over the run; absent on a robot without one. */
+  reactor?: { rating: number; peakLoad: number; peakHeat: number; fried: number; firstFriedAt?: number };
   finalHash: string;
   /** Things that ran but probably not as meant, like a timeline key the robot has no control on. */
   warnings: string[];
@@ -112,6 +114,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
     let last = sampleRobot(world, robot);
     drive.add(last);
     let totalMs = 0;
+    let reactor: { rating: number; peakLoad: number; peakHeat: number } | undefined;
     let worstMs = 0;
     for (let i = 0; i < ticks; i++) {
       while (drops.length > 0 && Math.round((drops[0]?.t ?? 0) / world.dt) <= world.tick) {
@@ -129,6 +132,8 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       if (!world.robots.includes(robot)) continue;
       last = sampleRobot(world, robot);
       drive.add(last);
+      const rx = world.reactors(robot.id);
+      if (rx) reactor = { rating: rx.power, peakLoad: Math.max(reactor?.peakLoad ?? 0, rx.load), peakHeat: Math.max(reactor?.peakHeat ?? 0, rx.heat) };
       if (world.tick % every === 0) {
         samples.push(last);
         aims.push(aimsOf(world, robot));
@@ -145,6 +150,7 @@ export async function runSim(file: WorldFile, blueprint: unknown, opts: RunOptio
       final: last,
       drive: drive.result(),
       energy: energyOf(world, robot.id),
+      ...(reactor ? { reactor: { ...reactor, ...friedOf(world) } } : {}),
       warnings,
       scriptCrashes: world.events.flatMap((e) => (e.kind === 'scriptCrashed' ? [{ script: e.script, t: e.tick * world.dt, kind: e.error.kind, message: e.error.message }] : [])),
       destruction: destructionOf(world, robot.id),
@@ -207,6 +213,7 @@ export function formatReport(r: RunReport): string {
   const fin = r.final;
   lines.push(formatDrive(r.drive));
   lines.push(formatEnergy(r.energy));
+  if (r.reactor) lines.push(formatReactor(r.reactor));
   lines.push(`time per tick on this machine: ${f(r.timing.avgMs, 2)} ms average, ${f(r.timing.worstMs, 2)} ms worst (the browser has 16.7 ms per frame; scripts are most of it)`);
   const d = r.destruction;
   if (d.destroyed.length > 0 || d.explosions > 0) {
@@ -346,6 +353,17 @@ export function energyOf(world: SimWorld, robotId: number): RunReport['energy'] 
   const e = world.energy(robotId);
   const dry = world.events.find((ev) => ev.robot === robotId && ev.kind === 'energyEmpty');
   return { used: e?.used ?? 0, remaining: e?.stored ?? 0, capacity: e?.capacity ?? 0, ...(dry ? { ranDryAt: dry.tick * world.dt } : {}) };
+}
+
+/** Every part a reactor's heat cooked, and when the first went. */
+function friedOf(world: SimWorld): { fried: number; firstFriedAt?: number } {
+  const cooked = world.events.filter((e) => e.kind === 'partDestroyed' && e.cooked === true);
+  const first = cooked[0];
+  return { fried: cooked.length, ...(first ? { firstFriedAt: first.tick * world.dt } : {}) };
+}
+
+export function formatReactor(r: NonNullable<RunReport['reactor']>): string {
+  return `reactor: rating ${f(r.rating, 0)} J/s   peak load ${f(r.peakLoad, 2)}   peak heat ${f(r.peakHeat, 3)}   parts fried ${r.fried}${r.firstFriedAt !== undefined ? ` (first at t=${f(r.firstFriedAt, 2)}s)` : ''}`;
 }
 
 export function formatEnergy(e: RunReport['energy']): string {

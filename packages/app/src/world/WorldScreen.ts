@@ -76,7 +76,7 @@ export interface WorldView {
    * The energy of the robot the camera follows, driven or only watched (an enemy's too), in whole percent so the view
    * changes a hundred times over a full store at most. Absent when no robot is followed or it has no store.
    */
-  energy?: { name: string; percent: number; capacity: number; driving: boolean };
+  energy?: { name: string; percent: number; capacity: number; driving: boolean; heat?: number };
   /**
    * The robot the camera follows, any robot: where it is, how fast, its energy, team and parts, for the left panel.
    * Made with the readout, a few times a second.
@@ -565,6 +565,7 @@ export class WorldScreen {
     });
     const s = sampleRobot(this.world, focus);
     const e = this.world.energy(focus.id);
+    const rx = this.world.reactors(focus.id);
     const at = focus.primaryCoreId !== undefined ? { x: s.coreX, y: s.coreY } : { x: s.comX, y: s.comY };
     const inspect = buildInspect({
       name: focus.name,
@@ -574,6 +575,7 @@ export class WorldScreen {
       y: at.y,
       speed: s.speed,
       ...(e ? { energy: { stored: e.stored, capacity: e.capacity } } : {}),
+      ...(rx ? { reactor: rx } : {}),
       parts: s.parts,
       massKg: s.massKg,
     });
@@ -961,12 +963,14 @@ export class WorldScreen {
     // The followed robot's energy, an enemy's included. Whole percent only: the view is compared every frame, and a
     // finer number would re-render the UI every tick.
     const fe = focus ? this.world.energy(focus.id) : undefined;
-    if (focus && fe) view.energy = { name: focus.name, percent: fe.capacity > 0 ? Math.ceil((100 * fe.stored) / fe.capacity) : 0, capacity: fe.capacity, driving: focus.id === controlled?.id };
+    const fx = focus ? this.world.reactors(focus.id) : undefined;
+    if (focus && fe) view.energy = { name: focus.name, percent: fe.capacity > 0 ? Math.ceil((100 * fe.stored) / fe.capacity) : 0, capacity: fe.capacity, driving: focus.id === controlled?.id, ...(fx ? { heat: Math.round(100 * fx.heat) } : {}) };
     for (; this.eventCursor < this.world.events.length; this.eventCursor++) {
       const ev = this.world.events[this.eventCursor];
       const who = this.world.robots.find((r) => r.id === ev?.robot);
       if (ev) this.sound.event(ev, this.world);
       if (ev?.kind === 'energyEmpty' && who) this.onNotice?.(`${who.name} ran out of energy`);
+      if (ev?.kind === 'overload' && who) this.onNotice?.(`${who.name}: reactor past its rating, heat is cooking its batteries`);
       if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
       if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
       if (ev?.kind === 'decoupled') this.effects.spark(ev.x, ev.y);

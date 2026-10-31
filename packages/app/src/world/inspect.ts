@@ -22,6 +22,8 @@ export interface InspectView {
   speed: number;
   /** Its energy in whole units, when it has a store. */
   energy?: { stored: number; capacity: number };
+  /** Its reactors: J/s at rating, load to a hundredth, heat to a hundredth. */
+  reactor?: { power: number; load: number; heat: number };
   parts: number;
   massKg: number;
 }
@@ -34,11 +36,13 @@ export interface InspectSource {
   y: number;
   speed: number;
   energy?: { stored: number; capacity: number };
+  reactor?: { power: number; load: number; heat: number };
   parts: number;
   massKg: number;
 }
 
 const tenth = (v: number): number => Math.round(v * 10) / 10;
+const hundredth = (v: number): number => Math.round(v * 100) / 100;
 
 export function buildInspect(src: InspectSource): InspectView {
   return {
@@ -51,9 +55,15 @@ export function buildInspect(src: InspectSource): InspectView {
     y: tenth(src.y),
     speed: tenth(src.speed),
     ...(src.energy ? { energy: { stored: Math.floor(src.energy.stored), capacity: Math.round(src.energy.capacity) } } : {}),
+    ...(src.reactor ? { reactor: { power: src.reactor.power, load: hundredth(src.reactor.load), heat: hundredth(src.reactor.heat) } } : {}),
     parts: src.parts,
     massKg: Math.round(src.massKg),
   };
+}
+
+/** "4.5 kW, load 0.72, heat 0". */
+export function reactorText(r: { power: number; load: number; heat: number }): string {
+  return `${tenth(r.power / 1000)} kW, load ${r.load}, heat ${r.heat}`;
 }
 
 /** "x 412.3  y 6.1 m". */

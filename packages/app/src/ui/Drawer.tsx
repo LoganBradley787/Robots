@@ -191,6 +191,30 @@ export function PartNumbers({ def, mass }: { def: PartDef; mass?: number }) {
           <b>{num(def.powerDraw)} /s</b>
         </div>
       )}
+      {def.reactor !== undefined && (
+        <div class="kv" title="energy a second, filling its piece's batteries, core or no core">
+          <span>Steady power</span>
+          <b>{num(def.reactor.power)} /s</b>
+        </div>
+      )}
+      {def.reactor !== undefined && (
+        <div class="kv" title="When the pool cannot pay it runs this far past its rating, heating and cooking batteries first. Its push input does the same by hand and holds until changed: 1 and up, that many times its rating even with charge left; under 1, never past its rating.">
+          <span>Past rating</span>
+          <b>up to {num(def.reactor.cap)} times</b>
+        </div>
+      )}
+      {def.reactor !== undefined && (
+        <div class="kv" title="Heat climbs with the square of how far past rating it runs. Burn at full heat.">
+          <span>Burns at full heat</span>
+          <b>{num(def.reactor.burn)} health /s</b>
+        </div>
+      )}
+      {def.fuse === true && (
+        <div class="kv" title="A reactor run past its rating cooks batteries first, full or empty, weakest first">
+          <span>Fuse</span>
+          <b>yes</b>
+        </div>
+      )}
       {def.resource !== undefined && (
         <div class="kv">
           <span>Holds</span>

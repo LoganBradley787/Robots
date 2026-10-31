@@ -79,6 +79,9 @@ Status: all decided (Q22 sensors decided 2026-09-25 for M8). Logan answered Q1, 
 ### Q21. Terrain: immune
 - Terrain takes no damage in v1. Destructible terrain later means terrain made of cells, a separate feature.
 
+### Q23. Reactors (decided by Logan, 2026-10-31)
+- Overdrive on its own only when the pool cannot pay, plus `push` by hand. Two sizes, burn 40 per reactor and not per kg, because that is what makes a cannon blow up in time. No fuel. A reactor needs no core. Split pieces do not share. A small cold blast now, hot blast after play. Batteries fry first, full or empty. Output full until destroyed. Stock titans stay, `-r` versions beside them. Reactor cannon drones keep every battery. Dense battery stacks: nothing now. Model in `05`.
+
 ## Open
 
 ### Q22. Sensors and targeting (decided 2026-09-25, M8)

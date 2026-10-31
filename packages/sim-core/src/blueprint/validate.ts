@@ -163,6 +163,8 @@ export function validateBlueprint(raw: unknown, registry: PartRegistry): Validat
     if (!cores.some((c) => c.id === id)) err('BAD_CORE_PRIORITY', `corePriority lists '${id}', which is not a core in this blueprint ${coresHint(cores)}`);
   }
   if (cores.length === 0) warn('NO_CORE', 'blueprint has no core; it will spawn as debris');
+  const defs = blueprint.parts.filter((p) => registry.has(p.part)).map((p) => registry.get(p.part));
+  if (defs.some((d) => d.reactor !== undefined) && !defs.some((d) => d.fuse === true)) warn('REACTOR_NO_FUSE', 'no batteries: power past its rating goes straight into the parts drawing it');
 
   const rootId = rootPartId(blueprint, registry) as string;
   const plan = assemble(blueprint, registry, rootId);

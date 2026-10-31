@@ -107,6 +107,13 @@ describe('reactor parts', () => {
     expect(staticStats(bp, defaultRegistry()).massKg).toBeCloseTo(2 + 1 + 4 + 100, 6);
   });
 
+  it('a reactor with no batteries gets a warning, and is still legal', () => {
+    const v = validateBlueprint(SMALL, defaultRegistry());
+    expect(v.ok).toBe(true);
+    expect(v.issues.find((i) => i.code === 'REACTOR_NO_FUSE')).toMatchObject({ severity: 'warning', message: expect.stringContaining('power past its rating goes straight into the parts drawing it') });
+    expect(validateBlueprint(FUSED, defaultRegistry()).issues.find((i) => i.code === 'REACTOR_NO_FUSE')).toBeUndefined();
+  });
+
   it('fillHeld matches fillContainers', () => {
     const mk = (a: number): { stored: number; def: { resource: { capacity: number } } }[] => [
       { stored: a, def: { resource: { capacity: 100 } } },
@@ -203,6 +210,18 @@ describe('reactor: steady output', () => {
     expect(stored(r)).toBe(0);
     expect(reactor(r).load).toBe(0);
     expect(reactor(r).heat).toBeCloseTo(0.5 * (1 - 1 / 240) ** 60, 9);
+    w.dispose();
+  });
+
+  it('World.reactors: rating, load and the hottest, nothing for a robot with none', async () => {
+    const w = await world();
+    const r = w.spawnBlueprint(SMALL, { x: 0, y: 100 });
+    const plain = w.spawnBlueprint({ format: 1, name: 'plain', grid: ['C'] }, { x: 20, y: 100 });
+    drain(r);
+    run(w, 2);
+    reactor(r).heat = 0.25;
+    expect(w.reactors(r.id)).toEqual({ power: 300, load: 1, heat: 0.25 });
+    expect(w.reactors(plain.id)).toBeUndefined();
     w.dispose();
   });
 

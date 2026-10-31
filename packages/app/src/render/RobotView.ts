@@ -2,7 +2,7 @@ import { AnimatedSprite, Container, Graphics, Sprite, type Texture } from 'pixi.
 import { faceDir, footprintBox, footprintOf, opposite, recipePlacement, rootPartId, rotateCell, rotateFace, rotationRadians, type BodyGroup, type BodyId, type PartInstance, type PartRegistry, type PhysicsWorld, type Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { bodyOrder, mountLayout, partLayout, type SpriteLayout } from './robotLayout';
-import { damageTint } from './damageTint';
+import { damageTint, heatTint } from './damageTint';
 import { multiplyTint, teamTint } from './teamTint';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from './units';
 import { partSprites } from './partSprites';
@@ -51,6 +51,8 @@ interface PartView {
   sprites: Sprite[];
   /** The health it was last tinted for, and the lit look (M10 armed, M11 burning) it last showed. */
   health: number;
+  /** The heat it was last tinted for, in steps. Undefined until it first is. */
+  heat?: number;
   plain?: Texture;
   lit?: Texture;
   on?: boolean;
@@ -405,9 +407,12 @@ export class RobotView {
         sprite.width = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def, part.footprint).w);
         sprite.height = PIXELS_PER_METER * (part.def.footprint.length === 1 ? 1 : footprintBox(part.def, part.footprint).h);
       }
-      if (part.health !== p.health) {
+      // Steps of a sixteenth: a reactor's heat changes every tick, its tint need not.
+      const heat = Math.round((part.heat ?? 0) * 16) / 16;
+      if (part.health !== p.health || heat !== p.heat) {
         p.health = part.health;
-        const tint = multiplyTint(damageTint(part.health / part.def.health), teamTint(this.robot.team));
+        p.heat = heat;
+        const tint = multiplyTint(multiplyTint(damageTint(part.health / part.def.health), heatTint(heat)), teamTint(this.robot.team));
         for (const sprite of p.sprites) sprite.tint = tint;
       }
       if (p.glow) {

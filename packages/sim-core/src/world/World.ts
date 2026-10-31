@@ -949,6 +949,23 @@ export class World {
     return robot !== undefined && partLists(robot).reactors.some((p) => (p.load ?? 0) > 0);
   }
 
+  /** A robot's live reactors for a readout: J/s at rating, the load they ran at last tick, the hottest. Undefined with none. */
+  reactors(robotId: number): { power: number; load: number; heat: number } | undefined {
+    const robot = this.byId.get(robotId);
+    const live = robot ? partLists(robot).reactors.filter((p) => p.health > 0) : [];
+    if (live.length === 0) return undefined;
+    let power = 0;
+    let made = 0;
+    let heat = 0;
+    for (const p of live) {
+      const rated = p.def.reactor?.power ?? 0;
+      power += rated;
+      made += rated * (p.load ?? 0);
+      heat = Math.max(heat, p.heat ?? 0);
+    }
+    return { power, load: made / power, heat };
+  }
+
   /**
    * Batch: a smoke pod whose `on` input is above 0.5 releases its cloud where it is and is used up (health 0, so it
    * goes in the damage phase without a blast). The cloud stays where it was released, sinking slowly.

@@ -69,6 +69,8 @@ Numbers are first guesses to be tuned in one place (Q7). Faces listed are attach
 | heavyrotator | 6 | 80 | N E S W | turn [-1, 1] | angle [-1, 1] | M15. A rotator for heavy turrets: 4000 N m (the rotator is 600 and cannot hold a 40 kg cannon level), 1 rad/s, swings 120 degrees either way (the rotator 90, so a turret that stands upright can point below level), 12 J/s. Same behavior as the rotator. Legend `RR RRv RR< RR>`, no builder key. |
 | armorplate | 20 | 250 | N E S W | | | Batch. Heavy armor plate: twenty frames of mass (5 kg until 2026-10-02, Logan: a flier should pay for armor; `titan-anvil` flew 1215 plates at a push to weight of 2.8), 250 health, and `shellDamage` 0.1 (a 5 damage shell does 0.5: 500 hits; a frame takes 48), `beamDamage` 0.25 (a laser burns it in 1.7 s, not 0.4). Blasts hurt it in full, but a warhead at 1 m does about 80 of its 250, so it stands a blast a frame does not. No energy. Legend `A`, no builder key. Very heavy on purpose: a flier needs lift for every plate. |
 | solar | 0.5 | 8 | S (its base) | | | Batch. A solar panel (see Solar panels): adds 6 J/s to its chunk's energy pool while its front face points up, scaled by the cosine of the angle to straight up. Legend `So` (rotation 0, facing up), no builder key. |
+| reactor | 100 (nine cells) | 300 | outer faces of its 3 by 3 | push [0, 3], holds until changed | heat [0, 1], load [0, 3] | A reactor (see Reactors): 1500 J/s into its chunk's pool, core or no core; up to 3 times that past its rating. `tau` 10 s. Legend `Rc`, symmetry 1. |
+| smallreactor | 20 | 60 | N E S W | push [0, 3], holds until changed | heat [0, 1], load [0, 3] | The same in one cell: 300 J/s, `tau` 4 s. Legend `rc`. |
 | swivelthruster | 1.5 | 25 | N E W | throttle [0, 1], swivel [-1, 1] | | Batch. A booster (400 N, 60 energy per second) whose push tilts up to 15 degrees with `swivel` (see Swiveling thrusters). Legend `V^ Vv V< V>` (the way it pushes), no builder key. |
 | fin | 0.3 | 10 | N E S W | deflect [-1, 1] | | Batch. A fin (see Fins): a flat plate along its `acts` axis that pushes on the air, `-k (v . n) |v| n` at its cell with k = 0.36; `deflect` turns it up to 20 degrees to steer. No energy. Legend `L^ Lv L< L>` (the way the plate lies), no builder key. |
 | charge | 1.5 | 60 | N E S W | detonate (pulse), arm | armed | Batch. A distance charge (see Distance charges): armed, it goes off when a part of another team's robot comes within 1.5 m. The heavy warhead's blast (250 damage falling to 0 at 4 m). Shot or caught in a blast it breaks as a dud; takes a quarter of a shell's damage. Legend `Xd`, no builder key. |
@@ -163,6 +165,13 @@ A def with `solar: { power }` is a solar panel; it needs `acts` (the face that c
 - **Making energy:** each tick, before behaviors run, a panel makes `power * max(0, cos)` J/s times `dt`, where `cos` is the cosine of the angle between its `acts` face (in the world, so a tilted robot tilts its panels) and straight up: full when level, nothing when the face points level or down (`World.runSolar`). A chunk's panels are added up, then poured into the chunk's energy containers once.
 - **Filling is draining backwards** (`resources/pools.ts`, `fillContainers`): the containers of the chunk (batteries, cells, the core) take the energy in proportion to the room each has left, so they fill together and none passes its capacity; what does not fit is lost. Same chunk rules as draining: a piece that breaks off is fed by its own panels only. A panel in a chunk with nothing that holds energy makes nothing. The sandbox's unlimited-energy switch makes panels idle.
 - **Not hashed:** a panel has no state of its own; the containers' `stored` is already hashed. Worlds without panels are untouched (golden hashes unchanged). A pool already emptied stays "emptied" for the `energyEmpty` event: a panel that trickles in less than the load asks for does not re-fire it every tick.
+
+### Reactors (as built)
+A def with `reactor: { power, cap, tau, burn }` is a reactor; it needs a `push` input from 0 to `cap` and `heat` and `load` outputs. A def with `fuse: true` is what its heat cooks first (`battery`, `densebattery`, `cell`). The engine reads the fields; no part type is special-cased. The model is in `05`, Reactors.
+- **Blast:** `onDestroyed.explode`, like any part: radius 3, damage 80 for the big one, radius 2, damage 40 for the small one. Heat does not scale it yet.
+- **A held input:** `push` is an input with `holds: true` in its channel def. A script's write on such a channel stays until a script writes it again; every other input lasts one tick. Keys work as on any input, and a key that lets go hands it back to what a script last set.
+- **Hashed:** only on parts with a `reactor` block: `heat`, `load`, and `push`. Everything else adds nothing, so robots without a reactor hash as before.
+- **Validator:** warning `REACTOR_NO_FUSE` when a blueprint has a reactor and no fuse: its overdrive goes straight into what draws.
 
 ### Swiveling thrusters (Batch, as built)
 A thrust def whose `behaviorConfig` has `swivel` (degrees, above 0) also reads a `swivel` input (-1 to 1) and tilts its push that far. The engine reads the config key inside the existing `thrust` behavior; no part type is special-cased. Shipped: `swivelthruster` (400 N, 60 J/s, 1.5 kg, health 25, `swivel` 15).
@@ -291,6 +300,7 @@ P   propeller lifting up                 Pv  lifting down
 D   decoupler releasing up               Dv  releasing down  D<  releasing left  D>  releasing right
 G   gyro
 A   heavy armor plate (Batch)                So  solar panel, facing up (Batch)
+Rc  reactor, 3 by 3, its other cells `=`      rc  small reactor
 Xd  distance charge (Batch)                   N   radio (Batch)       J   jammer pod (Batch)      U   smoke pod (Batch)
 V^  swivel thruster pushing up (Batch)       Vv  pushing down    V<  pushing left    V>  pushing right
 L^  fin, plate lying up (Batch)              Lv  lying down      L<  lying left      L>  lying right

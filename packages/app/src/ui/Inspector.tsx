@@ -412,7 +412,9 @@ function RobotTab({ store, registry, select }: { store: Store<AppState>; registr
   const stats = useStore(store, (s) => s.builder.stats);
   const draft = useStore(store, (s) => s.builder.draft);
   const icons = useStore(store, (s) => s.icons);
-  const lasts = stats.fullDraw > 0 ? stats.energy / stats.fullDraw : undefined;
+  // Reactors pay for part of the draw; what they cover does not run down.
+  const net = stats.fullDraw - stats.power;
+  const lasts = net > 0 ? stats.energy / net : undefined;
   // Balance: where the weight sits across the robot's width, from its left edge to its right edge.
   let lo = Infinity;
   let hi = -Infinity;
@@ -448,7 +450,7 @@ function RobotTab({ store, registry, select }: { store: Store<AppState>; registr
         <div class="bar" title="What its cores and batteries hold. The bar is full at 60000.">
           <i style={{ width: `${fill(stats.energy, 60000) * 100}%` }} />
         </div>
-        <div class="kv" title={`With every part working at full power it uses ${num(stats.fullDraw)} a second`}>
+        <div class="kv" title={`With every part working at full power it uses ${num(stats.fullDraw)} a second${stats.power > 0 ? `; its reactors make ${num(stats.power)} of that` : ''}`}>
           <span>Lasts at full power</span>
           <b>{stats.parts === 0 ? 'nothing to run' : lasts === undefined ? 'does not run down' : formatDuration(lasts)}</b>
         </div>

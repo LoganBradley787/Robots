@@ -756,6 +756,9 @@ button kbd { margin: 0; opacity: 0.75; }
 .energy-fill.low { background: var(--bad); }
 .energy-fill.unlimited { background: repeating-linear-gradient(135deg, var(--accent) 0 6px, #b88a04 6px 12px); }
 .energy-text { font: 11px var(--mono); color: var(--dim); min-width: 34px; }
+.energy { position: relative; }
+.heat-track { position: absolute; left: 0; right: 0; bottom: -4px; height: 3px; background: var(--plate-3); overflow: hidden; }
+.heat-fill { height: 100%; background: var(--bad); }
 .script-log { position: absolute; left: 12px; bottom: 66px; max-width: 420px; padding: 6px 10px; font: 11px/1.5 var(--mono); }
 .script-state .dot { display: inline-block; width: 7px; height: 7px; background: var(--dim); margin-right: 2px; }
 .script-state.on .dot { background: var(--good); }

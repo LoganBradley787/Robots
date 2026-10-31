@@ -1,7 +1,7 @@
 import type { Store } from './store';
 import { useStore } from './store';
 import type { AppState } from './appState';
-import { energyText, massText, positionText, velocityText, type InspectView } from '../world/inspect';
+import { energyText, massText, positionText, reactorText, velocityText, type InspectView } from '../world/inspect';
 
 export interface ReadoutActions {
   /** Opens or folds the live readout. Folded, the world keeps no trace. */
@@ -89,6 +89,11 @@ export function Readout({ store, actions }: { store: Store<AppState>; actions: R
           <span title="Energy stored, of what its batteries and core hold">
             <span class="lbl">energy</span> {i.energy ? energyText(i.energy, unlimited) : 'none'}
           </span>
+          {i.reactor && (
+            <span title="What its reactors make at their rating, what they ran at last tick as times that rating, and the hottest one's heat">
+              <span class="lbl">power</span> {reactorText(i.reactor)}
+            </span>
+          )}
           <span>
             <span class="lbl">parts</span> {i.parts}
           </span>
