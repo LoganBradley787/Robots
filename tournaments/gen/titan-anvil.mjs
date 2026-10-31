@@ -72,6 +72,16 @@ const KEEL = opt('keel', LOWD ? 5 : 0);
 const RIGHT = opt('right', LOWD ? 37 : 0);
 const RIGHT_COLS = opt('rightCols', 5);
 const RIGHT_TOP = opt('rightTop', 28);
+// Armor back in (anvil r10, 2026-10-30, Logan: "it's just all boosters, the top of the anvil looks very weak"): the flip
+// fix had turned 462 frames into boosters, and nothing armored stood in the top half. `ROOF_ARMOR` 'teeth': the frame
+// teeth over the roof guns are plates; 'row' as well: a row of plates under the guns over the lift rows. `SIDE_IN`: a
+// plate behind the skin on every gun row, the rows a shell or a blast reaches the end boosters through. Paid for by
+// `STRIPE`: on the columns with a plate tooth under them the slab's third row is a frame (see lowLayout).
+const ROOF_ARMOR = optStr('roofArmor', LOWD ? 'teeth' : 'none');
+const SIDE_IN = opt('sideIn', 0);
+const SIDE_EVEN = opt('sideEven', 0);
+const STRIPE = opt('stripe', 0); // columns clear of it each side of the core (0: no stripe)
+const STRIPE_LOW = opt('stripeLow', 0);
 const TEETH = FACES === 'teeth';
 
 const MASS = { A: 20, F: 1, J: 0.5, l: 1.5, r: 1.5, p: 1.5, q: 1.5, u: 1.5, v: 1.5, Z: 3, C: 2, O: 1, Mv: 1, 'M^': 1, x: 2, y: 1.5, z: 4, d: 1, '=': 0, '.': 0 };
@@ -131,6 +141,16 @@ function lowLayout() {
   for (let y = 0; y < SLAB; y++) for (let x = 0; x < W; x++) g[y][x] = 'A';
   for (let x = 0; x < W; x++) for (let i = 0; i < ROOF_A; i++) g[H - 1 - i][x] = 'A';
   const cx = W / 2;
+  // The slab pays for the roof and the sides (anvil r10): a shell from below meets at most 2 plates on a column with a
+  // floor gun in it and 4 on a column with a tooth. On the tooth columns away from the core the third row is a frame (and
+  // with `STRIPE_LOW` the second too): the weak lines keep what they had, the strong ones give a plate each to the roof.
+  if (STRIPE > 0) {
+    for (let x = SIDE_A + 1; x < W - SIDE_A - 1; x++) {
+      if (x % 2 !== 0 || Math.abs(x - cx) <= STRIPE) continue;
+      g[2][x] = 'F';
+      if (STRIPE_LOW) g[1][x] = 'F';
+    }
+  }
   // The core in the slab (`coreUp` under `SLAB`), or higher up in the battery block inside a box of plates `BOX`
   // either side and `BAND` over and under it, out of reach of a blast on any face.
   const coreRow = opt('coreUp', 3);
@@ -175,6 +195,11 @@ function lowLayout() {
         g[y][W - 1 - i] = 'v';
       }
     }
+  }
+  // Roof and side plates (anvil r10, see ROOF_ARMOR).
+  if (ROOF_ARMOR === 'row') for (let x = SIDE_A; x < W - SIDE_A; x++) g[H - 2][x] = 'A';
+  for (let y = SLAB; y < H; y++) {
+    if (y % 2 === 1 && SIDE_IN > 0) for (let i = 0; i < SIDE_IN; i++) { g[y][SIDE_A + i] = 'A'; g[y][W - 1 - SIDE_A - i] = 'A'; }
   }
 }
 
@@ -243,6 +268,10 @@ const ZAP_CLEAR = opt('zapClear', 1);
 // open notch row) keeps the barrel off it, since a robot's own bodies touch. When the finish begins the pilot fires the
 // decouplers and the lid drops away (a one-shot deploy, like a missile leaving its rail), then the pistons push out.
 const LID_ROWS = ZAP && TEETH ? opt('lidRows', 2) : 0;
+// The decouplers fall with the lid (anvil r10): their release faces point up, into the slab. Left in the slab's bottom
+// row, their corners stopped a swinging barrel at 32 degrees, not the 50 the notch was made for, and a rotator pressed
+// against one winds up its integral term and stays there for seconds.
+const LID_FALLS = opt('lidFalls', 1);
 const lidCells = []; // [x, depth under the slab (1 is the row just under it)]
 if (ZAP) {
   const cxz = W / 2;
@@ -278,7 +307,7 @@ if (TEETH) {
   // Side faces: a plate tooth on every even row (row 0 and the roof row are corners), a gun in the notch on every odd
   // row, a plate behind each tooth; the skin plate stays behind each gun and becomes a frame behind each tooth's plate
   // (outside the slab), so every line in from the side still meets a plate and the weight stays near today's.
-  const skin = (c, y) => (y >= SLAB && c === 'A' ? 'F' : c);
+  const skin = (c, y) => (y >= SLAB && c === 'A' && !SIDE_EVEN ? 'F' : c);
   const sideRow = (y, cells) => {
     if (y % 2 === 1) return ['.', 'M<', ...cells, 'M>', '.'];
     const mid = cells.slice();
@@ -292,7 +321,7 @@ if (TEETH) {
   const roofTeeth = ['.', '.'];
   for (let x = 0; x < W; x++) {
     if (x % 2 === 0) g[H - 1][x] = x < SIDE_A || x >= W - SIDE_A ? g[H - 1][x] : 'M^';
-    roofTeeth.push(x % 2 === 1 ? 'F' : '.');
+    roofTeeth.push(x % 2 === 1 ? (ROOF_ARMOR === 'none' ? 'F' : 'A') : '.');
   }
   roofTeeth.push('.', '.');
   rows.push(roofTeeth);
@@ -335,7 +364,7 @@ const blueprint = {
       y: { part: 'rotator', rot: 180, tags: ['zrot'], auto: false },
       z: { part: 'laser', rot: 180, tags: ['zap'], auto: false },
     } : {}),
-    ...(LID_ROWS > 0 ? { d: { part: 'decoupler', rot: 180, tags: ['zlid'], auto: false } } : {}),
+    ...(LID_ROWS > 0 ? { d: { part: 'decoupler', rot: LID_FALLS ? 0 : 180, tags: ['zlid'], auto: false } } : {}),
   },
   autoControls: false,
   scripts: [{ id: 'pilot', source: { file: 'titan-anvil.pilot.js' } }],
