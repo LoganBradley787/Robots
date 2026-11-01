@@ -90,7 +90,7 @@ export type WorldEvent =
   /** A robot is gone: all its parts were destroyed, or Clear debris took it. */
   | { tick: number; robot: number; kind: 'removed' }
   /** A robot fell off the world: every part is under the ground's surface. `removed` follows on the same tick. */
-  | { tick: number; robot: number; kind: 'fell'; name: string; team: number; core: boolean }
+  | { tick: number; robot: number; kind: 'fell'; name: string; team: number; core: boolean; brokeFrom?: number; scope?: string }
   /** A script sent a message to an attached core (M8); `data` is its JSON text. */
   | { tick: number; robot: number; kind: 'sent'; to: string; data: string }
   /** M10: a part that needs arming was armed by its `arm` input (a key or a script). */
@@ -1166,7 +1166,7 @@ export class World {
    */
   private removeFallen(): void {
     for (const robot of this.robots.filter((r) => isUnderground(this.physics, r))) {
-      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'fell', name: robot.name, team: robot.team, core: robot.primaryCoreId !== undefined });
+      this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'fell', name: robot.name, team: robot.team, core: robot.primaryCoreId !== undefined, ...(robot.brokeFrom !== undefined ? { brokeFrom: robot.brokeFrom } : {}), ...(robot.scope !== undefined ? { scope: robot.scope } : {}) });
       this.removeRobot(robot);
     }
   }

@@ -135,4 +135,6 @@ export interface Robot {
   brokeFrom?: number;
   /** A piece whose single dormant core woke up: it runs that core's own controls from `cores` if it has any (M7), else its parts' auto controls (`04`). */
   woke?: true;
+  /** A woken piece's scope in the blueprint (`bay3`, `missile1`), if its core has one. It keeps it when that core is gone. */
+  scope?: string;
 }

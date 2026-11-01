@@ -162,6 +162,8 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
       if (piece.cores === 1) {
         made.primaryCoreId = rootId;
         made.woke = true;
+        const scope = robot.blueprint.cores?.find((c) => c.core === rootId)?.scope;
+        if (scope !== undefined) made.scope = scope;
       }
     }
     if (whole !== undefined && before !== undefined) before.bodies = groups;

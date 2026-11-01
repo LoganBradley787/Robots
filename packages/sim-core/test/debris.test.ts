@@ -165,6 +165,17 @@ describe('falling off the world', () => {
     expect(fell).toMatchObject({ name: 'tall', team: 0, core: true });
   });
 
+  it('a piece that goes says what it broke off, so nobody reads it as its parent', async () => {
+    const w = await World.create({ seed: 1 }, space);
+    const r = w.spawnBlueprint({ format: 1, name: 'twin', grid: ['C  F  C'] }, { x: 8, y: 3 });
+    for (const p of r.parts.values()) if (p.def.id === 'frame') p.health = 0;
+    w.step();
+    const piece = w.robots.find((x) => x.brokeFrom === r.id);
+    expect(piece?.woke).toBe(true);
+    expect(await fallen(w, piece?.id ?? 0, 300)).toBeDefined();
+    expect(w.events.find((e) => e.kind === 'fell' && e.robot === piece?.id)).toMatchObject({ name: 'twin', team: 0, core: true, brokeFrom: r.id });
+  });
+
   it('it stays until its top part is under the surface', async () => {
     const w = await World.create({ seed: 1 }, space);
     const r = w.spawnBlueprint(tall, { x: 8, y: 3 });

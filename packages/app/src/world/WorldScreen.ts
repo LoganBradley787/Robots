@@ -40,6 +40,7 @@ import { AUTO_KEYS, buildReplay, type Arena, type ReplayFile, type ScriptHost } 
 import { buildReadout, type ReadoutView } from './readout';
 import { buildInspect, type InspectView } from './inspect';
 import { breakNotice } from './breakNotice';
+import { eventNotice, noticeName } from './notices';
 import { farIds, loadFarDistance, outlineEdges, saveFarDistance, teamCounts, teamIds, type Edge, type RobotSpot } from './removal';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it (yours) or watch it (any)   (time controls in the panel above, the rest on the bar below)';
@@ -971,9 +972,8 @@ export class WorldScreen {
       const ev = this.world.events[this.eventCursor];
       const who = this.world.robots.find((r) => r.id === ev?.robot);
       if (ev) this.sound.event(ev, this.world);
-      if (ev?.kind === 'energyEmpty' && who) this.onNotice?.(`${who.name} ran out of energy`);
-      if (ev?.kind === 'overload' && who) this.onNotice?.(`${who.name}: reactor past its rating, heat is cooking its batteries`);
-      if (ev?.kind === 'scriptCrashed' && who) this.onNotice?.(`${who.name}: script "${ev.script}" stopped. ${ev.error.message}`);
+      const notice = ev && eventNotice(ev, who, this.focusId);
+      if (notice) this.onNotice?.(notice);
       if (ev?.kind === 'explosion') this.effects.explosion(ev.x, ev.y, ev.radius);
       if (ev?.kind === 'decoupled') this.effects.spark(ev.x, ev.y);
       if (ev?.kind === 'shellHit') this.effects.hit(ev.x, ev.y);
@@ -1005,17 +1005,13 @@ export class WorldScreen {
           if (this.onScreen(ev.x, ev.y)) this.shake = Math.max(this.shake, 16);
         }
       }
-      if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
       // Only pieces nobody drives count: a copy let go wakes and is on its way.
       if (ev?.kind === 'split' && who && who.team === 0 && who.primaryCoreId !== undefined) {
         const lost = ev.pieces.reduce((n, id) => n + (this.world.canControl(id) ? 0 : (this.world.robotById(id)?.parts.size ?? 0)), 0);
-        const line = breakNotice(who.name, who.parts.size, lost);
+        const name = noticeName(who, who.id, this.focusId);
+        const line = name === undefined ? undefined : breakNotice(name, who.parts.size, lost);
         if (line) this.onNotice?.(line);
       }
-      // The robot is gone by now, so the event carries its name. Only your own, and only a robot with a core: not scrap.
-      if (ev?.kind === 'fell' && ev.team === 0 && ev.core) this.onNotice?.(`${ev.name} fell off the edge of the world`);
-      // Only your own: an enemy's missiles wake too, and you cannot take them over.
-      if (ev?.kind === 'coreWoke' && who && who.team === 0) this.onNotice?.(`A core woke up in a piece that broke off ${who.name}: click it to control it`);
     }
     this.sound.frame(this.world, this.cam, this.renderer.screenWidth, time);
     const controller = controlled ? this.world.controller(controlled.id) : undefined;
