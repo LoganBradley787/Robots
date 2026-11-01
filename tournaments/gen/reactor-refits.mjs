@@ -1,8 +1,8 @@
 // The reactor refits (2026-10-31): stock robots with their dense batteries swapped for reactors, the stock robots left
 // as they are, so a stock robot and its refit can be fought against each other. Run from anywhere after any change to
 // the stock robots: node tournaments/gen/reactor-refits.mjs
-// Writes blueprints/titan-mirage-r.json, titan-anvil-r.json and its pilot, reactor-cannon-drone.json and its scripts,
-// and enemy-reactor-cannon-drone.json.
+// Writes blueprints/titan-<name>-r.json for all eight titans and the pilots they patch, reactor-cannon-drone.json and its
+// scripts, and enemy-reactor-cannon-drone.json.
 //
 // Titans swap by mass: a reactor is 100 kg, so it takes the place of about 33 dense batteries, 9 under it and the rest
 // left as holes, and the refit weighs what the stock robot weighs. A hole is cheaper than a frame, and the rows between
@@ -17,6 +17,9 @@ const read = (name) => JSON.parse(fs.readFileSync(path.join(out, `${name}.json`)
 const write = (bp) => fs.writeFileSync(path.join(out, `${bp.name}.json`), `${JSON.stringify(bp, null, 1)}\n`);
 const DENSE = 3; // kg
 const REACTOR = 100; // kg
+const SMALL = 20; // kg, a small reactor
+const FRAME = 1; // kg
+const ARMOR = 20; // kg
 
 /** The grid as cells, row 0 on top. */
 const cellsOf = (bp) => bp.grid.map((r) => r.trim().split(/\s+/));
@@ -27,6 +30,16 @@ function putReactor(cells, row, col) {
   for (let y = 0; y < 3; y++) {
     for (let x = 0; x < 3; x++) {
       if (cells[row + y][col + x] !== 'Z') throw new Error(`reactor at ${row},${col}: cell ${row + y},${col + x} is ${cells[row + y][col + x]}, not a dense battery`);
+      cells[row + y][col + x] = y === 2 && x === 0 ? 'Rc' : '=';
+    }
+  }
+}
+
+/** The same over any cells that hold what `over` allows, for a titan with no 3 by 3 of batteries to stand in. */
+function putReactorOver(cells, row, col, over) {
+  for (let y = 0; y < 3; y++) {
+    for (let x = 0; x < 3; x++) {
+      if (!over.includes(cells[row + y][col + x])) throw new Error(`reactor at ${row},${col}: cell ${row + y},${col + x} is ${cells[row + y][col + x]}, not one of ${over}`);
       cells[row + y][col + x] = y === 2 && x === 0 ? 'Rc' : '=';
     }
   }
@@ -133,6 +146,172 @@ const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it 
   const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
 `);
   fs.writeFileSync(path.join(out, pilot), text);
+}
+
+// ---- titan-hive-r: 4 reactors, 4.8 kW against 2.7 kW of hover and about 2 kW of darts. Its pilot counts them. ----
+{
+  const bp = read('titan-hive');
+  const cells = cellsOf(bp);
+  // The battery band is two rows tall, so each reactor takes its skin row too, under the band. Two each side of the
+  // middle, 17 and 43 m from the core: a hot blast reaches 5 m. Then even about the middle, so it flies as it did.
+  const [row, mid] = [9, 57];
+  const placed = [];
+  for (const dx of [17, 43]) {
+    for (const col of [mid - dx - 1, mid + dx - 1]) {
+      putReactorOver(cells, row, col, ['Z', 'F']);
+      placed.push(col);
+    }
+  }
+  const under = (6 * DENSE + 3 * FRAME) * placed.length; // what each stood on
+  const take = Math.round((placed.length * REACTOR - under) / DENSE);
+  // The top row of the band goes first, the bottom row after it, each from the ends in, both sides in turn. One column
+  // in four stays whole: the band is all that ties the skins over and under it together.
+  const spots = [];
+  for (const r of [row, row + 1]) {
+    for (let d = 52; d >= 8; d--) {
+      if (d % 4 === 1) continue;
+      spots.push([r, mid - d], [r, mid + d]);
+    }
+  }
+  hollow(cells, spots, take);
+  const pilot = 'titan-hive-r.pilot.js';
+  write({ ...bp, name: 'titan-hive-r', grid: gridOf(cells), scripts: bp.scripts.map((s) => (s.id === 'pilot' ? { ...s, source: { file: pilot } } : s)), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+
+  // What it plans its energy on. Stock holds its darts so the hover reaches the match's end, and with no arena lands to
+  // save it. Steady power comes off both, as for the Anvil: with its reactors whole it never needs to land, and it
+  // holds darts only under `floor` s of hover in the pool, so the darts go as fast as what comes in pays for them and
+  // the bays cannot run the pool flat and fry its batteries. A reactor shot off gives the old plan back, in part.
+  let text = fs.readFileSync(path.join(out, 'titan-hive.pilot.js'), 'utf8');
+  text = patch(text, "const floorShare = param('floorShare', 0.15, { min: 0, max: 1 }); // share of the reserve it keeps sitting (sensors and turrets)\n", `const floorShare = param('floorShare', 0.15, { min: 0, max: 1 }); // share of the reserve it keeps sitting (sensors and turrets)
+const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in the pool under which darts wait for what the reactors make (titan-hive-r)
+`);
+  text = patch(text, `  const hoverDraw = ((self.mass * g) / lift) * propDraw;
+  const stored = self.energy.stored;
+  const reserve = reserveS * hoverDraw;
+`, `  const hoverDraw = ((self.mass * g) / lift) * propDraw;
+  const stored = self.energy.stored;
+  // Reactors (titan-hive-r): steady power comes off what the hover costs.
+  if (time - (state.steadyAt ?? -1) >= 1) {
+    state.steadyAt = time;
+    state.steady = 0;
+    for (const p of parts) if (p.spec.reactor) state.steady += p.spec.reactor.power;
+  }
+  const reserve = reserveS * Math.max(0, hoverDraw - state.steady);
+`);
+  text = patch(text, '  const wantRest = !arena && (time - state.busyAt > restAfter || stored < reserve);\n', '  const wantRest = !arena && state.steady < hoverDraw && (time - state.busyAt > restAfter || stored < reserve);\n');
+  text = patch(text, '  if (arena) spare = stored >= keep * hoverDraw * Math.max(0, match - self.age);\n  else spare = stored >= (state.sitting ? floorShare * reserve : reserve);\n', `  const least = floor * hoverDraw;
+  if (arena) spare = stored >= Math.max(least, (keep * hoverDraw - state.steady) * Math.max(0, match - self.age));
+  else spare = stored >= Math.max(least, state.sitting ? floorShare * reserve : reserve);
+`);
+  fs.writeFileSync(path.join(out, pilot), text);
+}
+
+// ---- titan-bastion-r: 4 reactors, 4.8 kW against the 4.5 kW all its bays draw. The pilot has no energy plan to change. ----
+{
+  const bp = read('titan-bastion');
+  const cells = cellsOf(bp);
+  // In the battery banks under the dart bays, between the anchors, under five rows of plate and with a floor under
+  // them, more than 20 m from the core. Banks are in rows 27 to 29, an anchor every 5 columns in the last.
+  const placed = [];
+  for (const col of [16, 36, 102, 122]) {
+    putReactor(cells, 27, col);
+    placed.push(col);
+  }
+  const take = Math.round((placed.length * REACTOR) / DENSE) - placed.length * 9;
+  // The middle row of the banks first, then the top. The column over each anchor stays whole, because it hangs from
+  // there, and so does one between each two anchors, which holds up that stretch of floor. The bottom row stays,
+  // but for its ends outside the anchors.
+  const spots = [];
+  for (const row of [28, 27]) {
+    for (let col = 4; col <= 48; col++) {
+      if (col % 5 === 0 || col % 5 === 2) continue;
+      spots.push([row, col], [row, 140 - col]);
+    }
+  }
+  for (let col = 5; col <= 9; col++) spots.push([29, col], [29, 140 - col]);
+  hollow(cells, spots, take);
+  write({ ...bp, name: 'titan-bastion-r', grid: gridOf(cells), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+}
+
+// ---- titan-woodpecker-r: 4 reactors, 4.8 kW against the 4.7 kW all its bays draw. Every battery kept. ----
+{
+  const bp = read('titan-woodpecker');
+  const cells = cellsOf(bp);
+  // In the keep, not the base: the base is three rows thin, a reactor in it would stand on all three, and one shot-out
+  // reactor would cut off that end with its bays. The keep's two top corners, clear of the core by 12 m and more, and
+  // a line down to the core still meets 12 plates. Nine plates are 180 kg, a reactor 100: the 320 kg saved stays saved,
+  // because a ground titan pays nothing for it, and the batteries can stay: the rack and the bays spend them first.
+  const keep = ['K'];
+  for (const col of [81, 84, 94, 97]) putReactorOver(cells, 13, col, keep);
+  write({ ...bp, name: 'titan-woodpecker-r', grid: gridOf(cells), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+}
+
+// ---- titan-palisade-r: a small reactor on every panel, 240 W against 130 W of hover, and two on the keep. ----
+{
+  const bp = read('titan-palisade');
+  const cells = cellsOf(bp);
+  const SMALL_KEY = { ...PUSH_KEY, target: 'smallreactor' };
+  const where = (token) => {
+    const found = [];
+    cells.forEach((r, row) => r.forEach((t, col) => t === token && found.push([row, col])));
+    return found;
+  };
+  // A panel's eight batteries lie along its link column: its top deck, the middle deck up to its core, the bottom deck.
+  // The reactor goes at the top deck's outer end, 7 m from the core, out of a hot blast's reach. Two batteries stay on
+  // the bottom deck to carry a burst and balance it; the rest turn to frames, because the decks are what tie the link
+  // column to the gun wall. +5 kg a panel: a frame where a battery was (the decks must stay whole).
+  for (let n = 1; n <= 10; n++) {
+    const [top1, top2, m1, m2, m3, m4, bot1, bot2] = where(`zp${n}`).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    if (!bot2) throw new Error(`panel ${n} moved`);
+    cells[top1[0]][top1[1]] = 'rc';
+    for (const [row, col] of [top2, m1, m2, m3, m4]) cells[row][col] = `fp${n}`;
+  }
+  // The keep: at both ends of its top deck, 12 m from its core. Its 14 belly batteries turn to frames but one each
+  // side of the core box stays out, for the 8 left on the decks.
+  const zs = where('z').sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const [left, right] = zs; // the top deck's ends
+  cells[left[0]][left[1]] = 'rc';
+  cells[right[0]][right[1]] = 'rc';
+  const belly = zs.filter(([row]) => row >= zs[zs.length - 1][0] - 1);
+  for (const [row, col] of belly.slice(0, 11)) cells[row][col] = 'f';
+  const cores = Object.fromEntries(Object.entries(bp.cores).map(([k, c]) => [k, { ...c, bindings: [...(c.bindings ?? []), SMALL_KEY] }]));
+  write({ ...bp, name: 'titan-palisade-r', grid: gridOf(cells), cores, bindings: [...(bp.bindings ?? []), SMALL_KEY] });
+}
+
+// ---- titan-shatter-r: a small reactor on every gunship, 240 W against 75 W of flying, two on the king. ----
+{
+  const bp = read('titan-shatter');
+  const cells = cellsOf(bp);
+  const SMALL_KEY = { ...PUSH_KEY, target: 'smallreactor' };
+  const dense = (t) => bp.legend[t]?.part === 'densebattery';
+  // A gunship: its shelf row of seven batteries under the body row. The reactor takes the shelf's right end, as far
+  // from its core as a body this short has (3 m), and the shelf keeps its left end to balance it and its middle, which
+  // holds the joint to the gunship below: 6 batteries left of 11, +5 kg a ship (a straight swap would leave 4, and
+  // beams are all a gunship is). The rest go as holes.
+  const shipCols = [4, 18, 32]; // each column's left laser mount
+  let ships = 0;
+  for (let row = 7; row < cells.length; row += 4) {
+    for (const x0 of shipCols) {
+      for (let dx = 2; dx <= 8; dx++) if (!dense(cells[row][x0 + dx])) throw new Error(`the shelf at row ${row} moved`);
+      cells[row][x0 + 8] = 'rc';
+      for (const dx of [3, 4, 6, 7]) cells[row][x0 + dx] = '.';
+      ships++;
+    }
+  }
+  if (ships !== 30) throw new Error(`${ships} gunships`);
+  // The king: both ends of its battery row, 6 m from its core. Its hover is about 170 W, so one reactor holds it up and
+  // the other is a spare.
+  const kingRow = 2;
+  for (const col of [16, 28]) {
+    if (!dense(cells[kingRow][col])) throw new Error('the king moved');
+    cells[kingRow][col] = 'rc';
+  }
+  // Flying is paid for: all that is kept back is `spare`, so a gunship spends its pool on beams at once and then burns
+  // what comes in. flyDraw is what flying costs over its reactor.
+  const cores = Object.fromEntries(
+    Object.entries(bp.cores).map(([k, c]) => [k, { ...c, bindings: [...(c.bindings ?? []), SMALL_KEY], scripts: c.scripts.map((s) => ({ ...s, params: { ...s.params, flyDraw: 0, keepOpen: 3000 } })) }]),
+  );
+  write({ ...bp, name: 'titan-shatter-r', grid: gridOf(cells), cores, bindings: [...(bp.bindings ?? []), SMALL_KEY] });
 }
 
 // ---- the cannon drones: a small reactor at the top of the mast, every battery kept. ----
