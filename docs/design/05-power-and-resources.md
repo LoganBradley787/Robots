@@ -90,15 +90,23 @@ Goal (Logan): long casual fights without Unlimited energy. A reactor is the part
 - Mixed `push` values on one chunk add up, then all of its reactors share the load.
 
 **Who fries, each chunk, while its burn this tick is left**
-1. Parts with `fuse`, full or empty: lowest health first.
+1. Parts with `fuse`, full or empty: the one nearest to burnt out first. A burnt-out one is skipped.
 2. Then what draws this tick, from both passes: the top drawer and anything within 10 percent of it, lowest health first.
 3. Exact ties go by the world's seeded RNG, one draw per pick.
-- A victim takes what it can and the rest spills to the next, so a big robot is not held to one part a tick. Lowest health first makes a victim stick, so parts go one at a time.
+- A victim takes what it can and the rest spills to the next, so a big robot is not held to one part a tick. Nearest to burnt out, and lowest health among the drawers, makes a victim stick, so parts go one at a time.
 - A copy a bay holds is never picked (Sealed bays, above).
 - The core and the reactor are never picked: no `fuse`, no draw. With nothing drawing, nothing fries.
-- A fried part goes in the damage phase with its own blast (a cannon going up). `partDestroyed` says `cooked: true`, and duel reports count it as a loss even when it blasted.
+- A part past the fuses loses health and goes in the damage phase with its own blast (a cannon going up). `partDestroyed` says `cooked: true`, and duel reports count it as a loss even when it blasted.
+
+**A fuse burns out, it does not die (Logan)**
+- Batteries are often structure: cooked batteries once cut `titan-mirage-r` in two. So frying takes no health off a part with `fuse`. It adds to its burnt share (`PartInstance.burnt`, 0 to 1), a whole part's health in burn taking it from 0 to 1, the pace batteries used to die at.
+- **Charge stays whole until 1.** At 1 it has no charge and no capacity, and what it held is lost, not moved to the others. `stored` goes undefined, so no pool, fill or reading counts it. `charge` reads 0, also under Unlimited energy.
+- **It stays as structure:** same mass, same footprint, still connecting what it connected. So frying cannot split a robot through its batteries, or make a flier lighter. A part past the fuses can still fall off with its fried neighbor's loss, as any part can.
+- **Two meters, kept apart (Claude's call):** burn is not damage and health is not burn. Bullets, blasts and crashes take health as usual and can destroy a fuse at any burn. A battery on its last health point still has its whole burn to go, and a burnt-out one has all the health it had. Tying them would either let frying kill a battery again, the thing this is here to stop, or make a brown shell tougher or weaker than the battery it was, for no reason a player could see.
+- Hashed once set, so a robot frying never reached hashes as before. Event `fried`, once per fuse, not hashed; `pnpm sim run` counts it under `parts fried`. No part type is named: it all reads `fuse`.
+- **Looks:** the sprite goes brown from the outside in, covering the burnt share of the part, all of it only at 1 (`render/burnRing.ts`, one overlay sprite per burnt part, on one shared texture for each of 16 steps).
 
 **Reads**
-- Scripts: `heat` and `load` outputs, `p.in.push`, `p.spec.reactor.power`, `cap`, `tau`, `burn`. `self.energy` still means what is stored, but no longer "time left": a reactor pilot adds steady power to its budget.
+- Scripts: `heat` and `load` outputs, `p.in.push`, `p.spec.reactor.power`, `cap`, `tau`, `burn`. `self.energy` still means what is stored, but no longer "time left": a reactor pilot adds steady power to its budget. A burnt-out battery reads `charge` 0 and is out of `self.energy.capacity`. How far along a burn is does not show: charge stays 1 of what it holds until it is all brown. `p.spec.resource` is the part's def, so it still says what a new one holds.
 - `World.reactors(id)` for readouts; `World.powered(id)` is "something stored or a reactor making something", because a robot on overdrive ends every tick with an empty pool and must keep its flames and sound.
 - Event `overload`, once per pool, not hashed.

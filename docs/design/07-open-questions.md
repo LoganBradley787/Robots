@@ -85,6 +85,9 @@ Status: all decided (Q22 sensors decided 2026-09-25 for M8). Logan answered Q1, 
 ### Q24. Sealed bays (decided by Logan, 2026-10-31)
 - A copy a bay holds keeps its resources out of its carrier's pool, both ways, and launches exactly as full as it was built. Logan: "I don't think you should be able to cannibalize off the thing you're creating," and missiles must not need charging. Claude's call on the rest: a held copy cannot spend its own charge either (a seeker or a radio draws while idle, so it would not stay full), and its joints hold for nothing (off, a turret swings about). The rule attaches to a copy held by a bay, so it is read off the bays and never names a kind of robot. Racked missiles on decouplers still share the pool. See `05`, Sealed bays.
 
+### Q25. A fried battery stays as a shell (decided by Logan, 2026-10-31)
+- Frying used to kill batteries, and batteries are often structure: cooked batteries cut `titan-mirage-r` in two, leaving the core in its ring of plates and the hull flying on frozen throttles. Logan: "Maybe they stay as a dead shell. The sprite gets replaced outside in with brown, and once it gets all the way inside and the entire battery is just brown, it no longer holds any charge." So a fuse burns out and stays: charge whole until then, lost then, same mass, still structure (`05`, A fuse burns out). Claude's call: burn and health are separate meters. Logan kept P a toggle at 3x, racked missiles on the pool, and a wreck's bays as they are.
+
 ## Open
 
 ### Q22. Sensors and targeting (decided 2026-09-25, M8)

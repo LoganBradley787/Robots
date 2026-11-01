@@ -169,10 +169,10 @@ A def with `solar: { power }` is a solar panel; it needs `acts` (the face that c
 - **Not hashed:** a panel has no state of its own; the containers' `stored` is already hashed. Worlds without panels are untouched (golden hashes unchanged). A pool already emptied stays "emptied" for the `energyEmpty` event: a panel that trickles in less than the load asks for does not re-fire it every tick.
 
 ### Reactors (as built)
-A def with `reactor: { power, cap, tau, burn }` is a reactor; it needs a `push` input from 0 to `cap` and `heat` and `load` outputs. A def with `fuse: true` is what its heat cooks first (`battery`, `densebattery`, `cell`). The engine reads the fields; no part type is special-cased. The model is in `05`, Reactors.
+A def with `reactor: { power, cap, tau, burn }` is a reactor; it needs a `push` input from 0 to `cap` and `heat` and `load` outputs. A def with `fuse: true` is what its heat goes to first (`battery`, `densebattery`, `cell`): it burns out, holds no charge, and stays on as structure, and frying never takes its health. The engine reads the fields; no part type is special-cased. The model is in `05`, Reactors.
 - **Blast:** `onDestroyed.explode`, like any part: radius 3, damage 80 for the big one, radius 2, damage 40 for the small one. Heat does not scale it yet.
 - **A held input:** `push` is an input with `holds: true` in its channel def. A script's write on such a channel stays until a script writes it again; every other input lasts one tick. Keys work as on any input, and a key that lets go hands it back to what a script last set.
-- **Hashed:** only on parts with a `reactor` block: `heat`, `load`, and `push`. Everything else adds nothing, so robots without a reactor hash as before.
+- **Hashed:** on parts with a `reactor` block, `heat`, `load`, and `push`; on a fuse, its burnt share once it has one. Everything else adds nothing, so robots without a reactor hash as before.
 - **Validator:** warning `REACTOR_NO_FUSE` when a blueprint has a reactor and no fuse: its overdrive goes straight into what draws.
 
 ### Swiveling thrusters (Batch, as built)
