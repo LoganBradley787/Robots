@@ -66,7 +66,7 @@ The grips still make the copy one chunk and one body with its carrier, for physi
 Scripts in a held copy do not run (its core sleeps), so they have nothing to draw with. A decoupler's racked missile is not a bay's copy: it shares its robot's pool while attached, as ever.
 
 ## Reactors (as built, 2026-10-31)
-Goal (Logan): long casual fights without Unlimited energy. A reactor is the part that gives a robot steady power; a battery stays the part that pays for spikes. Parts are data, `reactor` and `smallreactor`, both 15 J/s per kg.
+Goal (Logan): long casual fights without Unlimited energy. A reactor is the part that gives a robot steady power; a battery stays the part that pays for spikes. Parts are data, `reactor` and `smallreactor`, both 12 J/s per kg.
 
 **Tick order**
 1. `runReactors`, right after `runSolar`: per chunk, the live reactors pour their rating in (`fillHeld`), times `push` when pushed. A pool with no room takes less, and what did not fit was never made. What they may make this tick goes on the robot's behavior list, so a rebuild mid-tick drops it the same way on every host.
@@ -105,6 +105,23 @@ Goal (Logan): long casual fights without Unlimited energy. A reactor is the part
 - **Two meters, kept apart (Claude's call):** burn is not damage and health is not burn. Bullets, blasts and crashes take health as usual and can destroy a fuse at any burn. A battery on its last health point still has its whole burn to go, and a burnt-out one has all the health it had. Tying them would either let frying kill a battery again, the thing this is here to stop, or make a brown shell tougher or weaker than the battery it was, for no reason a player could see.
 - Hashed once set, so a robot frying never reached hashes as before. Event `fried`, once per fuse, not hashed; `pnpm sim run` counts it under `parts fried`. No part type is named: it all reads `fuse`.
 - **Looks:** the sprite goes brown from the outside in, covering the burnt share of the part, all of it only at 1 (`render/burnRing.ts`, one overlay sprite per burnt part, on one shared texture for each of 16 steps).
+
+**Hot blast: a pushed reactor is a thing you risk**
+- `onDestroyed.explode` is the cold blast. `reactor.blast` is what heat adds to it, an `ExplodeSpec` at heat 1. Destroyed at heat `h`, whatever destroyed it (a shot, a ram, another blast), a reactor goes off once with each number being `cold + h * hot` (`hotBlast`, `damage/explosion.ts`, called from `destroyDeadParts`). In line with heat, no step anywhere.
+- One blast, not a cold one and a hot one: the second of two would find the first's dead parts gone and dig through what they covered, and would spend a second place under the 100 blast cap. The `explosion` event's radius grows with it, so the fireball and the sound do too.
+- Numbers (first guess, Logan tunes them in the json):
+
+| | cold | adds at heat 1 | heat 0.25 (2 times) | heat 1 (3 times) |
+|---|---|---|---|---|
+| `reactor` | 80 damage, 3 m, push 30 to 5 m | 240, 2 m, push 30, 3 m | 140, 3.5 m | 320, 5 m, push 60 to 8 m |
+| `smallreactor` | 40, 2 m, push 15 to 3.5 m | 120, 2 m, push 15, 2.5 m | 70, 2.5 m | 160, 4 m, push 30 to 6 m |
+
+- Heat 0 is the cold blast itself, the same object, so a reactor that dies cold changes no hash. Heat falls with `tau` once the load falls, so a reactor shot 10 s after a push (big) has a third of the blast's extra left.
+- A full pool takes nothing, so `push` alone does not make a reactor hot: only a pool with room, or a draw past rating, does. A titan pushed in a fight with its pool nearly full stays under heat 0.2 (`push` above). The blast is a price for running a dry robot flat out, not for touching the key.
+- **Chains:** a blast that destroys a hot reactor sets that one off too, in the same damage phase. Each reactor goes once, so a chain ends; past the 100 blast cap the rest wait in the hashed queue for the next tick. Order is robots in order, parts in blueprint order. A full 300 health reactor needs 300 damage at its worst cell, and heat 1 gives at most 256 at 1 m, so big reactors do not chain from full health; they do once hurt. Small ones touching chain from about heat 0.45.
+- Its center is the reactor's origin cell like any blast, not the middle of the 3 by 3.
+- Heat is hashed on parts with a `reactor` block only; a queued blast hashes its numbers, so a hot one waiting is in the hash.
+- `p.spec.reactor` does not show `blast`: blocks inside blocks stay out of `partSpec`.
 
 **Reads**
 - Scripts: `heat` and `load` outputs, `p.in.push`, `p.spec.reactor.power`, `cap`, `tau`, `burn`. `self.energy` still means what is stored, but no longer "time left": a reactor pilot adds steady power to its budget. A burnt-out battery reads `charge` 0 and is out of `self.energy.capacity`. How far along a burn is does not show: charge stays 1 of what it holds until it is all brown. `p.spec.resource` is the part's def, so it still says what a new one holds.
