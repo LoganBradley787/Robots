@@ -274,17 +274,40 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   fs.writeFileSync(path.join(out, pilot), text);
 }
 
-// ---- titan-woodpecker-r: 4 reactors, 4.8 kW against the 4.7 kW all its bays draw. Every battery kept. ----
+// ---- titan-woodpecker-r: 6 reactors, 7.2 kW against the 6.3 kW of its bays with 2 more burner bays. Every battery kept. ----
 {
   const bp = read('titan-woodpecker');
   const cells = cellsOf(bp);
   // In the keep, not the base: the base is three rows thin, a reactor in it would stand on all three, and one shot-out
-  // reactor would cut off that end with its bays. The keep's two top corners, clear of the core by 12 m and more, and
-  // a line down to the core still meets 12 plates. Nine plates are 180 kg, a reactor 100: the 320 kg saved stays saved,
-  // because a ground titan pays nothing for it, and the batteries can stay: the rack and the bays spend them first.
-  const keep = ['K'];
-  for (const col of [81, 84, 94, 97]) putReactorOver(cells, 13, col, keep);
-  write({ ...bp, name: 'titan-woodpecker-r', grid: gridOf(cells), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+  // reactor would cut off that end with its bays. The keep's two top corners, 12 m and more from the core, four and two
+  // deep, and a line down to the core still meets 12 plates. Nine plates are 180 kg, a reactor 100, so the batteries
+  // can stay and pay for the rack and the first burners, and 480 kg is saved: a ground titan does not want it back.
+  for (const [row, col] of [
+    [13, 81],
+    [13, 84],
+    [13, 94],
+    [13, 97],
+    [16, 81],
+    [16, 97],
+  ]) {
+    putReactorOver(cells, row, col, ['K']);
+  }
+  // What the power buys is more of what it is: burners. Across a match the rack's darts are spent in seconds and a
+  // burner bay goes on for good, so the two pairs of darts at the rack's outer ends make way for a burner bay each.
+  const legend = { ...bp.legend };
+  const cores = { ...bp.cores };
+  [19, 158].forEach((x0, i) => {
+    for (let col = x0 - (i ? 1 : 0); col <= x0 + (i ? 3 : 4); col++) {
+      for (let row = 16; row <= 22; row++) cells[row][col] = '.';
+      delete cores[`core@${col},7`];
+    }
+    const tok = `w${5 + i}`;
+    legend[tok] = { ...legend.w1, tags: [`c${5 + i}x`] };
+    cells[22][x0 + 1] = tok;
+    cells[22][x0 + 2] = '=';
+    for (let row = 13; row <= 22; row++) for (const col of [x0, x0 + 3]) cells[row][col] = '=';
+  });
+  write({ ...bp, name: 'titan-woodpecker-r', grid: gridOf(cells), legend, cores, bindings: [...(bp.bindings ?? []), PUSH_KEY] });
 }
 
 // ---- titan-palisade-r: a small reactor on every panel, 240 W against 130 W of hover, and two on the keep. ----
