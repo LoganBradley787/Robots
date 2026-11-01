@@ -209,6 +209,12 @@ export function PartNumbers({ def, mass }: { def: PartDef; mass?: number }) {
           <b>{num(def.reactor.burn)} health /s</b>
         </div>
       )}
+      {def.reactor?.blast !== undefined && (
+        <div class="kv" title="Destroyed hot, whatever destroyed it, it blasts by how hot it is: heat times this, on top of its cold blast. Cold it adds nothing.">
+          <span>Hot blast</span>
+          <b>+{num(def.reactor.blast.damage)} at full heat</b>
+        </div>
+      )}
       {def.fuse === true && (
         <div class="kv" title="A reactor run past its rating burns batteries out first, full or empty, nearest to burnt out first. Burnt out it holds no charge and stays on as structure.">
           <span>Fuse</span>

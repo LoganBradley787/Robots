@@ -143,7 +143,7 @@ export class Tracer {
         }
         case 'explosion':
           this.blasts.push({ x: e.x, y: e.y });
-          push(e.robot, 'explosion', `explosion at (${f2(e.x)}, ${f2(e.y)}), radius ${e.radius} m`);
+          push(e.robot, 'explosion', `explosion at (${f2(e.x)}, ${f2(e.y)}), radius ${Math.round(e.radius * 100) / 100} m`);
           break;
         case 'split':
           push(e.robot, 'split', `split: ${e.pieces.map((id) => this.letter(id)).join(', ')} broke off`);

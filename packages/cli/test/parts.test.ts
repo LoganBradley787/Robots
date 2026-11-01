@@ -81,6 +81,8 @@ describe('parts', () => {
     expect(text('reactor')).toMatch(new RegExp(`reactor: makes ${defaultRegistry().get('reactor').reactor?.power} J/s into its pool, core in charge or not.*up to 3 times its rating`));
     expect(text('reactor')).toMatch(/push \(0 to 3, holds until changed.*0 automatic; 1 to 3 runs it at that many times its rating even with charge left; under 1 keeps it to its rating/);
     expect(text('smallreactor')).toMatch(/time constant 4 s, and it cooks 40 times heat health a second: fuses burn out first \(batteries, full or empty, nearest to burnt out first\), then the biggest draw loses health/);
+    const big = defaultRegistry().get('reactor');
+    expect(text('reactor')).toContain(`hot blast: destroyed at heat h, whatever destroyed it, h times this adds to the blast above: ${big.reactor?.blast?.damage} damage`);
     expect(text('densebattery')).toContain('fuse: a reactor run past its rating burns this out first; burnt out it holds no charge and stays on as structure');
     expect(text('solar')).toMatch(/solar: adds 6 J\/s \(times the cosine of the angle between its N face and straight up.*\) to its chunk's energy pool while its N face points up/);
     expect(text('swivelthruster')).toMatch(/tilts its push up to 15 degrees counterclockwise \(positive\) or clockwise \(negative\) from its N face/);

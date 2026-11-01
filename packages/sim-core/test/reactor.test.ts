@@ -9,6 +9,9 @@ import { parsePartDef, PartDefError } from '../src/parts/parsePartDef';
 import { createQuickJsHost } from '../src/script/quickjs';
 import { Controller } from '../src/control/controller';
 import { validateBlueprint } from '../src/blueprint/validate';
+import { blastEffects, hotBlast } from '../src/damage/explosion';
+import { MAX_BLASTS_PER_TICK } from '../src/world/World';
+import type { ExplodeSpec } from '../src/parts/types';
 import { staticStats } from '../src/blueprint/stats';
 
 // No gravity and a ground far below, so a robot stays where it is put and only the energy moves.
@@ -65,8 +68,8 @@ describe('reactor parts', () => {
     const reg = defaultRegistry();
     const big = reg.get('reactor');
     const small = reg.get('smallreactor');
-    expect(big.reactor).toEqual({ power: BIG_W, cap: 3, tau: 10, burn: 40 });
-    expect(small.reactor).toEqual({ power: SMALL_W, cap: 3, tau: 4, burn: 40 });
+    expect(big.reactor).toMatchObject({ power: BIG_W, cap: 3, tau: 10, burn: 40 });
+    expect(small.reactor).toMatchObject({ power: SMALL_W, cap: 3, tau: 4, burn: 40 });
     expect(big.reactor!.power / big.mass).toBe(small.reactor!.power / small.mass);
     expect(big.footprint.length).toBe(9);
     expect(reg.list().filter((d) => d.fuse === true).map((d) => d.id).sort()).toEqual(['battery', 'cell', 'densebattery']);
@@ -776,5 +779,211 @@ describe('reactor: burning out', () => {
       return h;
     };
     expect(await go()).toBe(await go());
+  });
+});
+
+describe('reactor: hot blast', () => {
+  const small = defaultRegistry().get('smallreactor');
+  const cold = small.onDestroyed!.explode!;
+  const hot = small.reactor!.blast!;
+  /** A plate that takes what a blast does to it and stays there. */
+  const PLATE = { format: 1, name: 'plate', grid: ['A'] };
+  /** A registry whose reactors have no hot blast: what they were before it. */
+  const unheated = (): PartRegistry =>
+    new PartRegistry(defaultRegistry().list().map((d) => (d.reactor ? { ...d, reactor: { power: d.reactor.power, cap: d.reactor.cap, tau: d.reactor.tau, burn: d.reactor.burn } } : d)));
+  /** Blasts this tick and after, as they went off. */
+  const blasts = (w: World): number[] => w.events.flatMap((e) => (e.kind === 'explosion' ? [e.radius] : []));
+
+  /** What a plate 2 m past a small reactor loses when the reactor dies at this heat, and the heat it died at: a tick cooler. */
+  async function plateLost(heat: number): Promise<{ lost: number; died: number }> {
+    const w = await world();
+    const r = w.spawnBlueprint(SMALL, { x: 0, y: 100 });
+    const plate = w.spawnBlueprint(PLATE, { x: 3, y: 100 });
+    const part = reactor(r);
+    part.heat = heat;
+    part.health = 0;
+    w.step();
+    const left = plate.parts.values().next().value!.health;
+    w.dispose();
+    return { lost: 250 - left, died: part.heat ?? 0 };
+  }
+
+  it('the numbers are data: both reactors carry theirs, the file errors name the field', () => {
+    const reg = defaultRegistry();
+    expect(reg.get('reactor').reactor!.blast).toEqual(expect.objectContaining({ damage: expect.any(Number), radius: expect.any(Number), pushRadius: expect.any(Number), push: expect.any(Number) }));
+    expect(hot.damage).toBeGreaterThan(0);
+    const def = { ...JSON.parse(JSON.stringify(small)) };
+    expect(() => parsePartDef({ ...def, reactor: { ...small.reactor, blast: { radius: 1, damage: 1, pushRadius: 1 } } }, 'x.json')).toThrow(/reactor\.blast\.push is required/);
+    expect(() => parsePartDef({ ...def, reactor: { ...small.reactor, blast: { ...hot, size: 2 } } }, 'x.json')).toThrow(PartDefError);
+  });
+
+  it('adds to the cold blast number by number, in line with heat', () => {
+    expect(hotBlast(cold, hot, 0)).toBe(cold);
+    expect(hotBlast(cold, undefined, 1)).toBe(cold);
+    expect(hotBlast(undefined, undefined, 1)).toBeUndefined();
+    expect(hotBlast(cold, hot, 1)).toEqual({ radius: cold.radius + hot.radius, damage: cold.damage + hot.damage, pushRadius: cold.pushRadius + hot.pushRadius, push: cold.push + hot.push, lift: cold.lift + hot.lift });
+    for (const heat of [0.06, 0.25, 0.5, 0.75]) {
+      const b = hotBlast(cold, hot, heat)!;
+      expect(b.damage).toBeCloseTo(cold.damage + hot.damage * heat, 9);
+      expect(b.radius).toBeCloseTo(cold.radius + hot.radius * heat, 9);
+      expect(b.pushRadius).toBeCloseTo(cold.pushRadius + hot.pushRadius * heat, 9);
+      expect(b.push).toBeCloseTo(cold.push + hot.push * heat, 9);
+    }
+    // A part with no cold blast of its own has the hot one alone.
+    expect(hotBlast(undefined, hot, 0.5)!.damage).toBe(hot.damage * 0.5);
+  });
+
+  it('at heat 0 it is the cold blast, tick for tick, as a reactor with no hot blast is', async () => {
+    const go = async (reg: PartRegistry | undefined, heat: number | undefined): Promise<string[]> => {
+      const w = await World.create({ seed: 3, gravityY: 0 }, space, reg);
+      const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
+      w.spawnBlueprint(PLATE, { x: 3, y: 100 });
+      const part = reactor(r);
+      if (heat !== undefined) part.heat = heat;
+      part.health = 0;
+      const hashes: string[] = [];
+      for (let i = 0; i < 30; i++) {
+        w.step();
+        hashes.push(w.hash());
+      }
+      w.dispose();
+      return hashes;
+    };
+    const before = await go(unheated(), undefined);
+    expect(await go(undefined, undefined)).toEqual(before);
+    expect(await go(undefined, 0)).toEqual(before);
+    expect(await go(undefined, 0.5)).not.toEqual(before);
+  });
+
+  it('full heat adds the full blast, and a heat between adds its share', async () => {
+    const at = (heat: number): number => {
+      const b = heat === 0 ? cold : (hotBlast(cold, hot, heat) as ExplodeSpec);
+      return blastEffects({ x: 1, y: 100 }, b, [{ x: 3, y: 100, angle: 0 }], []).damage[0] as number;
+    };
+    // 2 m is past the cold blast, so all of this is heat.
+    expect(at(0)).toBe(0);
+    expect((await plateLost(0)).lost).toBe(0);
+    const full = await plateLost(1);
+    const half = await plateLost(0.5);
+    expect(full.died).toBeCloseTo(1, 2);
+    expect(full.lost).toBeCloseTo(at(full.died), 6);
+    expect(half.lost).toBeCloseTo(at(half.died), 6);
+    expect(half.lost).toBeLessThan(full.lost);
+    expect(half.lost).toBeGreaterThan(0);
+  });
+
+  it('goes by the heat it died at, shot down like any other way', async () => {
+    const w = await world();
+    const shooter = w.spawnBlueprint(SHOT, { x: 0, y: 100 });
+    const target = w.spawnBlueprint(SMALL, { x: 0, y: 110 });
+    const part = reactor(target);
+    part.heat = 1;
+    press(w, shooter);
+    for (let i = 0; i < 60 && target.parts.has(part.id); i++) w.step();
+    expect(target.parts.has(part.id)).toBe(false);
+    const died = part.heat;
+    const [radius] = blasts(w);
+    expect(died).toBeGreaterThan(0.9);
+    expect(radius).toBeCloseTo(cold.radius + hot.radius * died!, 9);
+    w.dispose();
+  });
+
+  it('caught in a blast it goes up by its heat too, and a chain ends', async () => {
+    const CHAIN = 12;
+    const go = async (heat: number): Promise<{ blasts: number[]; left: number; hash: string }> => {
+      const w = await world(2);
+      const r = w.spawnBlueprint({ format: 1, name: 'row', grid: [Array(CHAIN).fill('rc').join(' ')] }, { x: 0, y: 100 });
+      const row = ofType(r, 'smallreactor');
+      for (const p of row) p.heat = heat;
+      row[0]!.health = 0;
+      run(w, 3);
+      const out = { blasts: blasts(w), left: w.robots.reduce((n, q) => n + q.parts.size, 0), hash: w.hash() };
+      w.dispose();
+      return out;
+    };
+    const coldRow = await go(0);
+    expect(coldRow.blasts).toEqual([cold.radius]);
+    expect(coldRow.left).toBe(CHAIN - 1);
+    const hotRow = await go(1);
+    expect(hotRow.blasts.length).toBe(CHAIN);
+    expect(hotRow.left).toBe(0);
+    expect(await go(1)).toEqual(hotRow);
+  });
+
+  it('a chain past the blast cap goes on next tick, the same way every time', async () => {
+    const CHAIN = MAX_BLASTS_PER_TICK + 20;
+    const go = async (): Promise<{ first: number; all: number; hashes: string[] }> => {
+      const w = await world(4);
+      const r = w.spawnBlueprint({ format: 1, name: 'long', grid: [Array(CHAIN).fill('rc').join(' ')] }, { x: 0, y: 100 });
+      const row = ofType(r, 'smallreactor');
+      for (const p of row) p.heat = 1;
+      row[0]!.health = 0;
+      w.step();
+      const first = blasts(w).length;
+      const hashes = [w.hash()];
+      for (let i = 0; i < 5; i++) {
+        w.step();
+        hashes.push(w.hash());
+      }
+      const all = blasts(w).length;
+      w.dispose();
+      return { first, all, hashes };
+    };
+    const a = await go();
+    expect(a.first).toBe(MAX_BLASTS_PER_TICK);
+    expect(a.all).toBe(CHAIN);
+    expect(await go()).toEqual(a);
+  });
+
+  it('two going up on one tick blast in part order, each by its own heat', async () => {
+    const SPACED = { format: 1, name: 'spaced', grid: ['rc F F F F F F F F F rc F F F F F F F F F C'] };
+    const go = async (heats: [number, number]): Promise<{ radii: number[]; died: number[]; hash: string }> => {
+      const w = await world(6);
+      const r = w.spawnBlueprint(SPACED, { x: 0, y: 100 });
+      const [a, b] = ofType(r, 'smallreactor');
+      a!.heat = heats[0];
+      b!.heat = heats[1];
+      a!.health = 0;
+      b!.health = 0;
+      w.step();
+      const out = { radii: blasts(w), died: [a!.heat ?? 0, b!.heat ?? 0], hash: w.hash() };
+      w.dispose();
+      return out;
+    };
+    const one = await go([0.25, 0.75]);
+    expect(one.radii[0]).toBeCloseTo(cold.radius + hot.radius * one.died[0]!, 9);
+    expect(one.radii[1]).toBeCloseTo(cold.radius + hot.radius * one.died[1]!, 9);
+    expect(await go([0.25, 0.75])).toEqual(one);
+    expect((await go([0.75, 0.25])).hash).not.toBe(one.hash);
+  });
+
+  it('heat is hashed on reactors only: on anything else it adds nothing', async () => {
+    const go = async (set: (r: Robot) => void): Promise<string> => {
+      const w = await world(7);
+      const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
+      set(r);
+      run(w, 2);
+      const h = w.hash();
+      w.dispose();
+      return h;
+    };
+    const plain = await go(() => {});
+    expect(await go((r) => void (reactor(r).heat = 0.5))).not.toBe(plain);
+    expect(await go((r) => void (ofType(r, 'battery')[0]!.heat = 0.5))).toBe(plain);
+  });
+
+  it('a stray heat on a part that is no reactor changes no blast', async () => {
+    const go = async (heat: number): Promise<number[]> => {
+      const w = await world();
+      const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
+      const [laser] = ofType(r, 'laser');
+      laser!.heat = heat;
+      laser!.health = 0;
+      w.step();
+      const out = blasts(w);
+      w.dispose();
+      return out;
+    };
+    expect(await go(1)).toEqual(await go(0));
   });
 });
