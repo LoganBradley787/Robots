@@ -124,6 +124,22 @@ Goal (Logan): long casual fights without Unlimited energy. A reactor is the part
 - Heat is hashed on parts with a `reactor` block only; a queued blast hashes its numbers, so a hot one waiting is in the hash.
 - `p.spec.reactor` does not show `blast`: blocks inside blocks stay out of `partSpec`.
 
+**The `-r` titans (2026-11-01)**
+- `tournaments/gen/reactor-refits.mjs` makes every one from its stock robot, so rerunning it after a stock change rebuilds them. A stock change it cannot follow stops it with an error.
+- A swap by mass is where they start, not all they are. Measured, most titans were never short of energy in a match: what the power buys differs by robot, and it is the robot's own weapon where that is what held it back.
+
+| Titan | Reactors | Batteries, of stock | What else changed |
+|---|---|---|---|
+| `titan-hive-r` | 5, 6 kW | 40 of 184 | 14 dart bays for 10, three beam turrets over the core, darts wait only under 15 s of hover |
+| `titan-bastion-r` | 8, 9.6 kW | 182 of 254 | Its six gun turrets are beams |
+| `titan-juggernaut-r` | 12, 14.4 kW | 180 of 288 | Stops driving for nothing, patrols at 30 m/s |
+| `titan-woodpecker-r` | 24 small, 5.8 kW | 137 of 161 | 6 burner bays for 4, 36 rack darts for 40 |
+| `titan-palisade-r` | 12 small, 2.9 kW | 49 of 102 | The panels' reactors hang off the back of the link column |
+| `titan-shatter-r` | 31 small, 7.4 kW | 94 of 340 | Gunships keep 3 batteries, the king one reactor |
+
+- Reactors make a robot's layout matter in new ways. In a keep they are the way in: 300 health in the space of nine plates. Among propellers a small one takes the deck with it when shot. Spanning a thin base, one cuts it in two.
+- Weight decided gunship fights more than charge: a ship spends about 5 kJ in its first 30 s, and 5 kg more lost those fights.
+
 **Reads**
 - Scripts: `heat` and `load` outputs, `p.in.push`, `p.spec.reactor.power`, `cap`, `tau`, `burn`. `self.energy` still means what is stored, but no longer "time left": a reactor pilot adds steady power to its budget. A burnt-out battery reads `charge` 0 and is out of `self.energy.capacity`. How far along a burn is does not show: charge stays 1 of what it holds until it is all brown. `p.spec.resource` is the part's def, so it still says what a new one holds.
 - `World.reactors(id)` for readouts; `World.powered(id)` is "something stored or a reactor making something", because a robot on overdrive ends every tick with an empty pool and must keep its flames and sound.
