@@ -283,7 +283,7 @@ Learned building `turret-drone` (Gate 6); most of a turret's design time goes to
   ```
 - **Reading it:** `get('tag', 'heat')`, `get('tag', 'load')`, `p.in.push`, `p.spec.reactor`. `get` takes a tag and a channel: it is not a part lookup.
 - **A wreck keeps running:** a headless piece with a reactor and latched thrusters flies on. It may not rest, so it may not fade as debris.
-- **The robots:** `titan-mirage-r`, `titan-anvil-r`, `reactor-cannon-drone` (yours: W A S D, the turret aims itself, P pushes to 3, G stops waiting for the pool), `enemy-reactor-cannon-drone`. All from `node tournaments/gen/reactor-refits.mjs`.
+- **The robots:** all eight titans have a `-r` refit (`titan-hive-r`, `titan-bastion-r`, `titan-juggernaut-r`, `titan-woodpecker-r`, `titan-palisade-r`, `titan-mirage-r`, `titan-shatter-r`, `titan-anvil-r`), `reactor-cannon-drone` (yours: W A S D, the turret aims itself, P pushes to 3, G stops waiting for the pool), `enemy-reactor-cannon-drone`. All from `node tournaments/gen/reactor-refits.mjs`.
 
 ## Jammer pod (Batch)
 - **A jammer pod** (`jammer`, legend `J`, 0.5 kg, health 10, attaches on any face): its `ignite` input above 0.5 starts it for good (attached or let go), it jams for 5 s, then is spent and gone quietly (`jamming` reads 1 while it runs). Rack it like a flare: pod on a `D` grip, `set(pod, 'ignite', 1)` and fire the grip on the same tick. **Up close a jam does nothing (Titans, Logan):** a sensor within 150 m (the def's `jammer.near`) of what it looks at sees it through the bubble, whichever of the two is inside. A hidden robot is hidden only from further off, so anything that closes in can find and fight it.

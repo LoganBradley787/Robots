@@ -290,7 +290,7 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   // badly: at the shelf's right end, 3 m from the core, a third of the ships tipped over. The shelf stays whole in
   // frames: with holes in it the ships lock together as they come apart, and most of them fell. Five batteries stay of
   // 11, on the right to balance the reactor, and the body's two inner batteries go as holes: the shelf holds what they
-  // held. +5 kg a ship, 150 kg in all, what the 10 percent allows with the king's reactors.
+  // held. +5 kg a ship, 150 kg in all: with the king's reactors that is 9.7 percent heavier, just inside the 10 allowed.
   const shipCols = [4, 18, 32]; // each column's left laser mount
   let ships = 0;
   for (let row = 7; row < cells.length; row += 4) {
@@ -306,15 +306,12 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   }
   if (ships !== 30) throw new Error(`${ships} gunships`);
   // The king: both ends of its battery row, 6 m from its core. Its hover is about 170 W, so one reactor holds it up and
-  // the other is a spare. Its pool goes from ten batteries to two beside the core's neighbors: it has nothing to burst.
+  // the other is a spare. Its eight other batteries stay: taking six out for mass left the core bare, a dart's blast
+  // halves for each part in its way, and the king died 17 s sooner against the Woodpecker.
   const kingRow = 2;
   for (const col of [16, 28]) {
     if (!dense(cells[kingRow][col])) throw new Error('the king moved');
     cells[kingRow][col] = 'rc';
-  }
-  for (const col of [18, 19, 20, 24, 25, 26]) {
-    if (!dense(cells[kingRow][col])) throw new Error('the king moved');
-    cells[kingRow][col] = '.';
   }
   // Flying is paid for: all that is kept back is `spare`, so a gunship spends its pool on beams at once and then burns
   // what comes in. flyDraw is what flying costs over its reactor.

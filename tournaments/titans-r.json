@@ -1,0 +1,12 @@
+{
+  "titans": [
+    { "name": "titan-hive-r", "y": 150 },
+    { "name": "titan-bastion-r" },
+    { "name": "titan-juggernaut-r" },
+    { "name": "titan-woodpecker-r" },
+    { "name": "titan-palisade-r", "y": 150 },
+    { "name": "titan-mirage-r", "y": 150 },
+    { "name": "titan-shatter-r", "y": 150 },
+    { "name": "titan-anvil-r", "y": 60 }
+  ]
+}

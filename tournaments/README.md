@@ -3,6 +3,7 @@
 Rosters for `pnpm sim tournament <roster.json>`. The rules: two robots that run themselves spawn 800 m apart on `worlds/arena.json`. A robot loses when its main core is destroyed, or goes past x 1000 either way or above y 250. Time running out (240 s) is a draw. Every pair meets on every seed, both ways round.
 
 - A roster is `{ "titans": [{ "name": "titan-x", "y": 40 }] }`: `name` is a blueprint in `blueprints/`, `y` its main core's spawn height (left out: on the ground).
+- `titans.json` is the eight stock titans, `titans-r.json` their eight reactor refits at the same heights, `titans-all.json` all sixteen.
 - `pnpm sim duel <a> <b> [--ya <m>] [--yb <m>] [--seed <n>]` runs one match and prints who won and why; `pnpm sim help` has every flag.
 - Results go to `tournaments/out/` (`results.md`, `results.json`) unless `--out` says otherwise.
 - A duel is run once: the same code, robots, scripts, seed and settings reuse the result kept in `~/.cache/robots-sim/duels` (shared by worktrees; `XDG_CACHE_HOME` moves it). A kept speed check shows the timing of the run that made it. `--fresh` runs everything again.

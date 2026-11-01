@@ -1,0 +1,20 @@
+{
+  "titans": [
+    { "name": "titan-hive", "y": 150 },
+    { "name": "titan-bastion" },
+    { "name": "titan-juggernaut" },
+    { "name": "titan-woodpecker" },
+    { "name": "titan-palisade", "y": 150 },
+    { "name": "titan-mirage", "y": 150 },
+    { "name": "titan-shatter", "y": 150 },
+    { "name": "titan-anvil", "y": 60 },
+    { "name": "titan-hive-r", "y": 150 },
+    { "name": "titan-bastion-r" },
+    { "name": "titan-juggernaut-r" },
+    { "name": "titan-woodpecker-r" },
+    { "name": "titan-palisade-r", "y": 150 },
+    { "name": "titan-mirage-r", "y": 150 },
+    { "name": "titan-shatter-r", "y": 150 },
+    { "name": "titan-anvil-r", "y": 60 }
+  ]
+}
