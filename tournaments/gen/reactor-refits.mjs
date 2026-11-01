@@ -324,14 +324,20 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
     return found;
   };
   // A panel's eight batteries lie along its link column: its top deck, the middle deck up to its core, the bottom deck.
-  // The reactor goes at the top deck's outer end, 7 m from the core, out of a hot blast's reach. Two batteries stay on
-  // the bottom deck to carry a burst and balance it; the rest turn to frames, because the decks are what tie the link
-  // column to the gun wall. +5 kg a panel: a frame where a battery was (the decks must stay whole).
-  for (let n = 1; n <= 10; n++) {
+  // The reactor hangs off the back of the link column, above the back gun: a panel turns its guns to the enemy, so
+  // that is the side least shot at, 6 m from the core, and nothing near it but the column. On the top deck's end, among
+  // the propellers, a shot-out reactor took the deck with it, and a panel lost one every 40 s. Four batteries stay on
+  // the two lower decks, 24 kJ, two minutes in the air if the reactor goes; the other four turn to frames, because the
+  // decks are what tie the link column to the gun wall. +12 kg a panel.
+  for (const [key, core] of Object.entries(bp.cores)) {
+    const y = Number(key.split(',')[1]); // the panel's core row, up from the bottom
+    const n = core.scope.slice(1);
     const [top1, top2, m1, m2, m3, m4, bot1, bot2] = where(`zp${n}`).sort((p, q) => p[0] - q[0] || p[1] - q[1]);
     if (!bot2) throw new Error(`panel ${n} moved`);
-    cells[top1[0]][top1[1]] = 'rc';
-    for (const [row, col] of [top2, m1, m2, m3, m4]) cells[row][col] = `fp${n}`;
+    const spot = [cells.length - 1 - (y + 2), 2];
+    if (cells[spot[0]][spot[1]] !== '.' || cells[spot[0]][3] !== `fp${n}`) throw new Error(`panel ${n} has no room for its reactor`);
+    cells[spot[0]][spot[1]] = 'rc';
+    for (const [row, col] of [top1, top2, m3, m4]) cells[row][col] = `fp${n}`;
   }
   // The keep: at both ends of its top deck, 12 m from its core, 480 W against about 400 W of flying. Eleven of its 14
   // belly batteries turn to frames, tougher than batteries that close to the core, and nine stay, 54 kJ.
