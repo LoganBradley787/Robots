@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AnimatedSprite, Container, Graphics, Sprite, Texture } from 'pixi.js';
-import { World, parseWorldFile, type Robot } from '@robots/sim-core';
+import { World, parseWorldFile, type PartInstance, type Robot } from '@robots/sim-core';
 import flatJson from '../../../worlds/flat.json';
 import { RobotView, type RobotDrawing } from '../src/render/RobotView';
 
@@ -44,7 +44,7 @@ function sprites(c: Container, out = new Set<Sprite>()): Set<Sprite> {
 async function scene(raw: unknown, at = { x: 0, y: 3 }) {
   const w = await World.create({ seed: 1 }, parseWorldFile(flatJson));
   w.spawnBlueprint(raw, at);
-  const drawing: RobotDrawing = { frame, animations: (name) => [frame(name)], registry: w.registry };
+  const drawing: RobotDrawing = { frame, animations: (name) => [frame(name)], registry: w.registry, burn: (step) => frame(`burn.${step}`) };
   const views = new Map<number, RobotView>();
   const layer = new Container();
   const show = (v: RobotView, id: number): void => v.sync(w.physics, 1, (partId, channel) => w.channelValue(id, partId, channel));
@@ -232,6 +232,60 @@ describe('RobotView.syncAll', () => {
     expectFresh(s);
     expect(sprites(s.views.get(2)?.root as Container).size).toBe(3);
     for (const x of sprites(s.views.get(2)?.root as Container)) expect(before.has(x)).toBe(true);
+    s.w.dispose();
+  });
+
+  it('a burnt fuse gets one brown sprite that steps with its burn, keeps its tint, and goes where the part goes', async () => {
+    const s = await scene({ format: 1, name: 'bar', grid: ['C Z F Z Z'] });
+    s.sync();
+    const count = sprites(s.layer).size;
+    const parts = [...(s.w.robotById(1)?.parts.values() ?? [])].filter((p) => p.def.fuse === true);
+    const [a, b] = parts as [PartInstance, PartInstance];
+    const browns = (): Sprite[] => [...sprites(s.layer)].filter((x) => x.texture.label?.startsWith('burn.'));
+    a.burnt = 0.01;
+    s.sync();
+    expect(browns()).toHaveLength(0);
+    a.burnt = 0.5;
+    s.sync();
+    expect(browns().map((x) => x.texture.label)).toEqual(['burn.8']);
+    expect(sprites(s.layer).size).toBe(count + 1);
+    a.health = a.def.health / 2;
+    s.sync();
+    const [brown] = browns();
+    const own = [...sprites(s.layer)].find((x) => x.texture.label === 'part.densebattery' && x.position.x === brown?.position.x);
+    expect(brown?.tint).toBe(own?.tint);
+    expect(brown?.tint).not.toBe(0xffffff);
+    expect([brown?.x, brown?.y, brown?.rotation]).toEqual([own?.x, own?.y, own?.rotation]);
+    a.burnt = 0.99;
+    s.sync();
+    expect(browns().map((x) => x.texture.label)).toEqual(['burn.15']);
+    a.burnt = 1;
+    b.burnt = 1;
+    s.sync();
+    expect(browns().map((x) => x.texture.label)).toEqual(['burn.16', 'burn.16']);
+    // The middle frame goes: each piece keeps its brown, on its own view.
+    const was = browns();
+    s.lose(1, 'frame@2,0');
+    s.w.step();
+    s.sync();
+    expect(s.w.robots).toHaveLength(2);
+    expect(browns()).toEqual(expect.arrayContaining(was));
+    for (const [id, v] of s.views) expect(sprites(v.root).size).toBe((s.w.robotById(id)?.parts.size ?? 0) + 1);
+    // A brown goes with its part.
+    s.lose(1, a.id);
+    s.w.step();
+    s.sync();
+    expect(browns()).toHaveLength(1);
+    expect(was.filter((x) => x.destroyed)).toHaveLength(1);
+    s.w.dispose();
+  });
+
+  it('a piece drawn new shows the burn it already has', async () => {
+    const s = await scene({ format: 1, name: 'one', grid: ['C Z'] });
+    const dense = [...(s.w.robotById(1)?.parts.values() ?? [])].find((p) => p.def.fuse === true) as PartInstance;
+    dense.burnt = 1;
+    s.sync();
+    expect([...sprites(s.layer)].filter((x) => x.texture.label === 'burn.16')).toHaveLength(1);
     s.w.dispose();
   });
 

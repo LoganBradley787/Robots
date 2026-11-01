@@ -2,6 +2,7 @@ import { AnimatedSprite, Container, Graphics, Sprite, type Texture } from 'pixi.
 import { faceDir, footprintBox, footprintOf, opposite, recipePlacement, rootPartId, rotateCell, rotateFace, rotationRadians, type BodyGroup, type BodyId, type PartInstance, type PartRegistry, type PhysicsWorld, type Robot } from '@robots/sim-core';
 import { interpolateState } from './interpolate';
 import { bodyOrder, mountLayout, partLayout, type SpriteLayout } from './robotLayout';
+import { burnStep } from './burnRing';
 import { damageTint, heatTint } from './damageTint';
 import { multiplyTint, teamTint } from './teamTint';
 import { PIXELS_PER_METER, toScreen, toScreenAngle } from './units';
@@ -28,6 +29,8 @@ export interface RobotDrawing {
   frame: (name: string) => Texture;
   animations?: Animations;
   registry?: PartRegistry;
+  /** The brown over a burnt fuse at a step (`burnRing`). */
+  burn?: (step: number) => Texture;
 }
 
 /** One rigid body's drawing: a Container that moves with it, its flames and glows behind its sprites. */
@@ -53,6 +56,9 @@ interface PartView {
   health: number;
   /** The heat it was last tinted for, in steps. Undefined until it first is. */
   heat?: number;
+  /** The brown over it, from the first burn on, and the step that shows (`burnStep`). */
+  burn?: Sprite;
+  burnt?: number;
   plain?: Texture;
   lit?: Texture;
   on?: boolean;
@@ -367,6 +373,23 @@ export class RobotView {
     }
   }
 
+  /** A burnt part's brown at a step: one sprite over the part, only for parts that have burnt, on one shared texture a step. */
+  private showBurn(p: PartView, part: PartInstance, step: number): void {
+    const ring = this.drawing.burn?.(step);
+    if (!ring) return;
+    p.burnt = step;
+    if (p.burn) {
+      p.burn.texture = ring;
+      return;
+    }
+    p.burn = new Sprite(ring);
+    const layout = partLayout(part);
+    place(p.burn, layout[layout.length - 1] as SpriteLayout);
+    p.body.view.addChild(p.burn);
+    // Takes the part's tint on the way out of `sync`.
+    p.health = Number.NaN;
+  }
+
   sync(physics: PhysicsWorld, alpha: number, value?: (partId: string, channel: string) => number | undefined): void {
     for (const b of this.bodies) {
       const s = interpolateState(physics.prevState(b.bodyId), physics.state(b.bodyId), alpha);
@@ -409,11 +432,14 @@ export class RobotView {
       }
       // Steps of a sixteenth: a reactor's heat changes every tick, its tint need not.
       const heat = Math.round((part.heat ?? 0) * 16) / 16;
+      const burnt = burnStep(part.burnt ?? 0);
+      if (burnt !== (p.burnt ?? 0)) this.showBurn(p, part, burnt);
       if (part.health !== p.health || heat !== p.heat) {
         p.health = part.health;
         p.heat = heat;
         const tint = multiplyTint(multiplyTint(damageTint(part.health / part.def.health), heatTint(heat)), teamTint(this.robot.team));
         for (const sprite of p.sprites) sprite.tint = tint;
+        if (p.burn) p.burn.tint = tint;
       }
       if (p.glow) {
         p.glow.visible = (part.burn ?? 0) > 0;
@@ -470,6 +496,7 @@ function movePart(pv: PartView, part: PartInstance, body: BodyView): PartView {
   if (dx !== 0 || dy !== 0) {
     const d = toScreen({ x: dx, y: dy });
     for (const s of pv.sprites) s.position.set(s.x + d.x, s.y + d.y);
+    pv.burn?.position.set(pv.burn.x + d.x, pv.burn.y + d.y);
     pv.glow?.position.set(pv.glow.x + d.x, pv.glow.y + d.y);
     pv.effect?.flame?.position.set(pv.effect.flame.x + d.x, pv.effect.flame.y + d.y);
     pv.localX = part.localX;
@@ -477,6 +504,7 @@ function movePart(pv: PartView, part: PartInstance, body: BodyView): PartView {
   }
   if (pv.body !== body) {
     for (const s of pv.sprites) body.view.addChild(s);
+    if (pv.burn) body.view.addChild(pv.burn);
     if (pv.glow) body.flames.addChild(pv.glow);
     if (pv.effect?.flame) body.flames.addChild(pv.effect.flame);
     pv.body = body;
@@ -487,6 +515,7 @@ function movePart(pv: PartView, part: PartInstance, body: BodyView): PartView {
 /** A lost part's drawing, gone from its body. */
 function disposePart(pv: PartView): void {
   for (const s of pv.sprites) s.destroy();
+  pv.burn?.destroy();
   pv.glow?.destroy();
   pv.effect?.flame?.destroy();
 }

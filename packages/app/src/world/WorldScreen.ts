@@ -5,6 +5,7 @@ import type { Renderer } from '../render/Renderer';
 import { drawDebug } from '../render/DebugDraw';
 import { drawSensors, type SensorOverlay } from '../render/SensorDraw';
 import { interpolateState } from '../render/interpolate';
+import { burnRing } from '../render/burnRing';
 import { RobotView } from '../render/RobotView';
 import { SoundScene } from '../audio/SoundScene';
 import { Effects } from '../render/Effects';
@@ -474,7 +475,7 @@ export class WorldScreen {
 
   /** Views follow the robots (M16: a rebuilt robot keeps the drawings of the parts it still has, `RobotView.syncAll`). */
   private syncViews(): void {
-    const drawing = { frame: (f: string) => this.textures.part(f), animations: (name: string) => this.textures.fx.animations[name] ?? [], registry: this.world.registry };
+    const drawing = { frame: (f: string) => this.textures.part(f), animations: (name: string) => this.textures.fx.animations[name] ?? [], registry: this.world.registry, burn: burnRing };
     RobotView.syncAll(this.views, this.world.robots, drawing, this.renderer.bodies);
   }
 
