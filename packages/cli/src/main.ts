@@ -1,11 +1,12 @@
 import { parseKeyTimeline, parseWorldFile, TimelineError, type KeyPress, type WorldFile } from '@robots/sim-core';
+import { gitBuild } from './gitBuild';
 import { BLUEPRINT_DIR, DEFAULT_WORLD, loadBlueprintFile, readBlueprint, readJson, REPO_ROOT, resolveBlueprint, resolveReplay, resolveUserPath } from './blueprintFiles';
 import { formatReport, InvalidBlueprint, runSim } from './commands/run';
 import { checkDeterminism } from './commands/determinism';
 import { validateWithScripts } from './commands/validate';
 import { showBlueprint } from './commands/show';
 import { tune } from './commands/tune';
-import { formatReplay, replayCommand } from './commands/replay';
+import { formatBuilds, formatReplay, replayCommand, savedBuild } from './commands/replay';
 import { placeCommand } from './commands/place';
 import { mirrorCommand } from './commands/mirror';
 import { formatParts, partRows } from './commands/parts';
@@ -38,7 +39,8 @@ commands
                      warns about a script that would stop at t=0 (it does not compile, has no tick()) and
                      about set() and get() on a tag or channel written as a plain string that reaches nothing
   determinism <bp>   run twice and compare final hashes (exit 1 on mismatch)
-  replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it
+  replay <file>      rerun a replay saved from the app (a path, or a name in replays/) and check it; says
+                     which commit made it, and warns when this checkout is not that build
                      ends in the same state (exit 1 on mismatch)
   hashes <arena|battle|replay> [--seconds <n>] [--save <file>] [--against <file>]
                      the state hash after every tick (M16), to prove another engine reaches the same bits:
@@ -187,7 +189,11 @@ async function main(): Promise<number> {
       console.error('replay needs a replay file, like replays/2026-09-23-1512-car.json');
       return 2;
     }
-    const r = await replayCommand(readJson(resolveReplay(bpArg)));
+    const raw = readJson(resolveReplay(bpArg));
+    const here = gitBuild(REPO_ROOT);
+    // Before the rerun: a long one on the wrong build is what this is here to save.
+    if (!flags.has('json')) console.log(formatBuilds(savedBuild(parseReplay(raw)), here).join('\n'));
+    const r = await replayCommand(raw, here);
     console.log(flags.has('json') ? JSON.stringify(r, null, 2) : formatReplay(r));
     return r.matches ? 0 : 1;
   }

@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseWorldFile } from '@robots/sim-core';
 import flatJson from '../../../worlds/flat.json';
@@ -6,7 +10,8 @@ import { formatReport, InvalidBlueprint, keysScriptsRead, runSim } from '../src/
 import { checkDeterminism } from '../src/commands/determinism';
 import { validateCommand } from '../src/commands/validate';
 import { showBlueprint } from '../src/commands/show';
-import { formatReplay, replayCommand } from '../src/commands/replay';
+import { formatBuilds, formatReplay, replayCommand } from '../src/commands/replay';
+import { gitBuild } from '../src/gitBuild';
 import { buildReplay, defaultRegistry, expandBlueprint, parseKeyTimeline, placeBlueprint, toFileJson, World, type Blueprint } from '@robots/sim-core';
 import { listBlueprints, readBlueprint, resolveBlueprint } from '../src/blueprintFiles';
 
@@ -252,6 +257,57 @@ describe('replay', () => {
     expect(r.robots[0]?.drive.distance).toBeGreaterThan(3);
     expect(formatReplay(r)).toContain('MATCH');
     expect((await replayCommand({ ...saved, endHash: 'ffffffff' })).matches).toBe(false);
+  });
+
+  it('says which commit made a replay, without it changing the rerun', async () => {
+    const w = await World.create({ seed: 1 }, flat);
+    w.spawnBlueprint(carJson, { x: -20, y: 3 });
+    for (let i = 0; i < 30; i++) w.step();
+    const saved = JSON.parse(JSON.stringify(buildReplay(w)));
+    w.dispose();
+    const here = { commit: 'a'.repeat(40) };
+    const old = await replayCommand(saved, here);
+    expect(formatReplay(old)).toContain('commit unknown');
+    const same = await replayCommand({ ...saved, commit: here.commit }, here);
+    expect(same.hash).toBe(old.hash);
+    expect(same.matches).toBe(true);
+    expect(formatReplay(same)).toContain(`made by commit ${'a'.repeat(12)}`);
+    expect(formatReplay(same)).not.toContain('WARNING');
+    const other = await replayCommand({ ...saved, commit: 'b'.repeat(40) }, here);
+    expect(other.matches).toBe(true);
+    expect(formatReplay(other)).toContain(`WARNING: this checkout is at ${'a'.repeat(12)}`);
+  });
+
+  it('warns on every way the two builds can differ, and never needs git', () => {
+    const a = 'a'.repeat(40);
+    expect(formatBuilds({ commit: a }, {})).toEqual([`made by commit ${a.slice(0, 12)}`, 'this checkout has no commit to compare it with']);
+    expect(formatBuilds({}, {})).toEqual(['commit unknown: the replay does not say which build made it']);
+    expect(formatBuilds({ commit: a, dirty: true }, { commit: a }).join('\n')).toContain('with uncommitted changes\nWARNING: the same commit');
+    expect(formatBuilds({ commit: a }, { commit: a, dirty: true }).join('\n')).toContain('WARNING: this checkout has uncommitted changes');
+  });
+});
+
+describe('gitBuild', () => {
+  it('reads the commit, calls only tracked changes dirty, and gives nothing away from git', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'robots-gitbuild-'));
+    try {
+      expect(gitBuild(dir)).toEqual({});
+      expect(gitBuild(join(dir, 'no-such-folder'))).toEqual({});
+      const git = (...args: string[]): string => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: dir, encoding: 'utf8' }).trim();
+      git('init', '-q');
+      expect(gitBuild(dir)).toEqual({}); // No commit yet.
+      writeFileSync(join(dir, 'a.txt'), 'one');
+      git('add', 'a.txt');
+      git('commit', '-qm', 'one');
+      const commit = git('rev-parse', 'HEAD');
+      expect(gitBuild(dir)).toEqual({ commit });
+      writeFileSync(join(dir, 'untracked.json'), '{}');
+      expect(gitBuild(dir)).toEqual({ commit });
+      writeFileSync(join(dir, 'a.txt'), 'two');
+      expect(gitBuild(dir)).toEqual({ commit, dirty: true });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

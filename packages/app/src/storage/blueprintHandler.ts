@@ -87,6 +87,8 @@ export interface StoreOptions {
   pretty: boolean;
   /** Also serve `.js` script files as plain text (M5: scripts live next to their blueprint). */
   scripts?: boolean;
+  /** Fields set on every object written (replays: the commit that made them). */
+  stamp?: () => object;
 }
 
 export const BLUEPRINTS: StoreOptions = { noun: 'blueprint', maxBytes: MAX_BODY_BYTES, pretty: true, scripts: true };
@@ -129,7 +131,8 @@ export function handleBlueprintRequest(method: string, url: string, body: string
         return json(400, { error: 'body is not JSON' });
       }
       if (typeof value !== 'object' || value === null || Array.isArray(value)) return json(400, { error: `a ${noun} must be a JSON object` });
-      store.write(file, `${opts.pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value)}\n`);
+      const stamped = { ...value, ...opts.stamp?.() };
+      store.write(file, `${opts.pretty ? JSON.stringify(stamped, null, 2) : JSON.stringify(stamped)}\n`);
       return json(200, { ok: true });
     }
     case 'DELETE': {

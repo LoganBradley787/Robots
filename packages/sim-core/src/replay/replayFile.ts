@@ -18,6 +18,10 @@ export interface ReplayFile {
   inputs: LoggedTick[];
   endTick: number;
   endHash: string;
+  /** The git commit that made it, when the host knew (the sim never asks git). Never part of a hash. */
+  commit?: string;
+  /** That commit had uncommitted changes on top. */
+  dirty?: boolean;
 }
 
 export class ReplayError extends Error {}
@@ -110,7 +114,9 @@ export function parseReplay(raw: unknown): ReplayFile {
     if (typeof a.x !== 'number' || typeof a.y !== 'number' || !Number.isFinite(a.x) || !Number.isFinite(a.y) || a.x <= 0) throw new ReplayError('replay arena needs numbers x (above 0) and y');
     arena = { x: a.x, y: a.y };
   }
-  return { format: 1, world, seed, ...(arena ? { arena } : {}), spawns, inputs, endTick: int(r.endTick, 'endTick'), endHash: r.endHash };
+  // Only a label: a bad one reads as unknown, and the replay still runs.
+  const commit = typeof r.commit === 'string' && r.commit !== '' ? { commit: r.commit, ...(r.dirty === true ? { dirty: true } : {}) } : {};
+  return { format: 1, world, seed, ...(arena ? { arena } : {}), spawns, inputs, endTick: int(r.endTick, 'endTick'), endHash: r.endHash, ...commit };
 }
 
 /**

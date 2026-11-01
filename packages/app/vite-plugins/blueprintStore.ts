@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Plugin } from 'vite';
+import { gitBuild } from '../../cli/src/gitBuild.ts';
 import { BLUEPRINTS, handleBlueprintRequest, handleShelfRequest, REPLAYS, type FileStore, type StoreOptions } from '../src/storage/blueprintHandler.ts';
 
 /** Serves a folder of JSON files at `route` during `vite dev`. The handler rejects any name that could escape it. */
@@ -44,9 +45,12 @@ export function blueprintStore(dir: string): Plugin {
   return jsonFileStore(dir, '/api/blueprints', BLUEPRINTS);
 }
 
-/** `replays/` at /api/replays (M3): the world toolbar's Save replay writes here. */
+/**
+ * `replays/` at /api/replays (M3): the world toolbar's Save replay writes here, and only a dev server can. It stamps each
+ * replay with the commit at the moment of saving: a value built in at startup goes wrong when the server outlives a commit.
+ */
 export function replayStore(dir: string): Plugin {
-  return jsonFileStore(dir, '/api/replays', REPLAYS);
+  return jsonFileStore(dir, '/api/replays', { ...REPLAYS, stamp: () => gitBuild(dirname(dir)) });
 }
 
 /** `behaviors/` at /api/behaviors (M16): the shelf of shared behaviors, read only. Read from disk on every ask, so a file an agent just wrote is there. */

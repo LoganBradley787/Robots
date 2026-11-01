@@ -76,6 +76,15 @@ describe('replays', () => {
     expect(handleBlueprintRequest('GET', '/nope.json', '', store, REPLAYS).body).toContain('no replay');
   });
 
+  it('are stamped with the commit when they are saved; away from git they are written as they came', () => {
+    const files = memoryStore();
+    const body = JSON.stringify({ format: 1 });
+    handleBlueprintRequest('PUT', '/a.json', body, files, { ...REPLAYS, stamp: () => ({ commit: 'abc123', dirty: true }) });
+    expect(JSON.parse(files.files['a.json'] ?? '')).toEqual({ format: 1, commit: 'abc123', dirty: true });
+    handleBlueprintRequest('PUT', '/b.json', body, files, { ...REPLAYS, stamp: () => ({}) });
+    expect(JSON.parse(files.files['b.json'] ?? '')).toEqual({ format: 1 });
+  });
+
   it('are named by time and robot', () => {
     expect(replayFileName(new Date(2026, 8, 23, 15, 12, 7), 'Le Car')).toBe('2026-09-23-151207-le-car.json');
     expect(replayFileName(new Date(2026, 0, 2, 3, 4, 5), undefined)).toBe('2026-01-02-030405-world.json');

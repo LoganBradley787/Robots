@@ -1,5 +1,6 @@
 import { buildReplay, defaultRegistry, orientRaw, parseReplay, parseWorldFile, replayHashes, StateHasher, World, type ReplayFile } from '@robots/sim-core';
-import { readBlueprint, readJson, resolveBlueprint } from '../blueprintFiles';
+import { readBlueprint, readJson, REPO_ROOT, resolveBlueprint } from '../blueprintFiles';
+import { gitBuild } from '../gitBuild';
 import { scriptHost } from '../scriptHost';
 import { spawnBattle, worldFor } from './bench';
 import { ARENA_WORLD } from './duel';
@@ -45,7 +46,7 @@ export async function sceneReplay(scene: HashScene, seconds = DEFAULT_SECONDS[sc
     } else spawnBattle(world, 6);
     const ticks = Math.max(1, Math.round(seconds / world.dt));
     for (let i = 0; i < ticks; i++) world.step();
-    return buildReplay(world);
+    return { ...buildReplay(world), ...gitBuild(REPO_ROOT) };
   } finally {
     world.dispose();
   }

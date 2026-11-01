@@ -44,6 +44,27 @@ describe('replay files', () => {
     w.dispose();
   });
 
+  it('keeps the commit a host stamped on it, and that changes no hash', async () => {
+    const w = await session();
+    const plain = buildReplay(w);
+    const stamped = parseReplay(JSON.parse(JSON.stringify({ ...plain, commit: 'abc123', dirty: true })));
+    expect(stamped.commit).toBe('abc123');
+    expect(stamped.dirty).toBe(true);
+    const r = await runReplay(stamped);
+    expect(r.matches).toBe(true);
+    expect(r.hash).toBe(plain.endHash);
+    r.world.dispose();
+    w.dispose();
+  });
+
+  it('a replay without a commit, or with a broken one, loads with none and still runs', () => {
+    const ok = { format: 1, world: flat, seed: 1, spawns: [], inputs: [], endTick: 0, endHash: 'x' };
+    expect(parseReplay(ok)).not.toHaveProperty('commit');
+    expect(parseReplay(ok)).not.toHaveProperty('dirty');
+    expect(parseReplay({ ...ok, commit: 7, dirty: true })).not.toHaveProperty('commit');
+    expect(parseReplay({ ...ok, commit: 7, dirty: true })).not.toHaveProperty('dirty');
+  });
+
   it('rejects malformed files with a path to the problem', () => {
     expect(() => parseReplay({ format: 2 })).toThrow(ReplayError);
     const ok = { format: 1, world: flat, seed: 1, spawns: [], inputs: [], endTick: 0, endHash: 'x' };
