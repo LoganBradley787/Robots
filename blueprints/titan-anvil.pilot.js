@@ -163,6 +163,8 @@ const threatNear = param('threatNear', 400, { min: 50, max: 1500 }); // m: a lig
 const threatDarts = param('threatDarts', 3, { min: 1, max: 100 }); // darts in the air from one enemy that make it the one doing it
 const hurtShare = param('hurtShare', 0.4, { min: 0, max: 1 }); // share of an end, a lift half or a push side lost, against the other, that counts as hurt
 const hurtParts = param('hurtParts', 0.3, { min: 0, max: 1 }); // or share of all its parts
+const rollSpin = param('rollSpin', 0.3, { min: 0.05, max: 2 }); // rad/s it tips over at, hurt, on the ground
+const grip = param('grip', 0.11, { min: 0, max: 2 }); // the ground's hold on a hull lying on it, share of its weight
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
@@ -321,6 +323,7 @@ function setup() {
   state.rollDir = 0; // the way it is turning itself over on the ground (1: counterclockwise)
   state.rollAt = 0;
   state.rollTries = 0;
+  state.partStart = parts.length;
   state.hurt = false; // lost enough on one side that the two-sided rules no longer hold (see Hurt)
   state.hullN = parts.length;
   state.hullAt = 0;
@@ -524,9 +527,9 @@ function hullCheck() {
   state.hullAt = time;
   if (!state.hurt) {
     const off = (a, b) => Math.min(a, b) < (1 - hurtShare) * Math.max(a, b);
-    if (!off(state.endPlus, state.endMinus) && !off(state.liftA, state.liftB) && !off(state.pushRight, state.pushLeft) && parts.length >= (1 - hurtParts) * state.partCount0) return;
+    if (!off(state.endPlus, state.endMinus) && !off(state.liftA, state.liftB) && !off(state.pushRight, state.pushLeft) && parts.length >= (1 - hurtParts) * state.partStart) return;
     state.hurt = true;
-    if (say > 0.5) log('hurt: flying on what it has left, parts', parts.length, 'of', state.partCount0);
+    if (say > 0.5) log('hurt: flying on what it has left, parts', parts.length, 'of', state.partStart);
   }
   readHull();
 }
@@ -558,18 +561,18 @@ function lowOf() {
 // What it wants, shared among the groups it has: throttles for a turn (N m), a push up and a push along, by best fit,
 // a few passes from last tick's answer. Up counts every group as it points now; along only the push boosters, since the
 // lift rows' share of a lean is meant. The ends join only for a turn the others could not give: they cost lift.
-function share(turn, up, along, firm) {
+function share(turn, up, along, firm, alongBy) {
   const reach = Math.sqrt(state.hullI / Math.max(self.mass, 1));
   const kT = firm / reach;
   let rT = turn * kT;
   let rY = up;
-  let rX = along * 0.3;
+  let rX = along * alongBy;
   const jets = state.jets;
   for (const j of jets) {
     if (j.end) j.u = 0;
     rT -= j.turn * kT * j.u;
     rY -= j.fy * j.u;
-    if (j.side) rX -= j.fx * 0.3 * j.u;
+    if (j.side) rX -= j.fx * alongBy * j.u;
   }
   for (let pass = 0; pass < 8; pass++) {
     if (pass === 4 && Math.abs(rT) < 0.05 * self.mass * 9.81 * firm) break;
@@ -577,7 +580,7 @@ function share(turn, up, along, firm) {
       if (j.end && pass < 4) continue;
       const aT = j.turn * kT;
       const aY = j.fy;
-      const aX = j.side ? j.fx * 0.3 : 0;
+      const aX = j.side ? j.fx * alongBy : 0;
       const u = clamp(j.u + (aT * rT + aY * rY + aX * rX) / (aT * aT + aY * aY + aX * aX + 1), 0, 1);
       const du = u - j.u;
       j.u = u;
@@ -588,15 +591,17 @@ function share(turn, up, along, firm) {
   }
 }
 
-// Over on the ground, hurt. To tip about a corner a group must lift (a push up, on the far side of the corner from the
-// center of mass) or turn it where it stands; a push along only slides it (the ground's grip is about 0.11), so that
-// counts about the center of mass. `over` adds that up each way, less the weight to raise. The short way up goes first
-// if it can be done; else the other, which ends on a face it can rise from. A way that gets nowhere in 3 s is left alone
-// for 8 s. Neither can be done: it slides at what it was after, every gun firing, and goes on trying.
+// Over on the ground, hurt. It tips about the corner on the way it turns, and every set of groups it could fire is
+// worked out (at most 64): what they turn it by, what they take off the ground, and the ground's grip against what they
+// shove it with (`grip`: a push that only just slides it turns it back about the corner by its whole height, which is
+// how a first try lit an end and the lift rows, 1500 kN m on paper, and lay still). Whatever beats the weight to raise can
+// do it. The short way up goes first; else the other, which ends on a face it can rise from. A way that gets nowhere in
+// 3 s is left alone for 8 s. Neither can be done: it slides at what it was after, every gun firing, and goes on trying.
 function rollHurt(wantVx, dt) {
   const ca = Math.cos(self.angle);
   const sa = Math.sin(self.angle);
   const weight = self.mass * 9.81;
+  const jets = state.jets;
   let lo = 1e9;
   const ws = [];
   for (const p of state.hullPts) {
@@ -612,14 +617,33 @@ function rollHurt(wantVx, dt) {
     if (px < xl) xl = px;
     if (px > xr) xr = px;
   });
-  const tip = (j, xp) => (j.wx - xp) * j.fy - j.wy * j.fx;
-  const over = (dir, xp) => {
-    let s = dir * xp * weight;
-    for (const j of state.jets) s += Math.max(0, dir * tip(j, xp));
-    return s;
+  const out = arena && Math.abs(self.pos.x) > arena.x - 250 ? Math.sign(self.pos.x) : 0;
+  const best = (dir, xp) => {
+    let top = -1e12;
+    let set0 = 0;
+    for (let mask = 0; mask < 1 << jets.length; mask++) {
+      let fx = 0;
+      let fy = 0;
+      let t = 0;
+      for (let i = 0; i < jets.length; i++) {
+        if (!((mask >> i) & 1)) continue;
+        const j = jets[i];
+        fx += j.fx;
+        fy += j.fy;
+        t += j.wx * j.fy - j.wy * j.fx;
+      }
+      if (fx * out > 0.1 * weight) continue; // not out over the edge
+      const load = Math.max(0, weight - fy);
+      const z = dir * (t + xp * load + lo * clamp(fx, -grip * load, grip * load));
+      if (z > top) {
+        top = z;
+        set0 = mask;
+      }
+    }
+    return { room: top, mask: set0 };
   };
-  const plus = over(1, xl);
-  const minus = over(-1, xr);
+  const plus = best(1, xl);
+  const minus = best(-1, xr);
   state.rollTurn += self.angVel * dt;
   if (state.rollDir !== 0) {
     if (state.rollDir * (state.rollTurn - state.rollMark) > 0.05) {
@@ -632,21 +656,21 @@ function rollHurt(wantVx, dt) {
   }
   if (state.rollDir === 0) {
     const short = self.angle > 0 ? -1 : 1;
-    const can = (d) => (d > 0 ? plus : minus) > 0 && state.rollBad[d > 0 ? 0 : 1] < time;
+    const can = (d) => (d > 0 ? plus : minus).room > 0 && state.rollBad[d > 0 ? 0 : 1] < time;
     state.rollDir = can(short) ? short : can(-short) ? -short : 0;
     state.rollMark = state.rollTurn;
     state.rollMarkAt = time;
-    if (say > 0.5) log('hurt, over: going', state.rollDir, 'angle', self.angle.toFixed(2), 'room', (plus / 1000).toFixed(0), (minus / 1000).toFixed(0), 'kN m');
+    if (say > 0.5 && state.rollDir !== state.rollSaid) log('hurt, over: going', state.rollDir, 'angle', self.angle.toFixed(2), 'room', (plus.room / 1000).toFixed(0), (minus.room / 1000).toFixed(0), 'kN m');
+    state.rollSaid = state.rollDir;
   }
+  // Slowly: what it keeps of one end turns it four times as hard as anything left can stop it, so past `rollSpin` it fires
+  // the other way. At 1 rad/s it went over its level, on round again, and came down on what was left of its core row.
   const dir = state.rollDir;
-  const xp = dir > 0 ? xl : xr;
-  const out = arena ? Math.sign(self.pos.x) : 0;
-  const nearEdge = arena && Math.abs(self.pos.x) > arena.x - 250;
-  for (const j of state.jets) {
-    const toEdge = nearEdge && j.fx * out > 0.5 * j.f;
-    if (dir !== 0) j.u = dir * tip(j, xp) > 0 && !toEdge ? 1 : 0;
-    else j.u = j.fx * (wantVx - self.vel.x) > 0 && !toEdge ? 1 : 0;
-  }
+  const mask = dir === 0 ? 0 : dir * self.angVel > rollSpin ? best(-dir, dir > 0 ? xl : xr).mask : (dir > 0 ? plus : minus).mask;
+  jets.forEach((j, i) => {
+    if (dir !== 0) j.u = (mask >> i) & 1;
+    else j.u = j.fx * (wantVx - self.vel.x) > 0 && j.fx * out <= 0 ? 1 : 0;
+  });
 }
 
 // Flying hurt. A turn is asked for as a spin it could still stop from: the spin wanted falls with the root of the angle
@@ -661,7 +685,7 @@ function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt) {
     const up = sitting || cut ? 0 : self.mass * (9.81 + ay);
     const dvx = wantVx - self.vel.x;
     const along = clamp(0.6 * dvx, -1, 1) * (dvx > 0 ? state.pushRight : state.pushLeft);
-    share(state.hullI * 3 * (spin - self.angVel), up, along, state.righting ? 4 : 2);
+    share(state.hullI * 3 * (spin - self.angVel), up, along, state.righting ? 4 : 2, state.righting ? 0.3 : 3);
   }
   for (const j of state.jets) if (j.u > 0) set(j.tag, 'throttle', j.u);
   state.push = 0;
