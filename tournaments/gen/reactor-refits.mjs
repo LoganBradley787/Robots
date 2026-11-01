@@ -374,13 +374,17 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
     }
   }
   if (ships !== 30) throw new Error(`${ships} gunships`);
-  // The king: both ends of its battery row, 6 m from its core. Its hover is about 170 W, so one reactor holds it up and
-  // the other is a spare. Its eight other batteries stay: taking six out for mass left the core bare, a dart's blast
-  // halves for each part in its way, and the king died 17 s sooner against the Woodpecker.
+  // The king: one reactor at the left end of its battery row, 6 m from its core: its hover is about 170 W, and its fall
+  // is what ends a match. Five batteries from the far ends of the row make its weight, 4 stay beside the core, 24 kJ.
+  // It has to weigh what stock does. Tried with a reactor at each end and all ten batteries, 34 kg heavier: with even
+  // gunships it fell to the Woodpecker 0-1-5, stock 3-0-3. Tried with the same two and the batteries by the core gone:
+  // a dart's blast halves for each part in its way, and it fell 17 s sooner.
   const kingRow = 2;
-  for (const col of [16, 28]) {
+  if (!dense(cells[kingRow][16])) throw new Error('the king moved');
+  cells[kingRow][16] = 'rc';
+  for (const col of [17, 18, 26, 27, 28]) {
     if (!dense(cells[kingRow][col])) throw new Error('the king moved');
-    cells[kingRow][col] = 'rc';
+    cells[kingRow][col] = '.';
   }
   // Flying is paid for: all that is kept back is `spare`, a tenth of what stock keeps, so a gunship spends its pool on
   // beams at once and then burns what comes in. flyDraw is what flying costs over its reactor.
