@@ -230,31 +230,32 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   fs.writeFileSync(path.join(out, pilot), text);
 }
 
-// ---- titan-bastion-r: 4 reactors, 4.8 kW against the 4.5 kW all its bays draw. The pilot has no energy plan to change. ----
+// ---- titan-bastion-r: 8 reactors, 9.6 kW against 4.5 kW of bays, and six beam turrets in place of its six guns. ----
 {
   const bp = read('titan-bastion');
   const cells = cellsOf(bp);
-  // In the battery banks under the dart bays, between the anchors, under five rows of plate and with a floor under
-  // them, more than 20 m from the core. Banks are in rows 27 to 29, an anchor every 5 columns in the last.
-  const placed = [];
-  for (const col of [16, 36, 102, 122]) {
-    putReactor(cells, 27, col);
-    placed.push(col);
-  }
-  const take = Math.round((placed.length * REACTOR) / DENSE) - placed.length * 9;
-  // The middle row of the banks first, then the top. The column over each anchor stays whole, because it hangs from
-  // there, and so does one between each two anchors, which holds up that stretch of floor. The bottom row stays,
-  // but for its ends outside the anchors.
-  const spots = [];
-  for (const row of [28, 27]) {
-    for (let col = 4; col <= 48; col++) {
-      if (col % 5 === 0 || col % 5 === 2) continue;
-      spots.push([row, col], [row, 140 - col]);
-    }
-  }
-  for (let col = 5; col <= 9; col++) spots.push([29, col], [29, 140 - col]);
-  hollow(cells, spots, take);
-  write({ ...bp, name: 'titan-bastion-r', grid: gridOf(cells), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+  // All its bays together draw less than 4 reactors make, and across a match it used a third of its pool: power was
+  // never what held it back, and a swap by mass would change nothing but how long it can go on. What a fortress could
+  // not do was hit what stands off from it: a gun's shell scratches and gunships hang at 270 m. So the power buys beams,
+  // which burn what they touch at 300 m, a dart in a tick and a gunship's core in a few. In the battery banks under the
+  // dart bays, between the anchors, with five rows of plate over them and a floor under them, 25 m and more from the
+  // core. 182 of 254 batteries stay, 1.1 MJ, because six beams take 14.4 kW. It is 600 kg heavier, 1.5 percent of 40 t,
+  // and a fortress pays nothing for that.
+  for (const col of [11, 21, 31, 41, 97, 107, 117, 127]) putReactor(cells, 27, col);
+  const legend = { ...bp.legend };
+  for (let i = 1; i <= 6; i++) legend[`m${i}`] = { ...legend[`m${i}`], part: 'laser' };
+  // A laser stands two cells tall where a gun stood one: one more row on top.
+  cells.unshift(cells[0].map((t) => (t in legend ? '=' : '.')));
+  const pilot = 'titan-bastion-r.pilot.js';
+  write({ ...bp, name: 'titan-bastion-r', grid: gridOf(cells), legend, scripts: bp.scripts.map((s) => (s.id === 'pilot' ? { ...s, parts: s.parts?.map((t) => (t === 'gun' ? 'laser' : t)), params: { ...s.params, reach: 295 }, source: { file: pilot } } : s)), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+
+  // The turrets aim the same way but for what a beam does not need: no lead for the shell's flight, no drop. It fires
+  // only on a sight that reads an enemy, because a beam on nothing costs what a beam on something does.
+  let text = fs.readFileSync(path.join(out, 'titan-bastion.pilot.js'), 'utf8');
+  text = patch(text, "    } else if (p.type === 'gun') {\n", "    } else if (p.type === 'laser') {\n");
+  text = patch(text, '    const flight = d / 300;\n', '    const flight = 0; // a beam arrives at once\n');
+  text = patch(text, '    const ok = d < reach && Math.abs(err) < Math.max(0.012, 1.2 / d) && side !== 1 && side !== 2;\n', '    const ok = d < reach && Math.abs(err) < Math.max(0.012, 1.2 / d) && side === 3;\n');
+  fs.writeFileSync(path.join(out, pilot), text);
 }
 
 // ---- titan-woodpecker-r: 4 reactors, 4.8 kW against the 4.7 kW all its bays draw. Every battery kept. ----
