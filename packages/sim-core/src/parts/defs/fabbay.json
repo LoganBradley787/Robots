@@ -27,7 +27,7 @@
     { "name": "progress", "min": 0, "max": 1, "default": 0 },
     { "name": "built", "min": 0, "max": 1000000, "default": 0 }
   ],
-  "powerDraw": 400,
+  "powerDraw": 800,
   "acts": "N",
   "behavior": "fabricate",
   "fabricate": { "joulesPerKg": 40, "secondsPerKg": 0.6, "separation": 4, "clearAfter": 10 },
