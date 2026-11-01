@@ -2195,6 +2195,12 @@ function tick() {
     wantVx = 0;
     wantH = floor;
   }
+  // Hurt with the push boosters that stop it this way gone, only a lean stops it, and that takes room to lean in and 3 s to
+  // come on: it keeps over the height a lean needs near that edge, and allows for the 3 s (a hull going 41 m/s after a drone
+  // at x 530 went out at 25 m/s).
+  const lagR = state.hurt && state.pushLeft < 0.25 * state.pushRight ? 3 * Math.max(vx, 0) : 0;
+  const lagL = state.hurt && state.pushRight < 0.25 * state.pushLeft ? 3 * Math.max(-vx, 0) : 0;
+  if ((lagR > 0 && limit - x < 400) || (lagL > 0 && limit + x < 400)) wantH = Math.max(wantH, floor + 45);
   wantH = clamp(wantH, floor, ceiling);
   // What it can brake a fall by now (anvil r8): tilted, the lift rows hold up less (a lean at the start went on
   // sinking past the height it wanted and scraped the ground at 39 m/s). Room is to its lowest corner, and the sink
@@ -2228,7 +2234,7 @@ function tick() {
   const brakeL = Math.max(0.7 * state.pushRight, state.pushRight < 0.25 * state.pushLeft ? leanStop : 0);
   const brakeRn = Math.max(0.5 * brakeR, brakeR - leanOn(1));
   const brakeLn = Math.max(0.5 * brakeL, brakeL - leanOn(-1));
-  if (limit < Infinity) wantVx = clamp(wantVx, -stopFrom(brakeLn, x + limit), stopFrom(brakeRn, limit - x));
+  if (limit < Infinity) wantVx = clamp(wantVx, -stopFrom(brakeLn, x + limit - lagL), stopFrom(brakeRn, limit - x - lagR));
   const dvx = wantVx - vx;
   let lean = 0;
   // Never near the ground or the target: a leaning brick that scrapes something rolls over.
@@ -2242,7 +2248,7 @@ function tick() {
   // started then went on to 35 degrees.
   else if (!land && !calm && clear && tilt > 0 && !(wantVy > 2 && wantVy > vy + 3)) {
     const pushA = (dvx > 0 ? state.pushRight : state.pushLeft) / m;
-    const need = 0.25 * Math.abs(dvx) - pushA;
+    const need = (lagR > 0 && dvx < 0) || (lagL > 0 && dvx > 0) ? 0.8 * Math.abs(dvx) : 0.25 * Math.abs(dvx) - pushA;
     // Less when low (anvil r8): under `keepLow` levelling may not cost height, so a full lean there overshot to 41
     // degrees and could not be taken back in time.
     const most = ((tilt * Math.PI) / 180) * clamp((y - floor - 25) / Math.max(1, keepLow - 25), 0.3, 1);
