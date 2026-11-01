@@ -305,6 +305,7 @@ function setup() {
   state.zapLive = 0; // last time a beam landed, a part broke or it was on its way
   state.zapDry = 0; // spots burnt from in a row that broke nothing
   state.zapBack = -1; // finishing is left off until then
+  state.inLine = 0; // last time its target's core was inside the arena
   state.zapMoved = 0; // last time the target it finishes was seen moving
   state.zapId = -1;
   state.rakeId = -1;
@@ -1901,6 +1902,7 @@ function tick() {
     // One already near the edge is bumped over it whatever its depth (titans v2, 2026-10: a palisade's core piece
     // lay 6 m inside the line, out of reach of a brick held at `edge`, while the rest of it wore the brick down).
     let pushOut = 0;
+    if (!arena || Math.abs(target.x) <= arena.x) state.inLine = time;
     if (shape && shape.ground) {
       const deep = Math.min(shape.L, shape.R) > 6;
       const nearEdge = arena && edge - Math.abs(target.x) < 100;
@@ -1909,8 +1911,9 @@ function tick() {
       // Too heavy to bump out (an anchored base): breached instead, by fast side hits just over its low layer
       // (breachY), again and again on the face it meets (titans round 6, 2026-10). It used to be waited out hidden,
       // for good: against a base that sends laser fliers that is waiting to be burnt (Logan: "it's not doing anything").
-      // Left off finishing with its core already past the line, there is nothing left to bump it over.
-      if ((deep && target.m > shove) || state.unmoved >= 2 || (arena && time < state.zapBack && Math.abs(target.x) > arena.x)) pushOut = 0;
+      // Its core past the line for longer than a match's 2 s of grace (a wreck in the sandbox): there is nothing left to
+      // bump it over, and rams at the limit broke 3 parts in 170 s. It is bombed, low, its guns level with it.
+      if ((deep && target.m > shove) || state.unmoved >= 2 || time - state.inLine > 5) pushOut = 0;
       else if (arena && (deep || nearEdge)) pushOut = target.x >= 0 ? 1 : -1;
     }
     // Finishing one that is down (titans v3, 2026-10, Logan): on the ground and still or sliding away (an anvil rolled
