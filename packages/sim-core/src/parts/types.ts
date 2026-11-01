@@ -255,12 +255,16 @@ export interface SolarSpec {
  * Over its rating `heat` climbs toward the square of how far it is from rating to `cap`, with time constant `tau`
  * seconds, and each tick over rating costs its chunk `burn * heat` health a second: parts with `fuse`, then whatever
  * draws the most (`05`). Needs a `push` input up to `cap`, and `heat` and `load` outputs.
+ *
+ * `blast` is what heat adds to the blast when it is destroyed: at heat 1 every number here on top of its
+ * `onDestroyed.explode`, at heat 0.5 half of them, cold nothing (`hotBlast`).
  */
 export interface ReactorSpec {
   power: number;
   cap: number;
   tau: number;
   burn: number;
+  blast?: ExplodeSpec;
 }
 
 /**

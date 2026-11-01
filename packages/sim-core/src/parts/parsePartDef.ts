@@ -2,7 +2,7 @@ import { isFace } from './faces';
 import { GUN_OUTPUTS } from '../weapons/shells';
 import { keyProblem } from '../control/keys';
 import { cupFootprint, defaultSize } from './footprint';
-import type { ChannelDef, ColliderSpec, Face, FootprintCell, JointSpec, PartDef, SpriteSpec } from './types';
+import type { ChannelDef, ColliderSpec, ExplodeSpec, Face, FootprintCell, JointSpec, PartDef, ReactorSpec, SpriteSpec } from './types';
 
 export class PartDefError extends Error {}
 
@@ -190,13 +190,7 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   if (o.onDestroyed !== undefined) {
     const od = r.obj(o.onDestroyed, 'onDestroyed', ['explode']);
     if (od.explode !== undefined) {
-      const eo = r.obj(od.explode, 'onDestroyed.explode', ['radius', 'damage', 'pushRadius', 'push', 'lift']);
-      const p = 'onDestroyed.explode';
-      const lift = eo.lift === undefined ? 0 : r.num(eo, 'lift', p);
-      if (lift < 0) r.fail(`${p}.lift`, 'must not be negative');
-      def.onDestroyed = {
-        explode: { radius: r.positive(eo, 'radius', p), damage: r.positive(eo, 'damage', p), pushRadius: r.positive(eo, 'pushRadius', p), push: r.positive(eo, 'push', p), lift },
-      };
+      def.onDestroyed = { explode: explodeSpec(r, od.explode, 'onDestroyed.explode') };
     } else {
       def.onDestroyed = {};
     }
@@ -313,8 +307,9 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     def.solar = { power: r.positive(so, 'power', 'solar') };
   }
   if (o.reactor !== undefined) {
-    const ro = r.obj(o.reactor, 'reactor', ['power', 'cap', 'tau', 'burn']);
-    const spec = { power: r.positive(ro, 'power', 'reactor'), cap: r.positive(ro, 'cap', 'reactor'), tau: r.positive(ro, 'tau', 'reactor'), burn: r.positive(ro, 'burn', 'reactor') };
+    const ro = r.obj(o.reactor, 'reactor', ['power', 'cap', 'tau', 'burn', 'blast']);
+    const spec: ReactorSpec = { power: r.positive(ro, 'power', 'reactor'), cap: r.positive(ro, 'cap', 'reactor'), tau: r.positive(ro, 'tau', 'reactor'), burn: r.positive(ro, 'burn', 'reactor') };
+    if (ro.blast !== undefined) spec.blast = explodeSpec(r, ro.blast, 'reactor.blast');
     if (spec.cap <= 1) r.fail('reactor.cap', 'must be above 1: it is how many times its rating the reactor can run');
     const push = def.inputs.find((c) => c.name === 'push');
     if (!push) r.fail('reactor', 'a reactor must have a "push" input (0 automatic, 1 to cap: that many times its rating)');
@@ -395,6 +390,13 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
     });
   }
   return def;
+}
+
+function explodeSpec(r: Reader, v: unknown, path: string): ExplodeSpec {
+  const eo = r.obj(v, path, ['radius', 'damage', 'pushRadius', 'push', 'lift']);
+  const lift = eo.lift === undefined ? 0 : r.num(eo, 'lift', path);
+  if (lift < 0) r.fail(`${path}.lift`, 'must not be negative');
+  return { radius: r.positive(eo, 'radius', path), damage: r.positive(eo, 'damage', path), pushRadius: r.positive(eo, 'pushRadius', path), push: r.positive(eo, 'push', path), lift };
 }
 
 function sprite(r: Reader, v: unknown): SpriteSpec {

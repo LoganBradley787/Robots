@@ -74,6 +74,22 @@ export function blastEffects(center: { x: number; y: number }, spec: ExplodeSpec
   return { damage, push };
 }
 
+/**
+ * A part's blast given how hot it is: `cold` with `hot` times `heat` added to it, number by number, so it stays one
+ * blast and grows with no step in it. With no heat it is `cold` itself, undefined if the part has none. `hot` is a
+ * reactor's `reactor.blast`, undefined on any other part.
+ */
+export function hotBlast(cold: ExplodeSpec | undefined, hot: ExplodeSpec | undefined, heat: number): ExplodeSpec | undefined {
+  if (hot === undefined || heat === 0) return cold;
+  return {
+    radius: (cold?.radius ?? 0) + hot.radius * heat,
+    damage: (cold?.damage ?? 0) + hot.damage * heat,
+    pushRadius: (cold?.pushRadius ?? 0) + hot.pushRadius * heat,
+    push: (cold?.push ?? 0) + hot.push * heat,
+    lift: (cold?.lift ?? 0) + hot.lift * heat,
+  };
+}
+
 /** Whether the segment from (ax, ay) to (bx, by) crosses the box (center, half extents, angle). Slab test. */
 export function segmentHitsBox(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, hx: number, hy: number, angle: number): boolean {
   return segmentHitsTurnedBox(ax, ay, bx, by, cx, cy, hx, hy, cos(angle), sin(angle));

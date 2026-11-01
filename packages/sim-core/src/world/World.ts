@@ -31,7 +31,7 @@ import { placeBlueprint } from '../blueprint/place';
 import { buildSeconds, hollowAt, recipePlacement, recipeStats, scopeBase } from '../fabricate/recipe';
 import { footprintMiddle, footprintOf, partMass } from '../parts/footprint';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
-import { blastEffects, type BlastCell } from '../damage/explosion';
+import { blastEffects, hotBlast, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { ExplodeSpec, Face, JammerSpec } from '../parts/types';
 import type { BodyGroup, PartInstance, Robot } from './Robot';
@@ -1726,7 +1726,8 @@ export class World {
         this.dirty.add(robot);
         // An unarmed part that needs arming breaks like any other part (M10). A charge blasts only when it was set off
         // (Batch): shot or caught in a blast, it breaks as a dud.
-        const explode = part.armed === false || (part.def.charge !== undefined && part.fired !== true) ? undefined : part.def.onDestroyed?.explode;
+        // A reactor blasts by how hot it is, whatever destroyed it.
+        const explode = part.armed === false || (part.def.charge !== undefined && part.fired !== true) ? undefined : hotBlast(part.def.onDestroyed?.explode, part.def.reactor?.blast, part.heat ?? 0);
         this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'partDestroyed', part: part.id, partType: part.def.id, x: pose.x, y: pose.y, exploded: explode !== undefined, ...(part.burn === 0 ? { burntOut: true as const } : {}), ...(part.cooked === true ? { cooked: true as const } : {}) });
         if (explode) this.queuedBlasts.push({ robot: robot.id, x: pose.x, y: pose.y, spec: explode });
       }
