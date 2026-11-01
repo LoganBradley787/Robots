@@ -14,10 +14,13 @@ import { staticStats } from '../src/blueprint/stats';
 // No gravity and a ground far below, so a robot stays where it is put and only the energy moves.
 const space = parseWorldFile({ name: 'space', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 }, boxes: [] });
 const FIRE = [{ key: 'f', mode: 'hold', target: 'laser', channel: 'fire', value: 1 }];
+// Read from the defs: the ratings get tuned, and what these tests are about does not change with them.
+const BIG_W = defaultRegistry().get('reactor').reactor!.power;
+const SMALL_W = defaultRegistry().get('smallreactor').reactor!.power;
 
-/** A small reactor (300 W) on a core (600 J). */
+/** A small reactor on a core (600 J). */
 const SMALL = { format: 1, name: 'small', grid: ['C  rc'] };
-/** A big reactor (1500 W) on a core, and a laser (2400 W) that fires on F. */
+/** A big reactor on a core, and a laser (2400 W) that fires on F. */
 const BIG = {
   format: 1,
   name: 'big',
@@ -58,14 +61,13 @@ function press(w: World, r: Robot, key = 'f'): void {
 }
 
 describe('reactor parts', () => {
-  it('are data: 15 W per kg, two sizes, in the registry, batteries are their fuses', () => {
+  it('are data: the same W per kg, two sizes, in the registry, batteries are their fuses', () => {
     const reg = defaultRegistry();
     const big = reg.get('reactor');
     const small = reg.get('smallreactor');
-    expect(big.reactor).toEqual({ power: 1500, cap: 3, tau: 10, burn: 40 });
-    expect(small.reactor).toEqual({ power: 300, cap: 3, tau: 4, burn: 40 });
-    expect(big.reactor!.power / big.mass).toBe(15);
-    expect(small.reactor!.power / small.mass).toBe(15);
+    expect(big.reactor).toEqual({ power: BIG_W, cap: 3, tau: 10, burn: 40 });
+    expect(small.reactor).toEqual({ power: SMALL_W, cap: 3, tau: 4, burn: 40 });
+    expect(big.reactor!.power / big.mass).toBe(small.reactor!.power / small.mass);
     expect(big.footprint.length).toBe(9);
     expect(reg.list().filter((d) => d.fuse === true).map((d) => d.id).sort()).toEqual(['battery', 'cell', 'densebattery']);
     expect(reg.get('core').fuse).toBeUndefined();
@@ -103,7 +105,7 @@ describe('reactor parts', () => {
 
   it('static stats count steady power', () => {
     const bp = validateBlueprint(BIG, defaultRegistry()).blueprint!;
-    expect(staticStats(bp, defaultRegistry()).power).toBe(1500);
+    expect(staticStats(bp, defaultRegistry()).power).toBe(BIG_W);
     expect(staticStats(bp, defaultRegistry()).massKg).toBeCloseTo(2 + 1 + 4 + 100, 6);
   });
 
@@ -135,9 +137,9 @@ describe('reactor: steady output', () => {
     const r = w.spawnBlueprint(SMALL, { x: 0, y: 100 });
     drain(r);
     run(w, 60);
-    expect(stored(r)).toBeCloseTo(300, 6);
+    expect(stored(r)).toBeCloseTo(SMALL_W, 6);
     expect(reactor(r).load).toBeCloseTo(1, 9);
-    run(w, 90);
+    run(w, 180);
     expect(stored(r)).toBe(600);
     run(w, 5);
     expect(reactor(r).load).toBe(0);
@@ -150,11 +152,11 @@ describe('reactor: steady output', () => {
     const r = w.spawnBlueprint(SHOT, { x: 0, y: 100 });
     press(w, r);
     run(w, 14);
-    expect(stored(r)).toBeLessThan(600 - 2100 * 0.2);
+    expect(stored(r)).toBeLessThan(600 - (2400 - SMALL_W) * 0.2);
     w.step([{ robot: r.id, pressed: [], released: ['f'] }]);
     const low = stored(r);
     run(w, 120);
-    expect(stored(r)).toBeCloseTo(Math.min(600, low + 600), 6);
+    expect(stored(r)).toBeCloseTo(Math.min(600, low + 2 * SMALL_W), 6);
     expect(reactor(r).heat).toBe(0);
     w.dispose();
   });
@@ -165,7 +167,7 @@ describe('reactor: steady output', () => {
     drain(r);
     expect(w.canControl(r.id)).toBe(false);
     run(w, 60);
-    expect(stored(r)).toBeCloseTo(300, 6);
+    expect(stored(r)).toBeCloseTo(SMALL_W, 6);
     w.dispose();
   });
 
@@ -179,7 +181,7 @@ describe('reactor: steady output', () => {
     expect(w.canControl(r.id)).toBe(false);
     drain(r);
     run(w, 60);
-    expect(stored(r)).toBeCloseTo(300, 6);
+    expect(stored(r)).toBeCloseTo(SMALL_W, 6);
     w.dispose();
   });
 
@@ -195,7 +197,7 @@ describe('reactor: steady output', () => {
     run(w, 60);
     const withReactor = pieces.find((p) => ofType(p, 'smallreactor').length === 1)!;
     const without = pieces.find((p) => p !== withReactor)!;
-    expect(stored(withReactor)).toBeCloseTo(300, 6);
+    expect(stored(withReactor)).toBeCloseTo(SMALL_W, 6);
     expect(stored(without)).toBe(0);
     w.dispose();
   });
@@ -220,7 +222,7 @@ describe('reactor: steady output', () => {
     drain(r);
     run(w, 2);
     reactor(r).heat = 0.25;
-    expect(w.reactors(r.id)).toEqual({ power: 300, load: 1, heat: 0.25 });
+    expect(w.reactors(r.id)).toEqual({ power: SMALL_W, load: 1, heat: 0.25 });
     expect(w.reactors(plain.id)).toBeUndefined();
     w.dispose();
   });
@@ -249,7 +251,7 @@ describe('reactor: overdrive and heat', () => {
     w.step();
     for (const p of r.parts.values()) if (p.stored !== undefined) p.stored = 600;
     press(w, r);
-    run(w, 30);
+    run(w, 15);
     expect(stored(r)).toBeGreaterThan(0);
     expect(big.heat).toBe(0);
     expect(big.load).toBeLessThanOrEqual(1);
@@ -262,7 +264,7 @@ describe('reactor: overdrive and heat', () => {
     drain(r);
     press(w, r);
     run(w, 10);
-    expect(reactor(r).load).toBeCloseTo(2400 / 1500, 9);
+    expect(reactor(r).load).toBeCloseTo(2400 / BIG_W, 9);
     expect(ofType(r, 'laser')[0]!.beam).toBe(1);
     expect(stored(r)).toBe(0);
     w.dispose();
@@ -275,7 +277,7 @@ describe('reactor: overdrive and heat', () => {
     press(w, r);
     run(w, 10);
     expect(reactor(r).load).toBeCloseTo(3, 9);
-    expect(ofType(r, 'laser')[0]!.beam).toBeCloseTo(900 / 2400, 9);
+    expect(ofType(r, 'laser')[0]!.beam).toBeCloseTo((3 * SMALL_W) / 2400, 9);
     w.dispose();
   });
 
@@ -283,13 +285,14 @@ describe('reactor: overdrive and heat', () => {
     const w = await world();
     const r = w.spawnBlueprint(BIG, { x: 0, y: 100 });
     const big = reactor(r);
-    // Past 1.6 times rating: over is 0.3, the target is 0.09.
+    // The laser's draw over rating, as a share of the way to the cap: the heat it tends to is the square of that.
+    const over = (2400 / BIG_W - 1) / 2;
     drain(r);
     // The laser is what draws the most, and nothing else stands between it and the heat.
     ofType(r, 'laser')[0]!.health = 1e9;
     press(w, r);
     run(w, 599);
-    const target = 0.09;
+    const target = over * over;
     expect(big.heat).toBeCloseTo(target * (1 - (1 - 1 / 600) ** 600), 6);
     run(w, 6000);
     expect(big.heat).toBeCloseTo(target, 3);
@@ -430,7 +433,7 @@ describe('reactor: push', () => {
     drain(r, 100);
     press(w, r, 'p');
     run(w, 59);
-    expect(stored(r)).toBeCloseTo(200 + 600, 3);
+    expect(stored(r)).toBeCloseTo(200 + 2 * SMALL_W, 3);
     expect(reactor(r).load).toBeCloseTo(2, 9);
     expect(reactor(r).heat).toBeGreaterThan(0);
     w.dispose();
@@ -473,7 +476,7 @@ describe('reactor: push', () => {
       w.step([{ robot: r.id, pressed: ['f', 'p'], released: [] }]);
       run(w, 10);
       expect(reactor(r).load).toBeCloseTo(load, 9);
-      expect(ofType(r, 'laser')[0]!.beam).toBeCloseTo((300 * load) / 2400, 9);
+      expect(ofType(r, 'laser')[0]!.beam).toBeCloseTo((SMALL_W * load) / 2400, 9);
       if (value <= 1) expect(reactor(r).heat).toBe(0);
       w.dispose();
     }
@@ -493,7 +496,7 @@ describe('reactor: push', () => {
     drain(r);
     run(w, 5);
     expect(reactor(r).load).toBeCloseTo(2, 9);
-    expect(w.scriptLogs.at(-1)?.text).toBe('2 1500 number 2 3');
+    expect(w.scriptLogs.at(-1)?.text).toBe(`2 ${BIG_W} number 2 3`);
     w.dispose();
   });
 });
@@ -578,7 +581,7 @@ describe('reactor: who fries', () => {
     reactor(r).heat = 1;
     const fab = ofType(r, 'fabbay')[0]!;
     run(w, 30);
-    // 400 W against a 300 W reactor: past rating, and the bay is all that draws.
+    // A bay's draw against a small reactor: past rating, and the bay is all that draws.
     expect(reactor(r).load).toBeGreaterThan(1);
     expect(fab.health).toBeLessThan(150);
     w.dispose();

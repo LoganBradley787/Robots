@@ -78,7 +78,7 @@ describe('parts', () => {
     expect(text('lance')).toMatch(/a line: one part at a time/);
     expect(text('lance')).toMatch(/looking 400 m from the barrel's end/);
     expect(text('gun')).toMatch(/up to 1.5 degrees off the barrel's line/);
-    expect(text('reactor')).toMatch(/reactor: makes 1500 J\/s into its pool, core in charge or not.*up to 3 times its rating/);
+    expect(text('reactor')).toMatch(new RegExp(`reactor: makes ${defaultRegistry().get('reactor').reactor?.power} J/s into its pool, core in charge or not.*up to 3 times its rating`));
     expect(text('reactor')).toMatch(/push \(0 to 3, holds until changed.*0 automatic; 1 to 3 runs it at that many times its rating even with charge left; under 1 keeps it to its rating/);
     expect(text('smallreactor')).toMatch(/time constant 4 s, and it cooks 40 times heat health a second: fuses \(batteries, full or empty, weakest first\), then the biggest draw/);
     expect(text('densebattery')).toContain('fuse: a reactor run past its rating cooks this first');
