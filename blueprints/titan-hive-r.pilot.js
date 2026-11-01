@@ -156,12 +156,12 @@ function recache() {
       }
     } else if (type === 'jammer') {
       pods.push(p);
-    } else if (type === 'gun' || type === 'rotator') {
+    } else if (type === 'gun' || type === 'laser' || type === 'rotator') {
       for (const t of p.tags) {
         if (t.indexOf('tur') !== 0 || t.indexOf('.') < 0) continue;
         const name = t.slice(0, t.indexOf('.'));
         const e = byName[name] || (byName[name] = { name, st: (C && C.st[name]) || { id: 0, want: undefined, firing: false } });
-        if (type === 'gun') {
+        if (type !== 'rotator') {
           e.gun = p;
           e.gi = i;
         } else {
@@ -268,18 +268,18 @@ function fly(wantY, wantVx, leanMax) {
 }
 
 /** Where to point from (fx, fy) to hit `c`: its place after the shell's flight, raised by the shell's fall. */
-function lead(c, fx, fy) {
+function lead(c, fx, fy, speed) {
   const rx = c.pos.x - fx;
   const ry = c.pos.y - fy;
   const vx = c.vel.x - self.vel.x;
   const vy = c.vel.y - self.vel.y;
-  let t = Math.sqrt(rx * rx + ry * ry) / shell;
+  let t = Math.sqrt(rx * rx + ry * ry) / speed;
   let px = rx;
   let py = ry;
   for (let i = 0; i < 2; i++) {
     px = rx + vx * t;
     py = ry + vy * t;
-    t = Math.sqrt(px * px + py * py) / shell;
+    t = Math.sqrt(px * px + py * py) / speed;
   }
   return { angle: Math.atan2(py + 0.5 * g * t * t, px), distance: Math.sqrt(px * px + py * py) };
 }
@@ -294,7 +294,7 @@ function aimTurret(t, foes, friends) {
   let best = null;
   let bestD = Infinity;
   for (const c of foes) {
-    const l = lead(c, fx, fy);
+    const l = lead(c, fx, fy, t.gun.type === 'laser' ? 1e7 : shell);
     if (Math.abs(wrap(l.angle - rest)) > SWING) continue;
     const d = l.distance - (c.id === st.id ? 10 : 0);
     if (d < bestD) {
@@ -344,7 +344,7 @@ function aimTurret(t, foes, friends) {
   // Its own sight on an enemy part within reach (titans v2): it blasts whatever it aims at, seen or hidden (a sight is
   // not a sensor: a robot in a jammer's bubble still fills it).
   if (!st.firing && side === 3 && t.gun.out.sight <= reach && Math.abs(wrap(aim - rest)) < along) st.firing = true;
-  set(gunTag, 'fire', st.firing ? 1 : 0);
+  set(gunTag, 'fire', st.firing && (state.beams || t.gun.type !== 'laser') ? 1 : 0);
 }
 
 /**
@@ -453,6 +453,7 @@ function tick() {
   else spare = stored >= Math.max(least, state.sitting ? floorShare * reserve : reserve);
   if (!spare && !state.saving) log('low on energy: holding the darts' + (arena ? ' to stay up' : ''));
   state.saving = !spare;
+  state.beams = stored >= least;
 
   // What it still fights with (titans v2): darts while it has bays and energy for them, else its turrets, which reach
   // only `reach` m, so it closes to `gunRange` of that. With neither it rams what is lighter than itself and keeps

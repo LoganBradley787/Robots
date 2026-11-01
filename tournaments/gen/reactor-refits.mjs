@@ -177,6 +177,13 @@ const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it 
   moveTurret(26, 20);
   moveTurret(88, 94);
   [22, 26, 85, 89].forEach((x, i) => addBay(x, 10 + i));
+  // And beams: the four turrets on the shoulders' roofs carry lasers for guns, against the darts that end a Hive. Measured
+  // on the Bastion, a beam takes a dart in a tick where a gun's shells mostly miss. A laser stands one cell taller.
+  for (const col of [6, 20, 94, 108]) {
+    const gun = cells[roof - 2][col];
+    legend[gun] = { ...legend[gun], part: 'laser' };
+    cells[roof - 3][col] = '=';
+  }
   // The battery band is two rows tall, so each reactor takes its skin row too, under the band. Pairs either side of the
   // middle, 17 and 43 m from the core, and one more outside the near pair on the left, 30 m out: a hot blast reaches
   // 5 m, and its helm trims for where the weight is. Even about the middle but for that one, so it flies as it did.
@@ -227,6 +234,15 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   if (arena) spare = stored >= Math.max(least, (keep * hoverDraw - state.steady) * Math.max(0, match - self.age));
   else spare = stored >= Math.max(least, state.sitting ? floorShare * reserve : reserve);
 `);
+  // The turrets take lasers as they do guns: a beam arrives at once, and holds fire with the darts under that floor.
+  text = patch(text, "    } else if (type === 'gun' || type === 'rotator') {\n", "    } else if (type === 'gun' || type === 'laser' || type === 'rotator') {\n");
+  text = patch(text, "        if (type === 'gun') {\n          e.gun = p;\n", "        if (type !== 'rotator') {\n          e.gun = p;\n");
+  text = patch(text, '    const l = lead(c, fx, fy);\n', "    const l = lead(c, fx, fy, t.gun.type === 'laser' ? 1e7 : shell);\n");
+  text = patch(text, 'function lead(c, fx, fy) {\n', 'function lead(c, fx, fy, speed) {\n');
+  text = patch(text, '  let t = Math.sqrt(rx * rx + ry * ry) / shell;\n', '  let t = Math.sqrt(rx * rx + ry * ry) / speed;\n');
+  text = patch(text, '    t = Math.sqrt(px * px + py * py) / shell;\n', '    t = Math.sqrt(px * px + py * py) / speed;\n');
+  text = patch(text, '  state.saving = !spare;\n', "  state.saving = !spare;\n  state.beams = stored >= least;\n");
+  text = patch(text, "  set(gunTag, 'fire', st.firing ? 1 : 0);\n}\n", "  set(gunTag, 'fire', st.firing && (state.beams || t.gun.type !== 'laser') ? 1 : 0);\n}\n");
   fs.writeFileSync(path.join(out, pilot), text);
 }
 
