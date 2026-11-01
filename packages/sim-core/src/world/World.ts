@@ -2513,7 +2513,6 @@ export class World {
     this.unprimed.add(robot);
     this.decoyCache = undefined;
     this.jamCache = undefined;
-    for (const key of [...this.emptied]) if (key.startsWith(`${robot.id}:`)) this.emptied.delete(key);
     this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'built', part: bay.id, recipe: recipe.name, scope });
   }
 
