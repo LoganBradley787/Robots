@@ -82,6 +82,9 @@ Status: all decided (Q22 sensors decided 2026-09-25 for M8). Logan answered Q1, 
 ### Q23. Reactors (decided by Logan, 2026-10-31)
 - Overdrive on its own only when the pool cannot pay, plus `push` by hand. Two sizes, burn 40 per reactor and not per kg, because that is what makes a cannon blow up in time. No fuel. A reactor needs no core. Split pieces do not share. A small cold blast now, hot blast after play. Batteries fry first, full or empty. Output full until destroyed. Stock titans stay, `-r` versions beside them. Reactor cannon drones keep every battery. Dense battery stacks: nothing now. Model in `05`.
 
+### Q24. Sealed bays (decided by Logan, 2026-10-31)
+- A copy a bay holds keeps its resources out of its carrier's pool, both ways, and launches exactly as full as it was built. Logan: "I don't think you should be able to cannibalize off the thing you're creating," and missiles must not need charging. Claude's call on the rest: a held copy cannot spend its own charge either (a seeker or a radio draws while idle, so it would not stay full), and its joints hold for nothing (off, a turret swings about). The rule attaches to a copy held by a bay, so it is read off the bays and never names a kind of robot. Racked missiles on decouplers still share the pool. See `05`, Sealed bays.
+
 ## Open
 
 ### Q22. Sensors and targeting (decided 2026-09-25, M8)

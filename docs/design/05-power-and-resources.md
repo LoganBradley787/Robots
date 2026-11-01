@@ -47,6 +47,24 @@ Brownout is proportional rather than first-come so the result does not depend on
 - Events: `energyEmpty` once per pool, in `World.events` (not hashed). The app shows it as a notice.
 - Measured (`pnpm sim tune`): car (core + battery, 2100) drives 210 s; hopper thrusts 53 s at full. With no air drag a hopper that thrusts for the whole 53 s reaches about 20 km: flagged to Logan for M5 planning.
 
+## Sealed bays (Logan, 2026-10-31)
+A copy a fabricator bay holds is not part of its carrier yet. Logan: "What you're generating is a part that is not truly attached to your robot, so I don't think you should be able to siphon charge from that." And he does not want missiles to need charging: wait for it to build, then launch it.
+
+The grips still make the copy one chunk and one body with its carrier, for physics and control. Only power is cut, in both directions:
+- **Out of the pool:** a held copy's containers are in no pool. They are not drained or filled, and they are not in the carrier's `stored` or `capacity`, so neither `self.energy`, the core's `energy` and `energyCapacity`, the HUD nor `World.energy` count them. A container's own `charge` still reads its own fraction, so a script can look at what it holds.
+- **Off:** a held copy spends nothing, not even its own charge. Nothing it asks for is granted. So a seeker, a radio, a radar and a damping gyro, which all draw while idle, cost nobody anything and do nothing, and a carrier cannot steer, spin or see with what it holds. A copy launches exactly as full as it was built. A copy that could spend its own charge would leak 1 to 20 J/s for as long as a pilot waits, which is the thing this rule is for.
+- **Joints hold:** a rotator or piston in a held copy keeps its aim for nothing and takes no commands. Off, a turret swung up to 2.3 rad about in its bay. A wheel is just slack.
+- **Not a producer:** a held copy's reactors and solar panels make nothing, and they are not in the robot's reactor list, so they add nothing to its rating or heat.
+- **Not a victim:** frying never picks a held copy's batteries or its draw. Its parts are not in the carrier's fuse list, and what they ask for belongs to no chunk.
+- **What it costs:** the build pays for the charge (`joulesPerKg` times mass, plus what the copy's containers hold), and now that charge goes out with the copy. A build no longer pays the carrier back, so charge in a recipe is a real price: a Mirage ghost is 1100 J, a Hive dart 850 J, a Woodpecker burner 18.6 kJ.
+
+**It is read off the bays, not stored** (`partLists.sealed`, `sealedParts`): the parts whose first tag is the scope a live bay of this robot `holds`. Nothing is hashed, and a copy is free the moment its bay lets go or is gone:
+- **Released, or its bay shot out:** the copy is its own piece with its charge whole, and it wakes as ever.
+- **A piece breaks off with the bay and the copy:** with exactly one core on it, that core wakes (`04`) and runs the piece, so the copy is the robot now and the seal is gone. Its pool is the whole piece's.
+- **The carrier's core is shot out:** nothing wakes (Q1), so the copy stays sealed in a wreck, full and a dud, as `04` says of a dormant core on a robot that keeps its id. The wreck's latched parts cannot drain it.
+
+Scripts in a held copy do not run (its core sleeps), so they have nothing to draw with. A decoupler's racked missile is not a bay's copy: it shares its robot's pool while attached, as ever.
+
 ## Reactors (as built, 2026-10-31)
 Goal (Logan): long casual fights without Unlimited energy. A reactor is the part that gives a robot steady power; a battery stays the part that pays for spikes. Parts are data, `reactor` and `smallreactor`, both 15 J/s per kg.
 
@@ -76,6 +94,7 @@ Goal (Logan): long casual fights without Unlimited energy. A reactor is the part
 2. Then what draws this tick, from both passes: the top drawer and anything within 10 percent of it, lowest health first.
 3. Exact ties go by the world's seeded RNG, one draw per pick.
 - A victim takes what it can and the rest spills to the next, so a big robot is not held to one part a tick. Lowest health first makes a victim stick, so parts go one at a time.
+- A copy a bay holds is never picked (Sealed bays, above).
 - The core and the reactor are never picked: no `fuse`, no draw. With nothing drawing, nothing fries.
 - A fried part goes in the damage phase with its own blast (a cannon going up). `partDestroyed` says `cooked: true`, and duel reports count it as a loss even when it blasted.
 
