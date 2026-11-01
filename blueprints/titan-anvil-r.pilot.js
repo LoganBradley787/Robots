@@ -676,7 +676,7 @@ function rollHurt(wantVx, dt) {
 
 // Flying hurt. A turn is asked for as a spin it could still stop from: the spin wanted falls with the root of the angle
 // left, by what it can brake with that way, not what it can speed up with (the end it kept gives four times the other way).
-function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt) {
+function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt, gap) {
   jetsNow();
   if (rollGround) rollHurt(wantVx, dt);
   else if (sitting && Math.abs(self.angle) < 1) for (const j of state.jets) j.u = 0; // down where it means to be, on whatever it rests on
@@ -693,10 +693,12 @@ function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt) {
     const up = sitting || cut ? 0 : self.mass * (9.81 + ay);
     const dvx = wantVx - self.vel.x;
     const along = clamp(0.6 * dvx, -1, 1) * (dvx > 0 ? state.pushRight : state.pushLeft);
-    // Just off the ground getting up comes first: a hull missing a corner rests tilted, and all its lift went on levelling
-    // what the ground held tilted (it sat 140 s at 8 degrees with its energy going).
-    const rising = !state.righting && self.pos.y - state.bottom < 8 && ay > 0;
-    share(state.hullI * 3 * (spin - self.angVel), up, along, state.righting ? 4 : rising ? 0.4 : 2, state.righting ? 0.3 : 3);
+    // A corner on the ground, getting up comes first: a hull missing a corner rests tilted, and all its lift went on
+    // levelling what the ground held tilted (48 s leaning on a corner at 30 degrees, then 140 s on the ground, energy going).
+    const rising = gap < 4 && ay > 0 && Math.abs(self.angle) < 1 && Math.abs(self.angVel) < 0.15;
+    const want = state.hullI * 3 * (spin - self.angVel);
+    const turn = state.righting ? want : clamp(want, -state.reachMinus, state.reachPlus);
+    share(turn, up, along, state.righting && !rising ? 4 : rising ? 0.4 : 2, state.righting ? 0.3 : 3);
   }
   for (const j of state.jets) if (j.u > 0) set(j.tag, 'throttle', j.u);
   state.push = 0;
@@ -2264,7 +2266,7 @@ function tick() {
     else if (lagL > 0 && vx < -2 - stopFrom(brakeLn, x + limit - lagL)) lean = (-tilt * Math.PI) / 180;
   }
   if (state.righting) lean = 0;
-  if (state.hurt) flyHurt(ay, wantVx, lean, rollGround, land && room < 0.4 && Math.abs(vy) < 1, cut, dt);
+  if (state.hurt) flyHurt(ay, wantVx, lean, rollGround, land && room < 0.4 && Math.abs(vy) < 1, cut, dt, lowest);
   else {
     // Upside down (past about 80 degrees) the lift rows push it toward the ground: only the difference that turns it
     // back is kept (titans round 6, 2026-10: it doubled them there, and drove itself onto its back).
