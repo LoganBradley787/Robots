@@ -284,27 +284,37 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   const cells = cellsOf(bp);
   const SMALL_KEY = { ...PUSH_KEY, target: 'smallreactor' };
   const dense = (t) => bp.legend[t]?.part === 'densebattery';
-  // A gunship: its shelf row of seven batteries under the body row. The reactor takes the shelf's right end, as far
-  // from its core as a body this short has (3 m), and the shelf keeps its left end to balance it and its middle, which
-  // holds the joint to the gunship below: 6 batteries left of 11, +5 kg a ship (a straight swap would leave 4, and
-  // beams are all a gunship is). The rest go as holes.
+  // A gunship: batteries in its body row either side of the core and a shelf of seven under them. The reactor takes
+  // the shelf two cells left of the core, where the ship has four propellers to the right side's three, and 2.2 m from
+  // the core, past a cold blast. A hot one reaches the core, but a gunship's pilot never pushes. Further out it flew
+  // badly: at the shelf's right end, 3 m from the core, a third of the ships tipped over. The shelf stays whole in
+  // frames: with holes in it the ships lock together as they come apart, and most of them fell. Five batteries stay of
+  // 11, on the right to balance the reactor, and the body's two inner batteries go as holes: the shelf holds what they
+  // held. +5 kg a ship, 150 kg in all, what the 10 percent allows with the king's reactors.
   const shipCols = [4, 18, 32]; // each column's left laser mount
   let ships = 0;
   for (let row = 7; row < cells.length; row += 4) {
     for (const x0 of shipCols) {
       for (let dx = 2; dx <= 8; dx++) if (!dense(cells[row][x0 + dx])) throw new Error(`the shelf at row ${row} moved`);
-      cells[row][x0 + 8] = 'rc';
-      for (const dx of [3, 4, 6, 7]) cells[row][x0 + dx] = '.';
+      if (!dense(cells[row - 1][x0 + 3]) || !dense(cells[row - 1][x0 + 7])) throw new Error(`the body at row ${row - 1} moved`);
+      cells[row][x0 + 3] = 'rc';
+      for (const dx of [2, 4, 6]) cells[row][x0 + dx] = 'F';
+      cells[row - 1][x0 + 3] = '.';
+      cells[row - 1][x0 + 7] = '.';
       ships++;
     }
   }
   if (ships !== 30) throw new Error(`${ships} gunships`);
   // The king: both ends of its battery row, 6 m from its core. Its hover is about 170 W, so one reactor holds it up and
-  // the other is a spare.
+  // the other is a spare. Its pool goes from ten batteries to two beside the core's neighbors: it has nothing to burst.
   const kingRow = 2;
   for (const col of [16, 28]) {
     if (!dense(cells[kingRow][col])) throw new Error('the king moved');
     cells[kingRow][col] = 'rc';
+  }
+  for (const col of [18, 19, 20, 24, 25, 26]) {
+    if (!dense(cells[kingRow][col])) throw new Error('the king moved');
+    cells[kingRow][col] = '.';
   }
   // Flying is paid for: all that is kept back is `spare`, so a gunship spends its pool on beams at once and then burns
   // what comes in. flyDraw is what flying costs over its reactor.
@@ -312,6 +322,22 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
     Object.entries(bp.cores).map(([k, c]) => [k, { ...c, bindings: [...(c.bindings ?? []), SMALL_KEY], scripts: c.scripts.map((s) => ({ ...s, params: { ...s.params, flyDraw: 0, keepOpen: 3000 } })) }]),
   );
   write({ ...bp, name: 'titan-shatter-r', grid: gridOf(cells), cores, bindings: [...(bp.bindings ?? []), SMALL_KEY] });
+}
+
+// ---- titan-juggernaut-r: 12 reactors, 14.4 kW against the 16 kW a bank and its beams take flat out and 7 to 12 kW across a fight. ----
+{
+  const bp = read('titan-juggernaut');
+  const cells = cellsOf(bp);
+  // Stock ran dry at 160 s against the Anvil and went out of the arena coasting, so this one is not a swap by mass: all
+  // 288 batteries would buy under 9 reactors, and a bank alone wants 13. In the battery block behind the core, 11 m and
+  // more from it, three across and four up with a battery row or column between any two, so a reactor shot out takes
+  // little with it. 180 of the 288 batteries stay to pay for a sprint. It is 876 kg heavier, 1.2 percent of 74.6 t.
+  for (const row of [228, 234, 240, 246]) for (const col of [44, 48, 52]) putReactor(cells, row, col);
+  // The pilot works in shares of its pool, and stops driving at `low`. With reactors running it has no reason to stop
+  // short of anything: past what they make it overdraws, frying the batteries it has emptied, and goes on. Guesses for
+  // the beams wait under `spare`, far lower now the pool fills, and it patrols at a speed that used to cost too much.
+  const scripts = bp.scripts.map((s) => (s.id === 'pilot' ? { ...s, params: { ...s.params, low: 0, reserve: 0, spare: 0.15, patrolTop: 30 } } : s));
+  write({ ...bp, name: 'titan-juggernaut-r', grid: gridOf(cells), scripts, bindings: [...(bp.bindings ?? []), PUSH_KEY] });
 }
 
 // ---- the cannon drones: a small reactor at the top of the mast, every battery kept. ----
