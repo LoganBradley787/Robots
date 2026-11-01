@@ -38,6 +38,7 @@ import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, tu
 import { AUTO_KEYS, buildReplay, type Arena, type ReplayFile, type ScriptHost } from '@robots/sim-core';
 import { buildReadout, type ReadoutView } from './readout';
 import { buildInspect, type InspectView } from './inspect';
+import { breakNotice } from './breakNotice';
 import { farIds, loadFarDistance, outlineEdges, saveFarDistance, teamCounts, teamIds, type Edge, type RobotSpot } from './removal';
 
 const HELP = 'wheel zoom   drag pan   click a robot to control it (yours) or watch it (any)   (time controls in the panel above, the rest on the bar below)';
@@ -1004,6 +1005,12 @@ export class WorldScreen {
         }
       }
       if (ev?.kind === 'coreLost' && who) this.onNotice?.(`${who.name} lost its core: nobody controls it now, and it keeps doing what it was doing`);
+      // Only pieces nobody drives count: a copy let go wakes and is on its way.
+      if (ev?.kind === 'split' && who && who.team === 0 && who.primaryCoreId !== undefined) {
+        const lost = ev.pieces.reduce((n, id) => n + (this.world.canControl(id) ? 0 : (this.world.robotById(id)?.parts.size ?? 0)), 0);
+        const line = breakNotice(who.name, who.parts.size, lost);
+        if (line) this.onNotice?.(line);
+      }
       // The robot is gone by now, so the event carries its name. Only your own, and only a robot with a core: not scrap.
       if (ev?.kind === 'fell' && ev.team === 0 && ev.core) this.onNotice?.(`${ev.name} fell off the edge of the world`);
       // Only your own: an enemy's missiles wake too, and you cannot take them over.
