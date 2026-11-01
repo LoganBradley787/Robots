@@ -24,7 +24,7 @@
     { "name": "load", "min": 0, "max": 3, "default": 0 }
   ],
   "powerDraw": 0,
-  "reactor": { "power": 1500, "cap": 3, "tau": 10, "burn": 40 },
+  "reactor": { "power": 1200, "cap": 3, "tau": 10, "burn": 40 },
   "onDestroyed": { "explode": { "radius": 3, "damage": 80, "pushRadius": 5, "push": 30, "lift": 1 } },
   "sprite": { "frame": "part.reactor" }
 }
