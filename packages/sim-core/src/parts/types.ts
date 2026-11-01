@@ -388,7 +388,7 @@ export interface PartDef {
   solar?: SolarSpec;
   /** The part is a reactor. It needs a `push` input and `heat` and `load` outputs. */
   reactor?: ReactorSpec;
-  /** What a reactor's heat cooks first: a part that burns out before anything else on its piece (batteries). */
+  /** What a reactor's heat goes to first (batteries): it burns out, holding no charge, and stays on as structure. Heat takes no health off it. */
   fuse?: boolean;
   /** Batch: the part is a distance charge. */
   charge?: ChargeSpec;

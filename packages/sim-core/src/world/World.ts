@@ -101,6 +101,8 @@ export type WorldEvent =
   | { tick: number; robot: number; kind: 'burntOut'; part: string }
   /** A piece's reactors first ran past their rating. */
   | { tick: number; robot: number; kind: 'overload'; chunk: number }
+  /** A reactor's heat burnt a fuse out at `x`, `y`: it holds no charge from now on and stays on as a shell. */
+  | { tick: number; robot: number; kind: 'fried'; part: string; partType: string; x: number; y: number }
   /** Batch: a jammer pod started jamming, in a bubble of `radius` meters around `x`, `y`. */
   | { tick: number; robot: number; kind: 'jamStarted'; part: string; x: number; y: number; radius: number }
   /** M12: a fabricator finished a copy of `recipe`, now held in it with its own `scope`. */
@@ -882,14 +884,20 @@ export class World {
   }
 
   /**
-   * `hp` of a chunk's health goes to its next victims: what a victim can take, the rest to the next, so a big robot is
-   * not held to one part a tick. Parts die in the damage phase like any other kill, each with its own blast.
+   * `hp` of burn goes to a chunk's next victims: what a victim can take, the rest to the next, so a big robot is not
+   * held to one part a tick. A fuse burns out and stays; only a part past the fuses loses health, and dies in the
+   * damage phase like any other kill, with its own blast.
    */
   private fry(robot: Robot, chunk: number, hp: number, drew: readonly (readonly PlannedDraw[])[]): void {
     const fuses = partLists(robot).fuses;
     let left = hp;
     while (left > 0) {
-      const victim = this.nextFuse(robot, chunk, fuses) ?? this.topDrawer(chunk, drew);
+      const fuse = this.nextFuse(robot, chunk, fuses);
+      if (fuse) {
+        left -= this.burn(robot, fuse, left);
+        continue;
+      }
+      const victim = this.topDrawer(chunk, drew);
       if (!victim) return;
       const take = Math.min(left, victim.health);
       victim.health -= take;
@@ -898,14 +906,34 @@ export class World {
     }
   }
 
-  /** The chunk's weakest live fuse: lowest health sticks, so one battery goes at a time instead of all being scratched. */
+  /**
+   * Burns a fuse by up to `hp`, a whole part's health being all of it, and returns what it took. Its charge stays whole
+   * until it is all burnt, then is lost; with `stored` gone no pool or reading counts it. Its health is not touched.
+   */
+  private burn(robot: Robot, fuse: PartInstance, hp: number): number {
+    const room = burnLeft(fuse);
+    const take = Math.min(hp, room);
+    const burnt = take < room ? (fuse.burnt ?? 0) + take / fuse.def.health : 1;
+    if (burnt < 1) {
+      fuse.burnt = burnt;
+      return take;
+    }
+    fuse.burnt = 1;
+    fuse.stored = undefined;
+    const pose = partWorldPose(this, robot, fuse.id);
+    this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'fried', part: fuse.id, partType: fuse.def.id, x: pose.x, y: pose.y });
+    return take;
+  }
+
+  /** The chunk's fuse nearest to burnt out: it sticks, so one battery goes at a time instead of all being scratched. A burnt-out one is skipped. */
   private nextFuse(robot: Robot, chunk: number, fuses: readonly PartInstance[]): PartInstance | undefined {
     const tied: PartInstance[] = [];
     let low = Infinity;
     for (const p of fuses) {
-      if (p.health <= 0 || p.health > low || chunkIndex(robot, p.id) !== chunk) continue;
-      if (p.health < low) tied.length = 0;
-      low = p.health;
+      const left = burnLeft(p);
+      if (p.health <= 0 || left <= 0 || left > low || chunkIndex(robot, p.id) !== chunk) continue;
+      if (left < low) tied.length = 0;
+      low = left;
       tied.push(p);
     }
     return this.pickOne(tied);
@@ -914,18 +942,18 @@ export class World {
   /**
    * What draws the most in the chunk this tick, both passes (a bay draws in the early one). Anything within
    * `TOP_DRAW_BAND` of the top counts as the top, lowest health first: propellers a hover trims a little apart lose
-   * one at a time.
+   * one at a time. A fuse is never one of them: frying takes no health off a fuse, however it draws.
    */
   private topDrawer(chunk: number, drew: readonly (readonly PlannedDraw[])[]): PartInstance | undefined {
     let top = 0;
-    for (const pass of drew) for (const d of pass) if (d.chunk === chunk && d.request > top && d.part.health > 0) top = d.request;
+    for (const pass of drew) for (const d of pass) if (d.chunk === chunk && d.request > top && d.part.health > 0 && d.part.def.fuse !== true) top = d.request;
     if (top <= 0) return undefined;
     const tied: PartInstance[] = [];
     let low = Infinity;
     for (const pass of drew) {
       for (const d of pass) {
         const p = d.part;
-        if (d.chunk !== chunk || d.request < top * TOP_DRAW_BAND || p.health <= 0 || p.health > low) continue;
+        if (d.chunk !== chunk || d.request < top * TOP_DRAW_BAND || p.health <= 0 || p.health > low || p.def.fuse === true) continue;
         if (p.health < low) tied.length = 0;
         low = p.health;
         tied.push(p);
@@ -2956,7 +2984,7 @@ export class World {
   private outputOf(part: PartInstance, name: string, pool: () => { stored: number; capacity: number }, reads: OutputReads): number | undefined {
     const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name, reads);
     if (own !== undefined) return own;
-    if (name === 'charge') return part.stored !== undefined && part.def.resource ? (this.unlimited ? 1 : part.stored / part.def.resource.capacity) : undefined;
+    if (name === 'charge') return part.burnt === 1 ? 0 : part.stored !== undefined && part.def.resource ? (this.unlimited ? 1 : part.stored / part.def.resource.capacity) : undefined;
     if (name === 'energy' || name === 'energyCapacity') return name === 'energy' ? pool().stored : pool().capacity;
     if (name === 'armed' && part.armed !== undefined) return part.armed ? 1 : 0;
     if (name === 'burning' && part.def.decoy !== undefined) return (part.burn ?? 0) > 0 ? 1 : 0;
@@ -3735,6 +3763,8 @@ export class World {
         h.addF64(part.health);
         h.addString((part.cut ?? []).join(''));
         h.addF64(part.aim ?? 0);
+        // How burnt out a fuse is. A part frying never reached adds nothing.
+        if (part.burnt !== undefined) h.addF64(part.burnt);
         // A sensor's power last tick decides what its scripts see next (M8). Other parts add nothing.
         if (part.sensing !== undefined) h.addInt(part.sensing ? 1 : 0);
         // Whether a part that needs arming is armed (M10). Other parts add nothing.
@@ -4026,7 +4056,7 @@ function referenceOutput(robot: Robot, part: PartInstance, partId: string, name:
   if (!part.def.outputs.some((o) => o.name === name)) return undefined;
   const own = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior)?.output?.(part, name, reads);
   if (own !== undefined) return own;
-  if (name === 'charge') return part.stored !== undefined && part.def.resource ? (unlimited ? 1 : part.stored / part.def.resource.capacity) : undefined;
+  if (name === 'charge') return part.burnt === 1 ? 0 : part.stored !== undefined && part.def.resource ? (unlimited ? 1 : part.stored / part.def.resource.capacity) : undefined;
   if (name === 'energy' || name === 'energyCapacity') {
     const pool = poolTotals(poolContainers(robot, referenceChunkIndex(robot, partId)));
     return name === 'energy' && !unlimited ? pool.stored : pool.capacity;
@@ -4194,6 +4224,11 @@ function energyParts(held: PartInstance[][], robot: Robot, chunk: number): reado
 
 function byPartId(a: PartInstance, b: PartInstance): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** The burn a fuse can still take before it is burnt out: a whole part's health from new, whatever hits have left of it. */
+function burnLeft(fuse: PartInstance): number {
+  return (1 - (fuse.burnt ?? 0)) * fuse.def.health;
 }
 
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */

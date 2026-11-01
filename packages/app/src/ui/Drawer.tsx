@@ -210,7 +210,7 @@ export function PartNumbers({ def, mass }: { def: PartDef; mass?: number }) {
         </div>
       )}
       {def.fuse === true && (
-        <div class="kv" title="A reactor run past its rating cooks batteries first, full or empty, weakest first">
+        <div class="kv" title="A reactor run past its rating burns batteries out first, full or empty, nearest to burnt out first. Burnt out it holds no charge and stays on as structure.">
           <span>Fuse</span>
           <b>yes</b>
         </div>

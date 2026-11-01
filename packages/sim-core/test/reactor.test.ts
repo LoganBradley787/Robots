@@ -4,7 +4,7 @@ import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import type { PartInstance, Robot } from '../src/world/Robot';
 import { fillContainers, fillHeld } from '../src/resources/pools';
-import { defaultRegistry } from '../src/parts/registry';
+import { defaultRegistry, PartRegistry } from '../src/parts/registry';
 import { parsePartDef, PartDefError } from '../src/parts/parsePartDef';
 import { createQuickJsHost } from '../src/script/quickjs';
 import { Controller } from '../src/control/controller';
@@ -439,15 +439,14 @@ describe('reactor: push', () => {
     w.dispose();
   });
 
-  it('heats and fries a battery with charge left, weakest first', async () => {
+  it('heats and burns a battery out with charge left', async () => {
     const w = await world();
     const bp = { format: 1, name: 'pushed', grid: ['B  C  rc  Z'], bindings: [{ key: 'p', mode: 'toggle', target: 'smallreactor', channel: 'push', value: 3 }] };
     const r = w.spawnBlueprint(bp, { x: 0, y: 100 });
     drain(r, 100);
     press(w, r, 'p');
-    while (w.tick < 60 * 30 && ofType(r, 'densebattery').length + ofType(r, 'battery').length === 2) w.step();
-    const lost = w.events.find((e) => e.kind === 'partDestroyed');
-    expect(lost).toMatchObject({ cooked: true, exploded: false });
+    while (w.tick < 60 * 30 && !w.events.some((e) => e.kind === 'fried')) w.step();
+    expect(w.events.find((e) => e.kind === 'fried')).toBeDefined();
     expect(stored(r)).toBeGreaterThan(0);
     w.dispose();
   });
@@ -502,18 +501,18 @@ describe('reactor: push', () => {
 });
 
 describe('reactor: who fries', () => {
-  it('the weakest fuse first, then it sticks; the rest spills over', async () => {
+  it('the fuse nearest to burnt out first, then it sticks', async () => {
     const w = await world();
     const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
     drain(r);
     const [first, second] = ofType(r, 'battery');
-    second!.health = 5;
+    second!.burnt = 0.5;
     reactor(r).heat = 1;
     press(w, r);
     run(w, 3);
-    expect(second!.health).toBeLessThan(5);
-    expect(first!.health).toBe(30);
-    expect(ofType(r, 'densebattery')[0]!.health).toBe(30);
+    expect(second!.burnt).toBeGreaterThan(0.5);
+    expect(first!.burnt).toBeUndefined();
+    expect(ofType(r, 'densebattery')[0]!.burnt).toBeUndefined();
     w.dispose();
   });
 
@@ -522,14 +521,14 @@ describe('reactor: who fries', () => {
     const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
     drain(r);
     const [a, b] = ofType(r, 'battery');
-    a!.health = 0.1;
-    b!.health = 0.1;
+    a!.burnt = 0.999;
+    b!.burnt = 0.999;
     reactor(r).heat = 1;
     press(w, r);
     run(w, 2);
-    expect(ofType(r, 'battery').length).toBe(0);
-    const cooked = w.events.filter((e) => e.kind === 'partDestroyed' && e.cooked === true);
-    expect(cooked.length).toBe(2);
+    expect(a!.burnt).toBe(1);
+    expect(b!.burnt).toBe(1);
+    expect(w.events.filter((e) => e.kind === 'fried').length).toBe(2);
     expect(w.events.filter((e) => e.kind === 'overload').length).toBe(1);
     w.dispose();
   });
@@ -595,10 +594,187 @@ describe('reactor: who fries', () => {
       reactor(r).heat = 1;
       press(w, r);
       run(w, 120);
-      const picks = ofType(r, 'battery').map((p) => `${p.id}:${p.health}`).join();
+      const picks = ofType(r, 'battery').map((p) => `${p.id}:${p.burnt}`).join();
       w.dispose();
       return picks;
     };
     expect(await go(3)).toBe(await go(3));
+  });
+});
+
+describe('reactor: burning out', () => {
+  /** A core that reaches its reactor and laser only through a dense battery. */
+  const HUNG = { format: 1, name: 'hung', grid: ['.  .  =', '.  .  Lz^', 'C  Z  rc'], bindings: FIRE };
+
+  /** Runs with the laser held at full heat until `done`, at most 60 s. */
+  function burnUntil(w: World, r: Robot, done: () => boolean): void {
+    drain(r);
+    reactor(r).heat = 1;
+    press(w, r);
+    while (w.tick < 3600 && !done()) {
+      for (const p of r.parts.values()) if (p.stored !== undefined) p.stored = 0;
+      reactor(r).heat = 1;
+      w.step();
+    }
+  }
+
+  it('keeps its charge whole until it is all burnt, then the charge is lost, not moved', async () => {
+    const w = await world();
+    const bp = { format: 1, name: 'two', grid: ['B  C  rc  Z'], bindings: [{ key: 'p', mode: 'toggle', target: 'smallreactor', channel: 'push', value: 3 }] };
+    const r = w.spawnBlueprint(bp, { x: 0, y: 100 });
+    const [battery] = ofType(r, 'battery');
+    const [dense] = ofType(r, 'densebattery');
+    drain(r, 100);
+    battery!.burnt = 0.5;
+    reactor(r).heat = 1;
+    press(w, r, 'p');
+    const others = (): number => (dense!.stored ?? 0) + (ofType(r, 'core')[0]!.stored ?? 0);
+    let held = 0;
+    let before = 0;
+    while (w.tick < 600 && (battery!.burnt ?? 0) < 1) {
+      held = battery!.stored ?? 0;
+      before = others();
+      w.step();
+    }
+    expect(held).toBeGreaterThan(100);
+    expect(battery!.burnt).toBe(1);
+    expect(battery!.stored).toBeUndefined();
+    // What it held went nowhere: the others gained a tick of the reactor at most.
+    expect(others() - before).toBeLessThan((3 * SMALL_W) / 60 + 1e-6);
+    w.dispose();
+  });
+
+  it('a burnt-out battery has no capacity and reads no charge, and no reactor fills it', async () => {
+    const w = await world();
+    const r = w.spawnBlueprint({ format: 1, name: 'one', grid: ['C  rc  Z'] }, { x: 0, y: 100 });
+    const [dense] = ofType(r, 'densebattery');
+    const whole = w.energy(r.id)!.capacity;
+    w.step();
+    expect(w.partOutput(r.id, dense!.id, 'charge')).toBe(1);
+    dense!.burnt = 1;
+    dense!.stored = undefined;
+    expect(w.energy(r.id)).toMatchObject({ capacity: whole - dense!.def.resource!.capacity, stored: 600 });
+    expect(w.partOutput(r.id, dense!.id, 'charge')).toBe(0);
+    w.setUnlimitedEnergy(true);
+    expect(w.partOutput(r.id, dense!.id, 'charge')).toBe(0);
+    w.setUnlimitedEnergy(false);
+    drain(r);
+    run(w, 60);
+    expect(dense!.stored).toBeUndefined();
+    expect(stored(r)).toBeCloseTo(SMALL_W, 6);
+    w.dispose();
+  });
+
+  it('scripts read the same: self.energy and charge', async () => {
+    const scripts = await createQuickJsHost(variant);
+    const w = await World.create({ seed: 1, gravityY: 0, scripts }, space);
+    const source = `function tick() { const z = parts.find((p) => p.type === 'densebattery'); log(self.energy.capacity + ' ' + z.out.charge + ' ' + get('z1', 'charge')); }`;
+    const r = w.spawnBlueprint({ format: 1, name: 'one', grid: ['C  Z1'], legend: { Z1: { part: 'densebattery', tags: ['z1'] } }, scripts: [{ id: 's', enabled: true, source }] }, { x: 0, y: 100 });
+    w.step();
+    expect(w.scriptLogs.at(-1)?.text).toBe('6600 1 1');
+    const [dense] = ofType(r, 'densebattery');
+    dense!.burnt = 1;
+    dense!.stored = undefined;
+    w.step();
+    expect(w.scriptLogs.at(-1)?.text).toBe('600 0 0');
+    w.dispose();
+  });
+
+  it('stays as structure: what it connected stays connected, at the same mass', async () => {
+    const w = await world();
+    const r = w.spawnBlueprint(HUNG, { x: 0, y: 100 });
+    const [dense] = ofType(r, 'densebattery');
+    const parts = r.parts.size;
+    burnUntil(w, r, () => dense!.burnt === 1);
+    run(w, 5);
+    expect(dense!.burnt).toBe(1);
+    expect(dense!.health).toBe(dense!.def.health);
+    expect(r.parts.size).toBe(parts);
+    expect(w.robots.length).toBe(1);
+    expect(w.events.some((e) => e.kind === 'split' || (e.kind === 'partDestroyed' && e.partType === 'densebattery'))).toBe(false);
+    expect(w.events.find((e) => e.kind === 'fried')).toMatchObject({ part: dense!.id, partType: 'densebattery', robot: r.id });
+    w.dispose();
+  });
+
+  it('a hit still destroys it, burnt out or not, and a shot battery takes the same burn', async () => {
+    const w = await world();
+    const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
+    const [a, b] = ofType(r, 'battery');
+    a!.burnt = 1;
+    a!.stored = undefined;
+    a!.health = 0;
+    run(w, 2);
+    expect(r.parts.has(a!.id)).toBe(false);
+    expect(w.events.find((e) => e.kind === 'partDestroyed' && e.part === a!.id)).toMatchObject({ exploded: false });
+    // Down to its last health point it still has its whole burn to go: the two meters do not add up.
+    b!.health = 1;
+    b!.burnt = 0.25;
+    drain(r);
+    reactor(r).heat = 1;
+    press(w, r);
+    w.step();
+    expect(b!.health).toBe(1);
+    expect(b!.burnt).toBeGreaterThan(0.25);
+    expect(b!.burnt).toBeLessThan(0.3);
+    w.dispose();
+  });
+
+  it('a burnt-out fuse is skipped, and with all burnt out the top drawer is next', async () => {
+    const w = await world();
+    const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
+    const fuses = [...ofType(r, 'battery'), ...ofType(r, 'densebattery')];
+    const [laser] = ofType(r, 'laser');
+    burnUntil(w, r, () => r.parts.get(laser!.id)?.health !== laser!.def.health);
+    expect(r.parts.size).toBeGreaterThan(0);
+    for (const f of fuses) {
+      expect(f.burnt).toBe(1);
+      expect(f.health).toBe(f.def.health);
+    }
+    expect(w.events.filter((e) => e.kind === 'fried').length).toBe(fuses.length);
+    w.dispose();
+  });
+
+  it('a fuse that draws is burnt out, never killed: frying takes no health off a fuse', async () => {
+    const reg = new PartRegistry(defaultRegistry().list().map((d) => (d.id === 'laser' ? { ...d, fuse: true as const } : d)));
+    const w = await World.create({ seed: 1, gravityY: 0 }, space, reg);
+    const r = w.spawnBlueprint(TWIN, { x: 0, y: 100 });
+    const lasers = ofType(r, 'laser');
+    burnUntil(w, r, () => lasers.every((l) => l.burnt === 1));
+    run(w, 30);
+    for (const l of lasers) {
+      expect(l.burnt).toBe(1);
+      expect(l.health).toBe(l.def.health);
+    }
+    expect(w.events.some((e) => e.kind === 'partDestroyed')).toBe(false);
+    w.dispose();
+  });
+
+  it('the burn is in the hash, and a stock robot adds nothing', async () => {
+    const go = async (burnt: number | undefined): Promise<string> => {
+      const w = await world(7);
+      const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
+      if (burnt !== undefined) ofType(r, 'battery')[0]!.burnt = burnt;
+      run(w, 2);
+      const h = w.hash();
+      w.dispose();
+      return h;
+    };
+    expect(await go(0.5)).not.toBe(await go(0.25));
+    expect(await go(0.5)).not.toBe(await go(undefined));
+    expect(await go(undefined)).toBe(await go(undefined));
+  });
+
+  it('the same seed burns the same way', async () => {
+    const go = async (): Promise<string> => {
+      const w = await world(5);
+      const r = w.spawnBlueprint(FUSED, { x: 0, y: 100 });
+      drain(r);
+      press(w, r);
+      run(w, 1800);
+      const h = w.hash();
+      w.dispose();
+      return h;
+    };
+    expect(await go()).toBe(await go());
   });
 });

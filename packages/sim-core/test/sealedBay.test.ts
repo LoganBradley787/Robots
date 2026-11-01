@@ -183,10 +183,11 @@ describe('sealed bays: what a bay holds stays out of its carrier', () => {
     w.step([{ robot: r.id, pressed: ['f'], released: [] }]);
     run(w, 1200);
     expect(w.events.some((e) => e.kind === 'overload')).toBe(true);
-    const cooked = w.events.filter((e) => e.kind === 'partDestroyed' && e.cooked === true);
-    expect(cooked.length).toBeGreaterThan(0);
-    expect(cooked.some((e) => e.kind === 'partDestroyed' && inCopy.has(e.part))).toBe(false);
+    const fried = w.events.filter((e) => e.kind === 'fried');
+    expect(fried.length).toBeGreaterThan(0);
+    expect(fried.some((e) => e.kind === 'fried' && inCopy.has(e.part))).toBe(false);
     expect(dense?.health).toBe(health);
+    expect(dense?.burnt).toBeUndefined();
     expect(charge(held(r))).toBe(copyHas);
     w.dispose();
   });

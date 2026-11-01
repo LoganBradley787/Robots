@@ -21,7 +21,7 @@ export interface PartLists {
   arming: PartInstance[];
   solar: PartInstance[];
   reactors: PartInstance[];
-  /** What a reactor's heat cooks first (`World.fry`). */
+  /** What a reactor's heat burns out first (`World.fry`). */
   fuses: PartInstance[];
   charges: PartInstance[];
   guns: PartInstance[];

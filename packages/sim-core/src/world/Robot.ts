@@ -53,6 +53,11 @@ export interface PartInstance {
   load?: number;
   /** Killed by a reactor's heat: said on its `partDestroyed`. Transient, never hashed. */
   cooked?: boolean;
+  /**
+   * How burnt out a part with `fuse` is, 0 to 1, from a reactor's heat. Undefined is 0. Nothing to do with its health:
+   * at 1 it has no charge and no capacity (`stored` undefined) and stays on as structure. Hashed once set.
+   */
+  burnt?: number;
   /** M13: a gun's ticks until it may fire again (undefined is 0: ready). */
   cooldown?: number;
   /** M14: the share of its energy a laser was granted this tick (0 when it is not firing). Hashed for lasers. */
@@ -69,7 +74,7 @@ export interface PartInstance {
   sight?: GunSight;
   /** Batch: a charge that was set off this tick (by an enemy near or `detonate`) and blasts as it is destroyed. Transient, never hashed. */
   fired?: boolean;
-  /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts. */
+  /** What a container part (one with `resource` in its def) holds now. Starts full. Undefined for other parts, and one burnt out. */
   stored?: number;
   /** M12: the part's cells when they differ from its def's (a stretchy part placed at another size). */
   footprint?: FootprintCell[];

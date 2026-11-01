@@ -355,9 +355,9 @@ export function energyOf(world: SimWorld, robotId: number): RunReport['energy'] 
   return { used: e?.used ?? 0, remaining: e?.stored ?? 0, capacity: e?.capacity ?? 0, ...(dry ? { ranDryAt: dry.tick * world.dt } : {}) };
 }
 
-/** Every part a reactor's heat cooked, and when the first went. */
+/** Every part a reactor's heat finished, burnt out or killed, and when the first went. */
 function friedOf(world: SimWorld): { fried: number; firstFriedAt?: number } {
-  const cooked = world.events.filter((e) => e.kind === 'partDestroyed' && e.cooked === true);
+  const cooked = world.events.filter((e) => e.kind === 'fried' || (e.kind === 'partDestroyed' && e.cooked === true));
   const first = cooked[0];
   return { fried: cooked.length, ...(first ? { firstFriedAt: first.tick * world.dt } : {}) };
 }

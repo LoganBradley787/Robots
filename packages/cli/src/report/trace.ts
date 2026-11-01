@@ -176,6 +176,9 @@ export class Tracer {
         case 'burntOut':
           push(e.robot, 'burntOut', `${e.part} burnt out`);
           break;
+        case 'fried':
+          push(e.robot, 'fried', `${e.part} burnt out by its reactor: no charge from now on, still attached`);
+          break;
         case 'hooked':
           push(e.robot, 'hooked', `${e.part} hooked ${e.to !== 0 ? this.letter(e.to) : 'the ground or a loose body'}, rope ${f2(e.length)} m`);
           break;
