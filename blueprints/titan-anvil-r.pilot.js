@@ -325,7 +325,8 @@ function setup() {
   state.rollAt = 0;
   state.rollTries = 0;
   state.partStart = parts.length;
-  state.hurt = false; // lost enough on one side that the two-sided rules no longer hold (see Hurt)
+  state.hurt = false; // lost too much of one end for the two-sided rules of Righting (see Hurt)
+  state.maimed = false; // or of a lift half or a push side, or too much of the hull, for any of them
   state.hullN = parts.length;
   state.hullAt = 0;
   state.jets = [];
@@ -449,8 +450,9 @@ function runGuns() {
 // rad/s² one way, everything left gives under 0.2 the other, the center of mass is 12 m from the core, and it has a
 // third of the inertia the rules still counted. So each time it fired that end, it could not stop: it cartwheeled at 1.4
 // rad/s until it hit the ground, and there the rule that asks for the end on the short way up fired nothing at all.
-// Now past `hurtShare` of an end, a lift half or a push side gone (or `hurtParts` of the hull), it reads the six booster
-// groups off its own parts, and each tick shares out what it wants among whichever can give it (flyHurt).
+// Now past `hurtShare` of an end gone it reads the six booster groups off its own parts and gets up on what can give that
+// (`hurt`), and past that of a lift half or a push side, or `hurtParts` of the hull, it flies that way all the time
+// (`maimed`): each tick it shares out what it wants among whichever can give it (flyHurt).
 function readHull() {
   const ca = Math.cos(self.angle);
   const sa = Math.sin(self.angle);
@@ -499,11 +501,14 @@ function readHull() {
   }
   state.hullPts = pts;
   state.hullI = Math.max(inertia, 1);
-  state.inertia = state.hullI;
   state.comX = cx;
-  state.comUp = cy;
-  state.bottom = 0.5 - low;
-  state.top = high + 0.5;
+  state.comY = cy;
+  if (state.maimed) {
+    state.inertia = state.hullI;
+    state.comUp = cy;
+    state.bottom = 0.5 - low;
+    state.top = high + 0.5;
+  }
   const dirs = [[0, 1], [0, 1], [state.paDir, 0], [-state.paDir, 0], [0, -1], [0, -1]];
   state.jets = [];
   tags.forEach((tag, i) => {
@@ -526,11 +531,16 @@ function hullCheck() {
   if (state.hullN === parts.length || time - state.hullAt < 0.5) return;
   state.hullN = parts.length;
   state.hullAt = time;
-  if (!state.hurt) {
-    const off = (a, b) => Math.min(a, b) < (1 - hurtShare) * Math.max(a, b);
-    if (!off(state.endPlus, state.endMinus) && !off(state.liftA, state.liftB) && !off(state.pushRight, state.pushLeft) && parts.length >= (1 - hurtParts) * state.partStart) return;
-    state.hurt = true;
-    if (say > 0.5) log('hurt: flying on what it has left, parts', parts.length, 'of', state.partStart);
+  const off = (a, b) => Math.min(a, b) < (1 - hurtShare) * Math.max(a, b);
+  const was = state.hurt;
+  state.hurt = state.hurt || off(state.endPlus, state.endMinus);
+  if (!state.maimed) state.maimed = off(state.liftA, state.liftB) || off(state.pushRight, state.pushLeft) || parts.length < (1 - hurtParts) * state.partStart;
+  if (state.maimed) state.hurt = true;
+  if (!state.hurt) return;
+  if (!was && say > 0.5) log('hurt: rights itself on what it has left, parts', parts.length, 'of', state.partStart);
+  if (state.maimed && !state.saidMaimed) {
+    state.saidMaimed = true;
+    if (say > 0.5) log('maimed: flying on what it has left, parts', parts.length, 'of', state.partStart);
   }
   readHull();
 }
@@ -556,7 +566,7 @@ function lowOf() {
     const py = p.x * sa + p.y * ca;
     if (py < lo) lo = py;
   }
-  return lo + state.comX * sa + state.comUp * ca;
+  return lo + state.comX * sa + state.comY * ca;
 }
 
 // What it wants, shared among the groups it has: throttles for a turn (N m), a push up and a push along, by best fit,
@@ -2201,8 +2211,8 @@ function tick() {
   // Hurt with the push boosters that stop it this way gone, only a lean stops it, and that takes room to lean in and 3 s to
   // come on: it keeps over the height a lean needs near that edge, and allows for the 3 s (a hull going 41 m/s after a drone
   // at x 530 went out at 25 m/s).
-  const lagR = state.hurt && state.pushLeft < 0.25 * state.pushRight ? 3 * Math.max(vx, 0) : 0;
-  const lagL = state.hurt && state.pushRight < 0.25 * state.pushLeft ? 3 * Math.max(-vx, 0) : 0;
+  const lagR = state.maimed && state.pushLeft < 0.25 * state.pushRight ? 3 * Math.max(vx, 0) : 0;
+  const lagL = state.maimed && state.pushRight < 0.25 * state.pushLeft ? 3 * Math.max(-vx, 0) : 0;
   if ((lagR > 0 && limit - x < 400) || (lagL > 0 && limit + x < 400)) wantH = Math.max(wantH, floor + 45);
   wantH = clamp(wantH, floor, ceiling);
   // What it can brake a fall by now (anvil r8): tilted, the lift rows hold up less (a lean at the start went on
@@ -2264,7 +2274,9 @@ function tick() {
     else if (lagL > 0 && vx < -2 - stopFrom(brakeLn, x + limit - lagL)) lean = (-tilt * Math.PI) / 180;
   }
   if (state.righting) lean = 0;
-  if (state.hurt) flyHurt(ay, wantVx, lean, rollGround, land && room < 0.4 && Math.abs(vy) < 1, cut, dt, lowest);
+  // A scorched end leaves the other rules standing (a hull that only lost 40 percent of one end flew all of a bastion duel
+  // on the shared rules and drew two wins away): those are for getting up, or a hull that has lost its balance.
+  if (state.maimed || (state.hurt && (state.righting || Math.abs(self.angVel) > 0.3))) flyHurt(ay, wantVx, lean, rollGround, land && room < 0.4 && Math.abs(vy) < 1, cut, dt, lowest);
   else {
     // Upside down (past about 80 degrees) the lift rows push it toward the ground: only the difference that turns it
     // back is kept (titans round 6, 2026-10: it doubled them there, and drove itself onto its back).
