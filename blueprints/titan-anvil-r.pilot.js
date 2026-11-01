@@ -2254,6 +2254,12 @@ function tick() {
     const most = ((tilt * Math.PI) / 180) * clamp((y - floor - 25) / Math.max(1, keepLow - 25), 0.3, 1);
     if (need > 0) lean = -Math.sign(dvx) * Math.min(most, Math.atan(need / 9.81));
   }
+  // The same hull at the edge: whatever it was doing, a ram or a climb kept it level, and it flew out at 19 m/s. The lean
+  // that stops it comes first.
+  if (limit < Infinity && y - floor > 15) {
+    if (lagR > 0 && vx > 2 + stopFrom(brakeRn, limit - x - lagR)) lean = (tilt * Math.PI) / 180;
+    else if (lagL > 0 && vx < -2 - stopFrom(brakeLn, x + limit - lagL)) lean = (-tilt * Math.PI) / 180;
+  }
   if (state.righting) lean = 0;
   if (state.hurt) flyHurt(ay, wantVx, lean, rollGround, land && room < 0.4 && Math.abs(vy) < 1, cut, dt);
   else {
