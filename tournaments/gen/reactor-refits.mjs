@@ -277,24 +277,23 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   fs.writeFileSync(path.join(out, pilot), text);
 }
 
-// ---- titan-woodpecker-r: 6 reactors, 7.2 kW against the 6.3 kW of its bays with 2 more burner bays. Every battery kept. ----
+// ---- titan-woodpecker-r: 24 small reactors, 5.8 kW against up to 6.3 kW of bays with 2 more burner bays. ----
 {
   const bp = read('titan-woodpecker');
   const cells = cellsOf(bp);
-  // In the keep, not the base: the base is three rows thin, a reactor in it would stand on all three, and one shot-out
-  // reactor would cut off that end with its bays. The keep's two top corners, 12 m and more from the core, four and two
-  // deep, and a line down to the core still meets 12 plates. Nine plates are 180 kg, a reactor 100, so the batteries
-  // can stay and pay for the rack and the first burners, and 480 kg is saved: a ground titan does not want it back.
-  for (const [row, col] of [
-    [13, 81],
-    [13, 84],
-    [13, 94],
-    [13, 97],
-    [16, 81],
-    [16, 97],
-  ]) {
-    putReactorOver(cells, row, col, ['K']);
-  }
+  // Small ones, in the base's battery row, one in six along it so none chains. A big one will not do: the base is three
+  // rows thin, so one would stand on all three and cut off that end when shot out; and in the keep they are the way in.
+  // Tried with 6 in the keep's top corners: the burners of the other side went through them, 3 plates of line for 300
+  // health, and it lost to stock with 12 to 27 percent of its parts left. 137 of 161 batteries stay. It is heavier by
+  // what those reactors weigh over the batteries they replace, about 400 kg, 4 percent of 9 t, and a ground titan pays
+  // nothing for that.
+  const zs = [];
+  for (let col = 1; col < 81; col++) if (cells[24][col] === 'Z') zs.push(col);
+  zs.filter((_, i) => i % 6 === 3).forEach((col) => {
+    if (cells[24][180 - col] !== 'Z') throw new Error('the base is not even');
+    cells[24][col] = 'rc';
+    cells[24][180 - col] = 'rc';
+  });
   // What the power buys is more of what it is: burners. Across a match the rack's darts are spent in seconds and a
   // burner bay goes on for good, so the two pairs of darts at the rack's outer ends make way for a burner bay each.
   const legend = { ...bp.legend };
@@ -311,7 +310,7 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
     cells[22][x0 + 2] = '=';
     for (let row = 13; row <= 22; row++) for (const col of [x0, x0 + 3]) cells[row][col] = '=';
   });
-  write({ ...bp, name: 'titan-woodpecker-r', grid: gridOf(cells), legend, cores, bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+  write({ ...bp, name: 'titan-woodpecker-r', grid: gridOf(cells), legend, cores, bindings: [...(bp.bindings ?? []), { ...PUSH_KEY, target: 'smallreactor' }] });
 }
 
 // ---- titan-palisade-r: a small reactor on every panel, 240 W against 130 W of hover, and two on the keep. ----
