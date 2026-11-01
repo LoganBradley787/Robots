@@ -162,7 +162,7 @@ const threatMass = param('threatMass', 1000, { min: 0, max: 100000 }); // kg: no
 const threatHold = param('threatHold', 20, { min: 3, max: 120 }); // s it stays on a threat that has stopped hurting it
 const threatNear = param('threatNear', 400, { min: 50, max: 1500 }); // m: a lighter enemy this near while it is losing parts is the one doing it
 const threatDarts = param('threatDarts', 3, { min: 1, max: 100 }); // darts in the air from one enemy that make it the one doing it
-const hurtShare = param('hurtShare', 0.4, { min: 0, max: 1 }); // share of an end, a lift half or a push side lost, against the other, that counts as hurt
+const hurtShare = param('hurtShare', 0.4, { min: 0, max: 1 }); // share of an end or a lift half lost, against the other, that counts as hurt
 const hurtParts = param('hurtParts', 0.3, { min: 0, max: 1 }); // or share of all its parts
 const rollSpin = param('rollSpin', 0.3, { min: 0.05, max: 2 }); // rad/s it tips over at, hurt, on the ground
 const grip = param('grip', 0.11, { min: 0, max: 2 }); // the ground's hold on a hull lying on it, share of its weight
@@ -451,8 +451,8 @@ function runGuns() {
 // third of the inertia the rules still counted. So each time it fired that end, it could not stop: it cartwheeled at 1.4
 // rad/s until it hit the ground, and there the rule that asks for the end on the short way up fired nothing at all.
 // Now past `hurtShare` of an end gone it reads the six booster groups off its own parts and gets up on what can give that
-// (`hurt`), and past that of a lift half or a push side, or `hurtParts` of the hull, it flies that way all the time
-// (`maimed`): each tick it shares out what it wants among whichever can give it (flyHurt).
+// (`hurt`), and past that of a lift half, three quarters of a push side, or `hurtParts` of the hull, it flies that way all
+// the time (`maimed`): each tick it shares out what it wants among whichever can give it (flyHurt).
 function readHull() {
   const ca = Math.cos(self.angle);
   const sa = Math.sin(self.angle);
@@ -534,7 +534,8 @@ function hullCheck() {
   const off = (a, b) => Math.min(a, b) < (1 - hurtShare) * Math.max(a, b);
   const was = state.hurt;
   state.hurt = state.hurt || off(state.endPlus, state.endMinus);
-  if (!state.maimed) state.maimed = off(state.liftA, state.liftB) || off(state.pushRight, state.pushLeft) || parts.length < (1 - hurtParts) * state.partStart;
+  const noPush = Math.min(state.pushRight, state.pushLeft) < 0.25 * Math.max(state.pushRight, state.pushLeft);
+  if (!state.maimed) state.maimed = off(state.liftA, state.liftB) || noPush || parts.length < (1 - hurtParts) * state.partStart;
   if (state.maimed) state.hurt = true;
   if (!state.hurt) return;
   if (!was && say > 0.5) log('hurt: rights itself on what it has left, parts', parts.length, 'of', state.partStart);
@@ -2274,8 +2275,8 @@ function tick() {
     else if (lagL > 0 && vx < -2 - stopFrom(brakeLn, x + limit - lagL)) lean = (-tilt * Math.PI) / 180;
   }
   if (state.righting) lean = 0;
-  // A scorched end leaves the other rules standing (a hull that only lost 40 percent of one end flew all of a bastion duel
-  // on the shared rules and drew two wins away): those are for getting up, or a hull that has lost its balance.
+  // A scorched side leaves the other rules standing: those are for getting up, or a hull that has lost its balance (with
+  // 40 percent of a push side burnt off at 19 s, a whole bastion duel on them was a draw, not a win).
   if (state.maimed || (state.hurt && (state.righting || Math.abs(self.angVel) > 0.3))) flyHurt(ay, wantVx, lean, rollGround, land && room < 0.4 && Math.abs(vy) < 1, cut, dt, lowest);
   else {
     // Upside down (past about 80 degrees) the lift rows push it toward the ground: only the difference that turns it
