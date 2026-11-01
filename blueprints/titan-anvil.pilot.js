@@ -692,7 +692,10 @@ function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt) {
     const up = sitting || cut ? 0 : self.mass * (9.81 + ay);
     const dvx = wantVx - self.vel.x;
     const along = clamp(0.6 * dvx, -1, 1) * (dvx > 0 ? state.pushRight : state.pushLeft);
-    share(state.hullI * 3 * (spin - self.angVel), up, along, state.righting ? 4 : 2, state.righting ? 0.3 : 3);
+    // Just off the ground getting up comes first: a hull missing a corner rests tilted, and all its lift went on levelling
+    // what the ground held tilted (it sat 140 s at 8 degrees with its energy going).
+    const rising = !state.righting && self.pos.y - state.bottom < 8 && ay > 0;
+    share(state.hullI * 3 * (spin - self.angVel), up, along, state.righting ? 4 : rising ? 0.4 : 2, state.righting ? 0.3 : 3);
   }
   for (const j of state.jets) if (j.u > 0) set(j.tag, 'throttle', j.u);
   state.push = 0;
