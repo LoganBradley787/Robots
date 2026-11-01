@@ -110,6 +110,7 @@ const bombSpeed = param('bombSpeed', 14, { min: 4, max: 60 }); // m/s over the t
 const bombGap = param('bombGap', 7, { min: 2, max: 60 }); // m its floor guns keep over the tallest part under it on a pass
 const bombOver = param('bombOver', 25, { min: 0, max: 300 }); // m past the target's end before it turns for the next pass
 const bombGuns = param('bombGuns', 20, { min: 0, max: 1000 }); // a ground enemy with more guns and lasers pointing up than this is rammed, not bombed
+const seenKeep = param('seenKeep', 60, { min: 15, max: 600 }); // s of bombing where it was last seen, with nothing touching it, before it searches instead
 const bombDry = param('bombDry', 2, { min: 1, max: 20 }); // passes in a row that break fewer than `hitParts` before it rams instead
 const jam = param('jam', 1, { min: 0, max: 1 }); // 1: lights jammer pods on the way in to an armed enemy and on the way out (see Jammers)
 const jamFar = param('jamFar', 170, { min: 0, max: 2000 }); // m: a pod is lit only this far from the enemy (closer, sensors see through the bubble)
@@ -118,6 +119,9 @@ const zapArms = param('zapArms', 2, { min: 0, max: 1000 }); // guns, lasers and 
 const zapShare = param('zapShare', 0.12, { min: 0, max: 1 }); // or this share of the most it was seen with, whichever is more
 const zapGap = param('zapGap', 15, { min: 3, max: 100 }); // m its slab keeps over the tallest part under it while it burns
 const zapStall = param('zapStall', 15, { min: 3, max: 120 }); // s of burning that break nothing before it burns from another spot
+const zapCone = param('zapCone', 45, { min: 10, max: 50 }); // degrees off straight down it burns at when the edge keeps it from getting over the target
+const zapIdle = param('zapIdle', 15, { min: 3, max: 120 }); // s at a perch with no beam landing and nothing breaking before it leaves off finishing
+const zapAway = param('zapAway', 45, { min: 5, max: 600 }); // s of what else it has (passes, rams) before it tries finishing again
 const zapEdge = param('zapEdge', 80, { min: 0, max: 500 }); // m: a flier closer than this to where its side would meet the edge is rammed, not finished
 const lidFall = param('lidFall', 0.6, { min: 0, max: 5 }); // s after a bay's lid is dropped before its laser is pushed out
 const zapKeep = param('zapKeep', 1.15, { min: 1, max: 3 }); // the lasers burn only while the energy left covers this many times hovering to the match's end
@@ -297,6 +301,10 @@ function setup() {
   state.overSpan = false; // over the target on a bombing pass: every floor gun fires
   state.zapFiring = 0; // lasers burning last tick
   state.zapping = false; // finishing the main enemy (see Finishing)
+  state.zapSlant = false; // burning from off to the side, the edge in its way
+  state.zapLive = 0; // last time a beam landed, a part broke or it was on its way
+  state.zapDry = 0; // spots burnt from in a row that broke nothing
+  state.zapBack = -1; // finishing is left off until then
   state.zapId = -1;
   state.rakeId = -1;
   state.armsId = -1;
@@ -795,8 +803,9 @@ function runZap(aim, out, burn, aimOf) {
     }
     let turn = 3 * (want - ang) - (sg * self.angVel) / 2;
     // On one part it steers by where the barrel really points: `angle` reads the aim it was told, and the arm lags that
-    // (at this gain on `angle` it rang 6 degrees either way). Never past the 50 degrees.
-    if (z.aim && aimOf && at && dist < 1e8) {
+    // (at this gain on `angle` it rang 6 degrees either way). Never past the 50 degrees. So does a long slanted shot.
+    const exact = (z.aim && aimOf) || state.zapSlant;
+    if (exact && at && dist < 1e8) {
       // Its line to a part turns as the two move: that goes straight into the turn, or a target at 25 m/s is 5 m behind.
       const ax = at.x - l.pos.x - 1.5 * Math.cos(l.out.aim);
       const ay = at.y - l.pos.y - 1.5 * Math.sin(l.out.aim);
@@ -809,7 +818,7 @@ function runZap(aim, out, burn, aimOf) {
     if (z === zaps[0]) state.zapWhy = 'first: lid ' + (held ? 'on' : lidOpen ? 'off' : 'falling') + ' out ' + (z.push ? (z.push.out.position || 0).toFixed(2) : '-') + ' off ' + off.toFixed(3) + ' sight ' + side + ' at ' + (l.out.sight || 0).toFixed(0) + ' core ' + (dist < 1e8 ? dist.toFixed(0) + ' m' : '-');
     // A beam on one part must land on it (1.5 m out at its distance) and on nothing of its own or the ground, or air.
     // (Wreckage in the way counts: a cut mast lay across a deck of guns.)
-    const onIt = z.aim && aimOf ? off < Math.max(0.003, 1 / Math.max(1, dist)) && (side === 3 || side === 4) : off < 0.07 && side !== 1 && side !== 5;
+    const onIt = exact ? off < Math.max(0.003, 1 / Math.max(1, dist)) && (side === 3 || side === 4) : off < 0.07 && side !== 1 && side !== 5;
     const ready = out && at && burn && clear && onIt && dist < 295;
     if (z.aim && ready && z.aim.on < 0) z.aim.on = time;
     if (ready) firing++;
@@ -1566,6 +1575,12 @@ function tick() {
   // pushes its lasers out of the slab and burns down the line to the core, every floor gun firing too. Burning from
   // one spot `zapStall` s without breaking anything, it moves to the next spot (left, then right of the core) for
   // another line in.
+  // Never parked (anvil-perch, 2026-11-01, Logan: "it just sits there to the right of the thing, doing nothing for
+  // minutes"): a target past where the edge lets it stand is burnt from off to the side, from as high as brings it
+  // `zapCone` off straight down for every laser, and each new spot is another slant. Low there it hung 254 s with the
+  // core 79 degrees off, no beam able to land and the stall clock held, and finishing wins over bombing and ramming.
+  // So `zapIdle` s with no beam landing and nothing breaking, or three spots in a row that broke nothing, leave
+  // finishing off for `zapAway` s and it goes back to what else it has.
   const perchZap = (tx, ty, sh, tvx, tvy, nowParts) => {
     // A target lodged on it moves as it does (anvil r9: under today's crash rule a hive stuck to its face after a hit,
     // and following the hive's speed, its own, it ran away with it to 83 m/s and out at the edge). Close and moving as
@@ -1579,6 +1594,8 @@ function tick() {
       state.zapOff = 0;
       state.zapProg = time;
       state.zapParts = nowParts;
+      state.zapLive = time;
+      state.zapDry = 0;
       if (say > 0.5) {
         let lids = 0;
         for (const z of zaps) if (z.lids.some((d) => d.out.armed > 0.5)) lids++;
@@ -1588,12 +1605,23 @@ function tick() {
     if (nowParts >= 0 && (state.zapParts < 0 || nowParts < state.zapParts)) {
       state.zapParts = nowParts;
       state.zapProg = time;
+      state.zapLive = time;
+      state.zapDry = 0;
     }
     if (state.zapFiring === 0 && time - state.zapProg > 2) state.zapProg += dt; // the stall counts only time spent burning
     if (time - state.zapProg > zapStall) {
       state.zapOff++;
+      state.zapDry++;
       state.zapProg = time;
       if (say > 0.5) log('finishing: nothing breaks, burning from spot', state.zapOff % 3);
+    }
+    // Still on its way counts as busy; a target it moves with does not.
+    if (state.zapFiring > 0 || Math.hypot(vx - tvx, vy - tvy) > 5) state.zapLive = time;
+    if (time - state.zapLive > zapIdle || state.zapDry >= 3) {
+      state.zapBack = time + zapAway;
+      state.zapping = false;
+      state.zapDry = 0;
+      if (say > 0.5) log('finishing: getting nowhere, on to something else for', zapAway, 's');
     }
     // One laser straight over the core: a slanted beam crosses up to half as many cells again (the one 16 m off the
     // core's column, 25 m up, cut a slot 21 cells long through 12 rows of plates).
@@ -1605,7 +1633,8 @@ function tick() {
     const ca = Math.cos(self.angle);
     const inner = pick ? (pick.laser.pos.x - x) / Math.max(0.5, ca) : 0; // in its own frame, so a tilt does not move the spot
     const offs = [0, -0.45, 0.45];
-    const aimX = clamp(tx - inner + offs[state.zapOff % 3] * state.halfWidth + tvx * 0.5, -edge + state.halfWidth, edge - state.halfWidth); // its whole width inside
+    const spotX = tx - inner + offs[state.zapOff % 3] * state.halfWidth + tvx * 0.5;
+    const aimX = clamp(spotX, -edge + state.halfWidth, edge - state.halfWidth); // its whole width inside
     wantVx = tvx + clamp(0.6 * (aimX - x), -lineUp, lineUp);
     let top = -1e9;
     if (sh && sh.prof) {
@@ -1615,6 +1644,22 @@ function tick() {
     }
     top = top > -1e8 ? ty + top : ty + (sh ? sh.high : 10);
     wantH = Math.max(top, 0) + zapGap + state.bottom + state.halfWidth * Math.abs(Math.sin(self.angle)) + clamp(tvy, -10, 10);
+    // The edge keeps it further off than the spots it picks anyway: it stands as high as brings the laser furthest off
+    // inside `zapCone` of straight down, still within the nearest one's reach (see runZap).
+    state.zapSlant = Math.abs(spotX - aimX) > 0.45 * state.halfWidth;
+    if (state.zapSlant) {
+      let near = 1e9;
+      let far = 0;
+      let under = 0;
+      for (const z of zaps) {
+        const gap = Math.abs(tx - (aimX + z.laser.pos.x - x));
+        near = Math.min(near, gap);
+        far = Math.max(far, gap);
+        under = Math.max(under, y - z.laser.pos.y);
+      }
+      const cone = ((zapCone * Math.PI) / 180) * [1, 0.75, 0.5][state.zapOff % 3];
+      wantH = Math.max(wantH, ty + under + Math.min(far / Math.tan(cone), Math.sqrt(Math.max(0, 290 * 290 - near * near))));
+    }
     if (Math.abs(aimX - x) < 80) calm = true;
     state.overSpan = sh ? x + state.halfWidth > tx + sh.hullLo - 15 && x - state.halfWidth < tx + sh.hullHi + 15 : Math.abs(tx - x) < state.halfWidth;
     state.zapAim = { x: tx, y: ty };
@@ -1792,6 +1837,7 @@ function tick() {
   state.overSpan = false;
   state.cutMast = false;
   state.zapAim = null;
+  state.zapSlant = false;
   state.zapOut = false;
   state.perched = false;
   state.gunLean = null;
@@ -1860,7 +1906,8 @@ function tick() {
       // Too heavy to bump out (an anchored base): breached instead, by fast side hits just over its low layer
       // (breachY), again and again on the face it meets (titans round 6, 2026-10). It used to be waited out hidden,
       // for good: against a base that sends laser fliers that is waiting to be burnt (Logan: "it's not doing anything").
-      if ((deep && target.m > shove) || state.unmoved >= 2) pushOut = 0;
+      // Left off finishing with its core already past the line, there is nothing left to bump it over.
+      if ((deep && target.m > shove) || state.unmoved >= 2 || (arena && time < state.zapBack && Math.abs(target.x) > arena.x)) pushOut = 0;
       else if (arena && (deep || nearEdge)) pushOut = target.x >= 0 ? 1 : -1;
     }
     // Finishing one that is down (titans v3, 2026-10, Logan): on the ground and still or sliding away (an anvil rolled
@@ -1903,7 +1950,8 @@ function tick() {
     // A flier near the edge is left to the rams (anvil r9): under today's crash rule a perch that followed a hive out
     // there was thrown past the edge with it (2 of 3 hive matches not won).
     const byEdge = arena && shape && !shape.ground && Math.abs(target.x) > edge - state.halfWidth - zapEdge;
-    const finishing = zap > 0.5 && zaps.length > 0 && shape && state.armsId === state.mainId && !state.finish && shape.arms <= zapLimit && !byEdge;
+    const finishing = zap > 0.5 && zaps.length > 0 && shape && state.armsId === state.mainId && !state.finish && shape.arms <= zapLimit && !byEdge && time >= state.zapBack;
+    if (finishing && !state.zapping) state.zapLive = time;
     state.zapping = finishing;
     if (finishing) {
       if (state.way !== '') endTry(main);
@@ -2061,10 +2109,11 @@ function tick() {
     // Finishing one that hid from the radar: it burns on where the core was last seen.
     plan('finishing: burning where its core was last seen');
     perchZap(state.last.x, state.last.y, state.shape, 0, 0, -1);
-  } else if (bomb > 0.5 && state.mainId >= 0 && state.last && state.shape && state.shape.ground && Math.hypot(state.last.vx, state.last.vy) < 4) {
+  } else if (bomb > 0.5 && state.mainId >= 0 && state.last && state.shape && state.shape.ground && Math.hypot(state.last.vx, state.last.vy) < 4 && time - state.lostAt < seenKeep) {
     // A base that hid from the radar (titans round 7, 2026-10, Logan): it has not gone anywhere. Round 6 searched for
     // one high up (where its floor guns reached nothing) and floated there, over a bastion's dart lane, until its
-    // core went. Now it goes on bombing where the base was last seen, every floor gun firing over it.
+    // core went. Now it goes on bombing where the base was last seen, every floor gun firing over it. Touching
+    // nothing for `seenKeep` s (no sight has read it, or it would not be here), it is not there: it searches.
     plan('bombing where it was last seen');
     const sh = state.shape;
     bombPass(state.last.x, state.last.y, sh, state.last.x + sh.hullLo, state.last.x + sh.hullHi, 0);
