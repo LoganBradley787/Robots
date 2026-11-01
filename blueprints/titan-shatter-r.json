@@ -10,44 +10,44 @@
   "q57 q57 q57 q0 q57 q57 q57 q57 q57 q0 q57 q57 q57 q57 q0 q57 q57 q57 q57 q0 q57 q57 q57 q0 q58 q58 q58 q0 q58 q58 q58 q58 q0 q58 q58 q58 q58 q0 q58 q58 q58 q58 q0 q58 q58 q58",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . .",
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . .",
   ". . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . . . . . . q57 q59 . . . . . . . .",
   ". . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . . . . q57 q57 q57 q60 q58 q58 q58 . . . . .",
-  ". . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . . q61 q62 q42 . q45 q44 q43 . q42 q63 q64 . . .",
-  ". . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . . . . F rc F q42 F q42 q42 . . . . ."
+  ". . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . . q61 q62 F . q45 q44 q43 . q42 q63 q64 . . .",
+  ". . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . . . . F rc F q42 F q42 F . . . . ."
  ],
  "legend": {
   "q0": {
@@ -541,7 +541,8 @@
      "params": {
       "slot": 0,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g0.pilot.js"
@@ -566,7 +567,8 @@
      "params": {
       "slot": 1,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g1.pilot.js"
@@ -591,7 +593,8 @@
      "params": {
       "slot": 2,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g2.pilot.js"
@@ -616,7 +619,8 @@
      "params": {
       "slot": 3,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g3.pilot.js"
@@ -641,7 +645,8 @@
      "params": {
       "slot": 4,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g4.pilot.js"
@@ -666,7 +671,8 @@
      "params": {
       "slot": 5,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g5.pilot.js"
@@ -691,7 +697,8 @@
      "params": {
       "slot": 6,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g6.pilot.js"
@@ -716,7 +723,8 @@
      "params": {
       "slot": 7,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g7.pilot.js"
@@ -741,7 +749,8 @@
      "params": {
       "slot": 8,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g8.pilot.js"
@@ -766,7 +775,8 @@
      "params": {
       "slot": 9,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g9.pilot.js"
@@ -791,7 +801,8 @@
      "params": {
       "slot": 10,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g10.pilot.js"
@@ -816,7 +827,8 @@
      "params": {
       "slot": 11,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g11.pilot.js"
@@ -841,7 +853,8 @@
      "params": {
       "slot": 12,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g12.pilot.js"
@@ -866,7 +879,8 @@
      "params": {
       "slot": 13,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g13.pilot.js"
@@ -891,7 +905,8 @@
      "params": {
       "slot": 14,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g14.pilot.js"
@@ -916,7 +931,8 @@
      "params": {
       "slot": 15,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g15.pilot.js"
@@ -941,7 +957,8 @@
      "params": {
       "slot": 16,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g16.pilot.js"
@@ -966,7 +983,8 @@
      "params": {
       "slot": 17,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g17.pilot.js"
@@ -991,7 +1009,8 @@
      "params": {
       "slot": 18,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g18.pilot.js"
@@ -1016,7 +1035,8 @@
      "params": {
       "slot": 19,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g19.pilot.js"
@@ -1041,7 +1061,8 @@
      "params": {
       "slot": 20,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g20.pilot.js"
@@ -1066,7 +1087,8 @@
      "params": {
       "slot": 21,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g21.pilot.js"
@@ -1091,7 +1113,8 @@
      "params": {
       "slot": 22,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g22.pilot.js"
@@ -1116,7 +1139,8 @@
      "params": {
       "slot": 23,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g23.pilot.js"
@@ -1141,7 +1165,8 @@
      "params": {
       "slot": 24,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g24.pilot.js"
@@ -1166,7 +1191,8 @@
      "params": {
       "slot": 25,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g25.pilot.js"
@@ -1191,7 +1217,8 @@
      "params": {
       "slot": 26,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g26.pilot.js"
@@ -1216,7 +1243,8 @@
      "params": {
       "slot": 27,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g27.pilot.js"
@@ -1241,7 +1269,8 @@
      "params": {
       "slot": 28,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g28.pilot.js"
@@ -1266,7 +1295,8 @@
      "params": {
       "slot": 29,
       "flyDraw": 0,
-      "keepOpen": 3000
+      "spare": 1000,
+      "keepOpen": 1000
      },
      "source": {
       "file": "titan-shatter.g29.pilot.js"

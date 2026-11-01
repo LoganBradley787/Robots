@@ -355,9 +355,10 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   // the shelf two cells left of the core, where the ship has four propellers to the right side's three, and 2.2 m from
   // the core, past a cold blast. A hot one reaches the core, but a gunship's pilot never pushes. Further out it flew
   // badly: at the shelf's right end, 3 m from the core, a third of the ships tipped over. The shelf stays whole in
-  // frames: with holes in it the ships lock together as they come apart, and most of them fell. Five batteries stay of
-  // 11, on the right to balance the reactor, and the body's two inner batteries go as holes: the shelf holds what they
-  // held. +5 kg a ship, 150 kg in all: with the king's reactors that is 9.7 percent heavier, just inside the 10 allowed.
+  // frames: with holes in it the ships lock together as they come apart, and most of them fell. Three batteries stay
+  // of 11, on the right to balance the reactor, and the body's two inner cells go as holes: the shelf holds what they
+  // held. That is 19 kJ against 67, because weight decides the first 30 s and energy does not: a ship spends 5 kJ in
+  // that time, and with six batteries, +5 kg a ship, it lost to stock 1-1-4 and 0-1-5. At +1 kg it is even with stock.
   const shipCols = [4, 18, 32]; // each column's left laser mount
   let ships = 0;
   for (let row = 7; row < cells.length; row += 4) {
@@ -365,7 +366,8 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
       for (let dx = 2; dx <= 8; dx++) if (!dense(cells[row][x0 + dx])) throw new Error(`the shelf at row ${row} moved`);
       if (!dense(cells[row - 1][x0 + 3]) || !dense(cells[row - 1][x0 + 7])) throw new Error(`the body at row ${row - 1} moved`);
       cells[row][x0 + 3] = 'rc';
-      for (const dx of [2, 4, 6]) cells[row][x0 + dx] = 'F';
+      for (const dx of [2, 4, 6, 8]) cells[row][x0 + dx] = 'F';
+      cells[row - 1][x0 + 2] = 'F';
       cells[row - 1][x0 + 3] = '.';
       cells[row - 1][x0 + 7] = '.';
       ships++;
@@ -380,10 +382,10 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
     if (!dense(cells[kingRow][col])) throw new Error('the king moved');
     cells[kingRow][col] = 'rc';
   }
-  // Flying is paid for: all that is kept back is `spare`, so a gunship spends its pool on beams at once and then burns
-  // what comes in. flyDraw is what flying costs over its reactor.
+  // Flying is paid for: all that is kept back is `spare`, a tenth of what stock keeps, so a gunship spends its pool on
+  // beams at once and then burns what comes in. flyDraw is what flying costs over its reactor.
   const cores = Object.fromEntries(
-    Object.entries(bp.cores).map(([k, c]) => [k, { ...c, bindings: [...(c.bindings ?? []), SMALL_KEY], scripts: c.scripts.map((s) => ({ ...s, params: { ...s.params, flyDraw: 0, keepOpen: 3000 } })) }]),
+    Object.entries(bp.cores).map(([k, c]) => [k, { ...c, bindings: [...(c.bindings ?? []), SMALL_KEY], scripts: c.scripts.map((s) => ({ ...s, params: { ...s.params, flyDraw: 0, spare: 1000, keepOpen: 1000 } })) }]),
   );
   write({ ...bp, name: 'titan-shatter-r', grid: gridOf(cells), cores, bindings: [...(bp.bindings ?? []), SMALL_KEY] });
 }
