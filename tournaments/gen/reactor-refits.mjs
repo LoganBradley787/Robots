@@ -148,34 +148,58 @@ const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it 
   fs.writeFileSync(path.join(out, pilot), text);
 }
 
-// ---- titan-hive-r: 4 reactors, 4.8 kW against 2.7 kW of hover and about 2 kW of darts. Its pilot counts them. ----
+// ---- titan-hive-r: 5 reactors, 6 kW against 2.7 kW of hover and 3.2 kW of darts from 14 bays. Its pilot counts them. ----
 {
   const bp = read('titan-hive');
   const cells = cellsOf(bp);
-  // The battery band is two rows tall, so each reactor takes its skin row too, under the band. Two each side of the
-  // middle, 17 and 43 m from the core: a hot blast reaches 5 m. Then even about the middle, so it flies as it did.
+  // Measured with stock's 10 bays and 4 reactors its pool stayed full all fight: bays, not energy, set how fast it could
+  // throw darts. So what power buys is more bays: two more each side, on the shoulders beside the old ones, each making
+  // the same dart. They take the shoulder's propellers there, 10 of 346, and move the inner turret out of their way.
+  const legend = { ...bp.legend };
+  const [floor, roof, top] = [7, 6, 1]; // rows of the bay floors, the shoulder's roof, and the walls' top
+  const addBay = (x, n) => {
+    const name = 'ABCDEFGHIJKLMN'[n];
+    const tok = `b${name.toLowerCase()}`;
+    legend[tok] = { ...legend.ba, tags: [`bay${name}`] };
+    [x, x + 2, x + 3].forEach((col) => (cells[floor][col] = '='));
+    cells[floor][x + 1] = tok;
+    for (const col of [x + 1, x + 2]) cells[roof][col] = '.';
+    for (let row = top; row <= roof; row++) for (const col of [x, x + 3]) cells[row][col] = '=';
+  };
+  // The turret is the rotator on the roof and its gun over it.
+  const moveTurret = (from, to) => {
+    for (const row of [roof - 1, roof - 2]) {
+      if (cells[row][from] === '.') throw new Error(`no turret at ${from}`);
+      cells[row][to] = cells[row][from];
+      cells[row][from] = '.';
+    }
+  };
+  moveTurret(26, 20);
+  moveTurret(88, 94);
+  [22, 26, 85, 89].forEach((x, i) => addBay(x, 10 + i));
+  // The battery band is two rows tall, so each reactor takes its skin row too, under the band. Pairs either side of the
+  // middle, 17 and 43 m from the core, and one more outside the near pair on the left, 30 m out: a hot blast reaches
+  // 5 m, and its helm trims for where the weight is. Even about the middle but for that one, so it flies as it did.
   const [row, mid] = [9, 57];
   const placed = [];
-  for (const dx of [17, 43]) {
-    for (const col of [mid - dx - 1, mid + dx - 1]) {
-      putReactorOver(cells, row, col, ['Z', 'F']);
-      placed.push(col);
-    }
+  for (const col of [mid - 18, mid + 16, mid - 44, mid + 42, mid - 31]) {
+    putReactorOver(cells, row, col, ['Z', 'F']);
+    placed.push(col);
   }
-  const under = (6 * DENSE + 3 * FRAME) * placed.length; // what each stood on
-  const take = Math.round((placed.length * REACTOR - under) / DENSE);
+  // 40 batteries stay, 240 kJ, to carry a volley past what comes in. That leaves it heavier than a swap by mass would.
+  const take = 184 - 6 * placed.length - 40;
   // The top row of the band goes first, the bottom row after it, each from the ends in, both sides in turn. One column
-  // in four stays whole: the band is all that ties the skins over and under it together.
+  // in eight stays whole: the band is all that ties the skins over and under it together.
   const spots = [];
   for (const r of [row, row + 1]) {
     for (let d = 52; d >= 8; d--) {
-      if (d % 4 === 1) continue;
+      if (d % 8 === 1) continue;
       spots.push([r, mid - d], [r, mid + d]);
     }
   }
   hollow(cells, spots, take);
   const pilot = 'titan-hive-r.pilot.js';
-  write({ ...bp, name: 'titan-hive-r', grid: gridOf(cells), scripts: bp.scripts.map((s) => (s.id === 'pilot' ? { ...s, source: { file: pilot } } : s)), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+  write({ ...bp, name: 'titan-hive-r', grid: gridOf(cells), legend, scripts: bp.scripts.map((s) => (s.id === 'pilot' ? { ...s, source: { file: pilot } } : s)), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
 
   // What it plans its energy on. Stock holds its darts so the hover reaches the match's end, and with no arena lands to
   // save it. Steady power comes off both, as for the Anvil: with its reactors whole it never needs to land, and it

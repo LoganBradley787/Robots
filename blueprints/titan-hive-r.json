@@ -4,17 +4,17 @@
  "kind": "yours",
  "grid": [
   ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = . . . = . = . . . = . = . . . = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = . . . = ja = . . . = jb = . . . = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .",
-  ". . . . . . m1 . . . . . . . . . . . . . . . . . . . m3 . . . = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = . . . m8 . . . . . . . . . . . . . . . . . . . m10 . . . . . .",
-  ". . . . . . q1 . . . . . . . . . . . . . . . . . . . q3 . . . = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = . . . q8 . . . . . . . . . . . . . . . . . . . q10 . . . . . .",
-  ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = F F F F A A A A A A A F F F F = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
-  ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l F = ba = = = bb = = = bc = = = bd = = = be = = F F F F A A A A A A A F F F F = bf = = = bg = = = bh = = = bi = = = bj = = F r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
+  ". . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = = . . = = . . = . . . = . = . . . = . = . . . = . . = = . . = = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = = . . = = . . = . . . = ja = . . . = jb = . . . = . . = = . . = = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . . . . . . . . . . . . . . . . . = . . = = . . = = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = = . . = = . . = . . . . . . . . . . . . . . . . . . . . . .",
+  ". . . . . . m1 . . . . . . . . . . . . . m3 . = . . = = . . = = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = = . . = = . . = . m8 . . . . . . . . . . . . . m10 . . . . . .",
+  ". . . . . . q1 . . . . . . . . . . . . . q3 . = . . = = . . = = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = = . . = = . . = . q8 . . . . . . . . . . . . . q10 . . . . . .",
+  ". . F F F F F F F F F F F F F F F F F F F F = . . = = . . = = . . = = . . = = . . = = . . = = . . = F F F F A A A A A A A F F F F = . . = = . . = = . . = = . . = = . . = = . . = = . . = F F F F F F F F F F F F F F F F F F F F . .",
+  ". . F l l l l F l l l l F l l l l F l l l l = bk = = = bl = = = ba = = = bb = = = bc = = = bd = = = be = = F F F F A A A A A A A F F F F = bf = = = bg = = = bh = = = bi = = = bj = = = bm = = = bn = = r r r r F r r r r F r r r r F r r r r F . .",
   ". . F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F A A A A A A A F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F F . .",
-  "m11 q11 A Z O . . . Z . . . Z = = = Z . . . Z . . . Z . . . Z . . . Z . . . Z . . = = = . . Z . . . Z . F F F F A A A C A A A F F F F . Z . . . Z . . = = = . . Z . . . Z . . . Z . . . Z . . . Z . . . Z = = = Z . . . Z . . . O Z A q12 m12",
-  ". . A Z O . . . Z . . . Z = = = Z . . . Z . . . Z . . . Z . . . Z . . . Z . . = = = . Z Z Z Z Z Z Z F F F F A A A A A A A F F F F Z Z Z Z Z Z Z Z = = = . . Z . . . Z . . . Z . . . Z . . . Z . . . Z = = = Z . . . Z . . . O Z A . .",
-  ". . F F F F F F F F F F F Rc = = F F F F F F F F F F F F F F F F F F F F F F F Rc = = F F F F F F F F F F F F A A A A A A A F F F F F F F F F F F F Rc = = F F F F F F F F F F F F F F F F F F F F F F F Rc = = F F F F F F F F F F F . .",
+  "m11 q11 A Z O . . . Z . . . . = = = Z . . . . . . . Z . = = = . . . Z . . . . . . = = = . . . . . . Z . F F F F A A A C A A A F F F F . Z . . . . . . = = = . . . . . . Z . . . . . . . Z . . . . . . . Z = = = . . . . Z . . . O Z A q12 m12",
+  ". . A Z O . . . Z . . . . = = = Z . . . . . . . Z . = = = . . . Z . . . . . Z = = = Z Z Z Z Z Z Z Z F F F F A A A A A A A F F F F Z Z Z Z Z Z Z Z = = = Z . . . . . Z . . . . . . . Z . . . . . . . Z = = = . . . . Z . . . O Z A . .",
+  ". . F F F F F F F F F F F Rc = = F F F F F F F F F F Rc = = F F F F F F F F F F Rc = = F F F F F F F F F F F F A A A A A A A F F F F F F F F F F F F Rc = = F F F F F F F F F F F F F F F F F F F F F F F Rc = = F F F F F F F F F F F . .",
   ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l F F F F A A A A A A A F F F F r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
   ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l F F F F F F F F F F F F F F F r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
   ". . F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l l l F l l F F F F F F F F F F F F F F F r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F r r r r F . .",
@@ -384,6 +384,54 @@
    "tags": [
     "tur12",
     "tur12.gun"
+   ]
+  },
+  "bk": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayK"
+   ],
+   "makes": "dart",
+   "size": [
+    2,
+    6
+   ]
+  },
+  "bl": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayL"
+   ],
+   "makes": "dart",
+   "size": [
+    2,
+    6
+   ]
+  },
+  "bm": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayM"
+   ],
+   "makes": "dart",
+   "size": [
+    2,
+    6
+   ]
+  },
+  "bn": {
+   "part": "fabbay",
+   "rot": 0,
+   "tags": [
+    "bayN"
+   ],
+   "makes": "dart",
+   "size": [
+    2,
+    6
    ]
   }
  },
