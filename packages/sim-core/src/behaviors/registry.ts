@@ -34,6 +34,8 @@ export interface BehaviorContext {
   controlled: boolean;
   /** M15: Unlimited energy is on: every request is granted and nothing is taken from the pool. */
   free: boolean;
+  /** The part is in a copy a bay holds (`sealedParts`): nothing it asks for is granted. A joint holds what it carries for nothing, and goes nowhere. */
+  sealed: boolean;
   /** M15: pours `joules` back into the part's chunk (a charged gun draining). What does not fit is lost. */
   giveBack(joules: number): void;
   /** M12, fabricators: what the part's recipe costs (seconds of build, joules), or undefined when it makes nothing. */

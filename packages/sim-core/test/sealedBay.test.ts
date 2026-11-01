@@ -1,10 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import variant from '@jitl/quickjs-wasmfile-release-sync';
+import { readFileSync } from 'node:fs';
+import flatJson from '../../../worlds/flat.json';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World } from '../src/world/World';
 import type { PartInstance, Robot } from '../src/world/Robot';
 import { createQuickJsHost } from '../src/script/quickjs';
 import type { ScriptHost } from '../src/script/types';
+import { resolveScripts } from '../src/blueprint/scripts';
 
 // No gravity, so a robot stays where it is put and only the energy moves.
 const space = parseWorldFile({ name: 'space', ground: { width: 10, thickness: 2 }, spawn: { x: 0, y: 100 }, boxes: [] });
@@ -134,6 +137,23 @@ describe('sealed bays: what a bay holds stays out of its carrier', () => {
     expect(w.energy(r.id)?.used).toBe(used);
     expect(charge(held(r))).toBe(FULL);
     expect(w.physics.state(r.groups[0]?.bodyId ?? 0).y).toBeCloseTo(at, 6);
+    w.dispose();
+  });
+
+  it('a joint in a held copy holds what it carries for nothing: a turret does not swing about in its bay', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, parseWorldFile(flatJson));
+    const bpFile = (file: string): string => readFileSync(new URL(`../../../blueprints/${file}`, import.meta.url), 'utf8');
+    const r = w.spawnBlueprint(resolveScripts(JSON.parse(bpFile('enemy-hunter-carrier.json')), bpFile).raw, { x: -100, y: 30 });
+    untilBuilt(w);
+    const rotators = held(r).filter((p) => p.def.behavior === 'rotator');
+    expect(rotators.length).toBeGreaterThan(0);
+    for (let i = 0; i < 200; i++) {
+      w.step();
+      for (const p of rotators) {
+        const joint = r.groups[p.group]?.joint;
+        if (joint) expect(Math.abs(w.physics.jointAngle(joint.jointId))).toBeLessThan(0.1);
+      }
+    }
     w.dispose();
   });
 

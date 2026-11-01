@@ -21,7 +21,7 @@ export const rotator: Behavior = {
     // Locked, or its base was shot away: nothing to turn against.
     if (!joint || !spec || joint.partId !== ctx.part.id) return undefined;
     const range = ctx.config('range');
-    const turn = ctx.value('turn');
+    const turn = ctx.sealed ? 0 : ctx.value('turn');
     const actual = ctx.physics.jointAngle(joint.jointId);
     const mp = ctx.physics.massProperties(ctx.group.bodyId);
     // The body's origin is the rotator's cell: the hinge.
@@ -48,7 +48,7 @@ export const rotator: Behavior = {
     const integral = (stiffness * f) / 4;
     const need = Math.abs(stiffness * wrapAngle(next - actual)) / spec.maxTorque;
     return {
-      load: Math.min(1, Math.max(Math.abs(turn), need)),
+      load: ctx.sealed ? 0 : Math.min(1, Math.max(Math.abs(turn), need)),
       run(grant) {
         if (grant > 0) ctx.part.aim = next;
         ctx.physics.setPositionMotor(joint.jointId, ctx.part.aim ?? 0, stiffness, damping, spec.maxTorque * grant, grant > 0 ? rate : 0, integral);

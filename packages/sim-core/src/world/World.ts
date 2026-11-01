@@ -3555,8 +3555,8 @@ export class World {
       }
       const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0, list));
       if (list.power) (list.drew ??= []).push(planned);
-      // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds. A sealed part is in
-      // no chunk's pool, so what it asks for is never granted.
+      // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds. A sealed part has no
+      // chunk's pool to draw on, so what it asks for is never granted.
       for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
       const back = list.back as Map<number, number> | undefined;
       list.back = undefined;
@@ -3606,6 +3606,7 @@ export class World {
           config: (key) => part.def.behaviorConfig?.[key] ?? 0,
           controlled: false,
           free: false,
+          sealed: chunk === NO_CHUNK,
           detach: (face, impulse) => this.detach(robot, part, face, impulse),
           giveBack: (joules) => {
             if (!(joules > 0)) return;

@@ -24,7 +24,7 @@ export const piston: Behavior = {
     if (!joint || !spec || joint.partId !== ctx.part.id) return undefined;
     const stroke = ctx.config('stroke');
     const maxForce = spec.maxForce ?? 0;
-    const extend = ctx.value('extend');
+    const extend = ctx.sealed ? 0 : ctx.value('extend');
     const actual = ctx.physics.sliderPosition(joint.jointId);
     // The gains follow the mass being moved: the head's own and all it carries by joints (a rotator and its laser),
     // plus the weight the motor has learned to carry (a car on it). A fixed gain that suits a light head would ring
@@ -58,7 +58,7 @@ export const piston: Behavior = {
     // Holding a load up costs energy too: the weight of what the head carries, as a share of the force cap.
     const hold = ((head + carried) * Math.abs(ctx.physics.gravityY)) / maxForce;
     return {
-      load: Math.min(1, Math.max(Math.abs(extend), need, hold)),
+      load: ctx.sealed ? 0 : Math.min(1, Math.max(Math.abs(extend), need, hold)),
       run(grant) {
         if (grant > 0) ctx.part.aim = next;
         ctx.physics.setSliderMotor(joint.jointId, ctx.part.aim ?? 0, grant > 0 ? rate : 0, stiffness, damping, maxForce * grant, integral, head);
