@@ -678,8 +678,15 @@ function rollHurt(wantVx, dt) {
 function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt) {
   jetsNow();
   if (rollGround) rollHurt(wantVx, dt);
+  else if (sitting && Math.abs(self.angle) < 1) for (const j of state.jets) j.u = 0; // down where it means to be, on whatever it rests on
   else {
-    const left = wrapA(self.angle - lean);
+    let left = wrapA(self.angle - lean);
+    // Near upside down the end it kept is the way round: it turns it and holds it up, where the short way round would
+    // be the lift rows driving it at the ground.
+    if (state.righting && Math.abs(left) > 2.2) {
+      const strong = state.reachPlus > 1.5 * state.reachMinus ? 1 : state.reachMinus > 1.5 * state.reachPlus ? -1 : 0;
+      if (strong * left > 0) left -= Math.sign(left) * 2 * Math.PI;
+    }
     const brakeBy = Math.max(0.03, (0.5 * (left > 0 ? state.reachPlus : state.reachMinus)) / state.hullI);
     const spin = -Math.sign(left) * Math.min(0.9, 1.4 * Math.abs(left), Math.sqrt(2 * brakeBy * Math.abs(left)));
     const up = sitting || cut ? 0 : self.mass * (9.81 + ay);

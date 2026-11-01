@@ -64,6 +64,7 @@ const breakOff = param('breakOff', 0.8, { min: 0.2, max: 10 }); // s pressed int
 const heavy = param('heavy', 1.3, { min: 0.1, max: 5 }); // an enemy over this share of its own mass is not rammed
 const roofGap = param('roofGap', 25, { min: 5, max: 200 }); // m the core keeps under the arena's ceiling
 const reserve = param('reserve', 0.05, { min: 0, max: 0.5 }); // share of energy kept for landing
+const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it waits for on the ground before rising again
 const edgeGap = param('edgeGap', 50, { min: 20, max: 500 }); // m the core keeps inside the arena's side edges
 const hideHeight = param('hideHeight', 200, { min: 50, max: 230 }); // m: where it waits out an enemy too heavy to ram
 const lapEnd = param('lapEnd', 700, { min: 100, max: 900 }); // m from where it last saw the enemy that a search sweeps, with no arena
@@ -678,8 +679,15 @@ function rollHurt(wantVx, dt) {
 function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt) {
   jetsNow();
   if (rollGround) rollHurt(wantVx, dt);
+  else if (sitting && Math.abs(self.angle) < 1) for (const j of state.jets) j.u = 0; // down where it means to be, on whatever it rests on
   else {
-    const left = wrapA(self.angle - lean);
+    let left = wrapA(self.angle - lean);
+    // Near upside down the end it kept is the way round: it turns it and holds it up, where the short way round would
+    // be the lift rows driving it at the ground.
+    if (state.righting && Math.abs(left) > 2.2) {
+      const strong = state.reachPlus > 1.5 * state.reachMinus ? 1 : state.reachMinus > 1.5 * state.reachPlus ? -1 : 0;
+      if (strong * left > 0) left -= Math.sign(left) * 2 * Math.PI;
+    }
     const brakeBy = Math.max(0.03, (0.5 * (left > 0 ? state.reachPlus : state.reachMinus)) / state.hullI);
     const spin = -Math.sign(left) * Math.min(0.9, 1.4 * Math.abs(left), Math.sqrt(2 * brakeBy * Math.abs(left)));
     const up = sitting || cut ? 0 : self.mass * (9.81 + ay);
@@ -1773,13 +1781,15 @@ function tick() {
   state.zapOut = false;
   state.perched = false;
   state.gunLean = null;
+  if (charge >= restTo) state.resting = false;
   const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
   // Hidden from the radar while raking or finishing it: it goes on with that where it was last seen (see below).
   const stickyHidden = !target && state.mainId >= 0 && state.last && state.shape && time - state.last.t < 30 && (state.rakeId === state.mainId || (state.zapping && state.zapId === state.mainId));
   if (state.won && !target) {
     plan('done: landing, watching for the next enemy');
     land = true;
-  } else if (charge < reserve) {
+  } else if (charge < (state.resting ? restTo : reserve)) {
+    state.resting = true;
     plan('low energy: landing');
     land = true;
   } else if (target && target.m > heavy * m && shape && ((local > 0.5 && Math.min(shape.L, shape.R) <= thin) || (pushTop > 0.5 && shape.high > tall))) {

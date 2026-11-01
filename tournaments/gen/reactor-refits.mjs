@@ -120,6 +120,18 @@ function patch(text, from, to) {
 `);
   text = patch(text, '    const spare = self.energy.stored - zapKeep * hoverPower * timeLeft;\n', '    const spare = self.energy.stored - (zapKeep * hoverPower - state.steady) * timeLeft;\n');
   text = patch(text, '    const spareB = self.energy.stored - hoverPower * timeLeft;\n', '    const spareB = self.energy.stored - (hoverPower - state.steady) * timeLeft;\n');
+  // Down on its reserve it rises again, power coming in, but only with something to fight with: taking off at the reserve
+  // spent what had come in, and it lay there going up and down on the throttle for the rest of the match.
+  text = patch(text, "const reserve = param('reserve', 0.05, { min: 0, max: 0.5 }); // share of energy kept for landing\n", `const reserve = param('reserve', 0.05, { min: 0, max: 0.5 }); // share of energy kept for landing
+const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it waits for on the ground before rising again
+`);
+  text = patch(text, "  } else if (charge < reserve) {\n    plan('low energy: landing');\n", `  } else if (charge < (state.resting ? restTo : reserve)) {
+    state.resting = true;
+    plan('low energy: landing');
+`);
+  text = patch(text, '  const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand\n', `  if (charge >= restTo) state.resting = false;
+  const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
+`);
   fs.writeFileSync(path.join(out, pilot), text);
 }
 
