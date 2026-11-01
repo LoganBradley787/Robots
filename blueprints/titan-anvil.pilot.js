@@ -445,7 +445,7 @@ function runGuns() {
 
 // Hurt (anvil-rollover, 2026-11-01, Logan: a badly hurt Anvil rolls over and sticks). Every rule below `Level` is two
 // sided: the lift halves share an arm, each end turns it its own way, the push boosters run through its center of mass.
-// A lost side breaks all of it at once. Measured on a hull with its right third gone (8.3 t): the end left gives 0.7
+// A lost side breaks all of it at once. Worked out for a hull with its right third gone (8.3 t): the end left gives 0.7
 // rad/s² one way, everything left gives under 0.2 the other, the center of mass is 12 m from the core, and it has a
 // third of the inertia the rules still counted. So each time it fired that end, it could not stop: it cartwheeled at 1.4
 // rad/s until it hit the ground, and there the rule that asks for the end on the short way up fired nothing at all.
