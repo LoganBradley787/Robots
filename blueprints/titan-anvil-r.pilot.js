@@ -51,6 +51,7 @@
 //   stopped breaking things drop the lids and bring the lasers out, each on its own part (see Burning). A rake that
 //   stopped working moves to another spot and angle (see rake). Something else tearing it up takes over as the main enemy
 //   (see Threats).
+// - Hurt (anvil-rollover, 2026-11-01): a hull that lost a side reads what it has left and flies on that (see Hurt).
 // - The edge (titans v2, 2026-10): every limit on where it goes comes from the global `arena` (`{ x, y }`, or null in
 //   the open sandbox, where it goes wherever its target goes). Time planning (`match`) only applies with an arena.
 
@@ -160,6 +161,8 @@ const threatMass = param('threatMass', 1000, { min: 0, max: 100000 }); // kg: no
 const threatHold = param('threatHold', 20, { min: 3, max: 120 }); // s it stays on a threat that has stopped hurting it
 const threatNear = param('threatNear', 400, { min: 50, max: 1500 }); // m: a lighter enemy this near while it is losing parts is the one doing it
 const threatDarts = param('threatDarts', 3, { min: 1, max: 100 }); // darts in the air from one enemy that make it the one doing it
+const hurtShare = param('hurtShare', 0.4, { min: 0, max: 1 }); // share of an end, a lift half or a push side lost, against the other, that counts as hurt
+const hurtParts = param('hurtParts', 0.3, { min: 0, max: 1 }); // or share of all its parts
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
@@ -318,6 +321,15 @@ function setup() {
   state.rollDir = 0; // the way it is turning itself over on the ground (1: counterclockwise)
   state.rollAt = 0;
   state.rollTries = 0;
+  state.hurt = false; // lost enough on one side that the two-sided rules no longer hold (see Hurt)
+  state.hullN = parts.length;
+  state.hullAt = 0;
+  state.jets = [];
+  state.hullPts = [];
+  state.rollTurn = 0; // how far it has turned on the ground, and where and when that last got anywhere
+  state.rollMark = 0;
+  state.rollMarkAt = 0;
+  state.rollBad = [0, 0]; // until when each way over counts as tried: counterclockwise, clockwise
 }
 
 function plan(name) {
@@ -334,6 +346,7 @@ function runGuns() {
     pods = [];
     gunParts = parts.length;
     let lifts = 0;
+    let la = 0;
     let pa = 0;
     let pb = 0;
     let endPlus = 0;
@@ -358,7 +371,10 @@ function runGuns() {
         else if (t.indexOf('pb') >= 0) pb++;
         else if (t.indexOf('ra') >= 0) endPlus += Math.abs((p.pos.x - self.pos.x) * ca + (p.pos.y - self.pos.y) * sa) * 400;
         else if (t.indexOf('rb') >= 0) endMinus += Math.abs((p.pos.x - self.pos.x) * ca + (p.pos.y - self.pos.y) * sa) * 400;
-        else lifts++;
+        else {
+          lifts++;
+          if (t.indexOf('la') >= 0) la++;
+        }
       }
     }
     // Each laser with the rotator and the piston over it (the nearest of each).
@@ -378,6 +394,8 @@ function runGuns() {
       zaps.push({ laser: l, rot, push: nearest(pushes, l), lids: mine, lidAt: old ? old.lidAt : undefined, sign: old ? old.sign : undefined, aim: old ? old.aim : null });
     }
     state.liftForce = Math.max(lifts * 400, 1);
+    state.liftA = la;
+    state.liftB = lifts - la;
     state.endPlus = state.raPlus ? endPlus : endMinus;
     state.endMinus = state.raPlus ? endMinus : endPlus;
     state.pushRight = Math.max((state.paDir > 0 ? pa : pb) * 400, 1); // push toward +x
@@ -419,6 +437,234 @@ function runGuns() {
     pings.push({ lo, hi, ylo, t: time });
     if (pings.length > 300) pings.shift();
   }
+}
+
+// Hurt (anvil-rollover, 2026-11-01, Logan: a badly hurt Anvil rolls over and sticks). Every rule below `Level` is two
+// sided: the lift halves share an arm, each end turns it its own way, the push boosters run through its center of mass.
+// A lost side breaks all of it at once. Measured on a hull with its right third gone (8.3 t): the end left gives 0.7
+// rad/s² one way, everything left gives under 0.2 the other, the center of mass is 12 m from the core, and it has a
+// third of the inertia the rules still counted. So each time it fired that end, it could not stop: it cartwheeled at 1.4
+// rad/s until it hit the ground, and there the rule that asks for the end on the short way up fired nothing at all.
+// Now past `hurtShare` of an end, a lift half or a push side gone (or `hurtParts` of the hull), it reads the six booster
+// groups off its own parts, and each tick shares out what it wants among whichever can give it (flyHurt).
+function readHull() {
+  const ca = Math.cos(self.angle);
+  const sa = Math.sin(self.angle);
+  const tags = ['la', 'lb', 'pa', 'pb', 'ra', 'rb'];
+  const sum = tags.map(() => ({ n: 0, x: 0, y: 0 }));
+  let m = 0;
+  let cx = 0;
+  let cy = 0;
+  let low = 1e9;
+  let high = -1e9;
+  const lo = {};
+  const hi = {};
+  const body = [];
+  for (const p of parts) {
+    const dx = p.pos.x - self.pos.x;
+    const dy = p.pos.y - self.pos.y;
+    const lx = dx * ca + dy * sa;
+    const ly = dy * ca - dx * sa;
+    body.push(lx, ly, p.mass);
+    m += p.mass;
+    cx += p.mass * lx;
+    cy += p.mass * ly;
+    if (ly < low) low = ly;
+    if (ly > high) high = ly;
+    const k = Math.round(ly);
+    if (lo[k] === undefined || lx < lo[k]) lo[k] = lx;
+    if (hi[k] === undefined || lx > hi[k]) hi[k] = lx;
+    if (p.type === 'booster') {
+      const i = tags.indexOf(p.tags[0]);
+      if (i >= 0) {
+        sum[i].n++;
+        sum[i].x += lx;
+        sum[i].y += ly;
+      }
+    }
+  }
+  cx /= m;
+  cy /= m;
+  let inertia = 0;
+  for (let i = 0; i < body.length; i += 3) inertia += body[i + 2] * ((body[i] - cx) ** 2 + (body[i + 1] - cy) ** 2);
+  // Its outline, row by row, from its center of mass (half a cell out): enough to find what touches the ground.
+  const pts = [];
+  for (const k of Object.keys(lo)) {
+    pts.push({ x: lo[k] - 0.5 - cx, y: Number(k) - cy });
+    pts.push({ x: hi[k] + 0.5 - cx, y: Number(k) - cy });
+  }
+  state.hullPts = pts;
+  state.hullI = Math.max(inertia, 1);
+  state.inertia = state.hullI;
+  state.comX = cx;
+  state.comUp = cy;
+  state.bottom = 0.5 - low;
+  state.top = high + 0.5;
+  const dirs = [[0, 1], [0, 1], [state.paDir, 0], [-state.paDir, 0], [0, -1], [0, -1]];
+  state.jets = [];
+  tags.forEach((tag, i) => {
+    const g = sum[i];
+    if (g.n === 0) return;
+    const rx = g.x / g.n - cx;
+    const ry = g.y / g.n - cy;
+    const f = g.n * 400;
+    state.jets.push({ tag, f, rx, ry, dx: dirs[i][0], dy: dirs[i][1], turn: f * (rx * dirs[i][1] - ry * dirs[i][0]), end: i >= 4, side: i === 2 || i === 3, u: 0, wx: 0, wy: 0, fx: 0, fy: 0 });
+  });
+  state.reachPlus = 0; // N m it can turn itself with, each way
+  state.reachMinus = 0;
+  for (const j of state.jets) {
+    if (j.turn > 0) state.reachPlus += j.turn;
+    else state.reachMinus -= j.turn;
+  }
+}
+
+function hullCheck() {
+  if (state.hullN === parts.length || time - state.hullAt < 0.5) return;
+  state.hullN = parts.length;
+  state.hullAt = time;
+  if (!state.hurt) {
+    const off = (a, b) => Math.min(a, b) < (1 - hurtShare) * Math.max(a, b);
+    if (!off(state.endPlus, state.endMinus) && !off(state.liftA, state.liftB) && !off(state.pushRight, state.pushLeft) && parts.length >= (1 - hurtParts) * state.partCount0) return;
+    state.hurt = true;
+    if (say > 0.5) log('hurt: flying on what it has left, parts', parts.length, 'of', state.partCount0);
+  }
+  readHull();
+}
+
+// Each booster group's push and place in the world this tick, from its center of mass.
+function jetsNow() {
+  const ca = Math.cos(self.angle);
+  const sa = Math.sin(self.angle);
+  for (const j of state.jets) {
+    j.fx = (j.dx * ca - j.dy * sa) * j.f;
+    j.fy = (j.dx * sa + j.dy * ca) * j.f;
+    j.wx = j.rx * ca - j.ry * sa;
+    j.wy = j.rx * sa + j.ry * ca;
+  }
+}
+
+// The hull's lowest point over the core's height, off its outline.
+function lowOf() {
+  const ca = Math.cos(self.angle);
+  const sa = Math.sin(self.angle);
+  let lo = 1e9;
+  for (const p of state.hullPts) {
+    const py = p.x * sa + p.y * ca;
+    if (py < lo) lo = py;
+  }
+  return lo + state.comX * sa + state.comUp * ca;
+}
+
+// What it wants, shared among the groups it has: throttles for a turn (N m), a push up and a push along, by best fit,
+// a few passes from last tick's answer. Up counts every group as it points now; along only the push boosters, since the
+// lift rows' share of a lean is meant. The ends join only for a turn the others could not give: they cost lift.
+function share(turn, up, along, firm) {
+  const reach = Math.sqrt(state.hullI / Math.max(self.mass, 1));
+  const kT = firm / reach;
+  let rT = turn * kT;
+  let rY = up;
+  let rX = along * 0.3;
+  const jets = state.jets;
+  for (const j of jets) {
+    if (j.end) j.u = 0;
+    rT -= j.turn * kT * j.u;
+    rY -= j.fy * j.u;
+    if (j.side) rX -= j.fx * 0.3 * j.u;
+  }
+  for (let pass = 0; pass < 8; pass++) {
+    if (pass === 4 && Math.abs(rT) < 0.05 * self.mass * 9.81 * firm) break;
+    for (const j of jets) {
+      if (j.end && pass < 4) continue;
+      const aT = j.turn * kT;
+      const aY = j.fy;
+      const aX = j.side ? j.fx * 0.3 : 0;
+      const u = clamp(j.u + (aT * rT + aY * rY + aX * rX) / (aT * aT + aY * aY + aX * aX + 1), 0, 1);
+      const du = u - j.u;
+      j.u = u;
+      rT -= aT * du;
+      rY -= aY * du;
+      rX -= aX * du;
+    }
+  }
+}
+
+// Over on the ground, hurt. To tip about a corner a group must lift (a push up, on the far side of the corner from the
+// center of mass) or turn it where it stands; a push along only slides it (the ground's grip is about 0.11), so that
+// counts about the center of mass. `over` adds that up each way, less the weight to raise. The short way up goes first
+// if it can be done; else the other, which ends on a face it can rise from. A way that gets nowhere in 3 s is left alone
+// for 8 s. Neither can be done: it slides at what it was after, every gun firing, and goes on trying.
+function rollHurt(wantVx, dt) {
+  const ca = Math.cos(self.angle);
+  const sa = Math.sin(self.angle);
+  const weight = self.mass * 9.81;
+  let lo = 1e9;
+  const ws = [];
+  for (const p of state.hullPts) {
+    const py = p.x * sa + p.y * ca;
+    ws.push(py);
+    if (py < lo) lo = py;
+  }
+  let xl = 1e9;
+  let xr = -1e9;
+  state.hullPts.forEach((p, i) => {
+    if (ws[i] > lo + 1.5) return;
+    const px = p.x * ca - p.y * sa;
+    if (px < xl) xl = px;
+    if (px > xr) xr = px;
+  });
+  const tip = (j, xp) => (j.wx - xp) * j.fy - j.wy * j.fx;
+  const over = (dir, xp) => {
+    let s = dir * xp * weight;
+    for (const j of state.jets) s += Math.max(0, dir * tip(j, xp));
+    return s;
+  };
+  const plus = over(1, xl);
+  const minus = over(-1, xr);
+  state.rollTurn += self.angVel * dt;
+  if (state.rollDir !== 0) {
+    if (state.rollDir * (state.rollTurn - state.rollMark) > 0.05) {
+      state.rollMark = state.rollTurn;
+      state.rollMarkAt = time;
+    } else if (time - state.rollMarkAt > 3) {
+      state.rollBad[state.rollDir > 0 ? 0 : 1] = time + 8;
+      state.rollDir = 0;
+    }
+  }
+  if (state.rollDir === 0) {
+    const short = self.angle > 0 ? -1 : 1;
+    const can = (d) => (d > 0 ? plus : minus) > 0 && state.rollBad[d > 0 ? 0 : 1] < time;
+    state.rollDir = can(short) ? short : can(-short) ? -short : 0;
+    state.rollMark = state.rollTurn;
+    state.rollMarkAt = time;
+    if (say > 0.5) log('hurt, over: going', state.rollDir, 'angle', self.angle.toFixed(2), 'room', (plus / 1000).toFixed(0), (minus / 1000).toFixed(0), 'kN m');
+  }
+  const dir = state.rollDir;
+  const xp = dir > 0 ? xl : xr;
+  const out = arena ? Math.sign(self.pos.x) : 0;
+  const nearEdge = arena && Math.abs(self.pos.x) > arena.x - 250;
+  for (const j of state.jets) {
+    const toEdge = nearEdge && j.fx * out > 0.5 * j.f;
+    if (dir !== 0) j.u = dir * tip(j, xp) > 0 && !toEdge ? 1 : 0;
+    else j.u = j.fx * (wantVx - self.vel.x) > 0 && !toEdge ? 1 : 0;
+  }
+}
+
+// Flying hurt. A turn is asked for as a spin it could still stop from: the spin wanted falls with the root of the angle
+// left, by what it can brake with that way, not what it can speed up with (the end it kept gives four times the other way).
+function flyHurt(ay, wantVx, lean, rollGround, sitting, cut, dt) {
+  jetsNow();
+  if (rollGround) rollHurt(wantVx, dt);
+  else {
+    const left = wrapA(self.angle - lean);
+    const brakeBy = Math.max(0.03, (0.5 * (left > 0 ? state.reachPlus : state.reachMinus)) / state.hullI);
+    const spin = -Math.sign(left) * Math.min(0.9, 1.4 * Math.abs(left), Math.sqrt(2 * brakeBy * Math.abs(left)));
+    const up = sitting || cut ? 0 : self.mass * (9.81 + ay);
+    const dvx = wantVx - self.vel.x;
+    const along = clamp(0.6 * dvx, -1, 1) * (dvx > 0 ? state.pushRight : state.pushLeft);
+    share(state.hullI * 3 * (spin - self.angVel), up, along, state.righting ? 4 : 2);
+  }
+  for (const j of state.jets) if (j.u > 0) set(j.tag, 'throttle', j.u);
+  state.push = 0;
 }
 
 // The faces whose guns all fire this tick (titans round 7, 2026-10): [right, up, left, down] in its own frame, so a
@@ -935,6 +1181,7 @@ function tick() {
     }
   }
   runGuns();
+  hullCheck();
   if (main && time - state.shapeAt > 2) measure(main);
   if (time - state.mineAt > 1) {
     state.mine = faces(parts, self.pos.x, self.pos.y);
@@ -1824,8 +2071,8 @@ function tick() {
   // Guns all fire while it is at it (volleyFaces). `rollGround`: on the ground and not yet near level.
   const sinA = Math.sin(self.angle);
   const cosA = Math.cos(self.angle);
-  const lowest = y - state.halfWidth * Math.abs(sinA) + Math.min(-state.bottom * cosA, state.top * cosA);
   const absA = Math.abs(self.angle);
+  const lowest = state.hurt && (state.righting || absA > 0.7) ? y + lowOf() : y - state.halfWidth * Math.abs(sinA) + Math.min(-state.bottom * cosA, state.top * cosA);
   if (!state.righting && (absA > 1.05 || (absA > 0.7 && self.angle * self.angVel > 0.1))) {
     state.righting = true;
     state.rollDir = 0;
@@ -1841,7 +2088,7 @@ function tick() {
     state.escape = null;
     state.unstick = time + 1;
   }
-  if (rollGround) {
+  if (rollGround && !state.hurt) {
     // Flat on its back either way will do: the end with more left, and the other one if that does not move it.
     if (absA < 3) state.rollDir = self.angle > 0 ? -1 : 1;
     else if (state.rollDir === 0 || time - state.rollAt > 4) {
@@ -1968,75 +2215,78 @@ function tick() {
     if (need > 0) lean = -Math.sign(dvx) * Math.min(most, Math.atan(need / 9.81));
   }
   if (state.righting) lean = 0;
-  // Upside down (past about 80 degrees) the lift rows push it toward the ground: only the difference that turns it
-  // back is kept (titans round 6, 2026-10: it doubled them there, and drove itself onto its back).
-  let lift = Math.cos(self.angle) > 0.2 ? (m * (9.81 + ay)) / state.liftForce / Math.max(0.5, Math.cos(self.angle)) : 0;
-  if (land && room < 0.4 && Math.abs(vy) < 1) lift = 0; // sitting on the ground
-  if (cut) lift = 0;
+  if (state.hurt) flyHurt(ay, wantVx, lean, rollGround, land && room < 0.4 && Math.abs(vy) < 1, cut, dt);
+  else {
+    // Upside down (past about 80 degrees) the lift rows push it toward the ground: only the difference that turns it
+    // back is kept (titans round 6, 2026-10: it doubled them there, and drove itself onto its back).
+    let lift = Math.cos(self.angle) > 0.2 ? (m * (9.81 + ay)) / state.liftForce / Math.max(0.5, Math.cos(self.angle)) : 0;
+    if (land && room < 0.4 && Math.abs(vy) < 1) lift = 0; // sitting on the ground
+    if (cut) lift = 0;
 
-  // Level (or the lean): a spring and damper on the tilt, through the difference between the two lift halves, plus
-  // what cancels the push boosters' own turning.
-  const w = 1.4;
-  // Where it will be in 2 / w s, wrapped: spinning past upside down, it goes on the way it is going. Rolled over it
-  // has about 0.3 rad/s² to stop with: it counts that too, or it swung 47 degrees past level.
-  const stopIn = state.righting ? 1.7 * Math.abs(self.angVel) : 0;
-  const torque = state.inertia * -w * w * wrapA(self.angle - lean + ((2 / w) + stopIn) * self.angVel) + state.pushArm * state.push;
-  // The difference between the halves comes out of spare lift only, so leaning never costs height (a level-out
-  // from a big tilt may take a little more). In a free fall it keeps just enough lift on one half to steer the tilt.
-  // Tipping over (a spin from a hit, or a tilt well past the lean): all it has goes into righting, height or not.
-  const tipping = Math.abs(self.angle) > Math.abs(lean) + 0.2 || Math.abs(self.angVel) > 0.12;
-  // Upside down the half that turns it also drives it at the ground: less of that, and the righting boosters hold it up.
-  const inverted = state.righting ? clamp(-Math.cos(self.angle), 0, 1) : 0;
-  const cap = tipping ? 0.5 - 0.35 * inverted : Math.abs(self.angle - lean) > 0.3 ? 0.35 : clamp(1 - lift, 0.12, 0.35);
-  // Never at the cost of height when low (anvil-hard, 2026-10-29): starting a lean, or a lean it wanted going to 0
-  // while tilted 0.35 rad, counted as tipping, so one lift half went to 0 and the other to full, half of what holds it
-  // up, and from 60 m it fell onto the ground in 4 to 7 s (the contact crash model broke its core row in the skid).
-  // Low or falling, and not past 45 degrees, the difference is held to the lift it can spare over hovering.
-  const hoverNeed = (m * 9.81) / state.liftForce / Math.max(0.5, Math.cos(self.angle));
-  const capped = (y - floor < keepLow || vy < -8) && Math.abs(self.angle) < 0.8 ? Math.min(cap, Math.max(0.08, 1 - hoverNeed - 0.05)) : cap;
-  const diff = clamp(torque / state.leanTorque, -capped, capped);
-  // Near the ceiling while still climbing, nothing is kept on: only a cut lift stops the climb in time (a kept half
-  // let it coast through the arena's roof, titans v2, 2026-10).
-  const keep = y > ceiling - 60 && vy > 0 && Math.cos(self.angle) > 0 ? 0 : Math.abs(diff);
-  lift = clamp(lift, keep, 1 - Math.abs(diff));
-  // On its side (a hit rolled it past 60 degrees) the lift rows push it along more than up: lying on the ground on
-  // its side, a brick slid out of the arena on them at 84 m/s (titans v3, 2026-10). They are cut while that push
-  // heads for the nearer edge and it is already going that way or near it.
-  const sideways = -Math.sin(self.angle);
-  // Only near the ground (titans round 6, 2026-10): in the air this cut the lift halves' turning too, and a brick
-  // spun by a hit rolled on through its side onto its back.
-  if (arena && Math.abs(self.angle) > 1.05 && y < state.halfWidth + 6 && sideways * x > 0 && (vx * sideways > 5 || edge - Math.abs(x) < 300)) lift = 0;
-  // What the lift halves could not give comes from the righting boosters. On the ground (rolled, on a corner or a
-  // face) the lift rows only press it down or roll it onto its back: one end does it alone (see Righting).
-  let endTurn = state.righting || Math.abs(self.angVel) > 0.3 ? clamp((torque - diff * state.leanTorque) / Math.max(1, torque > 0 ? state.endPlus : state.endMinus), -1, 1) : 0;
-  if (rollGround) {
-    lift = 0;
-    endTurn = state.rollDir;
+    // Level (or the lean): a spring and damper on the tilt, through the difference between the two lift halves, plus
+    // what cancels the push boosters' own turning.
+    const w = 1.4;
+    // Where it will be in 2 / w s, wrapped: spinning past upside down, it goes on the way it is going. Rolled over it
+    // has about 0.3 rad/s² to stop with: it counts that too, or it swung 47 degrees past level.
+    const stopIn = state.righting ? 1.7 * Math.abs(self.angVel) : 0;
+    const torque = state.inertia * -w * w * wrapA(self.angle - lean + ((2 / w) + stopIn) * self.angVel) + state.pushArm * state.push;
+    // The difference between the halves comes out of spare lift only, so leaning never costs height (a level-out
+    // from a big tilt may take a little more). In a free fall it keeps just enough lift on one half to steer the tilt.
+    // Tipping over (a spin from a hit, or a tilt well past the lean): all it has goes into righting, height or not.
+    const tipping = Math.abs(self.angle) > Math.abs(lean) + 0.2 || Math.abs(self.angVel) > 0.12;
+    // Upside down the half that turns it also drives it at the ground: less of that, and the righting boosters hold it up.
+    const inverted = state.righting ? clamp(-Math.cos(self.angle), 0, 1) : 0;
+    const cap = tipping ? 0.5 - 0.35 * inverted : Math.abs(self.angle - lean) > 0.3 ? 0.35 : clamp(1 - lift, 0.12, 0.35);
+    // Never at the cost of height when low (anvil-hard, 2026-10-29): starting a lean, or a lean it wanted going to 0
+    // while tilted 0.35 rad, counted as tipping, so one lift half went to 0 and the other to full, half of what holds it
+    // up, and from 60 m it fell onto the ground in 4 to 7 s (the contact crash model broke its core row in the skid).
+    // Low or falling, and not past 45 degrees, the difference is held to the lift it can spare over hovering.
+    const hoverNeed = (m * 9.81) / state.liftForce / Math.max(0.5, Math.cos(self.angle));
+    const capped = (y - floor < keepLow || vy < -8) && Math.abs(self.angle) < 0.8 ? Math.min(cap, Math.max(0.08, 1 - hoverNeed - 0.05)) : cap;
+    const diff = clamp(torque / state.leanTorque, -capped, capped);
+    // Near the ceiling while still climbing, nothing is kept on: only a cut lift stops the climb in time (a kept half
+    // let it coast through the arena's roof, titans v2, 2026-10).
+    const keep = y > ceiling - 60 && vy > 0 && Math.cos(self.angle) > 0 ? 0 : Math.abs(diff);
+    lift = clamp(lift, keep, 1 - Math.abs(diff));
+    // On its side (a hit rolled it past 60 degrees) the lift rows push it along more than up: lying on the ground on
+    // its side, a brick slid out of the arena on them at 84 m/s (titans v3, 2026-10). They are cut while that push
+    // heads for the nearer edge and it is already going that way or near it.
+    const sideways = -Math.sin(self.angle);
+    // Only near the ground (titans round 6, 2026-10): in the air this cut the lift halves' turning too, and a brick
+    // spun by a hit rolled on through its side onto its back.
+    if (arena && Math.abs(self.angle) > 1.05 && y < state.halfWidth + 6 && sideways * x > 0 && (vx * sideways > 5 || edge - Math.abs(x) < 300)) lift = 0;
+    // What the lift halves could not give comes from the righting boosters. On the ground (rolled, on a corner or a
+    // face) the lift rows only press it down or roll it onto its back: one end does it alone (see Righting).
+    let endTurn = state.righting || Math.abs(self.angVel) > 0.3 ? clamp((torque - diff * state.leanTorque) / Math.max(1, torque > 0 ? state.endPlus : state.endMinus), -1, 1) : 0;
+    if (rollGround) {
+      lift = 0;
+      endTurn = state.rollDir;
+    }
+    const leftLift = lift > 0 ? clamp(lift - diff, 0, 1) : 0;
+    const rightLift = lift > 0 ? clamp(lift + diff, 0, 1) : 0;
+    set('la', 'throttle', state.laLeft ? leftLift : rightLift);
+    set('lb', 'throttle', state.laLeft ? rightLift : leftLift);
+    // Counterclockwise and clockwise: the end that lifts, and on the ground the end it pivots on too, for what it adds.
+    const near = rollGround ? (absA > 2.2 ? nearEnd : 0) : vy < 6 ? 0.3 * inverted : 0; // upside down in the air both ends hold it up
+    const endPlus = endTurn > 0 ? endTurn : near;
+    const endMinus = endTurn < 0 ? -endTurn : near;
+    if (endPlus > 0) set(state.raPlus ? 'ra' : 'rb', 'throttle', endPlus);
+    if (endMinus > 0) set(state.raPlus ? 'rb' : 'ra', 'throttle', endMinus);
+
+    // Sideways: the boosters on one side or the other.
+    // Upside down they push the other way, and on its side up or down (titans v3, 2026-10: a brick on its back drove
+    // itself out of the arena wanting to go the other way): turned over, the booster sides swap; on its side, none.
+    const facing = Math.cos(self.angle);
+    // Rolled over in the air, falling: on its side these are the only boosters that point up (70 kN, half its weight).
+    const holdUp = state.righting && !rollGround && vy < 2 && Math.abs(Math.sin(self.angle)) > 0.4 ? Math.sign(Math.sin(self.angle)) : 0;
+    // Both ends tried and it will not tip (too many of them shot off): it slides on its back at what it was after, every
+    // gun firing, and goes on trying.
+    const scoot = rollGround && state.rollTries >= 2 && state.rollDir !== 0 && absA > 2.9;
+    const u = rollGround && !scoot ? 0 : holdUp !== 0 ? holdUp : clamp(0.6 * (wantVx - vx), -1, 1) * (facing > 0.3 ? 1 : facing < -0.3 ? -1 : 0);
+    set('pa', 'throttle', clamp(u * state.paDir, 0, 1));
+    set('pb', 'throttle', clamp(-u * state.paDir, 0, 1));
+    state.push = u * (u > 0 ? state.pushRight : state.pushLeft);
   }
-  const leftLift = lift > 0 ? clamp(lift - diff, 0, 1) : 0;
-  const rightLift = lift > 0 ? clamp(lift + diff, 0, 1) : 0;
-  set('la', 'throttle', state.laLeft ? leftLift : rightLift);
-  set('lb', 'throttle', state.laLeft ? rightLift : leftLift);
-  // Counterclockwise and clockwise: the end that lifts, and on the ground the end it pivots on too, for what it adds.
-  const near = rollGround ? (absA > 2.2 ? nearEnd : 0) : vy < 6 ? 0.3 * inverted : 0; // upside down in the air both ends hold it up
-  const endPlus = endTurn > 0 ? endTurn : near;
-  const endMinus = endTurn < 0 ? -endTurn : near;
-  if (endPlus > 0) set(state.raPlus ? 'ra' : 'rb', 'throttle', endPlus);
-  if (endMinus > 0) set(state.raPlus ? 'rb' : 'ra', 'throttle', endMinus);
-
-  // Sideways: the boosters on one side or the other.
-  // Upside down they push the other way, and on its side up or down (titans v3, 2026-10: a brick on its back drove
-  // itself out of the arena wanting to go the other way): turned over, the booster sides swap; on its side, none.
-  const facing = Math.cos(self.angle);
-  // Rolled over in the air, falling: on its side these are the only boosters that point up (70 kN, half its weight).
-  const holdUp = state.righting && !rollGround && vy < 2 && Math.abs(Math.sin(self.angle)) > 0.4 ? Math.sign(Math.sin(self.angle)) : 0;
-  // Both ends tried and it will not tip (too many of them shot off): it slides on its back at what it was after, every
-  // gun firing, and goes on trying.
-  const scoot = rollGround && state.rollTries >= 2 && state.rollDir !== 0 && absA > 2.9;
-  const u = rollGround && !scoot ? 0 : holdUp !== 0 ? holdUp : clamp(0.6 * (wantVx - vx), -1, 1) * (facing > 0.3 ? 1 : facing < -0.3 ? -1 : 0);
-  set('pa', 'throttle', clamp(u * state.paDir, 0, 1));
-  set('pb', 'throttle', clamp(-u * state.paDir, 0, 1));
-  state.push = u * (u > 0 ? state.pushRight : state.pushLeft);
 
   // The lasers: out while finishing, burning while the energy left covers hovering to the end (see runZap).
   if (zaps.length > 0) {
