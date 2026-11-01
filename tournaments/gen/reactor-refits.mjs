@@ -177,13 +177,16 @@ const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it 
   moveTurret(26, 20);
   moveTurret(88, 94);
   [22, 26, 85, 89].forEach((x, i) => addBay(x, 10 + i));
-  // And beams: the four turrets on the shoulders' roofs carry lasers for guns, against the darts that end a Hive. Measured
-  // on the Bastion, a beam takes a dart in a tick where a gun's shells mostly miss. A laser stands one cell taller.
-  for (const col of [6, 20, 94, 108]) {
-    const gun = cells[roof - 2][col];
-    legend[gun] = { ...legend[gun], part: 'laser' };
-    cells[roof - 3][col] = '=';
-  }
+  // And beams, three new turrets on the top of the middle block, over the bays and the core: what ends a Hive is darts
+  // digging down to its core, with most of the ship unhurt. On the shoulders' roofs they could not see over the bays.
+  [51, 57, 63].forEach((col, i) => {
+    const name = `tur${13 + i}`;
+    legend[`q${13 + i}`] = { part: 'rotator', rot: 0, tags: [name, `${name}.rot`], auto: false };
+    legend[`m${13 + i}`] = { part: 'laser', rot: 0, tags: [name, `${name}.gun`] };
+    cells[2][col] = `q${13 + i}`;
+    cells[1][col] = `m${13 + i}`;
+    cells[0][col] = '=';
+  });
   // The battery band is two rows tall, so each reactor takes its skin row too, under the band. Pairs either side of the
   // middle, 17 and 43 m from the core, and one more outside the near pair on the left, 30 m out: a hot blast reaches
   // 5 m, and its helm trims for where the weight is. Even about the middle but for that one, so it flies as it did.
