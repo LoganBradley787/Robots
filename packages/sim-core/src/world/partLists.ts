@@ -12,6 +12,11 @@ export interface PartLists {
   size: number;
   /** Every part. */
   all: PartInstance[];
+  /**
+   * The ids of the parts of copies its bays hold (`sealedParts`). They are off: no part of a copy in here is in a pool
+   * or in the lists below that feed one, and each asks for power in vain.
+   */
+  sealed: ReadonlySet<string>;
   /** Parts `armParts` looks at: smoke pods, decoys, jammers, and parts that need arming. */
   arming: PartInstance[];
   solar: PartInstance[];
@@ -34,16 +39,17 @@ const kept = new WeakMap<Robot, PartLists>();
 export function partLists(robot: Robot): PartLists {
   const had = kept.get(robot);
   if (had && had.version === robot.version && had.parts === robot.parts && had.size === robot.parts.size) return had;
-  const lists: PartLists = { version: robot.version, parts: robot.parts, size: robot.parts.size, all: [], arming: [], solar: [], reactors: [], fuses: [], charges: [], guns: [], lasers: [], cannons: [], grapples: [], groups: [], shrugsOff: Infinity };
+  const sealed = sealedParts(robot);
+  const lists: PartLists = { version: robot.version, parts: robot.parts, size: robot.parts.size, all: [], sealed, arming: [], solar: [], reactors: [], fuses: [], charges: [], guns: [], lasers: [], cannons: [], grapples: [], groups: [], shrugsOff: Infinity };
   const seen = new Set<number>();
   for (const part of robot.parts.values()) {
     const def = part.def;
     part.holder = robot;
     lists.all.push(part);
     if (def.smoke !== undefined || def.decoy !== undefined || def.jammer !== undefined || def.arming === true) lists.arming.push(part);
-    if (def.solar !== undefined) lists.solar.push(part);
-    if (def.reactor !== undefined) lists.reactors.push(part);
-    if (def.fuse === true) lists.fuses.push(part);
+    if (def.solar !== undefined && !sealed.has(part.id)) lists.solar.push(part);
+    if (def.reactor !== undefined && !sealed.has(part.id)) lists.reactors.push(part);
+    if (def.fuse === true && !sealed.has(part.id)) lists.fuses.push(part);
     if (def.charge !== undefined) lists.charges.push(part);
     if (def.gun !== undefined) lists.guns.push(part);
     if (def.laser !== undefined) lists.lasers.push(part);
@@ -57,4 +63,22 @@ export function partLists(robot: Robot): PartLists {
   }
   kept.set(robot, lists);
   return lists;
+}
+
+const NO_PARTS: ReadonlySet<string> = new Set();
+
+/**
+ * The parts of the copies this robot's bays hold (doc 05, Sealed bays), read off the bays, so a copy is free the moment
+ * its bay lets go or is gone. A copy whose core runs this robot is the robot now (it woke in a piece that broke off
+ * with its bay): there is nothing left to seal it from.
+ */
+function sealedParts(robot: Robot): ReadonlySet<string> {
+  let scopes: Set<string> | undefined;
+  for (const part of robot.parts.values()) if (part.holding === true && part.holds !== undefined) (scopes ??= new Set()).add(part.holds);
+  if (!scopes) return NO_PARTS;
+  const running = robot.primaryCoreId === undefined ? undefined : robot.parts.get(robot.primaryCoreId)?.tags[0];
+  if (running !== undefined) scopes.delete(running);
+  const out = new Set<string>();
+  for (const part of robot.parts.values()) if (scopes.has(part.tags[0] ?? '')) out.add(part.id);
+  return out;
 }

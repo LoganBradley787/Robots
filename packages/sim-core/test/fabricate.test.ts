@@ -91,9 +91,9 @@ describe('fabricator bay: building and letting go (M12)', () => {
     expect(w.partOutput(r.id, 'fabbay@0,1', 'built')).toBe(1);
     const core = [...r.parts.values()].find((p) => p.def.id === 'core' && p.tags.includes('bay1'));
     expect(core).toBeDefined();
-    // One robot still: the bay holds it. Energy: the 872 J it cost, and the new core's full 600 J joined the pool.
+    // One robot still: the bay holds it. Energy: the 872 J it cost; the new core's full 600 J stays its own.
     expect(w.robots).toHaveLength(1);
-    expect(w.energy(r.id)?.stored).toBeCloseTo(before - 872 + 600, 0);
+    expect(w.energy(r.id)?.stored).toBeCloseTo(before - 872, 0);
     w.dispose();
   });
 

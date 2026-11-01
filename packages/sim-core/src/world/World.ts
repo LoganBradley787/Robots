@@ -2451,8 +2451,9 @@ export class World {
   /**
    * A fabricator's build is done (M12): once its hollow is clear of anything (the last copy may still be sliding
    * out), the recipe is placed into the live robot as `pnpm sim place` would (its own scope, its core asleep, full
-   * health, containers full: the build paid for them), held by the bay's grips. The robot is rebuilt with the new
-   * parts, and its controller with their controls, keeping its held keys and toggles.
+   * health, containers full: the build paid for them), held by the bay's grips. What it holds stays its own until it
+   * is let go (`sealedParts`). The robot is rebuilt with the new parts, and its controller with their controls,
+   * keeping its held keys and toggles.
    */
   private finishBuild(robot: Robot, bay: PartInstance): void {
     const placed = robot.blueprint.parts.find((p) => p.id === bay.id);
@@ -2780,11 +2781,12 @@ export class World {
     // part is at, or a little after, where the walk has got to in the last one.
     const lastParts = last && last.scope === scope ? last.parts : undefined;
     const listed = scriptParts(robot);
+    const { sealed } = partLists(robot);
     let at = 0;
     for (const id of robot.chunks[chunk]?.partIds ?? []) {
       const p = robot.parts.get(id);
       if (!p) continue;
-      if (p.def.resource?.kind === 'energy') containers.push(p);
+      if (p.def.resource?.kind === 'energy' && !sealed.has(id)) containers.push(p);
       // Scripts that list the parts they read get only those (`ScriptSpec.parts`).
       if (listed !== undefined && !listedPart(listed, p, scope)) continue;
       let was = -1;
@@ -3548,12 +3550,13 @@ export class World {
         if (action) {
           const request = entry.part.def.powerDraw * load * this.dt;
           planned.push({ action, part: entry.part, chunk: entry.chunk, request });
-          if (entry.chunk < sums.length) sums[entry.chunk] = (sums[entry.chunk] ?? 0) + request;
+          if (entry.chunk >= 0 && entry.chunk < sums.length) sums[entry.chunk] = (sums[entry.chunk] ?? 0) + request;
         }
       }
       const grants = robot.chunks.map((_, c) => this.resolvePool(robot, c, sums[c] ?? 0, list));
       if (list.power) (list.drew ??= []).push(planned);
-      // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds.
+      // A part that asks for nothing (no power draw, or idle) acts in full whatever the pool holds. A sealed part is in
+      // no chunk's pool, so what it asks for is never granted.
       for (const p of planned) p.action.run(p.request > 0 ? (grants[p.chunk] ?? 0) : 1);
       const back = list.back as Map<number, number> | undefined;
       list.back = undefined;
@@ -3582,10 +3585,11 @@ export class World {
     const had = this.behaviorLists.get(robot);
     if (had && had.version === robot.version && had.chunks === robot.chunks && had.parts === robot.parts && had.size === robot.parts.size) return had;
     const list: BehaviorList = { version: robot.version, chunks: robot.chunks, parts: robot.parts, size: robot.parts.size, early: [], late: [], back: undefined };
+    const { sealed } = partLists(robot);
     for (const part of robot.parts.values()) {
       const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
       if (!behavior) continue;
-      const chunk = chunkIndex(robot, part.id);
+      const chunk = sealed.has(part.id) ? NO_CHUNK : chunkIndex(robot, part.id);
       const entry: BehaviorEntry = {
         part,
         behavior,
@@ -4081,6 +4085,9 @@ function gunOutput(part: PartInstance, name: string): number | undefined {
   return undefined;
 }
 
+/** The chunk of a part with no pool to draw on: one in a copy a bay holds (`sealedParts`). */
+const NO_CHUNK = -1;
+
 /** A part with a behavior, as `runBehaviors` keeps it: its chunk, its context, and its input channels this tick (`own`). */
 interface BehaviorEntry {
   part: PartInstance;
@@ -4174,9 +4181,10 @@ function energyParts(held: PartInstance[][], robot: Robot, chunk: number): reado
   let parts = held[chunk];
   if (!parts) {
     parts = [];
+    const { sealed } = partLists(robot);
     for (const id of robot.chunks[chunk]?.partIds ?? []) {
       const p = robot.parts.get(id);
-      if (p?.def.resource?.kind === 'energy') parts.push(p);
+      if (p?.def.resource?.kind === 'energy' && !sealed.has(id)) parts.push(p);
     }
     parts.sort(byPartId);
     held[chunk] = parts;
@@ -4191,9 +4199,10 @@ function byPartId(a: PartInstance, b: PartInstance): number {
 /** The energy containers of one chunk, as pool entries (copies; the caller writes `stored` back). */
 function poolContainers(robot: Robot, chunk: number): Container[] {
   const out: Container[] = [];
+  const { sealed } = partLists(robot);
   for (const id of robot.chunks[chunk]?.partIds ?? []) {
     const p = robot.parts.get(id);
-    if (p?.stored !== undefined && p.def.resource?.kind === 'energy') out.push({ id, stored: p.stored, capacity: p.def.resource.capacity });
+    if (p?.stored !== undefined && p.def.resource?.kind === 'energy' && !sealed.has(id)) out.push({ id, stored: p.stored, capacity: p.def.resource.capacity });
   }
   return out;
 }
