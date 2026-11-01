@@ -90,7 +90,7 @@ describe('robots that die and go are cleaned up (M16 audit)', () => {
     w.dispose();
   });
 
-  it('missiles that woke in pieces and robots blown apart leave nothing once removed by hand', { timeout: 30_000 }, async () => {
+  it('missiles that woke in pieces and robots blown apart leave nothing once removed by hand', async () => {
     const scripts = counted();
     const w = await World.create({ seed: 1, scripts: scripts.host }, flat);
     const terrain = w.physics.bodyIds.length;

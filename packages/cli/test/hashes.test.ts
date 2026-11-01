@@ -8,7 +8,7 @@ describe('pnpm sim hashes (M16)', () => {
     expect(firstDifference(['a'], ['a', 'b'])).toBe(2);
   });
 
-  it('gives a hash for every tick of a scene, ending where the run that recorded it did', { timeout: 60_000 }, async () => {
+  it('gives a hash for every tick of a scene, ending where the run that recorded it did', async () => {
     const replay = await sceneReplay('arena', 0.5);
     const here = await tickHashes(replay);
     expect(here.hashes).toHaveLength(30);

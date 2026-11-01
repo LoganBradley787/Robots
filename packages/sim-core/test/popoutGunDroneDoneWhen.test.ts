@@ -44,7 +44,7 @@ async function fightAt(target: string[], seconds: number, stopAt?: (cw: World, a
 }
 
 describe('popout gun drone, done when', () => {
-  it('its four hidden guns start behind their plates: the sight sees its own robot, and the doors stay shut with nothing to fight', { timeout: 60_000 }, async () => {
+  it('its four hidden guns start behind their plates: the sight sees its own robot, and the doors stay shut with nothing to fight', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const a = w.spawnBlueprint(blueprint('enemy-popout-gun-drone'), { x: -400, y: 40 });
     for (let t = 0; t < 15 * 60; t++) {
@@ -56,7 +56,7 @@ describe('popout gun drone, done when', () => {
     w.dispose();
   });
 
-  it('a target that never had guns: the doors open after 10 s of fighting, only on the target’s side', { timeout: 60_000 }, async () => {
+  it('a target that never had guns: the doors open after 10 s of fighting, only on the target’s side', async () => {
     const { w, a } = await fightAt(['F F C F F F F F F F F F F'], 14, (cw, r, _t, second) => {
       // Batch: it tracks the target from the start; the doors must stay shut for the first 9 s.
       if (second === 9) for (const d of [...LEFT_DOORS, ...RIGHT_DOORS]) expect(door(cw, r, d), `${d} at 9 s`).toBe(0);
@@ -66,7 +66,7 @@ describe('popout gun drone, done when', () => {
     w.dispose();
   });
 
-  it('a target that had a gun and lost it: the doors open as soon as it is gone, well before 10 s', { timeout: 60_000 }, async () => {
+  it('a target that had a gun and lost it: the doors open as soon as it is gone, well before 10 s', async () => {
     // M15: the short gun opens fire at 150 m (5.9 s in, it was 250 m), so the gun goes at 9.0 s and the doors start at
     // 9.07 s: still before the 10 s rule would open them (10.03 s).
     const { w, a, t } = await fightAt(['M< C F F F F F F F F F F F'], 9.9, (cw, r, target, second) => {
@@ -81,7 +81,7 @@ describe('popout gun drone, done when', () => {
     w.dispose();
   });
 
-  it('the hidden guns fire once the doors are open: more shells leave after they open than before', { timeout: 60_000 }, async () => {
+  it('the hidden guns fire once the doors are open: more shells leave after they open than before', async () => {
     let before = 0;
     const { w, a } = await fightAt(['F F C F F F F F F F F F F'], 30, (cw, r, _t, second) => {
       if (second === 10) before = cw.shotsBy(r.id);
@@ -93,7 +93,7 @@ describe('popout gun drone, done when', () => {
     w.dispose();
   });
 
-  it('holds its own against the enemy gun drone: alive, and the other loses parts', { timeout: 120_000 }, async () => {
+  it('holds its own against the enemy gun drone: alive, and the other loses parts', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const popout = w.spawnBlueprint(blueprint('enemy-popout-gun-drone'), { x: -100, y: 40 });
     const enemy = w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: 100, y: 40 }, { team: 1 });

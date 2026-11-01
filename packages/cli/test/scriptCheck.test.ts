@@ -180,5 +180,5 @@ describe('pnpm sim validate with scripts', () => {
     }
     expect(noisy).toEqual([]);
     expect([...dead].sort()).toEqual(['bay', 'dprop', 'fin', 'swivelthruster', 'thruster']);
-  }, 120_000);
+  });
 });

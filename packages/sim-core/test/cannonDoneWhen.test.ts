@@ -32,7 +32,7 @@ const body = (w: World, r: Robot) => w.physics.state(r.groups[0]?.bodyId as numb
 const of = (w: World, kind: string) => w.events.filter((e) => e.kind === kind);
 
 describe('M15 charged guns, done when', () => {
-  it('a cannon tower takes a core behind four heavy plates 200 m off with its first shot, 6 s in, and rocks back from the kick', { timeout: 60_000 }, async () => {
+  it('a cannon tower takes a core behind four heavy plates 200 m off with its first shot, 6 s in, and rocks back from the kick', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-cannon-tower'), { x: -300, y: 2.5 }, { team: 1 });
     // Four plates, the core behind them, two plates behind that: 1000 and 50 of the orb's 1500, 250 into the next, the
@@ -60,7 +60,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('a tower with nothing to shoot at never charges and never backfires', { timeout: 60_000 }, async () => {
+  it('a tower with nothing to shoot at never charges and never backfires', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-cannon-tower'), { x: -300, y: 2.5 }, { team: 1 });
     // A friend in plain view is not a target.
@@ -73,7 +73,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('a target that goes away while it charges: it lets go, the charge drains, and the energy comes back', { timeout: 60_000 }, async () => {
+  it('a target that goes away while it charges: it lets go, the charge drains, and the energy comes back', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-cannon-tower'), { x: -300, y: 2.5 }, { team: 1 });
     const brick = w.spawnBlueprint({ format: 1, name: 'brick', grid: ['A C A'] }, { x: -100, y: 0.5 });
@@ -90,7 +90,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('a tower with one dense battery still fires: it waits for a full battery instead of charging down to its reserve for ever', { timeout: 60_000 }, async () => {
+  it('a tower with one dense battery still fires: it waits for a full battery instead of charging down to its reserve for ever', async () => {
     const raw = JSON.parse(bpFile('enemy-cannon-tower.json'));
     // Seven of its eight dense batteries swapped for frames.
     let kept = false;
@@ -104,7 +104,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('an enemy cannon drone flies through its own kick: it pitches hard on its shot, recovers, and wrecks a hunter drone with it', { timeout: 120_000 }, async () => {
+  it('an enemy cannon drone flies through its own kick: it pitches hard on its shot, recovers, and wrecks a hunter drone with it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('enemy-cannon-drone'), { x: -300, y: 60 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: 50, y: 60 });
@@ -144,7 +144,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('an enemy lance drone picks an enemy laser drone apart from past its 300 m: its core within 40 s, nothing lost', { timeout: 120_000 }, async () => {
+  it('an enemy lance drone picks an enemy laser drone apart from past its 300 m: its core within 40 s, nothing lost', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('enemy-lance-drone'), { x: -300, y: 60 }, { team: 1 });
     const laser = w.spawnBlueprint(blueprint('enemy-laser-drone'), { x: 300, y: 60 });
@@ -157,7 +157,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('against an enemy drone with missiles on its rack the tower goes for the main core, not the missiles (Logan: "it cut through all the missiles and did not go for the core")', { timeout: 120_000 }, async () => {
+  it('against an enemy drone with missiles on its rack the tower goes for the main core, not the missiles (Logan: "it cut through all the missiles and did not go for the core")', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     w.spawnBlueprint(blueprint('enemy-cannon-tower'), { x: -150, y: 2.5 }, { team: 1 });
     const drone = w.spawnBlueprint(blueprint('enemy-drone'), { x: 150, y: 40 });
@@ -173,7 +173,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('an enemy lance drone beats an enemy drone that fires back, losing nothing', { timeout: 120_000 }, async () => {
+  it('an enemy lance drone beats an enemy drone that fires back, losing nothing', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('enemy-lance-drone'), { x: -250, y: 60 }, { team: 1 });
     const foe = w.spawnBlueprint(blueprint('enemy-drone'), { x: 250, y: 60 });
@@ -183,7 +183,7 @@ describe('M15 charged guns, done when', () => {
     w.dispose();
   });
 
-  it('no bolt hits a friend in a 2 against 2', { timeout: 180_000 }, async () => {
+  it('no bolt hits a friend in a 2 against 2', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const a = w.spawnBlueprint(blueprint('enemy-cannon-drone'), { x: -320, y: 60 }, { team: 1 });
     const b = w.spawnBlueprint(blueprint('enemy-lance-drone'), { x: -380, y: 90 }, { team: 1 });

@@ -28,7 +28,7 @@ describe('timedHost', () => {
 });
 
 describe('bench', () => {
-  it('times one hovering drone and reports scripts, the rest, calls, and a hash', { timeout: 60_000 }, async () => {
+  it('times one hovering drone and reports scripts, the rest, calls, and a hash', async () => {
     const [row] = await bench({ scene: 'hover', n: 1, seconds: 0.2 });
     expect(row?.ticks).toBe(12);
     expect(row?.callsPerTick).toBe(2);
@@ -38,7 +38,7 @@ describe('bench', () => {
     expect(formatBench(row ? [row] : [])).toContain('hover      1');
   });
 
-  it('gives the same hash twice (a bench run doubles as a determinism check)', { timeout: 60_000 }, async () => {
+  it('gives the same hash twice (a bench run doubles as a determinism check)', async () => {
     const [a] = await bench({ scene: 'battle', n: 1, seconds: 0.5 });
     const [b] = await bench({ scene: 'battle', n: 1, seconds: 0.5 });
     expect(a?.hash).toBe(b?.hash);

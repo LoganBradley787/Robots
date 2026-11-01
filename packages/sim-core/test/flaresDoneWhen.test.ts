@@ -62,7 +62,7 @@ async function attack(make: (w: World) => Robot, at: { x: number; y: number }, f
 }
 
 describe('M11 flares, done when', () => {
-  it('a seeker missile is pulled off by a pair lit about a second before it arrives; 3.5 s early or 0.5 s late, it hits', { timeout: 60_000 }, async () => {
+  it('a seeker missile is pulled off by a pair lit about a second before it arrives; 3.5 s early or 0.5 s late, it hits', async () => {
     const shot = (flareAt?: number) => attack((w) => w.spawnBlueprint(blueprint('launcher-seeker'), { x: -350, y: 1.5 }, { team: 1 }), { x: -40, y: 36 }, flareAt, 480, 60); // Batch: y 36, not 40: the rotator's integral term levels the launcher, so the missile flies a little lower
     const none = await shot();
     expect(none.lost).toBeGreaterThan(0);
@@ -74,7 +74,7 @@ describe('M11 flares, done when', () => {
     expect((await shot(none.tick - 30)).lost).toBeGreaterThan(0); // already on it
   });
 
-  it('a drone bomb chasing the drone goes off at a well-timed pair instead', { timeout: 60_000 }, async () => {
+  it('a drone bomb chasing the drone goes off at a well-timed pair instead', async () => {
     const chase = (flareAt?: number) => attack((w) => w.spawnBlueprint(blueprint('drone-bomb'), { x: -200, y: 2 }, { team: 1 }), { x: -40, y: 40 }, flareAt, 720);
     const none = await chase();
     expect(none.distance).toBeLessThan(10); // on the drone's side rack
@@ -83,7 +83,7 @@ describe('M11 flares, done when', () => {
     expect(right.distance).toBeGreaterThan(8); // at the flare, clear of the drone (its blast reaches 4 m)
   });
 
-  it("an enemy drone's own flares (popped by itself) save it from a hunter's volley that takes it apart without them", { timeout: 60_000 }, async () => {
+  it("an enemy drone's own flares (popped by itself) save it from a hunter's volley that takes it apart without them", async () => {
     const volley = async (auto: number): Promise<{ lost: number; lit: number }> => {
       const w = await World.create({ seed: 1, scripts: host }, flat);
       // From -130 this sat on the edge (20 and 10 parts, or 29 and 9, by how the blasts fell); -135 is the same fight.

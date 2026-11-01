@@ -109,7 +109,7 @@ describe('a kicked multibody link has its velocity from the start of its first s
     w.dispose();
   });
 
-  it('a rebuild elsewhere leaves a heavy robot resting awake on the ground alone (review: a 2^-16 s kick step threw it)', { timeout: 60_000 }, async () => {
+  it('a rebuild elsewhere leaves a heavy robot resting awake on the ground alone (review: a 2^-16 s kick step threw it)', async () => {
     const flat = parseWorldFile({ name: 'flat', ground: { width: 400, thickness: 2 }, spawn: { x: 0, y: 5 }, boxes: [] });
     const w = await World.create({ seed: 1 }, flat);
     const anvil = w.spawnBlueprint(JSON.parse(readFileSync(new URL('../../../blueprints/titan-anvil.json', import.meta.url), 'utf8')), { x: -60, y: 8 });

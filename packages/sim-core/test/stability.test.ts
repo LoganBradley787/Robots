@@ -41,7 +41,7 @@ describe('driving stability', () => {
       expect(r.maxTilt, `start x ${x.toFixed(1)}`).toBeLessThan(45);
       expect(r.top, `start x ${x.toFixed(1)}`).toBeLessThan(RIM_SPEED);
     }
-  }, 60_000);
+  });
 
   it('landing from a drop with D held stays upright', async () => {
     for (const y of [3, 5, 8]) {
@@ -49,7 +49,7 @@ describe('driving stability', () => {
       expect(r.maxTilt, `drop from ${y} m`).toBeLessThan(45);
       expect(r.top, `drop from ${y} m`).toBeLessThan(RIM_SPEED);
     }
-  }, 60_000);
+  });
 
   it('a car with one frame corner caught on a block drives off it (Gate 3 screenshot)', async () => {
     for (const overlap of [0.05, 0.3, 0.8]) {

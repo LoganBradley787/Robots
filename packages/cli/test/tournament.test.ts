@@ -84,7 +84,7 @@ describe('runTournament', () => {
     expect(lines[1]).toMatch(/^speed 2\/3 {2}bee against itself: .* ok {2}scripts stopped: a 1, b 0 {2}\[/);
   });
 
-  it('runs a duel in a process of its own and reads its result (the same hash as in this process)', { timeout: 60_000 }, async () => {
+  it('runs a duel in a process of its own and reads its result (the same hash as in this process)', async () => {
     const car = { name: 'car' };
     const r = await childDuel({ kind: 'match', a: car, b: car, seed: 2 }, { seconds: 1 });
     expect(r.error).toBeUndefined();
@@ -94,7 +94,7 @@ describe('runTournament', () => {
     expect(r.report?.ticks).toBe(60);
   });
 
-  it('hands the bounds on to the duel', { timeout: 60_000 }, async () => {
+  it('hands the bounds on to the duel', async () => {
     const car = { name: 'car' };
     const off = await childDuel({ kind: 'match', a: car, b: car, seed: 1 }, { seconds: 0.5, bounds: false });
     expect(off.report?.bounds).toBe(false);
@@ -103,7 +103,7 @@ describe('runTournament', () => {
     expect(tight.report).toMatchObject({ winner: 'draw', bounds: { x: 300, y: 250 }, a: { lostBy: 'bounds' }, b: { lostBy: 'bounds' } });
   });
 
-  it('hands every --add on to the duel', { timeout: 60_000 }, async () => {
+  it('hands every --add on to the duel', async () => {
     const car = { name: 'car' };
     const r = await childDuel({ kind: 'match', a: car, b: car, seed: 1 }, { seconds: 0.5, add: ['car@-700,team=a', 'car@700,at=0.2'] });
     expect(r.report?.added?.map((d) => [d.side, d.robot, d.at])).toEqual([
@@ -113,7 +113,7 @@ describe('runTournament', () => {
     expect(r.report).toMatchObject({ a: { robot: 2 }, b: { robot: 3 } });
   });
 
-  it('a duel that cannot start comes back with why', { timeout: 60_000 }, async () => {
+  it('a duel that cannot start comes back with why', async () => {
     const r = await childDuel({ kind: 'match', a: { name: 'car', y: 0.2 }, b: { name: 'car' }, seed: 1 }, { seconds: 1 });
     expect(r.report).toBeUndefined();
     expect(r.error).toContain('car cannot spawn with its core at (-400, 0.2): below the ground');

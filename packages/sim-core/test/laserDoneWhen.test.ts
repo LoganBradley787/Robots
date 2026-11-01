@@ -44,7 +44,7 @@ const coreLostAt = (w: World, r: Robot): number | undefined => {
 };
 
 describe('M14 lasers, done when', () => {
-  it('a laser tower burns down a seeker missile fired at it from past its reach, short of the tower', { timeout: 60_000 }, async () => {
+  it('a laser tower burns down a seeker missile fired at it from past its reach, short of the tower', async () => {
     for (const [at, from, seed] of [
       // From past the beam's 300 m: closer, the tower burns the launcher before it fires.
       [{ x: -60, y: 0.6 }, { x: -470, y: 1.5 }, 1],
@@ -67,7 +67,7 @@ describe('M14 lasers, done when', () => {
     }
   });
 
-  it('a laser tower takes a hovering hunter out of the fight from 150 m within 10 s: its core or every propeller gone', { timeout: 60_000 }, async () => {
+  it('a laser tower takes a hovering hunter out of the fight from 150 m within 10 s: its core or every propeller gone', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-laser-tower'), { x: -150, y: 0.6 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: 0, y: 30 });
@@ -83,7 +83,7 @@ describe('M14 lasers, done when', () => {
     w.dispose();
   });
 
-  it('a beam burns through armor slowly: a core behind three heavy plates is gone in 5 to 7 s', { timeout: 60_000 }, async () => {
+  it('a beam burns through armor slowly: a core behind three heavy plates is gone in 5 to 7 s', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const tower = w.spawnBlueprint(blueprint('enemy-laser-tower'), { x: -60, y: 0.6 }, { team: 1 });
     // A core with three plates on its right, facing the tower (on frames so the plates are in the turret's line).
@@ -98,7 +98,7 @@ describe('M14 lasers, done when', () => {
     w.dispose();
   });
 
-  it('an enemy laser drone beats an enemy gun drone from outside its reach', { timeout: 120_000 }, async () => {
+  it('an enemy laser drone beats an enemy gun drone from outside its reach', async () => {
     let wins = 0;
     for (const seed of [1, 2, 3]) {
       const w = await World.create({ seed, scripts: host }, flat);
@@ -111,7 +111,7 @@ describe('M14 lasers, done when', () => {
     expect(wins).toBeGreaterThanOrEqual(2);
   });
 
-  it('the laser drone keeps a reserve: low on energy it stops burning and stays up', { timeout: 120_000 }, async () => {
+  it('the laser drone keeps a reserve: low on energy it stops burning and stays up', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('enemy-laser-drone'), { x: 100, y: 20 }, { team: 1 });
     // Start it at 40 percent: about 4 s of beam above the 30 percent it keeps, less than a hunter takes to burn down.
@@ -131,7 +131,7 @@ describe('M14 lasers, done when', () => {
     w.dispose();
   });
 
-  it('no friendly fire: in a 2v2 of laser and gun drones no beam burns a live robot of its own side', { timeout: 120_000 }, async () => {
+  it('no friendly fire: in a 2v2 of laser and gun drones no beam burns a live robot of its own side', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const a = [w.spawnBlueprint(blueprint('enemy-laser-drone'), { x: 150, y: 20 }, { team: 1 }), w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: 120, y: 40 }, { team: 1 })];
     const b = [w.spawnBlueprint(blueprint('enemy-laser-drone'), { x: -150, y: 20 }), w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: -120, y: 40 })];

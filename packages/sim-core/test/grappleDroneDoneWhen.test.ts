@@ -34,7 +34,7 @@ const coreOf = (w: World, r: Robot): { x: number; y: number } => w.physics.state
 const DOWN = 'grapple@7,0';
 
 describe('grapple drone (Batch), done when', () => {
-  it('the enemy grapple drone hooks a hovering drone, reels it in to 6 m under itself, carries it 40 m up, and lets it go', { timeout: 60_000 }, async () => {
+  it('the enemy grapple drone hooks a hovering drone, reels it in to 6 m under itself, carries it 40 m up, and lets it go', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // Guns off (range 1) so the drone it holds is not shot to pieces first.
     const me = w.spawnBlueprint(blueprint('enemy-grapple-drone', { guns: { range: 1 } }), { x: 60, y: 40 }, { team: 1 });
@@ -77,7 +77,7 @@ describe('grapple drone (Batch), done when', () => {
     w.dispose();
   });
 
-  it('with its guns on, what hangs under it is shot: it wrecks a hunter drone and loses next to nothing itself', { timeout: 90_000 }, async () => {
+  it('with its guns on, what hangs under it is shot: it wrecks a hunter drone and loses next to nothing itself', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // From 60 a loose missile's blast took 9 to 11 parts: with its batteries gone and the rope kept it came down from
     // 127 m at 32 m/s, a crash of 19 parts. From 85 it now kills the hunter's core at 26.5 s (34 s with a collider a
@@ -97,7 +97,7 @@ describe('grapple drone (Batch), done when', () => {
     w.dispose();
   });
 
-  it('its guns fire only at enemies: a friendly drone hanging under its sights is never hit', { timeout: 60_000 }, async () => {
+  it('its guns fire only at enemies: a friendly drone hanging under its sights is never hit', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const me = w.spawnBlueprint(blueprint('enemy-grapple-drone'), { x: 0, y: 40 }, { team: 1 });
     const friend = w.spawnBlueprint(blueprint('drone'), { x: 0, y: 25 }, { team: 1 });
@@ -108,7 +108,7 @@ describe('grapple drone (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the player version: F hooks what is straight under it, R reels it in, T pays out, X lets go', { timeout: 60_000 }, async () => {
+  it('the player version: F hooks what is straight under it, R reels it in, T pays out, X lets go', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -50, y: 30 });
     const target = w.spawnBlueprint(blueprint('drone'), { x: -50, y: 15 }, { team: 1 });
@@ -135,7 +135,7 @@ describe('grapple drone (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the player version: a side grapple hooks what lines up level with it, and F with nothing lined up does nothing', { timeout: 60_000 }, async () => {
+  it('the player version: a side grapple hooks what lines up level with it, and F with nothing lined up does nothing', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -10, y: 30 });
     w.spawnBlueprint(blueprint('drone'), { x: -40, y: 30 }, { team: 1 });
@@ -158,7 +158,7 @@ describe('grapple drone (Batch), done when', () => {
   });
 
   // Logan flying it by hand: "it fights S" and "its keys are unclear".
-  it('the player version: S sinks it and W lifts it with nothing on its ropes', { timeout: 60_000 }, async () => {
+  it('the player version: S sinks it and W lifts it with nothing on its ropes', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -150, y: 60 });
     for (let t = 0; t < 120; t++) w.step();
@@ -179,7 +179,7 @@ describe('grapple drone (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the player version: S sinks it with a robot on its rope that flies itself and pushes up under it', { timeout: 60_000 }, async () => {
+  it('the player version: S sinks it with a robot on its rope that flies itself and pushes up under it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -150, y: 50 });
     // The enemy drone wants a spot above what it tracks, and its 14 propellers lift more than the grapple drone weighs.
@@ -210,7 +210,7 @@ describe('grapple drone (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the player version: its status lists the keys, and F with nothing lined up says so', { timeout: 60_000 }, async () => {
+  it('the player version: its status lists the keys, and F with nothing lined up says so', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const me = w.spawnBlueprint(blueprint('grapple-drone'), { x: -150, y: 50 });
     w.step();
@@ -229,7 +229,7 @@ describe('grapple drone (Batch), done when', () => {
     w.dispose();
   });
 
-  it('deterministic: the same fight gives the same hash', { timeout: 120_000 }, async () => {
+  it('deterministic: the same fight gives the same hash', async () => {
     const run = async (): Promise<string> => {
       const w = await World.create({ seed: 3, scripts: host }, flat);
       w.spawnBlueprint(blueprint('enemy-grapple-drone'), { x: 60, y: 40 }, { team: 1 });

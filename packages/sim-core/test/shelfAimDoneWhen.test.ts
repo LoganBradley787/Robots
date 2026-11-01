@@ -78,7 +78,7 @@ async function fight(shooter: Blueprint, at: { x: number; y: number }, target: u
 }
 
 describe('shelf Aim and fire: aims and fires on robots it was never tuned for', () => {
-  it('a single turret: the guess is the hinge and the gun, and the target takes the hits', { timeout: 60_000 }, async () => {
+  it('a single turret: the guess is the hinge and the gun, and the target takes the hits', async () => {
     const g = give(tower(), 'aim-and-fire');
     expect(g.fit.slots.map((s) => [s.slot.group, s.guess])).toEqual([
       ['turn', ['rotator@1,2']],
@@ -92,7 +92,7 @@ describe('shelf Aim and fire: aims and fires on robots it was never tuned for', 
     f.world.dispose();
   });
 
-  it('a friend standing in the line: it holds its fire, and the friend takes nothing', { timeout: 60_000 }, async () => {
+  it('a friend standing in the line: it holds its fire, and the friend takes nothing', async () => {
     const g = give(tower(), 'aim-and-fire');
     const f = await fight(g.blueprint, { x: 0, y: 0.5 }, BLOCK, { x: 60, y: 1.5 }, 10, { friendAt: { x: 30, y: 1.5 } });
     expect(f.friend).toBe(0);
@@ -101,7 +101,7 @@ describe('shelf Aim and fire: aims and fires on robots it was never tuned for', 
     f.world.dispose();
   });
 
-  it('with auto at 0 it aims and fires only while F is held', { timeout: 60_000 }, async () => {
+  it('with auto at 0 it aims and fires only while F is held', async () => {
     const g = give(tower(), 'aim-and-fire', { params: { auto: 0 } });
     const quiet = await fight(g.blueprint, { x: 0, y: 0.5 }, BLOCK, { x: 60, y: 1.5 }, 10);
     expect(quiet.shots).toBe(0);
@@ -120,7 +120,7 @@ describe('shelf Aim and fire: aims and fires on robots it was never tuned for', 
     held.world.dispose();
   });
 
-  it('several turrets: the armored gun drone with its own turret script taken off', { timeout: 120_000 }, async () => {
+  it('several turrets: the armored gun drone with its own turret script taken off', async () => {
     const g = give(shipped('enemy-armored-gun-drone', ['turrets']), 'aim-and-fire');
     // Its two hinges and their two guns; the six other parts with a fire input (flares, decouplers) are not guessed.
     expect(g.fit.slots.map((s) => [s.slot.group, s.guess.length, s.could.length])).toEqual([
@@ -134,7 +134,7 @@ describe('shelf Aim and fire: aims and fires on robots it was never tuned for', 
     f.world.dispose();
   });
 
-  it('twelve turrets stay within the script time budget and end the target', { timeout: 120_000 }, async () => {
+  it('twelve turrets stay within the script time budget and end the target', async () => {
     const g = give(shipped('enemy-many-gun-drone', ['turrets']), 'aim-and-fire');
     expect(g.fit.slots.map((s) => s.guess.length)).toEqual([12, 12]);
     const f = await fight(g.blueprint, { x: -60, y: 40 }, raw(shipped('enemy-fab-drone')), { x: 60, y: 40 }, 15);
@@ -145,7 +145,7 @@ describe('shelf Aim and fire: aims and fires on robots it was never tuned for', 
     f.world.dispose();
   });
 
-  it('a charged kind: the cannon tower charges, lets go on target, and never backfires', { timeout: 120_000 }, async () => {
+  it('a charged kind: the cannon tower charges, lets go on target, and never backfires', async () => {
     const g = give(shipped('enemy-cannon-tower', ['turrets']), 'aim-and-fire');
     expect(g.fit.slots.map((s) => [s.slot.group, s.guess])).toEqual([
       ['turn', ['heavyrotator@5,8']],
@@ -160,7 +160,7 @@ describe('shelf Aim and fire: aims and fires on robots it was never tuned for', 
     f.world.dispose();
   });
 
-  it('a second turret added by copying the first with its tags aims and fires too, with nothing more done', { timeout: 60_000 }, async () => {
+  it('a second turret added by copying the first with its tags aims and fires too, with nothing more done', async () => {
     // One turret on a tall post; the copy lands on a low post in front of it, under the first one's line of fire.
     const one = give(built({ format: 1, name: 'two', grid: ['r  g  .  .  .', 'F  .  .  .  .', 'O  F  .  .  .', 'B  C  B  F  .'], legend: { r: { part: 'rotator', rot: 0 }, g: { part: 'gun', rot: 270 } } }), 'aim-and-fire');
     const copy = copyParts(one.blueprint, registry, ['rotator@0,3', 'gun@1,3'], 3, -2);

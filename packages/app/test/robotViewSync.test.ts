@@ -312,7 +312,7 @@ describe('RobotView.syncAll', () => {
     expect(own).toHaveLength(dense.length);
     expect(own.every((x) => covered.has(at(x)))).toBe(true);
     s.w.dispose();
-  }, 30000);
+  });
 
   it('a piece drawn new shows the burn it already has', async () => {
     const s = await scene({ format: 1, name: 'one', grid: ['C Z'] });

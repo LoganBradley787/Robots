@@ -396,7 +396,7 @@ describe('rebuilding a robot that lost parts', () => {
     expect(whole).toBeGreaterThan(200);
     expect(assembled).toBeGreaterThan(200);
     expect(moved).toBeGreaterThan(0);
-  }, 60000);
+  });
 
   it('a long fight with random damage ends the same both ways', async () => {
     const bindings = [
@@ -453,5 +453,5 @@ describe('rebuilding a robot that lost parts', () => {
     expect(p.kept.robots.length).toBeGreaterThan(0);
     expect(p.full.rebuilds.assembled).toBe(p.kept.rebuilds.whole + p.kept.rebuilds.assembled);
     p.dispose();
-  }, 60000);
+  });
 });

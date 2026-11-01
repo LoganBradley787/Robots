@@ -37,7 +37,7 @@ const blasts = (w: World, r: Robot): Extract<WorldEvent, { kind: 'explosion' }>[
 };
 
 describe('enemy bomber, done when', () => {
-  it('flies runs over a row of parked cars at 60 to 80 m and wrecks them with bombs armed as they leave', { timeout: 60_000 }, async () => {
+  it('flies runs over a row of parked cars at 60 to 80 m and wrecks them with bombs armed as they leave', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('enemy-bomber'), { x: -300, y: 30 }, { team: 1 });
     const cars = [-450, -475].map((x) => w.spawnBlueprint(blueprint('car'), { x, y: 1.45 }));
@@ -64,7 +64,7 @@ describe('enemy bomber, done when', () => {
     w.dispose();
   });
 
-  it('a bomb is armed on the very tick its grip opens, never before', { timeout: 60_000 }, async () => {
+  it('a bomb is armed on the very tick its grip opens, never before', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('enemy-bomber'), { x: -300, y: 30 }, { team: 1 });
     w.spawnBlueprint(blueprint('car'), { x: -450, y: 1.45 });
@@ -77,7 +77,7 @@ describe('enemy bomber, done when', () => {
     w.dispose();
   });
 
-  it('a stick of bombs walks along a car, each landing within 8 m of it', { timeout: 60_000 }, async () => {
+  it('a stick of bombs walks along a car, each landing within 8 m of it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('enemy-bomber'), { x: -300, y: 30 }, { team: 1 });
     w.spawnBlueprint(blueprint('car'), { x: -450, y: 1.45 });
@@ -88,7 +88,7 @@ describe('enemy bomber, done when', () => {
     w.dispose();
   });
 
-  it('bombs hit a hovering hunter drone, and shot at instead, the bombs it still hangs do not go off (unarmed)', { timeout: 60_000 }, async () => {
+  it('bombs hit a hovering hunter drone, and shot at instead, the bombs it still hangs do not go off (unarmed)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     w.spawnBlueprint(blueprint('enemy-bomber'), { x: -250, y: 30 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -450, y: 25 });
@@ -106,7 +106,7 @@ describe('enemy bomber, done when', () => {
     g.dispose();
   });
 
-  it('holds its bombs while something friendly is where they would land', { timeout: 60_000 }, async () => {
+  it('holds its bombs while something friendly is where they would land', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('enemy-bomber'), { x: -300, y: 30 }, { team: 1 });
     w.spawnBlueprint(blueprint('car'), { x: -450, y: 1.45 });
@@ -118,7 +118,7 @@ describe('enemy bomber, done when', () => {
     w.dispose();
   });
 
-  it('what the bombs break off fades: a wrecked car’s loose pieces are removed once they lie still', { timeout: 90_000 }, async () => {
+  it('what the bombs break off fades: a wrecked car’s loose pieces are removed once they lie still', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     w.spawnBlueprint(blueprint('enemy-bomber'), { x: -300, y: 30 }, { team: 1 });
     w.spawnBlueprint(blueprint('car'), { x: -450, y: 1.45 });

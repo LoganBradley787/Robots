@@ -42,7 +42,7 @@ describe('shelf Guide: closes on a target on missiles it was never tuned for', (
   // (it goes off at its side) with either script; the two small missiles fall short of a target this far off with
   // their own guide (55.4 m and 57.6 m) and get a little nearer with the shelf one (51.7 m).
   for (const name of ['missile', 'missile-v2', 'missile-seeker']) {
-    it(`${name} gets as near as with its own guide, and the script never stops`, { timeout: 120_000 }, async () => {
+    it(`${name} gets as near as with its own guide, and the script never stops`, async () => {
       const own = await fly(name, true);
       const f = await fly(name);
       expect(f.crashes).toEqual([]);
@@ -50,7 +50,7 @@ describe('shelf Guide: closes on a target on missiles it was never tuned for', (
     });
   }
 
-  it('the seeker missile reaches the block', { timeout: 120_000 }, async () => {
+  it('the seeker missile reaches the block', async () => {
     const f = await fly('missile-seeker');
     expect(f.nearest).toBeLessThan(5);
     expect(f.fit).toEqual([

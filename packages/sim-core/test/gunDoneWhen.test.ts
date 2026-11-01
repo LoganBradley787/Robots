@@ -57,7 +57,7 @@ async function missileAt(at: { x: number; y: number }, from: { x: number; y: num
 }
 
 describe('M13 guns, done when', () => {
-  it('a gun drone shoots down a seeker missile fired at it, far enough out that it loses nothing', { timeout: 60_000 }, async () => {
+  it('a gun drone shoots down a seeker missile fired at it, far enough out that it loses nothing', async () => {
     for (const [at, from] of [
       [{ x: -60, y: 40 }, { x: -300, y: 1.5 }],
       [{ x: -60, y: 120 }, { x: -300, y: 1.5 }],
@@ -70,7 +70,7 @@ describe('M13 guns, done when', () => {
     }
   });
 
-  it('a drone bomb chasing it is shot down short of it', { timeout: 60_000 }, async () => {
+  it('a drone bomb chasing it is shot down short of it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('gun-drone'), { x: -40, y: 40 });
     const bomb = w.spawnBlueprint(blueprint('drone-bomb'), { x: -200, y: 2 }, { team: 1 });
@@ -80,7 +80,7 @@ describe('M13 guns, done when', () => {
     w.dispose();
   });
 
-  it('an enemy gun drone disarms a hovering hunter first: the missiles on its rack are broken, then it is worn down', { timeout: 60_000 }, async () => {
+  it('an enemy gun drone disarms a hovering hunter first: the missiles on its rack are broken, then it is worn down', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -40, y: 40 });
     w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: 40, y: 40 }, { team: 1 });
@@ -92,7 +92,7 @@ describe('M13 guns, done when', () => {
     w.dispose();
   });
 
-  it('twelve turrets on a big target stay within the script time budget (Logan: "turrets stopped, ran too long")', { timeout: 60_000 }, async () => {
+  it('twelve turrets on a big target stay within the script time budget (Logan: "turrets stopped, ran too long")', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const guns = w.spawnBlueprint(blueprint('enemy-many-gun-drone'), { x: -60, y: 40 }, { team: 1 });
     w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: 60, y: 1.5 });
@@ -102,7 +102,7 @@ describe('M13 guns, done when', () => {
     w.dispose();
   });
 
-  it('in a 2v2 with fab drones, no shell hits its own side, and a turret never shoots its own robot', { timeout: 120_000 }, async () => {
+  it('in a 2v2 with fab drones, no shell hits its own side, and a turret never shoots its own robot', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // This fight does 37 to 48 hits from every start, with colliders by cell or by rectangle; it is the start that moves
     // it (-50 gave 48 by cell, 37 by rectangle: the gun drone goes early there). Enough to mean it fought, not a score.
@@ -133,7 +133,7 @@ describe('M13 guns, done when', () => {
     w.dispose();
   });
 
-  it('G switches the player gun drone\'s turrets off and on', { timeout: 60_000 }, async () => {
+  it('G switches the player gun drone\'s turrets off and on', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('gun-drone'), { x: -40, y: 40 });
     w.spawnBlueprint({ format: 1, name: 'target', grid: ['C F'] }, { x: 0, y: 40.5 }, { team: 1 });

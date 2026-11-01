@@ -37,7 +37,7 @@ const holdF = (robot: number, from: number) => (t: number) => (t === Math.round(
 const x = (w: World, r: Robot): number => w.physics.state(r.groups[0]?.bodyId as number).x;
 
 describe('gun drone bomb, done when', () => {
-  it('hangs about 40 m off a parked car, on the side its gun faces, and shoots it without losing a part', { timeout: 60_000 }, async () => {
+  it('hangs about 40 m off a parked car, on the side its gun faces, and shoots it without losing a part', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const car = w.spawnBlueprint(blueprint('car'), { x: -20, y: 1.45 }, { team: 1 });
     const g = w.spawnBlueprint(blueprint('gun-drone-bomb'), { x: -110, y: 25 });
@@ -50,7 +50,7 @@ describe('gun drone bomb, done when', () => {
     w.dispose();
   });
 
-  it('facing away from its target it crosses over it, then hangs off the far side and shoots', { timeout: 60_000 }, async () => {
+  it('facing away from its target it crosses over it, then hangs off the far side and shoots', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // The gun faces right; the car is to the left.
     const car = w.spawnBlueprint(blueprint('car'), { x: -220, y: 1.45 }, { team: 1 });
@@ -62,7 +62,7 @@ describe('gun drone bomb, done when', () => {
     w.dispose();
   });
 
-  it('two of them share a target: the one behind takes another row of it, and both hit', { timeout: 60_000 }, async () => {
+  it('two of them share a target: the one behind takes another row of it, and both hit', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -20, y: 25 }, { team: 1 });
     const a = w.spawnBlueprint(blueprint('gun-drone-bomb'), { x: -120, y: 25 });
@@ -76,7 +76,7 @@ describe('gun drone bomb, done when', () => {
 });
 
 describe('swarm fab drone, done when', () => {
-  it('builds a gun drone bomb in 4.9 s (per-part build times; the heavy drone bomb takes 8.7) and holds it level', { timeout: 30_000 }, async () => {
+  it('builds a gun drone bomb in 4.9 s (per-part build times; the heavy drone bomb takes 8.7) and holds it level', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('swarm-fab-drone'), { x: -100, y: 15 });
     for (let t = 0; t < 7 * 60; t++) w.step();
@@ -89,7 +89,7 @@ describe('swarm fab drone, done when', () => {
     w.dispose();
   });
 
-  it('holding F, it lets each go as it is built and they wear a hovering hunter down', { timeout: 60_000 }, async () => {
+  it('holding F, it lets each go as it is built and they wear a hovering hunter down', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('swarm-fab-drone'), { x: -360, y: 20 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -110, y: 20 }, { team: 1 });
@@ -102,7 +102,7 @@ describe('swarm fab drone, done when', () => {
     w.dispose();
   });
 
-  it('loose junk in its hollow blocks the bay for a second, is pushed out, and the drone bomb is built after (bay clearing)', { timeout: 30_000 }, async () => {
+  it('loose junk in its hollow blocks the bay for a second, is pushed out, and the drone bomb is built after (bay clearing)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('swarm-fab-drone'), { x: -100, y: 15 });
     // A frame lying in the hollow (the bay is at grid cell (5, 3): the hollow starts one cell above it).
@@ -125,7 +125,7 @@ describe('swarm fab drone, done when', () => {
 });
 
 describe('enemy swarm fab drone, done when', () => {
-  it('deployed flipped, it sends gun drone bombs at a hovering hunter, keeps building, and loses nothing itself', { timeout: 60_000 }, async () => {
+  it('deployed flipped, it sends gun drone bombs at a hovering hunter, keeps building, and loses nothing itself', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(orientRaw(blueprint('enemy-swarm-fab-drone'), { flip: true, rot: 0 }, defaultRegistry()), { x: -60, y: 27 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -260, y: 27 });

@@ -15,7 +15,7 @@ import { scriptHost } from '../src/scriptHost';
  */
 describe('scripts see what they saw before M9', () => {
   for (const scene of GOLDEN_SCENES) {
-    it(`${scene.name}: every call, every script`, { timeout: 120_000 }, async () => {
+    it(`${scene.name}: every call, every script`, async () => {
       const inner = await scriptHost();
       let expected = '';
       let calls = 0;

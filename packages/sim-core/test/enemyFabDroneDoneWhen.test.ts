@@ -34,7 +34,7 @@ const ownLost = (w: World, r: Robot): number => w.events.filter((e) => e.kind ==
 const holdF = (robot: number, from: number) => (t: number) => (t === Math.round(from * 60) ? [{ robot, pressed: ['f'], released: [] }] : []);
 
 describe('enemy fab drone, done when', () => {
-  it('flies to its spot beside your parked cars and keeps firing what its bay builds: more than the enemy drone’s four, and they hit parked cars', { timeout: 60_000 }, async () => {
+  it('flies to its spot beside your parked cars and keeps firing what its bay builds: more than the enemy drone’s four, and they hit parked cars', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // Clear of the flat world's boxes near x 0: holding 200 m off (Logan), its spot past them hid the cars from its radar.
     // From x -330 (was -360): since new bodies keep their true velocity (review S1, S2) the fight from -360 hits one
@@ -51,7 +51,7 @@ describe('enemy fab drone, done when', () => {
     w.dispose();
   });
 
-  it('pops its own flares at a missile the hunter drone sends', { timeout: 60_000 }, async () => {
+  it('pops its own flares at a missile the hunter drone sends', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -130, y: 15 });
     const d = w.spawnBlueprint(blueprint('enemy-fab-drone', { minRange: 2000 }), { x: -50, y: 27 }, { team: 1 });
@@ -62,7 +62,7 @@ describe('enemy fab drone, done when', () => {
 });
 
 describe('bomb fab drone, done when', () => {
-  it('hovers level holding a drone bomb built about 8.7 s after deploy (the held bomb’s propellers are not counted as its own)', { timeout: 30_000 }, async () => {
+  it('hovers level holding a drone bomb built about 8.7 s after deploy (the held bomb’s propellers are not counted as its own)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('bomb-fab-drone'), { x: -100, y: 15 });
     for (let t = 0; t < 11 * 60; t++) w.step();
@@ -76,7 +76,7 @@ describe('bomb fab drone, done when', () => {
     w.dispose();
   });
 
-  it('holding F, it lets each one go as it is built, and they wreck a row of parked cars', { timeout: 60_000 }, async () => {
+  it('holding F, it lets each one go as it is built, and they wreck a row of parked cars', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('bomb-fab-drone'), { x: -100, y: 15 });
     const cars = [-160, -190, -220].map((x) => w.spawnBlueprint(blueprint('car'), { x, y: 1.45 }, { team: 1 }));
@@ -88,7 +88,7 @@ describe('bomb fab drone, done when', () => {
     w.dispose();
   });
 
-  it('V still pops a pair of flares', { timeout: 30_000 }, async () => {
+  it('V still pops a pair of flares', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('bomb-fab-drone'), { x: -100, y: 15 });
     for (let t = 0; t < 60; t++) w.step(t === 30 ? [{ robot: d.id, pressed: ['v'], released: [] }] : []);
@@ -98,7 +98,7 @@ describe('bomb fab drone, done when', () => {
 });
 
 describe('enemy bomb fab drone, done when', () => {
-  it('sends drone bomb after drone bomb at a row of your cars and a hovering hunter drone, and none of them comes down on it', { timeout: 60_000 }, async () => {
+  it('sends drone bomb after drone bomb at a row of your cars and a hovering hunter drone, and none of them comes down on it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('enemy-bomb-fab-drone'), { x: -60, y: 20 }, { team: 1 });
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -200, y: 15 });
@@ -111,7 +111,7 @@ describe('enemy bomb fab drone, done when', () => {
     w.dispose();
   });
 
-  it('deployed flipped, none of its drone bombs comes down on it either (one did, as it climbed to a new spot)', { timeout: 60_000 }, async () => {
+  it('deployed flipped, none of its drone bombs comes down on it either (one did, as it climbed to a new spot)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(orientRaw(blueprint('enemy-bomb-fab-drone'), { flip: true, rot: 0 }, defaultRegistry()), { x: -60, y: 20 }, { team: 1 });
     for (const x of [-150, -175]) w.spawnBlueprint(blueprint('car'), { x, y: 1.45 });
@@ -124,7 +124,7 @@ describe('enemy bomb fab drone, done when', () => {
 });
 
 describe('heavy drone bomb and off the line (Logan, after playing the fab drones)', () => {
-  it('its four corner warheads go off together and wreck a whole parked car', { timeout: 30_000 }, async () => {
+  it('its four corner warheads go off together and wreck a whole parked car', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const car = w.spawnBlueprint(blueprint('car'), { x: -60, y: 1.45 });
     const bomb = w.spawnBlueprint(blueprint('heavy-drone-bomb'), { x: -20, y: 3 }, { team: 1 });
@@ -135,7 +135,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     w.dispose();
   });
 
-  it('let go from a bay, it is 15 m up and steering in under 1.5 s', { timeout: 30_000 }, async () => {
+  it('let go from a bay, it is 15 m up and steering in under 1.5 s', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('bomb-fab-drone'), { x: -100, y: 15 });
     w.spawnBlueprint(blueprint('car'), { x: -200, y: 1.45 }, { team: 1 });
@@ -153,7 +153,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     w.dispose();
   });
 
-  it('two enemy fab drones deployed one over the other slide apart, off each other’s line', { timeout: 30_000 }, async () => {
+  it('two enemy fab drones deployed one over the other slide apart, off each other’s line', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const a = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -60, y: 20 }, { team: 1 });
     const b = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -60, y: 35 }, { team: 1 });
@@ -165,7 +165,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     w.dispose();
   });
 
-  it('the enemy bomb fab drone lets a finished drone bomb go the moment it tracks a target, even crippled and askew (Logan)', { timeout: 30_000 }, async () => {
+  it('the enemy bomb fab drone lets a finished drone bomb go the moment it tracks a target, even crippled and askew (Logan)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('enemy-bomb-fab-drone'), { x: -60, y: 20 }, { team: 1 });
     for (let t = 0; t < 12 * 60; t++) {
@@ -185,7 +185,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     w.dispose();
   });
 
-  it('high up when its target is destroyed, it drops onto one on the ground instead of hanging there (Logan)', { timeout: 30_000 }, async () => {
+  it('high up when its target is destroyed, it drops onto one on the ground instead of hanging there (Logan)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const bomb = w.spawnBlueprint(blueprint('heavy-drone-bomb'), { x: 0, y: 3 }, { team: 1 });
     const high = w.spawnBlueprint(blueprint('hunter-drone'), { x: 0, y: 90 });
@@ -204,7 +204,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     w.dispose();
   });
 
-  it('fab drones on both sides tracking each other stay under their ceiling (swinging between targets, they climbed past 300 m)', { timeout: 60_000 }, async () => {
+  it('fab drones on both sides tracking each other stay under their ceiling (swinging between targets, they climbed past 300 m)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const all = [
       w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: 60, y: 20 }, { team: 1 }),
@@ -230,7 +230,7 @@ describe('heavy drone bomb and off the line (Logan, after playing the fab drones
     w.dispose();
   });
 
-  it('a missile it fires past a friendly drone between it and its target goes over it (Logan: they flew through their own)', { timeout: 60_000 }, async () => {
+  it('a missile it fires past a friendly drone between it and its target goes over it (Logan: they flew through their own)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     w.spawnBlueprint(blueprint('enemy-fab-drone', { standoff: 200, minRange: 0 }), { x: 100, y: 25 }, { team: 1 });
     const friend = w.spawnBlueprint(blueprint('enemy-fab-drone', { minRange: 2000 }), { x: 40, y: 25 }, { team: 1 });

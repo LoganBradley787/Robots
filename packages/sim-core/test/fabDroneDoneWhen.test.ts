@@ -25,7 +25,7 @@ function partsLost(w: World, r: Robot): number {
 const holdF = (robot: number, from: number) => (t: number) => (t === Math.round(from * 60) ? [{ robot, pressed: ['f'], released: [] }] : []);
 
 describe('M12 fab drone, done when', () => {
-  it('hovers and has a missile built about 4 s after deploy', { timeout: 30_000 }, async () => {
+  it('hovers and has a missile built about 4 s after deploy', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('fab-drone'), { x: -100, y: 15 });
     for (let t = 0; t < 300; t++) w.step();
@@ -38,7 +38,7 @@ describe('M12 fab drone, done when', () => {
     w.dispose();
   });
 
-  it('F sends it at a parked car 100 m away, and it hits', { timeout: 30_000 }, async () => {
+  it('F sends it at a parked car 100 m away, and it hits', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('fab-drone'), { x: -100, y: 15 });
     const car = w.spawnBlueprint(blueprint('car'), { x: -200, y: 1.45 }, { team: 1 });
@@ -49,7 +49,7 @@ describe('M12 fab drone, done when', () => {
     w.dispose();
   });
 
-  it('holding F, it fires one about every 4 s for as long as there is energy: far more than the hunter drone’s four', { timeout: 60_000 }, async () => {
+  it('holding F, it fires one about every 4 s for as long as there is energy: far more than the hunter drone’s four', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('fab-drone'), { x: -100, y: 15 });
     // A row of parked cars: when one is wrecked, it goes after the next.
@@ -64,7 +64,7 @@ describe('M12 fab drone, done when', () => {
     w.dispose();
   });
 
-  it('V still pops a pair of flares', { timeout: 30_000 }, async () => {
+  it('V still pops a pair of flares', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('fab-drone'), { x: -100, y: 15 });
     for (let t = 0; t < 60; t++) w.step(t === 30 ? [{ robot: d.id, pressed: ['v'], released: [] }] : []);
@@ -72,7 +72,7 @@ describe('M12 fab drone, done when', () => {
     w.dispose();
   });
 
-  it('with its bay destroyed it builds nothing more, and flies on', { timeout: 30_000 }, async () => {
+  it('with its bay destroyed it builds nothing more, and flies on', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('fab-drone'), { x: -100, y: 15 });
     for (let t = 0; t < 120; t++) w.step();
@@ -88,7 +88,7 @@ describe('M12 fab drone, done when', () => {
 });
 
 describe('M12 fab drone, review fixes', () => {
-  it('its hover keeps its throttles on the tick a missile is finished', { timeout: 30_000 }, async () => {
+  it('its hover keeps its throttles on the tick a missile is finished', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const d = w.spawnBlueprint(blueprint('fab-drone'), { x: -100, y: 15 });
     const throttles: number[] = [];

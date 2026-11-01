@@ -35,7 +35,7 @@ const ownLost = (w: World, r: Robot): number => w.events.filter((e) => e.kind ==
 const SPAWN_Y = 7.6;
 
 describe('walker (Batch: pistons, armor, rotators under load), done when', () => {
-  it('walks right on D and left on A, upright, with every part still on it', { timeout: 60_000 }, async () => {
+  it('walks right on D and left on A, upright, with every part still on it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(blueprint('walker'), { x: -150, y: SPAWN_Y });
     const parts = r.parts.size;
@@ -73,7 +73,7 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
     w.dispose();
   });
 
-  it('W and S raise and lower the body', { timeout: 60_000 }, async () => {
+  it('W and S raise and lower the body', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(blueprint('walker'), { x: -150, y: SPAWN_Y });
     for (let t = 0; t < 5 * 60; t++) w.step();
@@ -92,7 +92,7 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
   });
 
   // Logan walking it by hand: "W, S and G seem to do nothing". W and S moved the body 0.6 m, and G said nothing.
-  it('W stands it a meter taller and S crouches it, it walks at both heights, and its status lists the keys and says how tall it stands', { timeout: 120_000 }, async () => {
+  it('W stands it a meter taller and S crouches it, it walks at both heights, and its status lists the keys and says how tall it stands', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(blueprint('walker'), { x: -150, y: SPAWN_Y });
     const status = (): string[] => w.scriptLogs.filter((l) => l.robot === r.id).map((l) => l.text);
@@ -135,7 +135,7 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
     w.dispose();
   });
 
-  it('G switches its turrets off and on, and says so: nothing is fired while they are off', { timeout: 120_000 }, async () => {
+  it('G switches its turrets off and on, and says so: nothing is fired while they are off', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(blueprint('walker'), { x: -150, y: SPAWN_Y });
     const status = (): string[] => w.scriptLogs.filter((l) => l.robot === r.id).map((l) => l.text);
@@ -156,7 +156,7 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
     w.dispose();
   });
 
-  it('the enemy walker walks toward the nearest enemy, deployed either way round, and stops `range` meters short', { timeout: 120_000 }, async () => {
+  it('the enemy walker walks toward the nearest enemy, deployed either way round, and stops `range` meters short', async () => {
     for (const flip of [false, true]) {
       const w = await World.create({ seed: 1, scripts: host }, flat);
       const at = flip ? 100 : -100;
@@ -176,7 +176,7 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
     }
   });
 
-  it('the enemy walker shoots down an enemy drone that flies at it, and loses no part while its armor holds', { timeout: 120_000 }, async () => {
+  it('the enemy walker shoots down an enemy drone that flies at it, and loses no part while its armor holds', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const walker = w.spawnBlueprint(orientRaw(blueprint('enemy-walker'), { flip: true }, defaultRegistry()), { x: 60, y: SPAWN_Y }, { team: 1 });
     // From x -110 (was -100): since new bodies keep their true velocity (review S1, S2) one of the drone's missiles
@@ -193,7 +193,7 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
     w.dispose();
   });
 
-  it('its turrets shoot down an enemy fab drone\'s missiles: no leg is lost to what it fires (with the guns off, a heavy warhead breaks a piston)', { timeout: 120_000 }, async () => {
+  it('its turrets shoot down an enemy fab drone\'s missiles: no leg is lost to what it fires (with the guns off, a heavy warhead breaks a piston)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const walker = w.spawnBlueprint(orientRaw(blueprint('enemy-walker'), { flip: true }, defaultRegistry()), { x: 0, y: SPAWN_Y }, { team: 1 });
     const drone = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -160, y: 30 });
@@ -207,7 +207,7 @@ describe('walker (Batch: pistons, armor, rotators under load), done when', () =>
     w.dispose();
   });
 
-  it('is deterministic: the same fight twice ends in the same state', { timeout: 120_000 }, async () => {
+  it('is deterministic: the same fight twice ends in the same state', async () => {
     const hashes: string[] = [];
     for (let i = 0; i < 2; i++) {
       const w = await World.create({ seed: 1, scripts: host }, flat);

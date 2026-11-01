@@ -23,7 +23,7 @@ function partsLost(w: World, r: Robot): number {
 }
 
 describe('M10 enemy flying silo, done when', () => {
-  it('flies to its spot beside a parked car of yours, launches at it, and hits it', { timeout: 60_000 }, async () => {
+  it('flies to its spot beside a parked car of yours, launches at it, and hits it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const car = w.spawnBlueprint(blueprint('car'), { x: -200, y: 1.45 });
     // In open ground, where the app lets it be placed (at x 0 it would sit in the boxes).
@@ -39,7 +39,7 @@ describe('M10 enemy flying silo, done when', () => {
     w.dispose();
   });
 
-  it('fights a hunter drone and takes it apart without losing its own core', { timeout: 60_000 }, async () => {
+  it('fights a hunter drone and takes it apart without losing its own core', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -250, y: 15 });
     const silo = w.spawnBlueprint(blueprint('enemy-flying-silo'), { x: -100, y: 1.5 }, { team: 1 });

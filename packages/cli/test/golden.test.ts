@@ -15,7 +15,7 @@ const recorded: Record<string, string> = existsSync(FILE) ? (JSON.parse(readFile
 describe('golden hashes', () => {
   const found: Record<string, string> = {};
   for (const scene of GOLDEN_SCENES) {
-    it(`${scene.name} ends in the recorded state`, { timeout: 120_000 }, async () => {
+    it(`${scene.name} ends in the recorded state`, async () => {
       const r = await runScene(scene);
       found[scene.name] = r.finalHash;
       if (update) {

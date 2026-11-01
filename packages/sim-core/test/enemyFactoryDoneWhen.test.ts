@@ -43,7 +43,7 @@ const car = (): unknown => blueprint('car');
 const row = (w: World, xs: number[]): Robot[] => xs.map((x) => w.spawnBlueprint(car(), { x, y: 1.45 }));
 
 describe('enemy factory, done when', () => {
-  it('validates, sits on the ground where it is put, and never moves', { timeout: 30_000 }, async () => {
+  it('validates, sits on the ground where it is put, and never moves', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
     let tilt = 0;
@@ -60,7 +60,7 @@ describe('enemy factory, done when', () => {
     w.dispose();
   });
 
-  it('builds a missile in each missile bay (4.1 s) and a drone bomb (8.7 s), and lets each go at the nearest car as soon as it is done', { timeout: 60_000 }, async () => {
+  it('builds a missile in each missile bay (4.1 s) and a drone bomb (8.7 s), and lets each go at the nearest car as soon as it is done', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
     row(w, [-450, -480, -520]);
@@ -80,7 +80,7 @@ describe('enemy factory, done when', () => {
     w.dispose();
   });
 
-  it('wrecks a row of parked cars with missiles and drone bombs, and the base takes nothing', { timeout: 60_000 }, async () => {
+  it('wrecks a row of parked cars with missiles and drone bombs, and the base takes nothing', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
     // 5 m nearer than the row it was written for: there one far car took all 6 hits (3,4,0 before the contact crash
@@ -95,7 +95,7 @@ describe('enemy factory, done when', () => {
     w.dispose();
   });
 
-  it('holds fire on a car beyond its missiles’ range and lets every bay sit ready', { timeout: 30_000 }, async () => {
+  it('holds fire on a car beyond its missiles’ range and lets every bay sit ready', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
     row(w, [-300 - 900]); // 900 m: the radar sees to 1000, the missile bays to 800
@@ -106,7 +106,7 @@ describe('enemy factory, done when', () => {
     w.dispose();
   });
 
-  it('beats an enemy gun drone: its armor plates hold, it never tips, and the drone loses its core', { timeout: 90_000 }, async () => {
+  it('beats an enemy gun drone: its armor plates hold, it never tips, and the drone loses its core', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
     const d = w.spawnBlueprint(blueprint('enemy-gun-drone'), { x: -200, y: 20 });
@@ -126,7 +126,7 @@ describe('enemy factory, done when', () => {
     w.dispose();
   });
 
-  it('beats an enemy fab drone and a hovering hunter drone', { timeout: 90_000 }, async () => {
+  it('beats an enemy fab drone and a hovering hunter drone', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
     const fab = w.spawnBlueprint(blueprint('enemy-fab-drone'), { x: -60, y: 25 });
@@ -146,7 +146,7 @@ describe('enemy factory, done when', () => {
     w2.dispose();
   });
 
-  it('solar panels on the roof refill what the bays spend: a full pool with them, spent without', { timeout: 60_000 }, async () => {
+  it('solar panels on the roof refill what the bays spend: a full pool with them, spent without', async () => {
     const run = async (bp: unknown): Promise<{ stored: number; capacity: number }> => {
       const w = await World.create({ seed: 1, scripts: host }, flat);
       const f = deploy(w, bp);
@@ -162,7 +162,7 @@ describe('enemy factory, done when', () => {
     expect(dark.stored).toBeLessThan(dark.capacity - 3000);
   });
 
-  it('a piece that lands in a bay’s hollow is pushed out after a second and the bay carries on', { timeout: 30_000 }, async () => {
+  it('a piece that lands in a bay’s hollow is pushed out after a second and the bay carries on', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const f = deploy(w);
     row(w, [-450]);

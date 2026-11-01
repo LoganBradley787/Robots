@@ -277,7 +277,7 @@ describe('crash: a kick elsewhere in the world changes nothing about a hit', () 
     return out;
   }
 
-  it('on the tick before it and on its own tick, with the hit in the first or the second part of the step: the impulses read match the momentum change and the damage is the same', { timeout: 30_000 }, async () => {
+  it('on the tick before it and on its own tick, with the hit in the first or the second part of the step: the impulses read match the momentum change and the damage is the same', async () => {
     let hard = 0;
     // At 40 m/s nothing breaks, so the bodies are still the ones that hit and their impulses can be read after the step.
     for (const speed of [40, 60, 80]) {

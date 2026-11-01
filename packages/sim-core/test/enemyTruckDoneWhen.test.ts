@@ -26,7 +26,7 @@ function partsLost(w: World, r: Robot): number {
 const coreX = (w: World, r: Robot): number => partWorldPose(w, r, r.primaryCoreId ?? r.rootId).x;
 
 describe('M10 enemy launcher truck, done when', () => {
-  it('drives toward a parked car of yours, stops about 150 m from it, and hits it; the same deployed flipped', { timeout: 60_000 }, async () => {
+  it('drives toward a parked car of yours, stops about 150 m from it, and hits it; the same deployed flipped', async () => {
     for (const [flip, truckX, carX] of [[false, -100, -350], [true, -400, -150]] as const) {
       const w = await World.create({ seed: 1, scripts: host }, flat);
       const car = w.spawnBlueprint(blueprint('car'), { x: carX, y: 1.45 });

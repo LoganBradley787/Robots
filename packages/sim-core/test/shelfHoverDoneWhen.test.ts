@@ -89,7 +89,7 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     expect(f.crashes).toBe(0);
   });
 
-  it('a small drone: the stock drone with its own hover script taken off', { timeout: 60_000 }, async () => {
+  it('a small drone: the stock drone with its own hover script taken off', async () => {
     const g = give(shipped('drone', ['hover']), 'hover');
     expect(g.fit.slots.map((s) => [s.slot.group, s.guess.length])).toEqual([
       ['lift', 4],
@@ -98,12 +98,12 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     expectHolds(await fly(g.blueprint), 'drone');
   });
 
-  it('a heavy one with armor', { timeout: 60_000 }, async () => {
+  it('a heavy one with armor', async () => {
     const g = give(built({ format: 1, name: 'heavy', grid: ['P  P  P  G  P  P  P', 'F  F  B  C  B  F  F', '.  .  A  F  A  .  .'] }), 'hover');
     expectHolds(await fly(g.blueprint), 'heavy');
   });
 
-  it('other lifters: thrusters with a gyro, and swiveling thrusters with nothing that levels', { timeout: 60_000 }, async () => {
+  it('other lifters: thrusters with a gyro, and swiveling thrusters with nothing that levels', async () => {
     const thrusters = give(built({ format: 1, name: 'th', grid: ['.  .  G  .  .', 'F  F  C  F  F', 'T^ .  B  .  T^'] }), 'hover');
     expectHolds(await fly(thrusters.blueprint), 'thrusters');
     const swivels = give(built({ format: 1, name: 'sw', grid: ['F  F  C  F  F', 'V^ .  B  .  V^'] }), 'hover');
@@ -111,12 +111,12 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     expectHolds(await fly(swivels.blueprint), 'swiveling thrusters');
   });
 
-  it('lifters off center with no gyro: it balances by running one side harder', { timeout: 60_000 }, async () => {
+  it('lifters off center with no gyro: it balances by running one side harder', async () => {
     const g = give(built({ format: 1, name: 'lop', grid: ['P  P  .  P  .  .', 'B  F  C  F  F  F'] }), 'hover');
     expectHolds(await fly(g.blueprint), 'off center');
   });
 
-  it('the same drone with one lifter removed, and with one added by copying: no retuning', { timeout: 60_000 }, async () => {
+  it('the same drone with one lifter removed, and with one added by copying: no retuning', async () => {
     const g = give(shipped('drone', ['hover']), 'hover');
     const fewer = removeParts(g.blueprint, ['propeller@0,2'], registry);
     expect(fewer.parts.filter((p) => p.tags.includes('lift'))).toHaveLength(3);
@@ -128,7 +128,7 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     expectHolds(await fly(copy.blueprint), 'one propeller more');
   });
 
-  it('lifters that push sideways: it holds as before, flies faster with D, and stops sooner when the key is let go', { timeout: 60_000 }, async () => {
+  it('lifters that push sideways: it holds as before, flies faster with D, and stops sooner when the key is let go', async () => {
     const grid = ['.  .  G  .  .', 'T> F  C  F  T<', '.  T^ B  T^ .'];
     const all = give(built({ format: 1, name: 'side', grid }), 'hover');
     expect(all.fit.slots[0]?.guess).toEqual(['thruster@0,1', 'thruster@4,1', 'thruster@1,0', 'thruster@3,0']);
@@ -160,7 +160,7 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     expect(fast.sink).toBeLessThan(1);
   });
 
-  it('sideways lifters set above its weight, and with no gyro: they are held back to what it can still level', { timeout: 60_000 }, async () => {
+  it('sideways lifters set above its weight, and with no gyro: they are held back to what it can still level', async () => {
     for (const grid of [
       ['T> F  G  F  T<', '.  F  C  F  .', '.  T^ B  T^ .'],
       ['T> F  C  F  T<', '.  P  B  P  .'],
@@ -205,7 +205,7 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     return out;
   }
 
-  it('a slow turner: the many-gun drone leans with D held and comes back level, without its trim cancelling its braking', { timeout: 60_000 }, async () => {
+  it('a slow turner: the many-gun drone leans with D held and comes back level, without its trim cancelling its braking', async () => {
     const f = await turn(give(shipped('enemy-many-gun-drone', ['pilot']), 'hover').blueprint, 'd');
     expect([f.crashes, f.logs]).toEqual([0, []]);
     expect(f.tilt).toBeLessThan(47);
@@ -214,7 +214,7 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     expect(f.end.tilt).toBeLessThan(LEVEL);
   });
 
-  it('weight in a big part: the hunter carrier (a 10 by 4 bay) leans with A held and does not roll over', { timeout: 60_000 }, async () => {
+  it('weight in a big part: the hunter carrier (a 10 by 4 bay) leans with A held and does not roll over', async () => {
     const f = await turn(give(shipped('enemy-hunter-carrier', ['pilot']), 'hover').blueprint, 'a');
     expect([f.crashes, f.logs]).toEqual([0, []]);
     expect(f.tilt).toBeLessThan(60);
@@ -224,7 +224,7 @@ describe('shelf Hover: holds a height and stays level on robots it was never tun
     expect(f.end.tilt).toBeLessThan(5);
   });
 
-  it('too heavy to lift: it says so in plain words and stays down', { timeout: 60_000 }, async () => {
+  it('too heavy to lift: it says so in plain words and stays down', async () => {
     const g = give(built({ format: 1, name: 'brick', grid: ['P  P  P  G  P  P  P', 'A  F  B  C  B  F  A', '.  .  A  A  A  .  .'] }), 'hover');
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(raw(g.blueprint), { x: 0, y: START });

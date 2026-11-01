@@ -46,7 +46,7 @@ describe('spotter and artillery (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the artillery sees what the spotter sees through the radio, and only then; it fires nothing on its own', { timeout: 60_000 }, async () => {
+  it('the artillery sees what the spotter sees through the radio, and only then; it fires nothing on its own', async () => {
     // Alone, a target 700 m away is out of anything the artillery could see: it has no sensor of its own.
     const alone = await World.create({ seed: 1, scripts: host }, flat);
     const a1 = alone.spawnBlueprint(blueprint('enemy-artillery'), { x: 300, y: 20 }, { team: 1 });
@@ -65,7 +65,7 @@ describe('spotter and artillery (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the pair wrecks a hovering hunter drone from 500 m or more: every missile is let go from that far', { timeout: 60_000 }, async () => {
+  it('the pair wrecks a hovering hunter drone from 500 m or more: every missile is let go from that far', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const art = w.spawnBlueprint(blueprint('enemy-artillery'), { x: 300, y: 20 }, { team: 1 });
     const spot = w.spawnBlueprint(blueprint('enemy-spotter'), { x: 250, y: 25 }, { team: 1 });
@@ -91,7 +91,7 @@ describe('spotter and artillery (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the pair beats an enemy gun drone: it never gets its guns in range, and loses most of itself', { timeout: 90_000 }, async () => {
+  it('the pair beats an enemy gun drone: it never gets its guns in range, and loses most of itself', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const art = w.spawnBlueprint(blueprint('enemy-artillery'), { x: 300, y: 20 }, { team: 1 });
     const spot = w.spawnBlueprint(blueprint('enemy-spotter'), { x: 250, y: 25 }, { team: 1 });
@@ -110,7 +110,7 @@ describe('spotter and artillery (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the spotter pops smoke at a missile coming at it and outlives the first one (its jammer and radar untouched)', { timeout: 60_000 }, async () => {
+  it('the spotter pops smoke at a missile coming at it and outlives the first one (its jammer and radar untouched)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // Held 300 m from the fab drone, inside its missile range, on its own.
     const spot = w.spawnBlueprint(blueprint('enemy-spotter', { standoff: 300 }), { x: 100, y: 25 }, { team: 1 });
@@ -125,7 +125,7 @@ describe('spotter and artillery (Batch), done when', () => {
     w.dispose();
   });
 
-  it('the spotter drops a jammer when an enemy is within 250 m, and it vanishes from the enemy’s sensors for 5 s (a jam is seen through within 150 m, so the enemy is 200 m off)', { timeout: 60_000 }, async () => {
+  it('the spotter drops a jammer when an enemy is within 250 m, and it vanishes from the enemy’s sensors for 5 s (a jam is seen through within 150 m, so the enemy is 200 m off)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const spot = w.spawnBlueprint(blueprint('enemy-spotter'), { x: 200, y: 25 }, { team: 1 });
     const enemy = w.spawnBlueprint(blueprint('enemy-drone', { minRange: 5000 }), { x: 0, y: 25 });
@@ -141,7 +141,7 @@ describe('spotter and artillery (Batch), done when', () => {
     w.dispose();
   });
 
-  it('a jammed spotter goes quiet on the radio, and the artillery holds where it is and picks the target up again after (integration: radio, jammer)', { timeout: 60_000 }, async () => {
+  it('a jammed spotter goes quiet on the radio, and the artillery holds where it is and picks the target up again after (integration: radio, jammer)', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     // The artillery far off with no sensor, the spotter close to a parked car (30 m: inside the jammer's 250 m).
     const art = w.spawnBlueprint(blueprint('enemy-artillery'), { x: 500, y: 20 }, { team: 1 });

@@ -28,7 +28,7 @@ const core = (w: World, r: Robot): { x: number; y: number; angle: number } => pa
 const status = (w: World, r: Robot): string[] => w.scriptLogs.filter((l) => l.robot === r.id).map((l) => l.text);
 
 describe('tech fab drone, done when', () => {
-  it('its tech missiles fly to a hovering hunter drone, blast it with their nose guns on the way in, and set off their distance charges beside it', { timeout: 90_000 }, async () => {
+  it('its tech missiles fly to a hovering hunter drone, blast it with their nose guns on the way in, and set off their distance charges beside it', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -100, y: 40 });
     const d = w.spawnBlueprint(orientRaw(blueprint('enemy-tech-fab-drone'), { flip: true, rot: 0 }, defaultRegistry()), { x: 300, y: 40 }, { team: 1 });
@@ -60,7 +60,7 @@ describe('tech fab drone, done when', () => {
 // Logan flying them by hand: "it sinks while W is held" and "nothing tracked". Both heavy fab drones (105 kg with a
 // missile in the bay) leaned 60 degrees on A and D, where their propellers hold 86 kg.
 describe.each(['tech-fab-drone', 'gun-missile-fab-drone'])('%s by hand, done when', (name) => {
-  it('holds its height hands off, climbs on W, sinks on S, and flies left and right on A and D without losing height', { timeout: 60_000 }, async () => {
+  it('holds its height hands off, climbs on W, sinks on S, and flies left and right on A and D without losing height', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(blueprint(name), { x: -1000, y: 60 });
     let low = Infinity;
@@ -112,7 +112,7 @@ describe.each(['tech-fab-drone', 'gun-missile-fab-drone'])('%s by hand, done whe
     w.dispose();
   });
 
-  it('F sends the built missile at the enemy the radar tracks, and says so', { timeout: 60_000 }, async () => {
+  it('F sends the built missile at the enemy the radar tracks, and says so', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(blueprint(name), { x: -300, y: 30 });
     const car = w.spawnBlueprint(blueprint('car'), { x: -200, y: 1.45 }, { team: 1 });
@@ -131,7 +131,7 @@ describe.each(['tech-fab-drone', 'gun-missile-fab-drone'])('%s by hand, done whe
     w.dispose();
   });
 
-  it('with nothing on the other side it says why, and a fresh press of F still sends one at a wall', { timeout: 60_000 }, async () => {
+  it('with nothing on the other side it says why, and a fresh press of F still sends one at a wall', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const r = w.spawnBlueprint(blueprint(name), { x: -300, y: 30 });
     // A car on its own side: tracked, never fired at.

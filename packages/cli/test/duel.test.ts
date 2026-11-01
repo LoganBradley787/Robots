@@ -31,7 +31,7 @@ const faulty = {
 };
 
 describe('duel', () => {
-  it('puts a on the left on team 0 and b on the right on team 1, both resting on the ground; time running out is a draw', { timeout: 30_000 }, async () => {
+  it('puts a on the left on team 0 and b on the right on team 1, both resting on the ground; time running out is a draw', async () => {
     const r = await duel(car, car, { seed: 1, seconds: 2 });
     expect(r.world).toBe('arena');
     expect(r.a).toMatchObject({ name: 'car', team: 0, at: { x: -400, y: 1.45 }, startParts: 8, startCores: 1, parts: 8, cores: 1, share: 1, robots: 1, copies: 0 });
@@ -48,12 +48,12 @@ describe('duel', () => {
     expect(text).toContain('time per tick on this machine:');
   });
 
-  it('runs on another world when given one', { timeout: 30_000 }, async () => {
+  it('runs on another world when given one', async () => {
     const r = await duel(car, car, { seed: 1, seconds: 0.5, file: parseWorldFile(flatJson) });
     expect(r.world).toBe('flat');
   });
 
-  it('a robot destroyed whole has lost (no coreLost is logged for it), and the match stops 2 s later', { timeout: 30_000 }, async () => {
+  it('a robot destroyed whole has lost (no coreLost is logged for it), and the match stops 2 s later', async () => {
     const r = await duel(popper(10), car, { seed: 1, seconds: 30 });
     expect(r.winner).toBe('b');
     expect(r.a).toMatchObject({ cores: 0, parts: 0, share: 0, robots: 0, lostBy: 'core', spent: 1 });
@@ -66,7 +66,7 @@ describe('duel', () => {
     expect(formatDuel(r)).toContain('winner: b (car)');
   });
 
-  it('both sides losing within 2 s is a draw', { timeout: 30_000 }, async () => {
+  it('both sides losing within 2 s is a draw', async () => {
     const r = await duel(popper(10), popper(20), { seed: 1, seconds: 30 });
     expect(r.a.lostAt).toBeDefined();
     expect(r.b.lostAt).toBeGreaterThan(r.a.lostAt ?? Infinity);
@@ -74,7 +74,7 @@ describe('duel', () => {
     expect(r.why).toContain('both lost within 2 s');
   });
 
-  it('a main core that goes out of bounds has lost; the bounds can be moved or turned off', { timeout: 30_000 }, async () => {
+  it('a main core that goes out of bounds has lost; the bounds can be moved or turned off', async () => {
     const r = await duel(rocket, car, { seed: 1, seconds: 30 });
     expect(r.winner).toBe('b');
     expect(r.a).toMatchObject({ lostBy: 'bounds', cores: 1, share: 1 });
@@ -91,7 +91,7 @@ describe('duel', () => {
     expect(formatDuel(off)).toContain('bounds off');
   });
 
-  it('reports every script that stopped: which, on which robot, when, and why', { timeout: 30_000 }, async () => {
+  it('reports every script that stopped: which, on which robot, when, and why', async () => {
     const r = await duel(car, faulty, { seed: 1, seconds: 3 });
     expect(r.scriptCrashes.map((c) => [c.side, c.robot, c.main, c.script, c.kind])).toEqual([
       ['b', 2, true, 'spin', 'budget'],
@@ -106,14 +106,14 @@ describe('duel', () => {
     expect(text).toMatch(/ {2}b faulty: script oops on the robot with its main core \(robot 2\) at t=0\.5\d s \(throw\): .*lost my way/);
   });
 
-  it('leaves starting parts that ended themselves out of the share', { timeout: 30_000 }, async () => {
+  it('leaves starting parts that ended themselves out of the share', async () => {
     // The flare burnt out: 2 of 3 starting parts are alive, and that is all of the 2 that did not end themselves.
     const r = await duel(car, faulty, { seed: 1, seconds: 3 });
     expect(r.b).toMatchObject({ startParts: 3, parts: 2, spent: 1, share: 1 });
     expect(formatDuel(r)).toContain('b faulty: 2 of 3 starting parts alive, 1 more ended themselves (100.0% left)');
   });
 
-  it('a fab drone beats a parked car from 800 m; the copies it lets go are counted, but not as its parts or cores', { timeout: 60_000 }, async () => {
+  it('a fab drone beats a parked car from 800 m; the copies it lets go are counted, but not as its parts or cores', async () => {
     // Seed 2 (was 1): since new bodies keep their true velocity (review S1, S2), on seed 1 the car is left with its
     // core and half its parts and the drone stops firing; on seeds 2 and 3 it wins in 29 s.
     const r = await duel(load('enemy-fab-drone', 40), car, { seed: 2, seconds: 40 });
@@ -129,7 +129,7 @@ describe('duel', () => {
     expect(r.timing.p95Ms).toBeLessThanOrEqual(r.timing.worstMs);
   });
 
-  it('gives the same hash for the same blueprints and seed', { timeout: 60_000 }, async () => {
+  it('gives the same hash for the same blueprints and seed', async () => {
     const run = () => duel(load('enemy-gun-drone', 40), load('enemy-drone', 30), { seed: 3, seconds: 4 });
     const [p, q] = [await run(), await run()];
     expect(p.finalHash).toBe(q.finalHash);
@@ -271,7 +271,7 @@ const teller = { name: 'teller', raw: { format: 1, name: 'teller', grid: ['C'], 
 const told = (r: { scriptCrashes: ScriptStop[] }): string => r.scriptCrashes[0]?.message ?? '';
 
 describe('duel arena for scripts', () => {
-  it('scripts read the bounds as arena, and null with the bounds off', { timeout: 30_000 }, async () => {
+  it('scripts read the bounds as arena, and null with the bounds off', async () => {
     expect(told(await duel(car, teller, { seed: 1, seconds: 0.2 }))).toContain('arena {"x":1000,"y":250}');
     expect(told(await duel(car, teller, { seed: 1, seconds: 0.2, bounds: { x: 800, y: 200 } }))).toContain('arena {"x":800,"y":200}');
     expect(told(await duel(car, teller, { seed: 1, seconds: 0.2, bounds: false }))).toContain('arena null');
@@ -287,7 +287,7 @@ describe('duel --add', () => {
     for (const bad of ['car', '@3', 'car@', 'car@x', 'car@1,2,3', 'car@1,team=c', 'car@1,at=-1', 'car@1,speed=3', 'car@1,flip=yes']) expect(() => parseAdd(bad), bad).toThrow();
   });
 
-  it('places robots added at 0 before the main ones and later ones on time; they decide nothing and are counted apart', { timeout: 30_000 }, async () => {
+  it('places robots added at 0 before the main ones and later ones on time; they decide nothing and are counted apart', async () => {
     const r = await duel(car, car, {
       seed: 1,
       seconds: 2,

@@ -26,7 +26,7 @@ function partsLost(w: World, r: Robot): number {
 }
 
 describe('carrier (six drone bombs on a deck), done when', () => {
-  it('F lets one go, G the rest; they spread over three targets and hit each, and none hits the carrier', { timeout: 60_000 }, async () => {
+  it('F lets one go, G the rest; they spread over three targets and hit each, and none hits the carrier', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const carrier = w.spawnBlueprint(blueprint('carrier'), { x: -100, y: 1.55 });
     const car = w.spawnBlueprint(blueprint('car'), { x: -250, y: 1.45 }, { team: 1 });
@@ -44,7 +44,7 @@ describe('carrier (six drone bombs on a deck), done when', () => {
     w.dispose();
   });
 
-  it('the enemy carrier flies itself and sends drone bombs at a hunter drone one by one, none hitting itself', { timeout: 60_000 }, async () => {
+  it('the enemy carrier flies itself and sends drone bombs at a hunter drone one by one, none hitting itself', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -280, y: 15 });
     const enemy = w.spawnBlueprint(blueprint('enemy-carrier'), { x: -100, y: 1.55 }, { team: 1 });

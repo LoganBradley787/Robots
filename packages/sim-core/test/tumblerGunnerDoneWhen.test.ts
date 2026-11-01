@@ -206,7 +206,7 @@ describe('tumbler gunner', () => {
     f.w.dispose();
   });
 
-  it('closes on an enemy by itself, holds the standoff, and shoots from there', { timeout: 60_000 }, async () => {
+  it('closes on an enemy by itself, holds the standoff, and shoots from there', async () => {
     const f = await fightAt('hunter-drone', 1, { x: -200, y: 40 }, { x: 100, y: 40 }, true);
     const ticks = f.run(40);
     const me = poseOf(f.w, f.r);
@@ -227,7 +227,7 @@ describe('tumbler gunner', () => {
       [{ x: -100, y: 30 }, { x: 100, y: 60 }],
       [{ x: 100, y: 40 }, { x: -80, y: 20 }],
     ] as const) {
-      it(`beats an enemy gun drone, seed ${seed}, from ${me.x} to ${at.x}`, { timeout: 60_000 }, async () => {
+      it(`beats an enemy gun drone, seed ${seed}, from ${me.x} to ${at.x}`, async () => {
         const f = await fightAt('enemy-gun-drone', seed, me, at);
         const e = f.foe as Robot;
         const ticks: Tick[] = [];
@@ -248,7 +248,7 @@ describe('tumbler gunner', () => {
       [{ x: -100, y: 30 }, { x: 40, y: 30 }],
       [{ x: 150, y: 40 }, { x: 20, y: 50 }],
     ] as const) {
-      it(`hits a hunter drone that keeps moving, seed ${seed}, from ${me.x} to ${at.x}`, { timeout: 60_000 }, async () => {
+      it(`hits a hunter drone that keeps moving, seed ${seed}, from ${me.x} to ${at.x}`, async () => {
         const f = await fightAt('hunter-drone', seed, me, at);
         const e = f.foe as Robot;
         // Held keys send the hunter up and right, then down and left: 50 m/s at its fastest, until it is too broken to.
@@ -269,7 +269,7 @@ describe('tumbler gunner', () => {
     }
   }
 
-  it('swings to the next nearest gun each time the gun in use goes, one gun firing at a time, and flies on with none', { timeout: 60_000 }, async () => {
+  it('swings to the next nearest gun each time the gun in use goes, one gun firing at a time, and flies on with none', async () => {
     const f = await fightAt('hunter-drone', 1, { x: -100, y: 30 }, { x: 0, y: 30 }, true);
     f.untilFiring(1);
     const order = [f.last];
@@ -322,7 +322,7 @@ describe('tumbler gunner', () => {
     f.w.dispose();
   });
 
-  it('turns right round when the only gun left is on the far face', { timeout: 60_000 }, async () => {
+  it('turns right round when the only gun left is on the far face', async () => {
     const f = await fightAt('hunter-drone', 1, { x: -100, y: 30 }, { x: 0, y: 30 }, true);
     f.untilFiring(1);
     const across = f.last === 'gun@6,3' ? 'gun@0,3' : 'gun@6,3';
@@ -339,7 +339,7 @@ describe('tumbler gunner', () => {
     f.w.dispose();
   });
 
-  it('keeps its aim and goes on firing while W S A D fly it, and goes back to work when let go', { timeout: 60_000 }, async () => {
+  it('keeps its aim and goes on firing while W S A D fly it, and goes back to work when let go', async () => {
     const f = await fightAt('hunter-drone', 1, { x: -100, y: 60 }, { x: 0, y: 60 }, true);
     f.untilFiring(3);
     for (const [key, x, y] of [['w', 0, 1], ['s', 0, -1], ['a', -1, 0], ['d', 1, 0]] as const) {
@@ -365,7 +365,7 @@ describe('tumbler gunner', () => {
   });
 
   for (const face of ['bottom', 'top', 'left', 'right'] as const) {
-    it(`keeps flying and shooting with its whole ${face} face gone`, { timeout: 60_000 }, async () => {
+    it(`keeps flying and shooting with its whole ${face} face gone`, async () => {
       const f = await fightAt('hunter-drone', 1, { x: -100, y: 40 }, { x: 0, y: 40 }, true);
       f.run(5);
       shootFace(f.r, FACES[face]);
@@ -381,7 +381,7 @@ describe('tumbler gunner', () => {
       f.w.dispose();
     });
 
-    it(`hovers with no enemy with its whole ${face} face gone`, { timeout: 60_000 }, async () => {
+    it(`hovers with no enemy with its whole ${face} face gone`, async () => {
       const f = await alone(30);
       f.run(5);
       shootFace(f.r, FACES[face]);
@@ -394,7 +394,7 @@ describe('tumbler gunner', () => {
     });
   }
 
-  it('tumbles rather than sinks when its last gun would pin a dead face under it, and still fires as the gun passes', { timeout: 60_000 }, async () => {
+  it('tumbles rather than sinks when its last gun would pin a dead face under it, and still fires as the gun passes', async () => {
     const f = await fightAt('hunter-drone', 1, { x: -100, y: 40 }, { x: 0, y: 40 }, true);
     f.untilFiring(1);
     expect(f.last).toBe('gun@6,3');
@@ -413,7 +413,7 @@ describe('tumbler gunner', () => {
     f.w.dispose();
   });
 
-  it('flies on blind with both radars gone', { timeout: 60_000 }, async () => {
+  it('flies on blind with both radars gone', async () => {
     const f = await fightAt('hunter-drone', 1, { x: -100, y: 30 }, { x: 0, y: 30 }, true);
     f.untilFiring(1);
     shoot(f.r, 'radar@2,4');
@@ -428,7 +428,7 @@ describe('tumbler gunner', () => {
     f.w.dispose();
   });
 
-  it('deployed on the ground it climbs before it turns, and S stops it above the ground', { timeout: 60_000 }, async () => {
+  it('deployed on the ground it climbs before it turns, and S stops it above the ground', async () => {
     const f = await alone(3.6);
     const parts = f.r.parts.size;
     f.run(0.25);

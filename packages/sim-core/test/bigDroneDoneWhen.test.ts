@@ -26,7 +26,7 @@ function partsLost(w: World, r: Robot): number {
 const core = (w: World, r: Robot): { x: number; y: number } => partWorldPose(w, r, r.primaryCoreId ?? r.rootId);
 
 describe('big drone (four big missiles on boosters), done when', () => {
-  it('W climbs, it holds its height, and four F presses send a big missile each at a car and a drone', { timeout: 60_000 }, async () => {
+  it('W climbs, it holds its height, and four F presses send a big missile each at a car and a drone', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const drone = w.spawnBlueprint(blueprint('big-drone'), { x: -100, y: 1.55 });
     const car = w.spawnBlueprint(blueprint('car'), { x: -300, y: 1.45 }, { team: 1 });
@@ -47,7 +47,7 @@ describe('big drone (four big missiles on boosters), done when', () => {
     w.dispose();
   });
 
-  it('the enemy big drone flies itself and takes a hunter drone apart, keeping its own core', { timeout: 60_000 }, async () => {
+  it('the enemy big drone flies itself and takes a hunter drone apart, keeping its own core', async () => {
     const w = await World.create({ seed: 1, scripts: host }, flat);
     const hunter = w.spawnBlueprint(blueprint('hunter-drone'), { x: -250, y: 15 });
     const enemy = w.spawnBlueprint(blueprint('enemy-big-drone'), { x: -100, y: 1.55 }, { team: 1 });
