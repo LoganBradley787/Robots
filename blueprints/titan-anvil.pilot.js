@@ -304,6 +304,7 @@ function setup() {
   state.zapLive = 0; // last time a beam landed, a part broke or it was on its way
   state.zapDry = 0; // spots burnt from in a row that broke nothing
   state.zapBack = -1; // finishing is left off until then
+  state.zapMoved = 0; // last time the target it finishes was seen moving
   state.zapId = -1;
   state.rakeId = -1;
   state.armsId = -1;
@@ -1575,6 +1576,7 @@ function tick() {
   // So `zapIdle` s with no beam landing and nothing breaking, or three spots in a row that broke nothing, leave
   // finishing off for `zapAway` s and it goes back to what else it has.
   const perchZap = (tx, ty, sh, tvx, tvy, nowParts) => {
+    if (Math.hypot(tvx, tvy) > 1) state.zapMoved = time; // its real speed: the next lines may zero it
     // A target lodged on it moves as it does (anvil r9: under today's crash rule a hive stuck to its face after a hit,
     // and following the hive's speed, its own, it ran away with it to 83 m/s and out at the edge). Close and moving as
     // it does, the target is not led.
@@ -1638,8 +1640,9 @@ function tick() {
     top = top > -1e8 ? ty + top : ty + (sh ? sh.high : 10);
     wantH = Math.max(top, 0) + zapGap + state.bottom + state.halfWidth * Math.abs(Math.sin(self.angle)) + clamp(tvy, -10, 10);
     // The edge keeps it further off than the spots it picks anyway: it stands as high as brings the laser furthest off
-    // inside `zapCone` of straight down, still within the nearest one's reach (see runZap).
-    state.zapSlant = Math.abs(spotX - aimX) > 0.45 * state.halfWidth;
+    // inside `zapCone` of straight down, still within the nearest one's reach (see runZap). Only over one seen to stay put
+    // on the ground: a hive flying for the edge was chased up to 109 m, and came back inside for the low perch to burn it.
+    state.zapSlant = !!sh && sh.ground && time - state.zapMoved > 2 && Math.abs(spotX - aimX) > 0.45 * state.halfWidth;
     if (state.zapSlant) {
       let near = 1e9;
       let far = 0;
@@ -1942,7 +1945,10 @@ function tick() {
     // there was thrown past the edge with it (2 of 3 hive matches not won).
     const byEdge = arena && shape && !shape.ground && Math.abs(target.x) > edge - state.halfWidth - zapEdge;
     const finishing = zap > 0.5 && zaps.length > 0 && shape && state.armsId === state.mainId && !state.finish && shape.arms <= zapLimit && !byEdge && time >= state.zapBack;
-    if (finishing && !state.zapping) state.zapLive = time;
+    if (finishing && !state.zapping) {
+      state.zapLive = time;
+      state.zapMoved = time;
+    }
     state.zapping = finishing;
     if (finishing) {
       if (state.way !== '') endTry(main);
