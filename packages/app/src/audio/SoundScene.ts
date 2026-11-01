@@ -46,8 +46,6 @@ export function soundsFor(ev: WorldEvent, parts: PartSounds): EventSound[] {
     case 'partDestroyed':
       // A part that explodes gets the blast, a burnt-out flare just goes out (as the effects do).
       return ev.exploded || ev.burntOut === true ? [] : [{ name: `break.${materialOf(ev.partType)}`, gain: 0.7, rate: 1 }];
-    case 'fried':
-      return [{ name: `break.${materialOf(ev.partType)}`, gain: 0.7, rate: 1 }];
     case 'shellHit':
       return [{ name: `hit.${materialOf(ev.partType)}`, gain: 0.6, rate: 1 }];
     case 'cannonFire': {

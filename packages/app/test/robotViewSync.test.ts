@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AnimatedSprite, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { World, parseWorldFile, type PartInstance, type Robot } from '@robots/sim-core';
 import flatJson from '../../../worlds/flat.json';
+import mirageJson from '../../../blueprints/titan-mirage-r.json';
 import { RobotView, type RobotDrawing } from '../src/render/RobotView';
 
 // M16: a robot that loses parts keeps the drawings of the parts it still has; these check the bookkeeping against a
@@ -279,6 +280,39 @@ describe('RobotView.syncAll', () => {
     expect(was.filter((x) => x.destroyed)).toHaveLength(1);
     s.w.dispose();
   });
+
+  it('a titan frying for real: every battery stays, drawn, with its brown on it, and nothing breaks off', async () => {
+    const s = await scene({ ...mirageJson, scripts: [] }, { x: 0, y: 150 });
+    s.sync();
+    const r = s.w.robots[0] as Robot;
+    const parts = [...r.parts.values()];
+    const dense = parts.filter((p) => p.def.id === 'densebattery');
+    const count = r.parts.size;
+    const drawn = sprites(s.layer);
+    for (const p of parts) {
+      if (p.stored !== undefined) p.stored = 0;
+      if (p.def.fuse === true) p.burnt = 0.99;
+      if (p.def.reactor !== undefined) p.heat = 1;
+    }
+    s.w.step([{ robot: r.id, pressed: ['p'], released: [] }]);
+    for (let i = 0; i < 120 && dense.some((p) => p.burnt !== 1); i++) s.w.step();
+    s.sync();
+    expect(dense.every((p) => p.burnt === 1 && p.stored === undefined)).toBe(true);
+    expect(s.w.events.filter((e) => e.kind === 'fried').length).toBeGreaterThanOrEqual(dense.length);
+    expect(s.w.events.filter((e) => e.kind === 'partDestroyed' || e.kind === 'split')).toEqual([]);
+    expect(s.w.robots).toHaveLength(1);
+    expect(r.parts.size).toBe(count);
+    // Each brown sits on its battery's own sprite, and that sprite is still drawn under it.
+    const now = [...sprites(s.layer)];
+    expect([...drawn].filter((x) => x.destroyed)).toEqual([]);
+    const browns = now.filter((x) => x.texture.label === 'burn.16');
+    const own = now.filter((x) => x.texture.label === 'part.densebattery');
+    const at = (x: Sprite): string => `${x.parent?.uid} ${r3(x.x)} ${r3(x.y)}`;
+    const covered = new Set(browns.map(at));
+    expect(own).toHaveLength(dense.length);
+    expect(own.every((x) => covered.has(at(x)))).toBe(true);
+    s.w.dispose();
+  }, 30000);
 
   it('a piece drawn new shows the burn it already has', async () => {
     const s = await scene({ format: 1, name: 'one', grid: ['C Z'] });

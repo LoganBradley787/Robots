@@ -12,6 +12,11 @@ const metal = of('metal');
 describe('what an event sounds like (M15)', () => {
   const base = { tick: 1, robot: 1 };
 
+  it('a battery burning out is not a part breaking: it stays on the robot, silent', () => {
+    expect(soundsFor({ ...base, kind: 'fried', part: 'b', partType: 'densebattery', x: 0, y: 0 }, of('soft'))).toEqual([]);
+    expect(soundsFor({ ...base, kind: 'partDestroyed', part: 'b', partType: 'densebattery', x: 0, y: 0, exploded: false }, of('soft')).map((s) => s.name)).toEqual(['break.soft']);
+  });
+
   it('a blast by its size, and it always plays', () => {
     const small = soundsFor({ ...base, kind: 'explosion', x: 0, y: 0, radius: 2.5 }, metal);
     const large = soundsFor({ ...base, kind: 'explosion', x: 0, y: 0, radius: 8 }, metal);

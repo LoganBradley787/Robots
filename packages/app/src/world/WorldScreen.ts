@@ -992,7 +992,6 @@ export class WorldScreen {
       // A part that explodes gets the blast instead of a puff (an unarmed warhead just breaks: M10).
       // A burnt-out flare (M11) just goes out.
       if (ev?.kind === 'partDestroyed' && !ev.exploded && ev.burntOut !== true) this.effects.breakPuff(ev.x, ev.y);
-      if (ev?.kind === 'fried') this.effects.breakPuff(ev.x, ev.y);
       // M14: a laser blowing up gets its own look on top of the blast, and shakes the camera when it is on screen.
       if (ev?.kind === 'partDestroyed' && ev.exploded && this.world.registry.has(ev.partType)) {
         const def = this.world.registry.get(ev.partType);
