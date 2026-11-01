@@ -297,6 +297,7 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
   const legend = { ...bp.legend };
   const cores = { ...bp.cores };
   [19, 158].forEach((x0, i) => {
+    if (bp.legend[cells[22][i ? x0 - 1 : x0]]?.part !== 'decoupler') throw new Error('the rack moved');
     for (let col = x0 - (i ? 1 : 0); col <= x0 + (i ? 3 : 4); col++) {
       for (let row = 16; row <= 22; row++) cells[row][col] = '.';
       delete cores[`core@${col},7`];
@@ -330,8 +331,8 @@ const floor = param('floor', 15, { min: 0, max: 600 }); // s of hover left in th
     cells[top1[0]][top1[1]] = 'rc';
     for (const [row, col] of [top2, m1, m2, m3, m4]) cells[row][col] = `fp${n}`;
   }
-  // The keep: at both ends of its top deck, 12 m from its core. Its 14 belly batteries turn to frames but one each
-  // side of the core box stays out, for the 8 left on the decks.
+  // The keep: at both ends of its top deck, 12 m from its core, 480 W against about 400 W of flying. Eleven of its 14
+  // belly batteries turn to frames, tougher than batteries that close to the core, and nine stay, 54 kJ.
   const zs = where('z').sort((p, q) => p[0] - q[0] || p[1] - q[1]);
   const [left, right] = zs; // the top deck's ends
   cells[left[0]][left[1]] = 'rc';
