@@ -6,11 +6,13 @@
 // 1. The keep: anything lost round the core goes back at once, under fire or not. A blast is halved by every part in
 //    the way, whatever its health, so a part at 1 percent is as good as a whole one until it dies. What ends a Mirage
 //    is one volley through the keep with the core at full health.
-// 2. Staying up: lift held level, not lift on paper. Short of it, propellers on the side that is short.
-// 3. The link: the column of the hull with the fewest rows still joined. Its lost parts go back, and its hurt ones heal.
+// 2. Staying up: lift held level, not lift on paper. About to fall, propellers on the side that is short.
+// 3. The link: the columns of the hull with the fewest rows still joined. Cut near the keep, it loses all it would pay with.
 // 4. Reactors, the cells round them first.
-// 5. Bays: nearest the core first, with a route of parts to reach one that hangs in the air, if that route is worth it.
-// 6. The eyes and the side boosters, and what the helm needs to hold its place.
+// 5. Bays: heals those standing, nearest the core first, and makes lost ones, with a route of parts to reach one that
+//    hangs in the air, if that route is worth it. Bays are what fires, and ghosts stop at them short of the keep.
+// 6. More lift, when it could do better.
+// 7. The eyes and the side boosters, and what the helm needs to hold its place.
 // What it cannot pay for it sells for, and it keeps a `float` in the tank ahead of need, from `sell()`: batteries that hold nothing up, then bottom row propellers while it
 // has lift to spare, then plates and bays far from the core. It stops where `sell()` says.
 //
@@ -20,9 +22,9 @@
 const repairOn = param('repair', 1, { min: 0, max: 1 }); // 0: it never scraps, builds or heals
 const every = param('every', 30, { min: 1, max: 30 }); // ticks between looks
 const keepR = param('keepR', 8, { min: 1, max: 30 }); // cells round the core that make the keep
-const safe = param('safe', 1.25, { min: 1, max: 3 }); // times its weight in lift held level: under this, propellers come before all but the keep
-const wanted = param('wanted', 1.5, { min: 1, max: 3 }); // times its weight: under this it makes propellers once the region is calm
-const sellTo = param('sellTo', 1.45, { min: 1, max: 3 }); // times its weight: it sells no propeller under this
+const safe = param('safe', 1.15, { min: 1, max: 3 }); // times its weight in lift held level: under this, propellers come before all but the keep
+const wanted = param('wanted', 1.3, { min: 1, max: 3 }); // times its weight: under this it makes propellers once the region is calm
+const sellTo = param('sellTo', 1.4, { min: 1, max: 3 }); // times its weight: it sells no propeller under this
 const neck = param('neck', 3, { min: 1, max: 8 }); // rows joined across a column at or under which it is a link in danger
 const quiet = param('quiet', 6, { min: 0, max: 30 }); // s since a region of the hull lost a part before it counts as calm
 const region = param('region', 12, { min: 1, max: 60 }); // cells along the hull to a region
@@ -115,33 +117,41 @@ function liftNow() {
 /** Where the hull is live, cell by cell, and how many rows are joined across each column. */
 function hull() {
   const at = new Set();
+  const props = new Set();
   const dense = [];
   for (const p of parts) {
     if (p.tags.length > 0 && /^g.\d/.test(p.tags[0])) continue;
     const c = cellOf(p.id);
     at.add(key(c.x, c.y));
+    if (p.type === 'propeller') props.add(key(c.x, c.y));
     if (p.type === 'densebattery') dense.push(p);
   }
   let worst = Infinity;
-  let where = 0;
+  const necks = [];
   const lo = Math.min(state.c.x, state.c.x + state.dir * 165);
   const hi = Math.max(state.c.x, state.c.x + state.dir * 165);
   for (let x = lo; x < hi; x++) {
     let n = 0;
     for (let y = 1; y <= 7; y++) if (at.has(key(x, y)) && at.has(key(x + 1, y))) n++;
-    if (fore(x) > 8 && n < worst) {
-      worst = n;
-      where = x;
-    }
+    if (fore(x) <= 8) continue;
+    if (n < worst) worst = n;
+    if (n <= neck) necks.push({ x, n });
   }
-  return { at, dense, worst, where };
+  necks.sort((a, b) => a.n - b.n || fore(a.x) - fore(b.x));
+  return { at, props, dense, worst, necks };
 }
 
-/** A battery that holds nothing up: on a row with something left and right of it, with nothing resting on it. */
-function looseBattery(p, h) {
+/**
+ * A part that holds nothing up: outside the keep, with no more than one neighbor it is bolted to, or a battery with
+ * nothing on it. A propeller has no top face, so one under a part does not count.
+ */
+function holdsNothing(p, h) {
   const c = cellOf(p.id);
   if (Math.abs(c.x - state.c.x) <= keepR + 4) return false;
-  return !h.at.has(key(c.x, c.y + 1)) || !h.at.has(key(c.x, c.y - 1));
+  const under = h.at.has(key(c.x, c.y - 1)) && !h.props.has(key(c.x, c.y - 1));
+  const up = h.at.has(key(c.x, c.y + 1));
+  if (p.type === 'densebattery' && !up && !under) return true;
+  return (under ? 1 : 0) + (up ? 1 : 0) + (h.at.has(key(c.x - 1, c.y)) ? 1 : 0) + (h.at.has(key(c.x + 1, c.y)) ? 1 : 0) <= 1;
 }
 
 /**
@@ -157,12 +167,19 @@ function sell(need, h, l, hard) {
     got += gives;
   };
   const rank = (p) => -l.short * (p.pos.x - self.pos.x) * state.dir;
-  const dense = h.dense.filter((p) => looseBattery(p, h) && !state.sold[p.id]).sort((a, b) => rank(a) - rank(b));
+  const dense = h.dense.filter((p) => holdsNothing(p, h) && !state.sold[p.id]).sort((a, b) => rank(a) - rank(b));
   let left = h.dense.length - minDense;
   for (const p of dense) {
     if (got >= need || left <= 0) break;
     take(p.id, 2.4);
     left--;
+  }
+  // Frames left standing on nothing, once the batteries under them are gone.
+  if (got < need) {
+    for (const p of parts) {
+      if (got >= need) break;
+      if (p.type === 'frame' && cellOf(p.id).y === 6 && holdsNothing(p, h) && !state.sold[p.id]) take(p.id, 0.8);
+    }
   }
   if (got < need && l.times > sellTo) {
     const spare = Math.ceil(((l.times - sellTo) * self.mass * 9.81) / lift1);
@@ -237,21 +254,20 @@ function wants(gone, h, l) {
   // 1: the keep, nearest the core first, cheapest first, under fire or not.
   const keep = reach.filter((p) => close(p) <= keepR && p.type !== 'reactor').sort((a, b) => close(a) - close(b) || a.create - b.create);
   for (const p of keep) add(p, 'keep', true);
-  // 2: the air. On the short side, the deck first if a propeller has nothing to stand on.
+  // 2: the air, when it would fall. On the short side, the deck first if a propeller has nothing to stand on.
   const props = reach.filter((p) => p.type === 'propeller' || (p.type === 'booster' && p.tags.length > 0 && p.tags[0] === 'l0'));
   const side = (p) => -l.short * fore(p.x);
   props.sort((a, b) => side(a) - side(b));
   const emergency = l.times < safe;
-  if (emergency || l.times < wanted) {
-    const n = Math.ceil(((wanted - l.times) * self.mass * 9.81) / lift1) + 8;
-    for (const p of props.filter((q) => emergency || calm(q.x)).slice(0, Math.max(n, 16))) add(p, 'lift', emergency);
-    if (emergency) for (const p of reach.filter((q) => q.type === 'frame' && q.y === 1).slice(0, 8)) add(p, 'deck', true);
+  const short = (to) => Math.ceil(((to - l.times) * self.mass * 9.81) / lift1) + 8;
+  if (emergency) {
+    for (const p of props.slice(0, Math.max(short(safe), 16))) add(p, 'lift', true);
+    for (const p of reach.filter((q) => q.type === 'frame' && q.y === 1).slice(0, 8)) add(p, 'deck', true);
   }
-  // 3: the link.
-  if (h.worst <= neck) {
-    const parts3 = reach.filter((p) => Math.abs(p.x - h.where) <= 2 && (p.type === 'frame' || p.type === 'densebattery' || p.type === 'propeller') && p.y >= 1 && p.y <= 7);
-    parts3.sort((a, b) => a.create - b.create || Math.abs(a.x - h.where) - Math.abs(b.x - h.where));
-    for (const p of parts3) add(p, 'link', true);
+  // 3: the link: the columns with the fewest rows joined, what is nearest the core first: a cut there loses it the most.
+  for (const n of h.necks.slice(0, 12)) {
+    const near = reach.filter((p) => Math.abs(p.x - n.x) <= 1 && p.y >= 1 && p.y <= 7 && p.type !== 'propeller');
+    for (const p of near.sort((a, b) => a.create - b.create)) add(p, 'link', true);
   }
   // 4: reactors, what stands round one first.
   for (const p of gone.filter((q) => q.type === 'reactor')) {
@@ -269,7 +285,9 @@ function wants(gone, h, l) {
     add(path[0], path.length > 1 ? 'way to bay' : 'bay', false);
     break;
   }
-  // 6: eyes, the radio, and what moves it.
+  // 6: the air again, when it could do better, in calm regions.
+  if (l.times < wanted) for (const p of props.filter((q) => calm(q.x)).slice(0, short(wanted))) add(p, 'lift', false);
+  // 7: eyes, the radio, and what moves it.
   for (const p of reach) if (calm(p.x) && (p.type === 'radar' || p.type === 'radio' || p.type === 'booster')) add(p, 'eyes', false);
   return list;
 }
