@@ -323,6 +323,41 @@ function charge(base: number, bright: number): Maker {
 }
 
 /**
+ * A repair job (Logan: a long grinding crrrrrr). Heavy, not tinny: a low saw and a band of brown noise, both chopped by
+ * a chatter under 30 times a second so it is heard as teeth, not as a hiss, and driven into clipping. The chatter
+ * wanders, as a blade biting into plate does.
+ */
+const grind: Maker = (engine, detune) => {
+  const out = gain(engine, 1);
+  const hot = drive(engine, 4);
+  hot.connect(gain(engine, 0.6)).connect(out);
+  const teeth = gain(engine, 0.45);
+  teeth.connect(hot);
+  const chatter = osc(engine, 'square', 27 * detune);
+  chatter.connect(gain(engine, 0.45)).connect(teeth.gain);
+  const wander = flutter(engine, 0.0016);
+  wander.connect(gain(engine, 9)).connect(chatter.frequency);
+  const motor = osc(engine, 'sawtooth', 48 * detune);
+  motor.connect(filter(engine, 'lowpass', 260)).connect(gain(engine, 0.7)).connect(teeth);
+  const body = noiseLoop(engine, engine.brown);
+  body.connect(filter(engine, 'bandpass', 340, 0.7)).connect(gain(engine, 1.5)).connect(teeth);
+  // Only an edge: the top of the bite.
+  const edge = noiseLoop(engine, engine.white);
+  edge.connect(filter(engine, 'bandpass', 1500, 0.6)).connect(gain(engine, 0.1)).connect(teeth);
+  // Under it all, the weight of it: heard whether the teeth bite or not.
+  const shake = noiseLoop(engine, engine.brown);
+  shake.connect(filter(engine, 'lowpass', 120, 1)).connect(gain(engine, 0.9)).connect(out);
+  const sources = [chatter, wander, motor, body, edge, shake];
+  return {
+    out,
+    set() {},
+    stop(at) {
+      for (const n of sources) n.stop(at);
+    },
+  };
+};
+
+/**
  * The looping voices by name (a part def's `sound.run`), and how loud each is against the others. One beam is a level
  * of 1 where a drone's propellers sum to 4 or more, and a laser should be the loudest thing a robot does: hence its gain.
  */
@@ -338,6 +373,8 @@ export const LOOP_VOICES: Readonly<Record<string, { make: Maker; gain: number }>
   // One gun is a level of at most 1, like one beam.
   'charge.heavy': { make: charge(34, 1), gain: 1.2 },
   'charge.light': { make: charge(58, 1.5), gain: 0.8 },
+  // A repair job, heard where it is. Not a part's voice: no part is driving it.
+  grind: { make: grind, gain: 1.1 },
 };
 
 /** A voice with its place in the mix: the ear's gain, pan and dulling. */
@@ -568,6 +605,14 @@ export class LoopBank {
       beams.set(crackle.key, crackle);
     }
     out.push(...beams.values());
+    // A repair job grinds where it is, one voice a robot like every other.
+    const grinds = new Map<number, LoopGroup>();
+    for (const job of world.repairJobs()) {
+      const at = job.cells[0];
+      if (!at || grinds.has(job.robot)) continue;
+      grinds.set(job.robot, { key: `${job.robot}:grind`, robot: job.robot, voice: 'grind', sum: 1, on: 1, x: at.x, y: at.y });
+    }
+    out.push(...grinds.values());
     return out;
   }
 }

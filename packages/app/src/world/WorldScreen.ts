@@ -11,6 +11,7 @@ import { SoundScene } from '../audio/SoundScene';
 import { Effects } from '../render/Effects';
 import { ShellsView } from '../render/ShellsView';
 import { BeamsView } from '../render/BeamsView';
+import { RepairSparks } from '../render/RepairSparks';
 import { BoltsView } from '../render/BoltsView';
 import { SmokeView } from '../render/SmokeView';
 import { RopesView } from '../render/RopesView';
@@ -129,6 +130,7 @@ export class WorldScreen {
   readonly sound: SoundScene;
   private readonly shells = new ShellsView();
   private readonly beams = new BeamsView();
+  private readonly repairs = new RepairSparks();
   private readonly bolts = new BoltsView();
   /** M14: screen pixels the camera shakes by, dying away (a laser blowing up on screen). */
   private shake = 0;
@@ -219,6 +221,7 @@ export class WorldScreen {
     // Beams glow over smoke and ropes.
     renderer.world.addChildAt(this.beams.root, renderer.world.getChildIndex(this.smoke.root) + 1);
     renderer.world.addChildAt(this.bolts.root, renderer.world.getChildIndex(this.beams.root) + 1);
+    renderer.world.addChildAt(this.repairs.root, renderer.world.getChildIndex(this.bolts.root) + 1);
     renderer.world.addChildAt(this.outline, renderer.world.getChildIndex(this.bolts.root) + 1);
     renderer.backdrop.addChild(
       this.grid,
@@ -318,6 +321,7 @@ export class WorldScreen {
     this.views.clear();
     this.effects.clear();
     this.beams.clear();
+    this.repairs.clear();
     this.bolts.clear();
     this.sound.clear();
     this.keys.clear();
@@ -896,6 +900,7 @@ export class WorldScreen {
     this.shells.draw([...this.world.liveShells(), ...this.world.spentShells()], alpha);
     this.beams.draw(this.world, alpha, simDt, this.cam.zoom);
     this.bolts.draw(this.world, alpha, simDt, this.cam.zoom);
+    this.repairs.draw(this.world, alpha, simDt);
     this.smoke.draw(this.world.smokeClouds());
     this.ropes.draw(this.world.liveRopes());
     const focus = this.world.robots.find((r) => r.id === this.focusId);

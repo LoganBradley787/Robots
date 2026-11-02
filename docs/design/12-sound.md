@@ -18,6 +18,7 @@ Status: built in M15 (2026-10-08), decided with Logan. Tuning is by ear at the g
 ## Sounds are data on the part
 - A part def may carry `sound: { run?, hit? }`. The sim carries it untouched and never hashes it.
 - `run` names a looping voice: `propeller`, `thruster`, `wheel`, `laser`, `charge.heavy` (the cannon), `charge.light` (the lance).
+- A scrapped part makes no break sound and no puff: it is simply gone (`partScrapped`, not `partDestroyed`).
 - `hit` names what it sounds like struck or broken: `metal` (when absent), `armor`, `soft`.
 - `fire` names its firing sound, for a gun that fires rarely enough for the sim to log each shot: `cannon`, `lance` (the one-shots `fire.cannon`, `fire.lance`).
 - The app never names a part type. A new part gets sound by adding the field. A new voice is one entry in `LOOP_VOICES` (`loops.ts`) and, if a part's channel drives it, one in `LOOP_DRIVES` (`loopLevels.ts`).
@@ -37,6 +38,7 @@ Status: built in M15 (2026-10-08), decided with Logan. Tuning is by ear at the g
 | Gun | a shell object not seen before (`ShotWatcher`), plus `shotsBy` for shells that came and went within one frame (heard from the robot's middle); the sim logs no event per shot |
 | Propeller, thruster | the parts' `throttle` input |
 | Wheel | how fast the wheel's body spins against the robot's, over its `maxSpeed` (the same number as the wheel's `angularVelocity` output); the rumble is full while the wheel touches something |
+| Repair grinding | `world.repairJobs()`: the voice `grind`, heard where the job is, one voice a robot. It is no part's voice, so no part names it |
 | Laser hum and crackle | `world.liveBeams()`: the beam's part names the voice (`sound.run`), heard at the barrel; that voice's `.burn` is heard where it burns |
 | Thruster lighting, laser on and off | a loop going from silent to sounding, or back, once it has stayed that way 0.3 s (a pulsed thruster lights once) |
 

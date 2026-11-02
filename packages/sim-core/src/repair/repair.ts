@@ -375,11 +375,13 @@ export function repairCall(host: RepairHost, robot: Robot, op: string, text: str
   }
 }
 
-/** A job as the app draws it: its cells in the world, and how far along it is, 0 to 1. Undefined while it has no place. */
+/** A job as the app draws it, and how far along it is, 0 to 1. */
 export interface RepairView {
   robot: number;
   kind: RepairKind;
   part: string;
+  /** The body it is on, its cells in the world, and that body's angle. */
+  body: number;
   cells: { x: number; y: number }[];
   angle: number;
   done: number;
@@ -400,7 +402,7 @@ export function repairViews(host: RepairHost): RepairView[] {
         const dy = cell.y - at.y;
         return { x: pose.x + c * dx - s * dy, y: pose.y + s * dx + c * dy };
       });
-      out.push({ robot: robot.id, kind: job.kind, part: job.part, cells, angle: pose.angle, done: job.ticks > 0 ? 1 - job.left / job.ticks : at.health / at.def.health });
+      out.push({ robot: robot.id, kind: job.kind, part: job.part, body: robot.groups[at.group]?.bodyId as number, cells, angle: pose.angle, done: job.ticks > 0 ? 1 - job.left / job.ticks : at.health / at.def.health });
     }
   }
   return out;
