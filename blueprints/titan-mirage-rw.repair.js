@@ -35,7 +35,7 @@ const bayMend = param('bayMend', 0.8, { min: 0, max: 1 }); // share of health un
 const plateAt = param('plateAt', 0.75, { min: 0, max: 1 }); // share of health under which a plate of the keep is healed: a whole plate stops many blasts, one at 1 percent stops one
 const routeMax = param('routeMax', 12, { min: 0, max: 200 }); // juice it pays on a route to reach a bay
 const minDense = param('minDense', 40, { min: 0, max: 300 }); // dense batteries it keeps
-const minBays = param('minBays', 6, { min: 0, max: 20 }); // bays it never sells under
+const minBays = param('minBays', 6, { min: 0, max: 20 }); // bays it never sells under while it can hold itself up
 const bayHeal = param('bayHeal', 0.3, { min: 0.01, max: 1 }); // share of health it heals a made bay to in a calm region
 const float = param('float', 30, { min: 0, max: 300 }); // juice it keeps in the tank ahead of need, sold while calm: the first second of a hit is paid for
 const lift1 = param('lift1', 120, { min: 1, max: 1000 }); // N, a propeller
@@ -57,6 +57,7 @@ function setup() {
   for (const p of parts) sum += cellOf(p.id).x - state.c.x;
   state.dir = sum >= 0 ? 1 : -1; // the way the bow lies from the core, in cells
   state.sold = {}; // what it gave up
+  state.bayMade = {}; // bays it made: they are not for sale while it can hold itself up
   state.heat = {}; // region: when it last lost a part there
   state.seen = {}; // what was lost at the last look
   state.last = '';
@@ -165,7 +166,8 @@ function holdsNothing(p, h) {
 /**
  * What it gives up for `need` juice, best first, as far as it may. Batteries that hold nothing up, then frames left on
  * nothing. Then propellers in the bottom row, off the end with lift to spare: the row sits on
- * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`).
+ * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`), every last bay if it
+ * cannot hold itself up.
  */
 function sell(need, h, l, hard) {
   const out = [];
@@ -211,8 +213,12 @@ function sell(need, h, l, hard) {
       if (got >= need || Math.abs(cellOf(p.id).x - state.c.x) <= 3) break;
       take(p.id, 4);
     }
+    // On the ground a bay does it no good: under its own weight it sells down to none, and bays it made itself too. Up, a
+    // bay it just paid 50 for and sold for 40 is a loss.
+    const falling = l.times < 1;
     const bays = parts.filter((p) => p.type === 'fabbay').sort((a, b) => fore(cellOf(b.id).x) - fore(cellOf(a.id).x));
-    for (const p of bays.slice(0, Math.max(0, bays.length - minBays))) {
+    const forSale = bays.filter((p) => falling || !state.bayMade[p.id]);
+    for (const p of forSale.slice(0, Math.max(0, bays.length - (falling ? 0 : minBays)))) {
       if (got >= need) break;
       take(p.id, 80);
     }
@@ -373,6 +379,7 @@ function think() {
         money -= w.cost;
         free--;
         made[w.why] = (made[w.why] ?? 0) + 1;
+        if (w.id.startsWith('fabbay')) state.bayMade[w.id] = true;
       }
       continue;
     }

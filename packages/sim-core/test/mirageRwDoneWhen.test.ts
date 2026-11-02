@@ -25,9 +25,15 @@ beforeAll(async () => {
   host = await createQuickJsHost(variant);
 });
 
-async function flying(): Promise<{ w: World; r: Robot }> {
+/** The same robot with some of its repair params changed. */
+const withRepair = (params: Record<string, number>): Record<string, unknown> => ({
+  ...raw,
+  scripts: (raw.scripts as { id: string; params?: Record<string, number> }[]).map((s) => (s.id === 'repair' ? { ...s, params: { ...s.params, ...params } } : s)),
+});
+
+async function flying(blueprint: Record<string, unknown> = raw): Promise<{ w: World; r: Robot }> {
   const w = await World.create({ seed: 1, scripts: host }, arena);
-  const r = w.spawnBlueprint(raw, { x: -400, y: 150 }, { team: 0 });
+  const r = w.spawnBlueprint(blueprint, { x: -400, y: 150 }, { team: 0 });
   for (let i = 0; i < 20 * 60; i++) w.step();
   return { w, r };
 }
@@ -41,6 +47,12 @@ const steps = (w: World, seconds: number): void => {
   for (let i = 0; i < Math.round(seconds * 60); i++) w.step();
 };
 const count = (r: Robot, type: string): number => hull(r).filter((p) => p.def.id === type).length;
+/** Down to the six bays nearest the core, the floor. */
+const sixBays = (r: Robot): void => {
+  const core = r.parts.get(r.primaryCoreId as string) as PartInstance;
+  const bays = hull(r).filter((p) => p.def.id === 'fabbay').sort((a, b) => Math.abs(a.x - core.x) - Math.abs(b.x - core.x));
+  for (const p of bays.slice(6)) p.health = 0;
+};
 
 describe('titan-mirage-rw: the repair script', () => {
   it('sells what holds nothing up for a float, and leaves the keep alone', async () => {
@@ -91,6 +103,36 @@ describe('titan-mirage-rw: the repair script', () => {
     steps(w, 50);
     expect(r.parts.has(bay.id)).toBe(true);
     expect((r.parts.get(bay.id) as PartInstance).built).toBeGreaterThan(0);
+    w.dispose();
+  }, 240000);
+
+  it('down with nothing else to sell: it goes under the bay floor to fly again', async () => {
+    const { w, r } = await flying(withRepair({ minDense: 300, float: 0 }));
+    sixBays(r);
+    steps(w, 2);
+    shoot(r, (p) => p.def.id === 'propeller' && p.x >= 25);
+    steps(w, 0.1);
+    const left = count(r, 'propeller');
+    steps(w, 50);
+    expect(count(r, 'fabbay')).toBeLessThan(6);
+    expect(count(r, 'propeller')).toBeGreaterThan(left + 80);
+    w.dispose();
+  }, 240000);
+
+  it('a bay it made: while it can hold itself up, it sells an older one first', async () => {
+    const { w, r } = await flying(withRepair({ minDense: 300, float: 300, sellTo: 3 }));
+    sixBays(r);
+    r.repair = { tank: 60, jobs: [] };
+    steps(w, 45);
+    const made = w.events.find((e) => e.kind === 'partRebuilt' && e.partType === 'fabbay');
+    expect(made).toBeDefined();
+    expect(count(r, 'fabbay')).toBe(7);
+    shoot(r, (p) => (p.x >= 3 && p.x <= 5 && p.y >= 4 && p.y <= 11 && p.def.id !== 'core') || (p.def.id === 'armorplate' && p.y === 1 && p.x >= 3 && p.x <= 9));
+    r.repair.tank = 0;
+    steps(w, 40);
+    const sold = w.events.flatMap((e) => (e.kind === 'partScrapped' && e.partType === 'fabbay' ? [e.part] : []));
+    expect(sold.length).toBeGreaterThan(0);
+    expect(sold).not.toContain((made as { part: string }).part);
     w.dispose();
   }, 240000);
 });
