@@ -63,6 +63,8 @@ export function orientBlueprint(bp: Blueprint, o: Orientation, registry: PartReg
   else if (bp.parts.filter((p) => registry.has(p.part) && isCore(p, registry)).length > 1) out.primaryCore = rename(root.id);
   if (bp.corePriority !== undefined) out.corePriority = bp.corePriority.map(rename);
   if (bp.cores !== undefined) out.cores = bp.cores.map((c) => ({ ...c, core: rename(c.core), bindings: renameBindings(c.bindings) }));
+  // A bay flips, so what it builds must: turning needs nothing, a recipe is placed turned with its bay.
+  if (o.flip && bp.recipes !== undefined) out.recipes = bp.recipes.map((r) => ({ ...r, blueprint: orientBlueprint(r.blueprint, { flip: true }, registry) }));
   return out;
 }
 

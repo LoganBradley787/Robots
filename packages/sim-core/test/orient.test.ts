@@ -163,4 +163,15 @@ describe('flipping keeps the root part where it is (review E5)', () => {
       expect(orientBlueprint(once, { flip: true }, reg).parts).toEqual(bp.parts);
     }
   });
+
+  it('a flipped robot flips what its bays build; turned, the recipe stays as it is', () => {
+    const bp = validateBlueprint(shipped('titan-mirage'), reg).blueprint as Blueprint;
+    const recipe = (b: Blueprint): Blueprint => (b.recipes?.[0] as { blueprint: Blueprint }).blueprint;
+    const root = recipe(bp).parts.find((p) => p.id === rootPartId(recipe(bp), reg)) as Blueprint['parts'][number];
+    const once = orientBlueprint(bp, { flip: true }, reg);
+    expect(recipe(once).parts.map((p) => `${p.part}@${p.x},${p.y}`).sort()).not.toEqual(recipe(bp).parts.map((p) => `${p.part}@${p.x},${p.y}`).sort());
+    expect(recipe(once).parts.find((p) => p.part === root.part && p.x === root.x && p.y === root.y)).toBeDefined();
+    expect(recipe(orientBlueprint(once, { flip: true }, reg)).parts).toEqual(recipe(bp).parts);
+    expect(recipe(orientBlueprint(bp, { rot: 90 }, reg))).toEqual(recipe(bp));
+  });
 });
