@@ -58,6 +58,7 @@ function setup() {
   state.dir = sum >= 0 ? 1 : -1; // the way the bow lies from the core, in cells
   state.sold = {}; // what it gave up
   state.bayMade = {}; // bays it made: they are not for sale while it can hold itself up
+  state.baySold = false; // it has sold a bay: it makes no more
   state.heat = {}; // region: when it last lost a part there
   state.seen = {}; // what was lost at the last look
   state.last = '';
@@ -166,8 +167,8 @@ function holdsNothing(p, h) {
 /**
  * What it gives up for `need` juice, best first, as far as it may. Batteries that hold nothing up, then frames left on
  * nothing. Then propellers in the bottom row, off the end with lift to spare: the row sits on
- * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`), every last bay if it
- * cannot hold itself up.
+ * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`). If it cannot hold itself
+ * up, every last bay, and then the batteries in the hull.
  */
 function sell(need, h, l, hard) {
   const out = [];
@@ -221,6 +222,15 @@ function sell(need, h, l, hard) {
     for (const p of forSale.slice(0, Math.max(0, bays.length - (falling ? 0 : minBays)))) {
       if (got >= need) break;
       take(p.id, 80);
+    }
+    // Last, under its own weight: the batteries that hold the hull together, from the far ends. A hull in two pieces is
+    // better than a hull on the ground.
+    if (got < need && falling) {
+      const rest = h.dense.filter((p) => !state.sold[p.id] && !out.some((o) => o.id === p.id)).sort((a, b) => fore(cellOf(b.id).x) - fore(cellOf(a.id).x));
+      for (const p of rest) {
+        if (got >= need) break;
+        take(p.id, 2.4);
+      }
     }
   }
   return out;
@@ -297,7 +307,9 @@ function wants(gone, h, l) {
   }
   // 5: bays, the nearest first, in calm regions, if the way there is worth it.
   const bays = gone.filter((p) => p.type === 'fabbay' && time - (state.heat[regionOf(p.x)] ?? -1000) > bayQuiet).sort((a, b) => fore(a.x) - fore(b.x));
-  for (const p of h.dense.length > bayDense ? bays : []) {
+  // Once it has sold a bay, the only money for one is the next bay: it sold 80s to pay 50s, six in a row, and walked its
+  // bays down the hull.
+  for (const p of h.dense.length > bayDense && !state.baySold ? bays : []) {
     const path = route(p, gone);
     if (!path) continue;
     const bill = path.reduce((n, q) => n + q.create, 0) - p.create;
@@ -422,6 +434,7 @@ function think() {
       if (scrap(s.id).ok) {
         state.sold[s.id] = true;
         state.due[s.id] = s.gives;
+        if (s.id.startsWith('fabbay')) state.baySold = true;
         free--;
         n++;
       }

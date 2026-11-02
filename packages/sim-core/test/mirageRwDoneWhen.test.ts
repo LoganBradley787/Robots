@@ -106,7 +106,7 @@ describe('titan-mirage-rw: the repair script', () => {
     w.dispose();
   }, 240000);
 
-  it('down with nothing else to sell: it goes under the bay floor to fly again', async () => {
+  it('down with nothing else to sell: it goes under the bay floor and flies again', async () => {
     const { w, r } = await flying(withRepair({ minDense: 300, float: 0 }));
     sixBays(r);
     steps(w, 2);
@@ -116,10 +116,12 @@ describe('titan-mirage-rw: the repair script', () => {
     steps(w, 50);
     expect(count(r, 'fabbay')).toBeLessThan(6);
     expect(count(r, 'propeller')).toBeGreaterThan(left + 80);
+    steps(w, 70);
+    expect(partWorldPose(w, r, r.primaryCoreId as string).y).toBeGreaterThan(100);
     w.dispose();
   }, 240000);
 
-  it('a bay it made: while it can hold itself up, it sells an older one first', async () => {
+  it('a bay it made: while it can hold itself up, it sells an older one first, and makes no more', async () => {
     const { w, r } = await flying(withRepair({ minDense: 300, float: 300, sellTo: 3 }));
     sixBays(r);
     r.repair = { tank: 60, jobs: [] };
@@ -133,6 +135,7 @@ describe('titan-mirage-rw: the repair script', () => {
     const sold = w.events.flatMap((e) => (e.kind === 'partScrapped' && e.partType === 'fabbay' ? [e.part] : []));
     expect(sold.length).toBeGreaterThan(0);
     expect(sold).not.toContain((made as { part: string }).part);
+    expect(w.events.filter((e) => e.kind === 'partRebuilt' && e.partType === 'fabbay')).toHaveLength(1);
     w.dispose();
   }, 240000);
 });
