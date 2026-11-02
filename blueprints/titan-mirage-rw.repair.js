@@ -26,8 +26,9 @@ const sellTo = param('sellTo', 1.45, { min: 1, max: 3 }); // times its weight: i
 const neck = param('neck', 3, { min: 1, max: 8 }); // rows joined across a column at or under which it is a link in danger
 const quiet = param('quiet', 6, { min: 0, max: 30 }); // s since a region of the hull lost a part before it counts as calm
 const region = param('region', 12, { min: 1, max: 60 }); // cells along the hull to a region
-const bayQuiet = param('bayQuiet', 15, { min: 0, max: 60 }); // s a bay's region must be calm: a volley comes about every 11 s, and a bay takes 30 to make
-const bayDense = param('bayDense', 130, { min: 0, max: 300 }); // dense batteries it keeps against the keep: bays do not get these
+const bayQuiet = param('bayQuiet', 8, { min: 0, max: 60 }); // s a bay's region must be calm: a volley comes about every 11 s, and a bay takes 30 to make
+const bayDense = param('bayDense', 70, { min: 0, max: 300 }); // dense batteries it keeps against the keep: bays do not get these
+const bayMend = param('bayMend', 0.8, { min: 0, max: 1 }); // share of health under which a standing bay is healed: bays are what fires, and what stops ghosts short of the keep
 const plateAt = param('plateAt', 0.75, { min: 0, max: 1 }); // share of health under which a plate of the keep is healed: a whole plate stops many blasts, one at 1 percent stops one
 const routeMax = param('routeMax', 12, { min: 0, max: 200 }); // juice it pays on a route to reach a bay
 const minDense = param('minDense', 40, { min: 0, max: 300 }); // dense batteries it keeps
@@ -322,6 +323,12 @@ function think() {
     for (const p of own({ of: 'armorplate' }) ?? []) if (p.health < plateAt * p.maxHealth && !h.busy.has(p.id)) plates.push(p);
     plates.sort((a, b) => a.health - b.health);
   }
+  // Bays still standing, nearest the core first: a bay kept is cheaper than a bay made, and it never stops firing.
+  const mend2 = [];
+  if (bayMend > 0 && !wish.some((w) => w.why === 'keep') && h.dense.length > bayDense) {
+    for (const p of own({ of: 'fabbay' }) ?? []) if (p.health < bayMend * p.maxHealth && !h.busy.has(p.id)) mend2.push(p);
+    mend2.sort((a, b) => fore(cellOf(a.id).x) - fore(cellOf(b.id).x));
+  }
   // What it can pay for now it makes; what it cannot, it sells for, and the sale is kept for that want.
   let money = hold;
   let done = 0;
@@ -347,6 +354,21 @@ function think() {
   for (const p of plates) {
     if (free <= 0 || money < 0.05) break;
     const pay = Math.min(p.heal, money);
+    const share = p.health / p.maxHealth;
+    if (heal(p.id, share + ((1 - share) * pay) / Math.max(p.heal, 1e-6)).ok) {
+      money -= pay;
+      free--;
+    }
+  }
+  for (const p of mend2) {
+    const pay = Math.min(p.heal, 25);
+    if (free <= 0) break;
+    if (money < pay) {
+      need += pay;
+      if (why === '') why = 'mending bays';
+      if (need > 60) break;
+      continue;
+    }
     const share = p.health / p.maxHealth;
     if (heal(p.id, share + ((1 - share) * pay) / Math.max(p.heal, 1e-6)).ok) {
       money -= pay;
