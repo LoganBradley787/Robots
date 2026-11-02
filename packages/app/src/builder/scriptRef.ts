@@ -123,7 +123,7 @@ export interface ApiEntry {
   /** What a click puts in the code, and how many characters before its end the caret lands (0: after it). */
   insert: string;
   caret?: number;
-  section: 'The robot' | 'Parts' | 'Seeing' | 'Keys' | 'Messages' | 'Settings and memory' | 'Maths';
+  section: 'The robot' | 'Parts' | 'Seeing' | 'Repair' | 'Keys' | 'Messages' | 'Settings and memory' | 'Maths';
   /** What the robot must have for it to do anything: something that sees, or another core. */
   needs?: 'sees' | 'others';
   /** More for the hover card: the facts that trip people up. */
@@ -154,6 +154,15 @@ export const SCRIPT_API: readonly ApiEntry[] = [
 
   { name: 'contacts', sig: 'contacts', about: 'robots its sensors see, nearest first', insert: 'contacts[0]', section: 'Seeing', needs: 'sees', more: 'Each has id, side (enemy, friend, none), pos, vel, distance, mass, parts. A part that sees has NO distance output: there is nothing to get() from it. Read contacts.' },
   { name: 'scan', sig: 'scan(id, { near, most, of, has, from, acts })', about: 'the parts of a robot it sees, or null', insert: 'scan(contacts[0].id, { near: self.pos, most: 50 })', section: 'Seeing', needs: 'sees', more: 'Each has id, type, pos, angle, health, maxHealth. Ask only for what you need: a titan has thousands of parts. near and most: the most parts nearest a point. of: parts with these ids, types or tags. has: parts with this input or output ("throttle"). from: each part also gets cover, the health in front of it on the line from that point. acts: true: each part that pushes or fires also gets acts, the way it does in the world (radians). At most 4 calls a tick.' },
+
+  { name: 'scrap', sig: 'scrap(id)', about: 'scrap a part of this robot into its tank', insert: 'scrap("")', caret: 2, section: 'Repair', more: 'Gives back 80 percent of what the part is worth now, when the job ends. No blast. Answers { ok, seconds, cost } or { ok: false, why }. One job at a time.' },
+  { name: 'build', sig: 'build(id)', about: 'make a lost part again, from the tank', insert: 'build("")', caret: 2, section: 'Repair', more: 'Half its worth, and it comes back at 1 percent health. It must touch the robot and its cell must be empty. Answers as scrap() does; why says what stopped it.' },
+  { name: 'heal', sig: 'heal(id, upTo)', about: 'heal a part from the tank', insert: 'heal("")', caret: 2, section: 'Repair', more: 'The other half of its worth, in proportion to the health gained, until upTo (a share of full, 1 by default) or the tank runs out.' },
+  { name: 'stopJob', sig: 'stopJob()', about: 'stop the job: a build gives back what it took', insert: 'stopJob()', section: 'Repair' },
+  { name: 'tank', sig: 'tank()', about: 'what its tank holds', insert: 'tank()', section: 'Repair' },
+  { name: 'job', sig: 'job()', about: 'the job running, or null', insert: 'job()', section: 'Repair', more: '{ kind, part, left, seconds }. kind is scrap, build or heal.' },
+  { name: 'lost', sig: 'lost({ of, touching })', about: 'the parts it could make, with their prices', insert: 'lost({ touching: true })', section: 'Repair', more: 'Each is { id, type, tags, x, y, rot, juice, create, heal, seconds, touching }. A host call, like scan: at most 4 a tick with scans.' },
+  { name: 'own', sig: 'own({ near, most, of, has })', about: 'its own parts with their health and repair prices', insert: 'own()', section: 'Repair', more: 'As scan lists a robot, plus juice, gives, heal and seconds. Asks for only what you need: on a robot of thousands of parts a plain own() is slow.' },
 
   { name: 'keys.down', sig: 'keys.down("w")', about: 'is a key held right now', insert: 'keys.down("")', caret: 2, section: 'Keys' },
   { name: 'keys.pressed', sig: 'keys.pressed("w")', about: 'did it go down this tick', insert: 'keys.pressed("")', caret: 2, section: 'Keys' },
