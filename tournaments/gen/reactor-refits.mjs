@@ -1,8 +1,8 @@
 // The reactor refits (2026-10-31): stock robots with their dense batteries swapped for reactors, the stock robots left
 // as they are, so a stock robot and its refit can be fought against each other. Run from anywhere after any change to
 // the stock robots: node tournaments/gen/reactor-refits.mjs
-// Writes blueprints/titan-<name>-r.json for all eight titans and the pilots they patch, reactor-cannon-drone.json and its
-// scripts, and enemy-reactor-cannon-drone.json.
+// Writes blueprints/titan-<name>-r.json for all eight titans and the pilots they patch, titan-mirage-rw.json,
+// reactor-cannon-drone.json and its scripts, and enemy-reactor-cannon-drone.json.
 //
 // Titans swap by mass: a reactor is 100 kg, so it takes the place of about 33 dense batteries, 9 under it and the rest
 // left as holes, and the refit weighs what the stock robot weighs. A hole is cheaper than a frame, and the rows between
@@ -89,6 +89,13 @@ function patch(text, from, to) {
   const every = spots.length / take;
   hollow(cells, Array.from({ length: take }, (_, i) => spots[Math.floor(i * every)]), take);
   write({ ...bp, name: 'titan-mirage-r', grid: gridOf(cells), bindings: [...(bp.bindings ?? []), PUSH_KEY] });
+}
+
+// ---- titan-mirage-rw: titan-mirage-r with a second script that repairs it, paid in parts. Nothing else differs. ----
+{
+  const bp = read('titan-mirage-r');
+  const repair = { id: 'repair', params: { repair: 1 }, source: { file: 'titan-mirage-rw.repair.js' } };
+  write({ ...bp, name: 'titan-mirage-rw', scripts: [...bp.scripts, repair] });
 }
 
 // ---- titan-anvil-r: 17 reactors, 25.5 kW against 25 kW of hover and fight. Its pilot counts them. ----

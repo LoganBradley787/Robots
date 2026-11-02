@@ -1,0 +1,360 @@
+// Repair of titan-mirage-rw: what it gives up and what it makes, in what order. The engine only takes orders (`scrap`,
+// `build`, `heal`): every decision is here, and the helm flies on whatever is left. It wakes twice a second, and ends
+// each look with `sleep`, so a quiet hull pays nothing for it. Param `repair` 0 turns it all off.
+//
+// A look makes a list of wants, most wanted first, and works down it with the jobs it has free:
+// 1. The keep: anything lost round the core goes back at once, under fire or not. A blast is halved by every part in
+//    the way, whatever its health, so a part at 1 percent is as good as a whole one until it dies. What ends a Mirage
+//    is one volley through the keep with the core at full health.
+// 2. Staying up: lift held level, not lift on paper. Short of it, propellers on the side that is short.
+// 3. The link: the column of the hull with the fewest rows still joined. Its lost parts go back, and its hurt ones heal.
+// 4. Reactors, the cells round them first.
+// 5. Bays: nearest the core first, with a route of parts to reach one that hangs in the air, if that route is worth it.
+// 6. The eyes and the side boosters, and what the helm needs to hold its place.
+// What it cannot pay for it sells for, and it keeps a `float` in the tank ahead of need, from `sell()`: batteries that hold nothing up, then bottom row propellers while it
+// has lift to spare, then plates and bays far from the core. It stops where `sell()` says.
+//
+// Under fire, what it makes dies: a region of the hull that lost a part in the last `quiet` seconds is left alone,
+// the keep and an emergency apart. What it scrapped itself is not fire: `state.sold` keeps it apart from what was shot.
+
+const repairOn = param('repair', 1, { min: 0, max: 1 }); // 0: it never scraps, builds or heals
+const every = param('every', 30, { min: 1, max: 30 }); // ticks between looks
+const keepR = param('keepR', 8, { min: 1, max: 30 }); // cells round the core that make the keep
+const safe = param('safe', 1.25, { min: 1, max: 3 }); // times its weight in lift held level: under this, propellers come before all but the keep
+const wanted = param('wanted', 1.5, { min: 1, max: 3 }); // times its weight: under this it makes propellers once the region is calm
+const sellTo = param('sellTo', 1.45, { min: 1, max: 3 }); // times its weight: it sells no propeller under this
+const neck = param('neck', 3, { min: 1, max: 8 }); // rows joined across a column at or under which it is a link in danger
+const quiet = param('quiet', 6, { min: 0, max: 30 }); // s since a region of the hull lost a part before it counts as calm
+const region = param('region', 12, { min: 1, max: 60 }); // cells along the hull to a region
+const routeMax = param('routeMax', 12, { min: 0, max: 200 }); // juice it pays on a route to reach a bay
+const minDense = param('minDense', 40, { min: 0, max: 300 }); // dense batteries it keeps
+const minBays = param('minBays', 6, { min: 0, max: 20 }); // bays it never sells under
+const bayHeal = param('bayHeal', 0.3, { min: 0.01, max: 1 }); // share of health it heals a made bay to in a calm region
+const float = param('float', 30, { min: 0, max: 300 }); // juice it keeps in the tank ahead of need, sold while calm: the first second of a hit is paid for
+const lift1 = param('lift1', 120, { min: 1, max: 1000 }); // N, a propeller
+const lift2 = param('lift2', 400, { min: 1, max: 4000 }); // N, a lift booster
+
+const cellOf = (id) => {
+  const m = id.match(/@(-?\d+),(-?\d+)/);
+  return { x: Number(m[1]), y: Number(m[2]) };
+};
+const key = (x, y) => x * 4096 + y;
+/** One of the lift strips (`l0` to `l7`): not a copy a bay holds. */
+const lifter = (p) => (p.type === 'propeller' || p.type === 'booster') && p.tags.length > 0 && /^l\d$/.test(p.tags[0]);
+
+function setup() {
+  const core = parts.find((p) => p.type === 'core');
+  state.core = core.id;
+  state.c = cellOf(core.id);
+  let sum = 0;
+  for (const p of parts) sum += cellOf(p.id).x - state.c.x;
+  state.dir = sum >= 0 ? 1 : -1; // the way the bow lies from the core, in cells
+  state.sold = {}; // what it gave up
+  state.heat = {}; // region: when it last lost a part there
+  state.seen = {}; // what was lost at the last look
+  state.last = '';
+  state.due = {}; // what a scrap under way will bring
+}
+
+/** Cells from the core toward the bow. */
+const fore = (x) => (x - state.c.x) * state.dir;
+const regionOf = (x) => Math.floor(fore(x) / region);
+const calm = (x) => time - (state.heat[regionOf(x)] ?? -1000) > quiet;
+
+function say(text) {
+  if (text === state.last) return;
+  state.last = text;
+  log(text);
+}
+
+/**
+ * Lift it can hold level, as times its weight, and which end is short: 1 the bow, -1 the stern, 0 neither. Every strip
+ * at full leaves a turn one way; cutting the strips furthest out that way undoes it for the least lift lost.
+ */
+function liftNow() {
+  let m = 0;
+  let mx = 0;
+  for (const p of parts) {
+    m += p.mass;
+    mx += p.mass * p.pos.x;
+  }
+  const cx = mx / m;
+  const cap = {};
+  const arm = {};
+  for (const p of parts) {
+    if (!lifter(p)) continue;
+    const f = p.type === 'propeller' ? lift1 : lift2;
+    const k = p.tags[0];
+    cap[k] = (cap[k] ?? 0) + f;
+    arm[k] = (arm[k] ?? 0) + f * (p.pos.x - cx) * state.dir;
+  }
+  const strips = Object.keys(cap).map((k) => ({ cap: cap[k], arm: arm[k] / cap[k] }));
+  let held = 0;
+  let turn = 0;
+  for (const k of strips) {
+    held += k.cap;
+    turn += k.cap * k.arm;
+  }
+  const way = sign(turn);
+  strips.sort((a, b) => way * (b.arm - a.arm));
+  let left = Math.abs(turn);
+  for (const k of strips) {
+    const each = way * k.arm;
+    if (left <= 0 || each <= 0) break;
+    const cut = Math.min(k.cap, left / each);
+    held -= cut;
+    left -= cut * each;
+  }
+  return { times: held / (self.mass * 9.81), short: -way, cx };
+}
+
+/** Where the hull is live, cell by cell, and how many rows are joined across each column. */
+function hull() {
+  const at = new Set();
+  const dense = [];
+  for (const p of parts) {
+    if (p.tags.length > 0 && /^g.\d/.test(p.tags[0])) continue;
+    const c = cellOf(p.id);
+    at.add(key(c.x, c.y));
+    if (p.type === 'densebattery') dense.push(p);
+  }
+  let worst = Infinity;
+  let where = 0;
+  const lo = Math.min(state.c.x, state.c.x + state.dir * 165);
+  const hi = Math.max(state.c.x, state.c.x + state.dir * 165);
+  for (let x = lo; x < hi; x++) {
+    let n = 0;
+    for (let y = 1; y <= 7; y++) if (at.has(key(x, y)) && at.has(key(x + 1, y))) n++;
+    if (fore(x) > 8 && n < worst) {
+      worst = n;
+      where = x;
+    }
+  }
+  return { at, dense, worst, where };
+}
+
+/** A battery that holds nothing up: on a row with something left and right of it, with nothing resting on it. */
+function looseBattery(p, h) {
+  const c = cellOf(p.id);
+  if (Math.abs(c.x - state.c.x) <= keepR + 4) return false;
+  return !h.at.has(key(c.x, c.y + 1)) || !h.at.has(key(c.x, c.y - 1));
+}
+
+/**
+ * What it gives up for `need` juice, best first, as far as it may. Batteries that hold nothing up, off the end that is
+ * short of lift so it comes up. Then propellers in the bottom row, off the end with lift to spare: the row sits on
+ * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`).
+ */
+function sell(need, h, l, hard) {
+  const out = [];
+  let got = 0;
+  const take = (id, gives) => {
+    out.push({ id, gives });
+    got += gives;
+  };
+  const rank = (p) => -l.short * (p.pos.x - self.pos.x) * state.dir;
+  const dense = h.dense.filter((p) => looseBattery(p, h) && !state.sold[p.id]).sort((a, b) => rank(a) - rank(b));
+  let left = h.dense.length - minDense;
+  for (const p of dense) {
+    if (got >= need || left <= 0) break;
+    take(p.id, 2.4);
+    left--;
+  }
+  if (got < need && l.times > sellTo) {
+    const spare = Math.ceil(((l.times - sellTo) * self.mass * 9.81) / lift1);
+    const row = parts.filter((p) => p.type === 'propeller' && lifter(p) && cellOf(p.id).y === 2 && !state.sold[p.id]);
+    row.sort((a, b) => (l.short * (b.pos.x - l.cx) - l.short * (a.pos.x - l.cx)) * state.dir);
+    for (const p of row.slice(0, spare)) {
+      if (got >= need) break;
+      take(p.id, 0.8);
+    }
+  }
+  if (got < need && hard) {
+    const plates = parts.filter((p) => p.type === 'armorplate' && !state.sold[p.id]);
+    plates.sort((a, b) => Math.abs(cellOf(b.id).x - state.c.x) + Math.abs(cellOf(b.id).y - state.c.y) - Math.abs(cellOf(a.id).x - state.c.x) - Math.abs(cellOf(a.id).y - state.c.y));
+    for (const p of plates) {
+      if (got >= need || Math.abs(cellOf(p.id).x - state.c.x) <= 3) break;
+      take(p.id, 4);
+    }
+    const bays = parts.filter((p) => p.type === 'fabbay').sort((a, b) => fore(cellOf(b.id).x) - fore(cellOf(a.id).x));
+    for (const p of bays.slice(0, Math.max(0, bays.length - minBays))) {
+      if (got >= need) break;
+      take(p.id, 80);
+    }
+  }
+  return out;
+}
+
+/** The parts to make to reach `target` from the living robot, nearest the robot first, or null. */
+function route(target, gone) {
+  if (target.touching) return [target];
+  const cells = new Map();
+  for (const p of gone) if (p.type === 'frame' || p.type === 'densebattery') cells.set(key(p.x, p.y), p);
+  const start = target.type === 'fabbay' ? [[target.x - 1, target.y - 1], [target.x, target.y - 1], [target.x + 1, target.y - 1]] : [[target.x - 1, target.y], [target.x + 1, target.y], [target.x, target.y - 1], [target.x, target.y + 1]];
+  const from = new Map();
+  const queue = [];
+  for (const [x, y] of start) {
+    const p = cells.get(key(x, y));
+    if (p && !from.has(p)) {
+      from.set(p, null);
+      queue.push(p);
+    }
+  }
+  for (let i = 0; i < queue.length && i < 200; i++) {
+    const p = queue[i];
+    if (p.touching) {
+      const path = [];
+      for (let q = p; q; q = from.get(q)) path.push(q);
+      path.push(target);
+      return path;
+    }
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const n = cells.get(key(p.x + dx, p.y + dy));
+      if (n && !from.has(n)) {
+        from.set(n, p);
+        queue.push(n);
+      }
+    }
+  }
+  return null;
+}
+
+/** What the look wants, most wanted first: `{ id, cost, why, hard }`. */
+function wants(gone, h, l) {
+  const list = [];
+  const open = new Set();
+  const add = (p, why, hard) => {
+    if (open.has(p.id)) return;
+    open.add(p.id);
+    list.push({ id: p.id, cost: p.create, why, hard });
+  };
+  const close = (p) => Math.max(Math.abs(p.x - state.c.x), Math.abs(p.y - state.c.y));
+  const reach = gone.filter((p) => p.touching);
+  // 1: the keep, nearest the core first, cheapest first, under fire or not.
+  const keep = reach.filter((p) => close(p) <= keepR && p.type !== 'reactor').sort((a, b) => close(a) - close(b) || a.create - b.create);
+  for (const p of keep) add(p, 'keep', true);
+  // 2: the air. On the short side, the deck first if a propeller has nothing to stand on.
+  const props = reach.filter((p) => p.type === 'propeller' || (p.type === 'booster' && p.tags.length > 0 && p.tags[0] === 'l0'));
+  const side = (p) => -l.short * fore(p.x);
+  props.sort((a, b) => side(a) - side(b));
+  const emergency = l.times < safe;
+  if (emergency || l.times < wanted) {
+    const n = Math.ceil(((wanted - l.times) * self.mass * 9.81) / lift1) + 8;
+    for (const p of props.filter((q) => emergency || calm(q.x)).slice(0, Math.max(n, 16))) add(p, 'lift', emergency);
+    if (emergency) for (const p of reach.filter((q) => q.type === 'frame' && q.y === 1).slice(0, 8)) add(p, 'deck', true);
+  }
+  // 3: the link.
+  if (h.worst <= neck) {
+    const parts3 = reach.filter((p) => Math.abs(p.x - h.where) <= 2 && (p.type === 'frame' || p.type === 'densebattery' || p.type === 'propeller') && p.y >= 1 && p.y <= 7);
+    parts3.sort((a, b) => a.create - b.create || Math.abs(a.x - h.where) - Math.abs(b.x - h.where));
+    for (const p of parts3) add(p, 'link', true);
+  }
+  // 4: reactors, what stands round one first.
+  for (const p of gone.filter((q) => q.type === 'reactor')) {
+    const round = reach.filter((q) => q.id !== p.id && q.x >= p.x - 2 && q.x <= p.x + 4 && q.y >= p.y - 2 && q.y <= p.y + 4);
+    for (const q of round) add(q, 'round reactor', false);
+    if (p.touching && round.length === 0) add(p, 'reactor', false);
+  }
+  // 5: bays, the nearest first, in calm regions, if the way there is worth it.
+  const bays = gone.filter((p) => p.type === 'fabbay' && calm(p.x)).sort((a, b) => fore(a.x) - fore(b.x));
+  for (const p of bays) {
+    const path = route(p, gone);
+    if (!path) continue;
+    const bill = path.reduce((n, q) => n + q.create, 0) - p.create;
+    if (bill > routeMax) continue;
+    add(path[0], path.length > 1 ? 'way to bay' : 'bay', false);
+    break;
+  }
+  // 6: eyes, the radio, and what moves it.
+  for (const p of reach) if (calm(p.x) && (p.type === 'radar' || p.type === 'radio' || p.type === 'booster')) add(p, 'eyes', false);
+  return list;
+}
+
+/** Heals what it may with what the tank holds over the wants. */
+function mend(free, spare, h) {
+  let left = free;
+  const list = own({ near: self.pos, most: 80 }) ?? [];
+  const hurt = list.filter((p) => p.health < 0.95 * p.maxHealth && !h.busy.has(p.id)).sort((a, b) => b.maxHealth / Math.max(1, b.juice) - a.maxHealth / Math.max(1, a.juice));
+  let money = spare;
+  for (const p of hurt) {
+    if (left <= 0 || money < 0.05) break;
+    // Only what it has over the float: a heal left to itself runs the tank dry.
+    const pay = Math.min(p.heal, money);
+    const share = p.health / p.maxHealth;
+    if (heal(p.id, share + ((1 - share) * pay) / Math.max(p.heal, 1e-6)).ok) {
+      left--;
+      money -= pay;
+    }
+  }
+  if (left > 0 && money > 2) {
+    const bays = own({ of: 'fabbay' }) ?? [];
+    for (const p of bays.filter((q) => q.health < bayHeal * q.maxHealth && calm(cellOf(q.id).x) && !h.busy.has(q.id))) {
+      if (left <= 0) break;
+      if (heal(p.id, bayHeal).ok) left--;
+    }
+  }
+}
+
+function think() {
+  const gone = (lost() ?? []).filter((p) => !state.sold[p.id] && p.tags[0]?.charAt(0) !== 'j');
+  const seen = {};
+  for (const p of gone) {
+    seen[p.id] = true;
+    if (state.seen[p.id]) continue;
+    state.heat[regionOf(p.x)] = time;
+  }
+  state.seen = seen;
+  const work = jobs();
+  // What is being scrapped is money already: counted as nothing, it sold 32 batteries for a bay that wanted 21.
+  let hold = tank();
+  for (const j of work.jobs) if (j.kind === 'scrap') hold += state.due[j.part] ?? 0;
+  const h = hull();
+  h.busy = new Set(work.jobs.map((j) => j.part));
+  const l = liftNow();
+  let free = work.free;
+  const wish = wants(gone, h, l).filter((w) => !h.busy.has(w.id));
+  // What it can pay for now it makes; what it cannot, it sells for, and the sale is kept for that want.
+  let money = hold;
+  let done = 0;
+  let need = 0;
+  let hard = false;
+  let why = '';
+  for (const w of wish) {
+    if (free > 0 && money >= w.cost) {
+      if (build(w.id).ok) {
+        money -= w.cost;
+        free--;
+        done++;
+      }
+      continue;
+    }
+    if (money < w.cost) {
+      need += w.cost;
+      hard = hard || w.hard;
+      if (why === '') why = w.why;
+      if (need > 60) break;
+    }
+  }
+  const short = need + float - money;
+  if (short > 0 && free > 0) {
+    let n = 0;
+    for (const s of sell(short, h, l, hard)) {
+      if (free <= 0) break;
+      if (scrap(s.id).ok) {
+        state.sold[s.id] = true;
+        state.due[s.id] = s.gives;
+        free--;
+        n++;
+      }
+    }
+    if (n > 0) log(`sell ${n} for ${why || 'the float'}: need ${need.toFixed(1)}, have ${money.toFixed(1)}`);
+  } else if (need === 0 && free > 0 && money > float) {
+    mend(free, money - float, h);
+  }
+  if (done > 0) say(`${done} made: ${wish[0].why}, lift ${l.times.toFixed(2)}, link ${h.worst}, tank ${money.toFixed(1)}, ${gone.length} lost`);
+}
+
+function tick() {
+  if (repairOn >= 1) think();
+  sleep(every - 1);
+}
