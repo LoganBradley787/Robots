@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "repair-drone",
+  "kind": "enemy",
+  "autoControls": false,
+  "grid": [
+    ".  .  .  .  .  .  z  .  .  .  .  .  .",
+    ".  .  .  .  .  .  y  .  .  .  .  .  .",
+    ".  .  .  .  .  .  F  .  .  .  .  .  .",
+    ".  a  a  a  a  .  F  .  b  b  b  b  .",
+    "A  F  F  G  Z  Z  C  Z  Z  F  F  F  A",
+    ".  F  a  a  a  a  O  b  b  b  b  F  ."
+  ],
+  "legend": {
+    "a": { "part": "propeller", "tags": ["lprop"], "auto": false },
+    "b": { "part": "propeller", "tags": ["rprop"], "auto": false },
+    "A": { "part": "armorplate", "tags": ["armor"] },
+    "G": { "part": "gyro", "tags": ["stab"], "auto": false },
+    "O": { "part": "radar", "tags": ["radar"] },
+    "y": { "part": "rotator", "tags": ["laser-turret1", "laser-turret1.rot"], "auto": false },
+    "z": { "part": "laser", "tags": ["laser-turret1", "laser-turret1.laser"] }
+  },
+  "scripts": [
+    { "id": "pilot", "source": { "file": "repair-drone.pilot.js" }, "params": { "repair": 1 } },
+    { "id": "turrets", "source": { "file": "repair-drone.turrets.js" } }
+  ]
+}
