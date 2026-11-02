@@ -13,8 +13,14 @@
 //    hangs in the air, if that route is worth it. Bays are what fires, and ghosts stop at them short of the keep.
 // 6. More lift, when it could do better.
 // 7. The eyes and the side boosters, and what the helm needs to hold its place.
-// What it cannot pay for it sells for, and it keeps a `float` in the tank ahead of need, from `sell()`: batteries that hold nothing up, then bottom row propellers while it
-// has lift to spare, then plates and bays far from the core. It stops where `sell()` says.
+// What it cannot pay for it sells for, and it keeps a `float` in the tank ahead of need, from `sell()`: for a want, the
+// batteries in the stern block first, then batteries that hold nothing up, then bottom row propellers while it has lift
+// to spare, then the hull's far end a column at a time while it stays up, then plates and bays far from the core. It
+// stops where `sell()` says.
+//
+// The stern block is half its weight and has half the lift it needs, so the hull is a seesaw: a column off the bow moves
+// its weight aft, and cut at 120 it sinks though it has 1.7 times its weight in propellers (Logan's replays, 2026-11-02).
+// Every kilo off the stern is lift it can use, and lets it shrink further.
 //
 // Under fire, what it makes dies: a region of the hull that lost a part in the last `quiet` seconds is left alone,
 // the keep and an emergency apart. What it scrapped itself is not fire: `state.sold` keeps it apart from what was shot.
@@ -40,6 +46,8 @@ const bayHeal = param('bayHeal', 0.3, { min: 0.01, max: 1 }); // share of health
 const float = param('float', 30, { min: 0, max: 300 }); // juice it keeps in the tank ahead of need, sold while calm: the first second of a hit is paid for
 const lift1 = param('lift1', 120, { min: 1, max: 1000 }); // N, a propeller
 const lift2 = param('lift2', 400, { min: 1, max: 4000 }); // N, a lift booster
+const trimTo = param('trimTo', 1.05, { min: 1, max: 3 }); // times its weight held level: it sells no far column that would leave it under this
+const trimMin = param('trimMin', 40, { min: 0, max: 170 }); // cells from the core it never trims under
 
 const cellOf = (id) => {
   const m = id.match(/@(-?\d+),(-?\d+)/);
@@ -59,6 +67,7 @@ function setup() {
   state.sold = {}; // what it gave up
   state.bayMade = {}; // bays it made: they are not for sale while it can hold itself up
   state.baySold = false; // it has sold a bay: it makes no more
+  state.trimmed = {}; // what went off the far end
   state.heat = {}; // region: when it last lost a part there
   state.seen = {}; // what was lost at the last look
   state.last = '';
@@ -80,10 +89,15 @@ function say(text) {
  * Lift it can hold level, as times its weight, and which end is short: 1 the bow, -1 the stern, 0 neither. Every strip
  * at full leaves a turn one way; cutting the strips furthest out that way undoes it for the least lift lost.
  */
-function liftNow() {
+function liftNow(without) {
   let m = 0;
   let mx = 0;
+  let off = 0;
   for (const p of parts) {
+    if (without && without.has(p.id)) {
+      off += p.mass;
+      continue;
+    }
     m += p.mass;
     mx += p.mass * p.pos.x;
   }
@@ -91,7 +105,7 @@ function liftNow() {
   const cap = {};
   const arm = {};
   for (const p of parts) {
-    if (!lifter(p)) continue;
+    if (!lifter(p) || (without && without.has(p.id))) continue;
     const f = p.type === 'propeller' ? lift1 : lift2;
     const k = p.tags[0];
     cap[k] = (cap[k] ?? 0) + f;
@@ -114,7 +128,7 @@ function liftNow() {
     held -= cut;
     left -= cut * each;
   }
-  return { times: held / (self.mass * 9.81), short: -way, cx };
+  return { times: held / ((self.mass - off) * 9.81), short: -way, cx };
 }
 
 /** Where the hull is live, cell by cell, and how many rows are joined across each column. */
@@ -122,10 +136,12 @@ function hull() {
   const at = new Set();
   const props = new Set();
   const dense = [];
+  let end = 0;
   for (const p of parts) {
     if (p.tags.length > 0 && /^g.\d/.test(p.tags[0])) continue;
     const c = cellOf(p.id);
     at.add(key(c.x, c.y));
+    if (fore(c.x) > end) end = fore(c.x);
     if (p.type === 'propeller') props.add(key(c.x, c.y));
     if (p.type === 'densebattery') dense.push(p);
   }
@@ -148,7 +164,7 @@ function hull() {
     if (n <= neck) necks.push({ x, n });
   }
   necks.sort((a, b) => a.n - b.n || fore(a.x) - fore(b.x));
-  return { at, props, dense, worst, necks };
+  return { at, props, dense, worst, necks, end };
 }
 
 /**
@@ -170,7 +186,7 @@ function holdsNothing(p, h) {
  * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`). If it cannot hold itself
  * up, every last bay, and then the batteries in the hull.
  */
-function sell(need, h, l, hard) {
+function sell(need, h, l, hard, real) {
   const out = [];
   let got = 0;
   const take = (id, gives) => {
@@ -184,8 +200,19 @@ function sell(need, h, l, hard) {
     const f = fore(cellOf(p.id).x);
     return (f < spar ? 1000 : 0) - l.short * f;
   };
-  const dense = h.dense.filter((p) => holdsNothing(p, h) && !state.sold[p.id]).sort((a, b) => rank(a) - rank(b));
   let left = h.dense.length - minDense;
+  // The stern block first, for a want, furthest from the core first. Not the rows level with the core: those are all
+  // that joins it to the hull.
+  if (real) {
+    const fromCore = (p) => Math.max(Math.abs(cellOf(p.id).x - state.c.x), Math.abs(cellOf(p.id).y - state.c.y));
+    const stern = h.dense.filter((p) => fromCore(p) <= keepR - 3 && Math.abs(cellOf(p.id).y - state.c.y) > 1 && !state.sold[p.id]).sort((a, b) => fromCore(b) - fromCore(a));
+    for (const p of stern) {
+      if (got >= need || left <= 0) break;
+      take(p.id, 2.4);
+      left--;
+    }
+  }
+  const dense = h.dense.filter((p) => holdsNothing(p, h) && !state.sold[p.id]).sort((a, b) => rank(a) - rank(b));
   for (const p of dense) {
     if (got >= need || left <= 0) break;
     take(p.id, 2.4);
@@ -214,6 +241,11 @@ function sell(need, h, l, hard) {
       if (got >= need || Math.abs(cellOf(p.id).x - state.c.x) <= 3) break;
       take(p.id, 4);
     }
+  }
+  if (got < need && real) {
+    for (const s of trim(need - got, h, hard)) take(s.id, s.gives);
+  }
+  if (got < need && hard) {
     // On the ground a bay does it no good: under its own weight it sells down to none, and bays it made itself too. Up, a
     // bay it just paid 50 for and sold for 40 is a loss.
     const falling = l.times < 1;
@@ -226,12 +258,51 @@ function sell(need, h, l, hard) {
     // Last, under its own weight: the batteries that hold the hull together, from the far ends. A hull in two pieces is
     // better than a hull on the ground.
     if (got < need && falling) {
-      const rest = h.dense.filter((p) => !state.sold[p.id] && !out.some((o) => o.id === p.id)).sort((a, b) => fore(cellOf(b.id).x) - fore(cellOf(a.id).x));
+      const rest = h.dense.filter((p) => fore(cellOf(p.id).x) > keepR && !state.sold[p.id] && !out.some((o) => o.id === p.id)).sort((a, b) => fore(cellOf(b.id).x) - fore(cellOf(a.id).x));
       for (const p of rest) {
         if (got >= need) break;
         take(p.id, 2.4);
       }
     }
+  }
+  return out;
+}
+
+/** What selling a part brings at full health, near enough: `own` has the real figure, for too much to ask here. */
+const worth = (p) => (p.type === 'densebattery' ? 2.4 : p.type === 'armorplate' ? 4 : p.type === 'fabbay' ? 80 : p.type === 'radar' ? 4 : 0.8);
+
+/**
+ * The far end of the hull, a column at a time, for as long as it would still hold itself up with `trimTo` to spare. It
+ * waits for a column to go before it starts the next: pulled from under what is left of one, the rest falls off unpaid.
+ * A bay in the way goes first, for a want it cannot do without, if it has bays to spare; if not it stops there.
+ */
+function trim(need, h, hard) {
+  const out = [];
+  const gone = new Set();
+  let got = 0;
+  const hullParts = parts.filter((p) => !(p.tags.length > 0 && /^g.\d/.test(p.tags[0])) && fore(cellOf(p.id).x) > trimMin);
+  if (hullParts.some((p) => state.sold[p.id] && state.trimmed[p.id])) return out;
+  for (let column = h.end; column > trimMin && got < need; column--) {
+    const here = hullParts.filter((p) => fore(cellOf(p.id).x) === column && !state.sold[p.id]);
+    if (here.length === 0) continue;
+    const bays = parts.filter((p) => p.type === 'fabbay');
+    const bay = bays.find((p) => Math.abs(fore(cellOf(p.id).x) - column) <= 3);
+    if (bay) {
+      gone.add(bay.id);
+      if (hard && !state.bayMade[bay.id] && bays.length > minBays && liftNow(gone).times >= trimTo) {
+        out.push({ id: bay.id, gives: 80 });
+        state.trimmed[bay.id] = true;
+      }
+      break;
+    }
+    for (const p of here) gone.add(p.id);
+    if (liftNow(gone).times < trimTo) break;
+    for (const p of here) {
+      out.push({ id: p.id, gives: worth(p) });
+      got += worth(p);
+      state.trimmed[p.id] = true;
+    }
+    break;
   }
   return out;
 }
@@ -295,7 +366,8 @@ function wants(gone, h, l) {
     for (const p of reach.filter((q) => q.type === 'frame' && q.y === 1).slice(0, 8)) add(p, 'deck', true);
   }
   // 3: the link: the columns with the fewest rows joined, what is nearest the core first: a cut there loses it the most.
-  for (const n of h.necks.slice(0, 12)) {
+  // Past where the hull ends now is no link at all, and with lift to spare it is not worth going back for.
+  for (const n of h.necks.filter((q) => l.times < wanted || fore(q.x) < h.end).slice(0, 12)) {
     const near = reach.filter((p) => Math.abs(p.x - n.x) <= 1 && p.y >= 1 && p.y <= 7 && p.type !== 'propeller');
     for (const p of near.sort((a, b) => a.create - b.create)) add(p, 'link', true);
   }
@@ -429,7 +501,7 @@ function think() {
   const short = need + float - money;
   if (short > 0 && free > 0) {
     let n = 0;
-    for (const s of sell(short, h, l, hard)) {
+    for (const s of sell(short, h, l, hard, need > 0)) {
       if (free <= 0) break;
       if (scrap(s.id).ok) {
         state.sold[s.id] = true;

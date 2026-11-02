@@ -91,7 +91,7 @@ describe('titan-mirage-rw: the repair script', () => {
       low = Math.min(low, partWorldPose(w, r, r.primaryCoreId as string).y);
     }
     expect(low).toBeGreaterThan(150);
-    expect(count(r, 'propeller')).toBeGreaterThan(460);
+    expect(count(r, 'propeller')).toBeGreaterThan(440);
     w.dispose();
   }, 240000);
 
@@ -129,6 +129,32 @@ describe('titan-mirage-rw: the repair script', () => {
       w.step();
       low = Math.min(low, partWorldPose(w, r, r.primaryCoreId as string).y);
     }
+    expect(low).toBeGreaterThan(150);
+    w.dispose();
+  }, 240000);
+
+  it('short for a want: the stern block pays first, and the rows that join the core to the hull stay', async () => {
+    const { w, r } = await flying(withRepair({ float: 0, sellTo: 3 }));
+    shoot(r, (p) => p.def.id === 'armorplate' && p.y === 11 && p.x >= 3 && p.x <= 9);
+    steps(w, 15);
+    const sold = w.events.flatMap((e) => (e.kind === 'partScrapped' && e.partType === 'densebattery' ? [e.part] : []));
+    expect(sold.length).toBeGreaterThan(5);
+    for (const id of sold) expect(Number(/@(-?\d+),/.exec(id)?.[1])).toBeLessThan(12);
+    for (const id of ['densebattery@9,6', 'densebattery@3,6']) expect(r.parts.has(id)).toBe(true);
+    expect(r.parts.size).toBeGreaterThan(1200);
+    w.dispose();
+  }, 240000);
+
+  it('poor with lift to spare: it sells the far end a column at a time, and stays up', async () => {
+    const { w, r } = await flying(withRepair({ minDense: 300, float: 0, sellTo: 3 }));
+    shoot(r, (p) => p.def.id === 'propeller' && p.x >= 60 && p.x <= 100 && p.y === 2);
+    let low = Infinity;
+    for (let i = 0; i < 25 * 60; i++) {
+      w.step();
+      low = Math.min(low, partWorldPose(w, r, r.primaryCoreId as string).y);
+    }
+    expect(Math.max(...hull(r).map((p) => p.x))).toBeLessThan(175);
+    expect(w.events.some((e) => e.kind === 'partScrapped' && e.partType === 'frame')).toBe(true);
     expect(low).toBeGreaterThan(150);
     w.dispose();
   }, 240000);
