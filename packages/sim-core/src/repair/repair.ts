@@ -10,7 +10,7 @@ import type { StateHasher } from '../replay/StateHasher';
 import type { WorldEvent } from '../world/World';
 import type { PartInstance, Robot } from '../world/Robot';
 import { partLists } from '../world/partLists';
-import { createCost, healCost, jobSeconds, JOBS_AT_ONCE, SCRAP_TIME, scrapGives, START_HEALTH, worth } from './numbers';
+import { createCost, healCost, jobsAtOnce, jobSeconds, LAND_EVERY, SCRAP_TIME, scrapGives, START_HEALTH, worth } from './numbers';
 import { cos, sin } from '../math/fdlibm';
 
 /**
@@ -157,7 +157,7 @@ type Order = { ok: true; seconds: number; cost: number } | { ok: false; why: str
 /** Why no more jobs can start on this part, if so. */
 function busy(robot: Robot, id: string): string | undefined {
   const jobs = robot.repair?.jobs ?? [];
-  return jobs.length >= JOBS_AT_ONCE || jobs.some((j) => j.part === id) ? 'busy' : undefined;
+  return jobs.length >= jobsAtOnce(robot.parts.size) || jobs.some((j) => j.part === id) ? 'busy' : undefined;
 }
 
 /** A part a script may scrap or heal: on its robot and not sealed in a bay, whose copies cost nothing but energy. */
@@ -210,12 +210,12 @@ function heal(host: RepairHost, robot: Robot, id: string, upTo: number): Order {
   return { ok: true, seconds: seconds * gained, cost: healCost(worth(part.def, part.footprint), gained) };
 }
 
-/** Stops every job. A build not finished hands back what it took; a heal keeps what it gained. */
-function stop(robot: Robot): void {
+/** Stops every job, or the one on part `id`. A build not finished hands back what it took; a heal keeps what it gained. */
+function stop(robot: Robot, id?: string): void {
   const r = robot.repair;
   if (!r) return;
-  for (const j of r.jobs) r.tank += j.paid;
-  r.jobs = [];
+  for (const j of r.jobs) if (id === undefined || j.part === id) r.tank += j.paid;
+  r.jobs = id === undefined ? [] : r.jobs.filter((j) => j.part !== id);
 }
 
 function finishBuild(host: RepairHost, robot: Robot, job: RepairJob, placed: PlacedPart): void {
@@ -230,6 +230,8 @@ function finishBuild(host: RepairHost, robot: Robot, job: RepairJob, placed: Pla
   part.health = def.health * START_HEALTH;
   // The tank pays for the part, not for what a container holds.
   if (part.stored !== undefined) part.stored = 0;
+  // A bay counts on: its copies are named by its count, and one of the old ones may still be flying under that name.
+  if (part.built !== undefined) part.built = robot.madeBy?.get(part.id) ?? 0;
   part.group = home.group;
   part.localX = home.localX + placed.x - home.x;
   part.localY = home.localY + placed.y - home.y;
@@ -245,10 +247,16 @@ function finishBuild(host: RepairHost, robot: Robot, job: RepairJob, placed: Pla
   host.events.push({ tick: host.tick, robot: robot.id, kind: 'partRebuilt', part: part.id, partType: def.id, x: pose.x, y: pose.y, cost: job.paid });
 }
 
+/** Counts a scrap or a build down. True once it is done and may land: a robot of many jobs lands them together, on the beat. */
+function due(host: RepairHost, robot: Robot, job: RepairJob): boolean {
+  if (job.left > 0 && --job.left > 0) return false;
+  return jobsAtOnce(robot.parts.size) === 1 || host.tick % LAND_EVERY === 0;
+}
+
 /** A job's tick. True when it is over. */
 function runJob(host: RepairHost, robot: Robot, r: RepairState, job: RepairJob): boolean {
   if (job.kind === 'build') {
-    if (--job.left > 0) return false;
+    if (!due(host, robot, job)) return false;
     finishBuild(host, robot, job, job.placed as PlacedPart);
     return true;
   }
@@ -257,7 +265,7 @@ function runJob(host: RepairHost, robot: Robot, r: RepairState, job: RepairJob):
   if (!part || part.health <= 0) return true;
   const juice = worth(part.def, part.footprint);
   if (job.kind === 'scrap') {
-    if (--job.left > 0) return false;
+    if (!due(host, robot, job)) return false;
     const gave = scrapGives(juice, part.health / part.def.health);
     r.tank += gave;
     const pose = host.pose(robot, part);
@@ -330,9 +338,8 @@ function lostParts(host: RepairHost, robot: Robot, opts: unknown): LostPart[] | 
   return out;
 }
 
-/** A job as a script reads it from `job()`, seconds left on it included. */
-function jobReading(host: RepairHost, robot: Robot): unknown {
-  const job = robot.repair?.jobs[0];
+/** A job as a script reads it from `job()` and `jobs()`, seconds left on it included. */
+function jobReading(host: RepairHost, robot: Robot, job: RepairJob | undefined): unknown {
   if (!job) return null;
   if (job.kind !== 'heal') return { kind: job.kind, part: job.part, left: job.left * host.dt, seconds: job.ticks * host.dt };
   const part = robot.parts.get(job.part);
@@ -361,12 +368,14 @@ export function repairCall(host: RepairHost, robot: Robot, op: string, text: str
     case 'heal':
       return JSON.stringify(heal(host, robot, id, typeof args[1] === 'number' && Number.isFinite(args[1]) ? args[1] : 1));
     case 'stop':
-      stop(robot);
+      stop(robot, typeof args[0] === 'string' ? args[0] : undefined);
       return 'null';
     case 'tank':
       return JSON.stringify(robot.repair?.tank ?? 0);
     case 'job':
-      return JSON.stringify(jobReading(host, robot));
+      return JSON.stringify(jobReading(host, robot, robot.repair?.jobs[0]));
+    case 'jobs':
+      return JSON.stringify({ free: jobsAtOnce(robot.parts.size) - (robot.repair?.jobs.length ?? 0), jobs: (robot.repair?.jobs ?? []).map((j) => jobReading(host, robot, j)) });
     case 'lost': {
       const list = lostParts(host, robot, arg);
       return typeof list === 'string' ? `!${list}` : JSON.stringify(list);

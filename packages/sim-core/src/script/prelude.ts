@@ -131,9 +131,10 @@ export const PRELUDE = String.raw`
   globalThis.scrap = function (id) { return order('scrap', [String(id)]); };
   globalThis.build = function (id) { return order('build', [String(id)]); };
   globalThis.heal = function (id, upTo) { return order('heal', [String(id), upTo === undefined ? 1 : Number(upTo)]); };
-  globalThis.stopJob = function () { repairCall('stop'); };
+  globalThis.stopJob = function (id) { repairCall('stop', id === undefined ? [] : [id]); };
   globalThis.tank = function () { return repairCall('tank'); };
   globalThis.job = function () { return repairCall('job'); };
+  globalThis.jobs = function () { return repairCall('jobs'); };
   globalThis.lost = function (opts) { return listing('lost', opts); };
   globalThis.own = function (opts) { return listing('own', opts); };
   globalThis.param = function (name, def, opts) {

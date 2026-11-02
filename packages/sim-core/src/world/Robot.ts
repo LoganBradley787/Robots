@@ -145,6 +145,8 @@ export interface Robot {
    * hashed: it follows from the firing, which is.
    */
   letGo?: Set<string>;
+  /** How many copies each of its bays has made, by part id: a rebuilt bay counts on from there, or its next copy takes the name of its first (`repair.ts`). */
+  madeBy?: Map<string, number>;
   /** Its repair tank and jobs (`repair/repair.ts`), from the first order its script got through. */
   repair?: RepairState;
 }

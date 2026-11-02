@@ -5,7 +5,7 @@ import { World, type WorldEvent } from '../src/world/World';
 import type { PartInstance, Robot } from '../src/world/Robot';
 import { createQuickJsHost } from '../src/script/quickjs';
 import type { ScriptHost } from '../src/script/types';
-import { createCost, CREATE_SHARE, healCost, jobSeconds, SCRAP_RETURN, scrapGives, START_HEALTH, TIME_SCALE, worth } from '../src/repair/numbers';
+import { createCost, CREATE_SHARE, healCost, jobSeconds, LAND_EVERY, SCRAP_RETURN, scrapGives, START_HEALTH, TIME_SCALE, worth } from '../src/repair/numbers';
 import { defaultRegistry } from '../src/parts/registry';
 import { partWorldPose } from '../src/metrics/robotMetrics';
 import { buildReplay, runReplay } from '../src/replay/replayFile';
@@ -583,6 +583,82 @@ describe('around the edges', () => {
     for (let i = 0; i < 1200 && answers(w).length < 2; i++) w.step();
     expect(answers(w)).toEqual([{ ok: false, why: 'held in a bay' }, []]);
     expect(r.firstCopy).toBe(4);
+    w.dispose();
+  });
+});
+
+describe('many jobs at once', () => {
+  const ROW = { parts: [{ part: 'core', x: 0, y: 0 }, ...Array.from({ length: 149 }, (_, i) => ({ part: 'frame', x: i + 1, y: 0 }))] };
+  it('a robot runs one job, and one more for each 100 parts it has', async () => {
+    const orders = { 3: 'jobs()', 4: `[scrap('frame@149,0'), scrap('frame@148,0'), scrap('frame@147,0')]`, 5: 'jobs()' };
+    const { w } = await run(ROW, orders, 8);
+    const [none, tried, some] = answers(w) as [{ free: number }, { ok: boolean; why?: string }[], { free: number; jobs: { part: string }[] }];
+    expect(none.free).toBe(2);
+    expect(tried.map((t) => t.ok)).toEqual([true, true, false]);
+    expect(tried[2]?.why).toBe('busy');
+    expect(some.free).toBe(0);
+    expect(some.jobs.map((j) => j.part)).toEqual(['frame@149,0', 'frame@148,0']);
+    w.dispose();
+  });
+  it('stopJob(id) stops that job and leaves the others', async () => {
+    const orders = { 4: `[scrap('frame@149,0'), scrap('frame@148,0')]`, 5: `stopJob('frame@149,0')`, 6: 'jobs()' };
+    const { w } = await run(ROW, orders, 8);
+    expect((answers(w)[2] as { jobs: { part: string }[] }).jobs.map((j) => j.part)).toEqual(['frame@148,0']);
+    w.dispose();
+  });
+  it('what ends near the same time lands on the beat, as one rebuild', async () => {
+    const orders = { 4: `scrap('frame@149,0')`, 10: `scrap('frame@148,0')` };
+    const { w } = await run(ROW, orders, 120);
+    const ticks = kinds(w, 'partScrapped').map((e) => e.tick);
+    expect(ticks.length).toBe(2);
+    expect(ticks[0]).toBe(ticks[1]);
+    expect((ticks[0] as number) % LAND_EVERY).toBe(0);
+    w.dispose();
+  });
+});
+
+describe('a rebuilt bay', () => {
+  const BAY = {
+    parts: [
+      { part: 'core', x: 0, y: 0 },
+      { part: 'densebattery', x: -1, y: 0 },
+      { part: 'densebattery', x: 1, y: 0 },
+      { part: 'frame', x: 2, y: 0 },
+      { part: 'fabbay', x: 0, y: 1, tags: ['bay'], makes: 'item' },
+    ],
+    recipes: { item: { format: 1, name: 'item', grid: ['C', 'T^'], autoControls: false, scripts: [{ id: 'up', source: `function tick() { set('thruster', 'throttle', 1); }` }] } },
+  };
+  // Lets go of the first copy, the bay is shot off and rebuilt, and the next copy is held and let go.
+  const orders = `
+    function tick() {
+      if (get('bay', 'ready') > 0 && time - (state.left ?? -9) > 2) {
+        send('bay' + get('bay', 'built'), { go: 1 });
+        set('bay', 'release', 1);
+        state.left = time;
+        state.sent = (state.sent ?? 0) + 1;
+        log('sent bay' + get('bay', 'built') + ' of ' + state.sent);
+      }
+      const gone = frame % 30 === 0 ? lost({ of: 'bay' }) : []; if (gone.length > 0 && !job()) log(JSON.stringify(build(gone[0].id)));
+    }`;
+
+  it('makes copies again, under names that are not those of the copies before it', async () => {
+    const w = await World.create({ seed: 1, scripts: host }, open);
+    const r = w.spawnBlueprint({ format: 1, name: 'bot', ...BAY, scripts: [{ id: 'pilot', source: orders }] }, { x: 0, y: 0.6 });
+    const bayId = [...r.parts.values()].find((p) => p.def.id === 'fabbay')?.id as string;
+    const stepUntil = (done: () => boolean, most: number): void => {
+      for (let i = 0; i < most && !done(); i++) w.step();
+    };
+    stepUntil(() => kinds(w, 'released').length === 1, 1200);
+    expect(kinds(w, 'released').length).toBe(1);
+    for (let i = 0; i < 90; i++) w.step();
+    (r.parts.get(bayId) as PartInstance).health = 0;
+    r.repair = { tank: 200, jobs: [] };
+    stepUntil(() => kinds(w, 'partRebuilt').length === 1, 3000);
+    expect(kinds(w, 'partRebuilt').length).toBe(1);
+    stepUntil(() => kinds(w, 'released').length === 2, 2400);
+    const scopes = (kinds(w, 'released') as { scope: string }[]).map((e) => e.scope);
+    expect(scopes.length).toBe(2);
+    expect(new Set(scopes).size).toBe(2);
     w.dispose();
   });
 });

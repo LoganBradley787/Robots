@@ -158,9 +158,10 @@ export const SCRIPT_API: readonly ApiEntry[] = [
   { name: 'scrap', sig: 'scrap(id)', about: 'scrap a part of this robot into its tank', insert: 'scrap("")', caret: 2, section: 'Repair', more: 'Gives back 80 percent of what the part is worth now, when the job ends. No blast. Answers { ok, seconds, cost } or { ok: false, why }. One job at a time.' },
   { name: 'build', sig: 'build(id)', about: 'make a lost part again, from the tank', insert: 'build("")', caret: 2, section: 'Repair', more: 'Half its worth, and it comes back at 1 percent health. It must touch the robot and its cell must be empty. Answers as scrap() does; why says what stopped it.' },
   { name: 'heal', sig: 'heal(id, upTo)', about: 'heal a part from the tank', insert: 'heal("")', caret: 2, section: 'Repair', more: 'The other half of its worth, in proportion to the health gained, until upTo (a share of full, 1 by default) or the tank runs out.' },
-  { name: 'stopJob', sig: 'stopJob()', about: 'stop the job: a build gives back what it took', insert: 'stopJob()', section: 'Repair' },
+  { name: 'stopJob', sig: 'stopJob(id)', about: 'stop every job, or the one on this part: a build gives back what it took', insert: 'stopJob()', section: 'Repair' },
   { name: 'tank', sig: 'tank()', about: 'what its tank holds', insert: 'tank()', section: 'Repair' },
-  { name: 'job', sig: 'job()', about: 'the job running, or null', insert: 'job()', section: 'Repair', more: '{ kind, part, left, seconds }. kind is scrap, build or heal.' },
+  { name: 'job', sig: 'job()', about: 'the first job running, or null', insert: 'job()', section: 'Repair', more: '{ kind, part, left, seconds }. kind is scrap, build or heal.' },
+  { name: 'jobs', sig: 'jobs()', about: 'every job running, and how many more it can start', insert: 'jobs()', section: 'Repair', more: '{ free, jobs }: jobs as job() gives one. One job at a time, and one more for each 100 parts the robot has.' },
   { name: 'lost', sig: 'lost({ of, touching })', about: 'the parts it could make, with their prices', insert: 'lost({ touching: true })', section: 'Repair', more: 'Each is { id, type, tags, x, y, rot, juice, create, heal, seconds, touching }. A host call, like scan: at most 4 a tick with scans.' },
   { name: 'own', sig: 'own({ near, most, of, has })', about: 'its own parts with their health and repair prices', insert: 'own()', section: 'Repair', more: 'As scan lists a robot, plus juice, gives, heal and seconds. Asks for only what you need: on a robot of thousands of parts a plain own() is slow.' },
 

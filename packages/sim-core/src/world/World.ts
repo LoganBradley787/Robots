@@ -2547,6 +2547,7 @@ export class World {
     bay.holds = scope;
     bay.progress = 0;
     bay.built = (bay.built ?? 0) + 1;
+    (robot.madeBy ??= new Map()).set(bay.id, bay.built);
     this.stuck.delete(bay);
     this.dirty.add(robot);
     this.grown.add(robot);

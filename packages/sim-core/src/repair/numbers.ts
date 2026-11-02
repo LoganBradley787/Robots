@@ -14,8 +14,10 @@ export const CREATE_SHARE = 0.5;
 export const TIME_SCALE = 3;
 /** A scrap's seconds, as times the seconds to build the part. */
 export const SCRAP_TIME = 0.5;
-/** Jobs a robot may run at once. */
-export const JOBS_AT_ONCE = 1;
+/** Jobs a robot may run at once: one, and one more for each this many parts it has left. A big robot has more to work with, and less as it goes. */
+export const PARTS_PER_JOB = 100;
+/** A robot with more than one job at a time lands what finishes on every this many ticks, so jobs share a rebuild. */
+export const LAND_EVERY = 30;
 /** A created part's health, of its full health: a whole part that dies to anything. */
 export const START_HEALTH = 0.01;
 /** Seconds per kg for a part with no `build`: what a stock fabricator bay takes (`fabbay.json`). */
@@ -39,6 +41,11 @@ export function healCost(juice: number, gained: number): number {
 /** What scrapping a part at health share `health` gives back. */
 export function scrapGives(juice: number, health: number): number {
   return SCRAP_RETURN * juice * (CREATE_SHARE + (1 - CREATE_SHARE) * health);
+}
+
+/** How many jobs a robot with this many parts may run at once. */
+export function jobsAtOnce(parts: number): number {
+  return 1 + Math.floor(parts / PARTS_PER_JOB);
 }
 
 /** Seconds to create a part, and to heal it from nothing to full. */

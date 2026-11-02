@@ -7,6 +7,7 @@
   "mass": 20,
   "health": 60,
   "build": 5.0,
+  "juice": 30,
   "symmetry": 1,
   "inputs": [{ "name": "push", "min": 0, "max": 3, "default": 0, "holds": true }],
   "outputs": [

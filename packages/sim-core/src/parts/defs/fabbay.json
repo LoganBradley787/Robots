@@ -19,6 +19,7 @@
     { "x": 1, "y": 5, "faces": ["E", "N"], "grips": ["W"] }
   ],
   "mass": 13,
+  "juice": 100,
   "health": 150,
   "symmetry": 4,
   "inputs": [{ "name": "release", "min": 0, "max": 1, "default": 0 }],
