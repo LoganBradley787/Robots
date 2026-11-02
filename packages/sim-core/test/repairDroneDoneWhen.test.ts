@@ -50,7 +50,17 @@ describe('repair drone: the ladder', () => {
     steps(w, 30);
     expect(kinds(w, 'partScrapped', 'armorplate').length).toBeGreaterThan(0);
     expect(count(r, 'laser')).toBe(1);
-    expect(count(r, 'propeller')).toBe(16);
+    expect(count(r, 'propeller')).toBe(18);
+    expect(hover(w, r).y).toBeGreaterThan(20);
+    w.dispose();
+  });
+
+  it('what it sells it spends on what it sold it for: it does not sell itself out of the air to heal the laser', async () => {
+    const { w, r } = await flying();
+    shoot(r, (id, type) => type === 'armorplate' || id === 'propeller@1,2' || id === 'propeller@2,2' || id === 'propeller@3,2');
+    (r.parts.get('laser@6,5') as { health: number }).health = 8;
+    steps(w, 40);
+    expect(count(r, 'propeller')).toBeGreaterThanOrEqual(15);
     expect(hover(w, r).y).toBeGreaterThan(20);
     w.dispose();
   });

@@ -4,9 +4,8 @@ import { toScreen, type Vec2 } from './units';
 import { interpolateState } from './interpolate';
 
 const ORANGE = 0xff8a1e;
-/** The dots round a part, m: a dot, then three dots' worth of space. */
-const DOT = 0.12;
-const FIRST_SHARE = 0.25;
+/** How far apart the dots round a part are, m. */
+const SPACING = 0.48;
 const WIDTH = 3;
 /** How long the closed outline holds before the part is done, s (Logan: a couple of frames). */
 const HOLD = 0.07;
@@ -104,13 +103,13 @@ function stretchOf(loop: readonly Vec2[], from: number, to: number): Vec2[] {
 }
 
 /**
- * How much of its outline a job draws, 0 to 1 (Logan: progress you can read). A build or a heal starts as dots with
- * three dots' worth of space between them, grown wider until they meet, and holds closed for its last `HOLD`. A scrap
- * is the same backward: the part starts closed and comes apart into dots.
+ * How much of its outline a job draws, 0 to 1 (Logan: progress you can read). A build or a heal starts from nothing,
+ * its dots growing wider until they meet, and holds closed for its last `HOLD`. A scrap is the same backward: the part
+ * starts closed and comes apart into dots that shrink away.
  */
 export function drawnShare(kind: RepairView['kind'], done: number, seconds: number): number {
   const closing = seconds > HOLD ? Math.min(1, done / (1 - HOLD / seconds)) : 1;
-  return kind === 'scrap' ? 1 - (1 - FIRST_SHARE) * done : FIRST_SHARE + (1 - FIRST_SHARE) * closing;
+  return kind === 'scrap' ? 1 - done : closing;
 }
 
 /**
@@ -119,7 +118,8 @@ export function drawnShare(kind: RepairView['kind'], done: number, seconds: numb
  */
 export function dashesOf(loop: readonly Vec2[], length: number, share: number): Vec2[][] {
   if (share >= 1) return [[...loop, loop[0] as Vec2]];
-  const count = Math.max(1, Math.round(length / (DOT / FIRST_SHARE)));
+  if (share <= 0) return [];
+  const count = Math.max(1, Math.round(length / SPACING));
   const period = length / count;
   const out: Vec2[][] = [];
   for (let i = 0; i < count; i++) {
@@ -179,7 +179,7 @@ export class RepairSparks {
         if (i === 0) g.moveTo(at.x, at.y);
         else g.lineTo(at.x, at.y);
       });
-      g.stroke({ color: ORANGE, width: WIDTH, alpha: 0.95, cap: 'round' });
+      g.stroke({ color: ORANGE, width: WIDTH, alpha: 0.95 });
     }
     if (this.flying.length < MAX_FLYING && Math.random() < THROWN * dt) {
       const p = pointOn(loop, Math.random() * length);

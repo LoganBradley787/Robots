@@ -38,16 +38,16 @@ describe('repair sparks: the dots that show how far along it is', () => {
   const cell = outlineOf([{ x: 0, y: 0 }], 0);
   const drawn = (dash: { x: number; y: number }[]): number => dash.slice(1).reduce((n, p, i) => n + Math.hypot(p.x - (dash[i] as typeof p).x, p.y - (dash[i] as typeof p).y), 0);
 
-  it('a build starts as dots a quarter of their spacing and ends closed', () => {
-    expect(drawnShare('build', 0, 6)).toBeCloseTo(0.25, 8);
-    expect(drawnShare('build', 0.5, 6)).toBeGreaterThan(0.6);
+  it('a build starts from nothing and ends closed', () => {
+    expect(drawnShare('build', 0, 6)).toBe(0);
+    expect(drawnShare('build', 0.5, 6)).toBeGreaterThan(0.5);
     expect(drawnShare('build', 1, 6)).toBe(1);
   });
 
   it('a build holds closed before it is done, a scrap comes apart', () => {
     expect(drawnShare('build', 1 - 0.05 / 6, 6)).toBe(1);
     expect(drawnShare('scrap', 0, 3)).toBe(1);
-    expect(drawnShare('scrap', 1, 3)).toBeCloseTo(0.25, 8);
+    expect(drawnShare('scrap', 1, 3)).toBe(0);
   });
 
   it('dots fit the loop evenly and cover the share asked for, round corners too', () => {
@@ -56,6 +56,10 @@ describe('repair sparks: the dots that show how far along it is', () => {
     for (const dash of dashes) expect(drawn(dash)).toBeLessThan(0.15);
     const wide = dashesOf(cell, 4, 0.9);
     expect(wide.reduce((n, d) => n + drawn(d), 0)).toBeCloseTo(3.6, 1);
+  });
+
+  it('nothing drawn is no dots at all', () => {
+    expect(dashesOf(cell, 4, 0)).toEqual([]);
   });
 
   it('all of it drawn is one closed line', () => {

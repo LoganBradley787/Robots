@@ -38,6 +38,7 @@ function setup() {
   state.last = '';
   state.landing = false;
   state.lastLoss = -Infinity;
+  state.sold = {};
   state.goneCount = 0;
   state.made = {};
   state.hot = {};
@@ -133,6 +134,19 @@ function lowestOk() {
   return floor + (self.pos.y - low);
 }
 
+/** Gives a part up, remembering it was given up and not shot off. */
+function sell(id) {
+  state.sold[id] = true;
+  scrap(id);
+}
+
+/** Makes a lost part, which is then its own again to lose. Whether it could. */
+function make(id) {
+  const ok = build(id).ok;
+  if (ok) delete state.sold[id];
+  return ok;
+}
+
 /** Says a line once, when it changes. */
 function say(text) {
   if (text === state.last) return;
@@ -143,8 +157,11 @@ function say(text) {
 /** What it has and what it lacks, for the rest of repair to read. */
 function look() {
   const gone = lost();
-  if (gone.length > state.goneCount) state.lastLoss = time;
-  state.goneCount = gone.length;
+  // What it scrapped itself is no sign of fire: counted as one, each sale stopped it spending what the sale brought,
+  // and the tank drained into healing the laser, one propeller at a time, until it fell.
+  const shot = gone.filter((p) => !state.sold[p.id]).length;
+  if (shot > state.goneCount) state.lastLoss = time;
+  state.goneCount = shot;
   // A part it made that is gone again within `quick` seconds: that cell is under fire, and left alone for `hot` seconds.
   for (const p of gone) {
     if (state.made[p.id] === undefined) continue;
@@ -244,20 +261,20 @@ function repairs() {
   const first = short ? (lift1 ?? (canLaser ? turret : undefined)) : ((canLaser ? turret : undefined) ?? lift1);
   if (first && s.hold >= first.create) {
     say(`build ${first.id}: ${first.create} of ${s.hold.toFixed(1)}`);
-    if (build(first.id).ok) state.made[first.id] = time;
+    if (make(first.id)) state.made[first.id] = time;
     return;
   }
   if (first) {
     const plate = spare(s);
     if (plate) {
       say(`scrap ${plate.id}`);
-      scrap(plate.id);
+      sell(plate.id);
       return;
     }
     const swap = trade(s);
     if (swap) {
       say(`trade: scrap ${swap.id} for the other side`);
-      scrap(swap.id);
+      sell(swap.id);
       return;
     }
   }
@@ -283,12 +300,12 @@ function ground(s, running) {
   const next = plate && worth >= plate.create ? plate : frame;
   if (next && s.hold >= next.create) {
     say(`on the ground: build ${next.id}`);
-    build(next.id);
+    make(next.id);
     return;
   }
   if (props[0]) {
     say(`on the ground: scrap ${props[0].id}`);
-    scrap(props[0].id);
+    sell(props[0].id);
     return;
   }
   if (s.hold > 0.05) {
