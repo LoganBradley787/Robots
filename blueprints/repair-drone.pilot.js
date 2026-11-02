@@ -25,6 +25,7 @@ const every = param('every', 6, { min: 1, max: 60 }); // ticks between looks at 
 const safe = param('safe', 1.3, { min: 1, max: 3 }); // times its weight in lift: under this, propellers come before anything
 const landAt = param('landAt', 1.12, { min: 0.5, max: 2 }); // times its weight in lift: under this, with nothing to trade, it lands
 const tradeAt = param('tradeAt', 2, { min: 1, max: 20 }); // propellers more on one side than the other before it trades
+const lopsided = param('lopsided', 4, { min: 1, max: 20 }); // propellers more on one side than the other that it cannot leave, under fire or not
 const healAt = param('healAt', 0.9, { min: 0.1, max: 1 }); // share of full health under which it heals what it can
 const wanted = param('wanted', 1.6, { min: 1, max: 3 }); // times its weight in lift: over this it leaves propellers lost under fire
 const quiet = param('quiet', 3, { min: 0, max: 30 }); // s since it last lost a part before it counts as out of the fire
@@ -213,7 +214,9 @@ function trade(s) {
 function repairs() {
   if (repairOn < 1 || frame % every !== 0) return;
   const s = look();
-  const short = s.lift < safe * s.weight;
+  // Lopsided is as bad as short: with one side gone it falls out of the air, whatever it lifts on paper.
+  const tipping = Math.abs(s.left - s.right) >= lopsided;
+  const short = s.lift < safe * s.weight || tipping;
   const running = job();
   state.landing = state.landing || (s.lift < landAt * s.weight && s.plates.length === 0 && s.hold < 0.5 && !trade(s));
   if (state.landing) return ground(s, running);
@@ -227,7 +230,7 @@ function repairs() {
   // Under fire, what it makes dies at 1 percent health: it makes only what it cannot fly without, and leaves alone a
   // cell that just ate what it put there.
   const calm = time - state.lastLoss > quiet;
-  const propeller = calm || s.lift < wanted * s.weight ? nextProp(s) : undefined;
+  const propeller = calm || tipping || s.lift < wanted * s.weight ? nextProp(s) : undefined;
   // The way back to a laser: mast, rotator, laser. Priced whole: a rotator with no laser it can pay for is money gone.
   const chain = s.gone.filter((p) => p.tags.includes('laser-turret1') || (p.type === 'frame' && p.x === state.mid));
   const turret = chain.filter((p) => p.touching)[0];

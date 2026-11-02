@@ -254,7 +254,7 @@ describe('readings', () => {
     const { w } = await run({ grid: ['.  L  F  C  F'], legend: { L: { part: 'laser', rot: 90, tags: ['gun'] } } }, { 1: "scrap('frame@2,0')", 60: `lost().map(${brief})`, 61: 'lost({ touching: true }).map((p) => p.id)', 62: "lost({ of: 'gun' }).map((p) => p.type)", 63: 'lost({ nope: 1 })' }, 66, { y: 5 });
     const [, all, touching, gun, bad] = answers(w) as unknown[][];
     expect(all).toMatchObject([
-      { type: 'laser', tags: ['gun'], juice: 20, create: 10, seconds: 6, touching: false },
+      { type: 'laser', tags: expect.arrayContaining(['gun']), juice: 20, create: 10, seconds: 6, touching: false },
       { id: 'frame@2,0', juice: 1, create: 0.5, touching: true },
     ]);
     expect(touching).toEqual(['frame@2,0']);

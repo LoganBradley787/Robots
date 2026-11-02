@@ -110,7 +110,7 @@ describe('You can use', () => {
     const seeing = robotReference(armed, registry);
     expect(apiDim(contacts, seeing, registry)).toBeUndefined();
     expect(apiSections(seeing, registry).filter((s) => s.dim !== undefined).map((s) => s.section)).toEqual(['Messages']);
-    expect(apiSections(blind, registry).map((s) => s.section)).toEqual(['The robot', 'Parts', 'Seeing', 'Keys', 'Messages', 'Settings and memory', 'Maths']);
+    expect(apiSections(blind, registry).map((s) => s.section)).toEqual(['The robot', 'Parts', 'Seeing', 'Repair', 'Keys', 'Messages', 'Settings and memory', 'Maths']);
   });
 });
 
