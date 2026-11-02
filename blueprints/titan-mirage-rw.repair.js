@@ -25,7 +25,7 @@ const keepR = param('keepR', 8, { min: 1, max: 30 }); // cells round the core th
 const safe = param('safe', 1.15, { min: 1, max: 3 }); // times its weight in lift held level: under this, propellers come before all but the keep
 const wanted = param('wanted', 1.3, { min: 1, max: 3 }); // times its weight: under this it makes propellers once the region is calm
 const sellTo = param('sellTo', 1.4, { min: 1, max: 3 }); // times its weight: it sells no propeller under this
-const neck = param('neck', 3, { min: 1, max: 8 }); // rows joined across a column at or under which it is a link in danger
+const neck = param('neck', 2, { min: 1, max: 8 }); // rows joined across a column at or under which it is a link in danger (whole, 4)
 const quiet = param('quiet', 6, { min: 0, max: 30 }); // s since a region of the hull lost a part before it counts as calm
 const region = param('region', 12, { min: 1, max: 60 }); // cells along the hull to a region
 const bayQuiet = param('bayQuiet', 8, { min: 0, max: 60 }); // s a bay's region must be calm: a volley comes about every 11 s, and a bay takes 30 to make
@@ -131,8 +131,15 @@ function hull() {
   const lo = Math.min(state.c.x, state.c.x + state.dir * 165);
   const hi = Math.max(state.c.x, state.c.x + state.dir * 165);
   for (let x = lo; x < hi; x++) {
+    // The decks and the spar each count, the three rows of propellers as one: they burn through in a shell or two.
     let n = 0;
-    for (let y = 1; y <= 7; y++) if (at.has(key(x, y)) && at.has(key(x + 1, y))) n++;
+    let lifts = 0;
+    for (let y = 1; y <= 7; y++) {
+      if (!at.has(key(x, y)) || !at.has(key(x + 1, y))) continue;
+      if (props.has(key(x, y)) || props.has(key(x + 1, y))) lifts = 1;
+      else n++;
+    }
+    n += lifts;
     if (fore(x) <= 8) continue;
     if (n < worst) worst = n;
     if (n <= neck) necks.push({ x, n });
@@ -349,7 +356,7 @@ function think() {
   }
   // What it can pay for now it makes; what it cannot, it sells for, and the sale is kept for that want.
   let money = hold;
-  let done = 0;
+  const made = {};
   let need = 0;
   let hard = false;
   let why = '';
@@ -358,7 +365,7 @@ function think() {
       if (build(w.id).ok) {
         money -= w.cost;
         free--;
-        done++;
+        made[w.why] = (made[w.why] ?? 0) + 1;
       }
       continue;
     }
@@ -409,7 +416,8 @@ function think() {
   } else if (need === 0 && free > 0 && money > float) {
     mend(free, money - float, h);
   }
-  if (done > 0) say(`${done} made: ${wish[0].why}, lift ${l.times.toFixed(2)}, link ${h.worst}, tank ${money.toFixed(1)}, ${gone.length} lost`);
+  const list = Object.keys(made).map((k) => `${k} ${made[k]}`).join(', ');
+  if (list !== '') say(`made ${list}: lift ${l.times.toFixed(2)}, link ${h.worst}, tank ${money.toFixed(1)}, ${gone.length} lost`);
 }
 
 function tick() {
