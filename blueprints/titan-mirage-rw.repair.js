@@ -30,6 +30,7 @@ const quiet = param('quiet', 6, { min: 0, max: 30 }); // s since a region of the
 const region = param('region', 12, { min: 1, max: 60 }); // cells along the hull to a region
 const bayQuiet = param('bayQuiet', 8, { min: 0, max: 60 }); // s a bay's region must be calm: a volley comes about every 11 s, and a bay takes 30 to make
 const bayDense = param('bayDense', 70, { min: 0, max: 300 }); // dense batteries it keeps against the keep: bays do not get these
+const spar = param('spar', 20, { min: 0, max: 170 }); // cells from the core where the spar is kept longest
 const bayMend = param('bayMend', 0.8, { min: 0, max: 1 }); // share of health under which a standing bay is healed: bays are what fires, and what stops ghosts short of the keep
 const plateAt = param('plateAt', 0.75, { min: 0, max: 1 }); // share of health under which a plate of the keep is healed: a whole plate stops many blasts, one at 1 percent stops one
 const routeMax = param('routeMax', 12, { min: 0, max: 200 }); // juice it pays on a route to reach a bay
@@ -162,8 +163,8 @@ function holdsNothing(p, h) {
 }
 
 /**
- * What it gives up for `need` juice, best first, as far as it may. Batteries that hold nothing up, off the end that is
- * short of lift so it comes up. Then propellers in the bottom row, off the end with lift to spare: the row sits on
+ * What it gives up for `need` juice, best first, as far as it may. Batteries that hold nothing up, then frames left on
+ * nothing. Then propellers in the bottom row, off the end with lift to spare: the row sits on
  * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`).
  */
 function sell(need, h, l, hard) {
@@ -173,7 +174,13 @@ function sell(need, h, l, hard) {
     out.push({ id, gives });
     got += gives;
   };
-  const rank = (p) => -l.short * (p.pos.x - self.pos.x) * state.dir;
+  // Every battery gone breaks the spar there, and a cut near the keep loses all it would pay with: the spar nearest the
+  // keep goes last. Past that, from the end that keeps it level: 85 sold off the bow moved its weight 10 m aft, and it
+  // fell with 360 propellers.
+  const rank = (p) => {
+    const f = fore(cellOf(p.id).x);
+    return (f < spar ? 1000 : 0) - l.short * f;
+  };
   const dense = h.dense.filter((p) => holdsNothing(p, h) && !state.sold[p.id]).sort((a, b) => rank(a) - rank(b));
   let left = h.dense.length - minDense;
   for (const p of dense) {
@@ -417,7 +424,7 @@ function think() {
     mend(free, money - float, h);
   }
   const list = Object.keys(made).map((k) => `${k} ${made[k]}`).join(', ');
-  if (list !== '') say(`made ${list}: lift ${l.times.toFixed(2)}, link ${h.worst}, tank ${money.toFixed(1)}, ${gone.length} lost`);
+  if (list !== '') say(`made ${list}: lift ${l.times.toFixed(2)}, link ${h.worst}${h.necks.length > 0 ? ` at ${fore(h.necks[0].x)}` : ''}, tank ${money.toFixed(1)}, ${gone.length} lost`);
 }
 
 function tick() {
