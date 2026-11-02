@@ -26,6 +26,9 @@ const sellTo = param('sellTo', 1.45, { min: 1, max: 3 }); // times its weight: i
 const neck = param('neck', 3, { min: 1, max: 8 }); // rows joined across a column at or under which it is a link in danger
 const quiet = param('quiet', 6, { min: 0, max: 30 }); // s since a region of the hull lost a part before it counts as calm
 const region = param('region', 12, { min: 1, max: 60 }); // cells along the hull to a region
+const bayQuiet = param('bayQuiet', 15, { min: 0, max: 60 }); // s a bay's region must be calm: a volley comes about every 11 s, and a bay takes 30 to make
+const bayDense = param('bayDense', 130, { min: 0, max: 300 }); // dense batteries it keeps against the keep: bays do not get these
+const plateAt = param('plateAt', 0.75, { min: 0, max: 1 }); // share of health under which a plate of the keep is healed: a whole plate stops many blasts, one at 1 percent stops one
 const routeMax = param('routeMax', 12, { min: 0, max: 200 }); // juice it pays on a route to reach a bay
 const minDense = param('minDense', 40, { min: 0, max: 300 }); // dense batteries it keeps
 const minBays = param('minBays', 6, { min: 0, max: 20 }); // bays it never sells under
@@ -256,8 +259,8 @@ function wants(gone, h, l) {
     if (p.touching && round.length === 0) add(p, 'reactor', false);
   }
   // 5: bays, the nearest first, in calm regions, if the way there is worth it.
-  const bays = gone.filter((p) => p.type === 'fabbay' && calm(p.x)).sort((a, b) => fore(a.x) - fore(b.x));
-  for (const p of bays) {
+  const bays = gone.filter((p) => p.type === 'fabbay' && time - (state.heat[regionOf(p.x)] ?? -1000) > bayQuiet).sort((a, b) => fore(a.x) - fore(b.x));
+  for (const p of h.dense.length > bayDense ? bays : []) {
     const path = route(p, gone);
     if (!path) continue;
     const bill = path.reduce((n, q) => n + q.create, 0) - p.create;
@@ -313,6 +316,12 @@ function think() {
   const l = liftNow();
   let free = work.free;
   const wish = wants(gone, h, l).filter((w) => !h.busy.has(w.id));
+  // The plates of the keep, once what is lost there is back.
+  const plates = [];
+  if (!wish.some((w) => w.why === 'keep')) {
+    for (const p of own({ of: 'armorplate' }) ?? []) if (p.health < plateAt * p.maxHealth && !h.busy.has(p.id)) plates.push(p);
+    plates.sort((a, b) => a.health - b.health);
+  }
   // What it can pay for now it makes; what it cannot, it sells for, and the sale is kept for that want.
   let money = hold;
   let done = 0;
@@ -333,6 +342,15 @@ function think() {
       hard = hard || w.hard;
       if (why === '') why = w.why;
       if (need > 60) break;
+    }
+  }
+  for (const p of plates) {
+    if (free <= 0 || money < 0.05) break;
+    const pay = Math.min(p.heal, money);
+    const share = p.health / p.maxHealth;
+    if (heal(p.id, share + ((1 - share) * pay) / Math.max(p.heal, 1e-6)).ok) {
+      money -= pay;
+      free--;
     }
   }
   const short = need + float - money;
