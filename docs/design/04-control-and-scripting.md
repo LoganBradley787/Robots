@@ -180,6 +180,14 @@ Available inside `tick()`:
 
 Unavailable: `Date`, `setTimeout`, `fetch`, `globalThis`, any DOM.
 
+## Repair paid in parts (2026-11-01, on `repair-experiments`)
+A script can scrap parts of its own robot into a tank, and build or heal parts with what the tank holds. Logan's rules: script only, no key, no default, no repair logic in the engine (every robot is built differently, so every robot's script decides); no welder part; what is on the robot is all there is. The engine lives in `sim-core/src/repair/`: `numbers.ts` has every number, `repair.ts` the orders, the jobs, and the readings. The script side is in the playbook, Repair paid in parts.
+- **The script side:** `scrap(id)`, `build(id)`, `heal(id, upTo)`, `stopJob()`, `tank()`, `job()`, `lost(opts)`, `own(opts)`. All go through one host call (`ScriptServices.repair`), as `scan` does, so nothing is added to the per-tick frame and a robot that never calls them pays nothing. An order is carried out when the script gives it: a refusal comes back at once with its `why`.
+- **State:** `Robot.repair`, the tank and the jobs, absent until an order gets through. Hashed only then, so no robot that never repairs changes a hash.
+- **The one check:** `mayMake` in `repair.ts` says what a robot may make: a lost part of its blueprint, not a bay's copy, and for a woken piece only its own scope. Everything past it takes a placed part (`fit`, `finishBuild`), so a shape the robot never had needs that check changed and the part put in its blueprint, nothing else. No check refuses a core: it just cannot happen today that a core is rebuilt on a robot with no core to order it.
+- **When:** jobs run in the damage phase, after the fuzes and before dead parts go, so what they change is rebuilt with the rest. A scrap is a lost part to the rebuild; a part made is a grown one (`grew`: the rebuild, a new controller, its sights), the path a bay's build takes.
+- **`Robot.parts` stays in blueprint order:** a made part goes back in its place, not last, in a new map. A robot that grew is never `stillWhole` (`rebuild.ts`): its count no longer adds up, so it is assembled in full and its `Kept` is replaced.
+
 ## Shared behaviors (M16)
 
 A shared behavior is an ordinary script kept on a shelf: one `.js` file per behavior in `behaviors/` at the repo root (`hover.js`, `aim-and-fire.js`, `guide.js`). Adding one to a robot copies the file into the blueprint as that robot's own script. It must work on any robot with the right kind of parts, with no numbers typed in by hand, and keep working when the owner adds or removes a part. The pure functions are in `sim-core/src/script/shelf.ts`.

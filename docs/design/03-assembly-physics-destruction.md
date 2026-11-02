@@ -139,6 +139,12 @@ Plan: `docs/plans/M6-destruction.md`. Where this section and the draft above dif
 - Terrain is immune (Q21).
 - A hot reactor blasts bigger (`05`, Hot blast): the same model, with numbers that grow with its heat.
 
+### Scrapped and rebuilt parts
+- A part scrapped by a script (`04`, Repair paid in parts) leaves the way a destroyed part does, with no blast and its own event, `partScrapped`. If that cuts the robot in two, it is an ordinary split.
+- A part made goes on the body of the live part it attaches to, at that body's angle and in that body's frame, wherever it has turned or slid to. A new joint part starts at rest against what it is mounted on. A rotator rebuilt under what it carried is turned to its old aim by its motor.
+- A part that would touch two bodies cannot happen: that blueprint had a locked joint, and the validator refuses those.
+- Its ropes go as a destroyed part's do: a rope ends on a part instance, and a new one is a new part.
+
 ### Latching and cores
 - A piece that breaks off copies its parts' last channel values, without this tick's pulses, and keeps them: a cut-off half keeps its wheels driving while its battery lasts, a lit missile keeps burning.
 - An active core destroyed: the robot's controller and scripts stop, it latches (no takeover, Q1), and the app lets go of it.
