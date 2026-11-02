@@ -26,12 +26,20 @@ const safe = param('safe', 1.3, { min: 1, max: 3 }); // times its weight in lift
 const landAt = param('landAt', 1.12, { min: 0.5, max: 2 }); // times its weight in lift: under this, with nothing to trade, it lands
 const tradeAt = param('tradeAt', 2, { min: 1, max: 20 }); // propellers more on one side than the other before it trades
 const healAt = param('healAt', 0.9, { min: 0.1, max: 1 }); // share of full health under which it heals what it can
+const wanted = param('wanted', 1.6, { min: 1, max: 3 }); // times its weight in lift: over this it leaves propellers lost under fire
+const quiet = param('quiet', 3, { min: 0, max: 30 }); // s since it last lost a part before it counts as out of the fire
+const quick = param('quick', 2, { min: 0, max: 30 }); // s: a part lost this soon after it was made says the cell is under fire
+const hot = param('hot', 6, { min: 0, max: 60 }); // s it leaves such a cell alone
 const away = param('away', 330, { min: 50, max: 500 }); // m it stays from what it tracks while it has no laser
 
 function setup() {
   state.home = { x: self.pos.x, y: self.pos.y };
   state.last = '';
   state.landing = false;
+  state.lastLoss = -Infinity;
+  state.goneCount = 0;
+  state.made = {};
+  state.hot = {};
   // Its height when its lowest part is on the ground: where it is on the ground.
   let low = self.pos.y;
   for (const p of parts) if (p.pos.y < low) low = p.pos.y;
@@ -134,6 +142,14 @@ function say(text) {
 /** What it has and what it lacks, for the rest of repair to read. */
 function look() {
   const gone = lost();
+  if (gone.length > state.goneCount) state.lastLoss = time;
+  state.goneCount = gone.length;
+  // A part it made that is gone again within `quick` seconds: that cell is under fire, and left alone for `hot` seconds.
+  for (const p of gone) {
+    if (state.made[p.id] === undefined) continue;
+    if (time - state.made[p.id] < quick) state.hot[p.id] = time + hot;
+    delete state.made[p.id];
+  }
   const mine = parts.filter(prop);
   const left = mine.filter((p) => p.tags.includes('lprop')).length;
   const right = mine.length - left;
@@ -154,7 +170,7 @@ function look() {
 
 /** The propeller to make next: on the side that has fewer, away from the enemy, nearest the middle first. */
 function nextProp(s) {
-  const open = s.gone.filter((p) => p.type === 'propeller' && p.touching);
+  const open = s.gone.filter((p) => p.type === 'propeller' && p.touching && !(state.hot[p.id] > time));
   const short = s.left <= s.right ? 'lprop' : 'rprop';
   const side = open.filter((p) => p.tags.includes(short));
   const list = side.length > 0 ? side : open;
@@ -208,7 +224,10 @@ function repairs() {
     }
     return;
   }
-  const propeller = nextProp(s);
+  // Under fire, what it makes dies at 1 percent health: it makes only what it cannot fly without, and leaves alone a
+  // cell that just ate what it put there.
+  const calm = time - state.lastLoss > quiet;
+  const propeller = calm || s.lift < wanted * s.weight ? nextProp(s) : undefined;
   // The way back to a laser: mast, rotator, laser. Priced whole: a rotator with no laser it can pay for is money gone.
   const chain = s.gone.filter((p) => p.tags.includes('laser-turret1') || (p.type === 'frame' && p.x === state.mid));
   const turret = chain.filter((p) => p.touching)[0];
@@ -222,7 +241,7 @@ function repairs() {
   const first = short ? (lift1 ?? (canLaser ? turret : undefined)) : ((canLaser ? turret : undefined) ?? lift1);
   if (first && s.hold >= first.create) {
     say(`build ${first.id}: ${first.create} of ${s.hold.toFixed(1)}`);
-    build(first.id);
+    if (build(first.id).ok) state.made[first.id] = time;
     return;
   }
   if (first) {
