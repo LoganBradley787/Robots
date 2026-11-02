@@ -149,61 +149,81 @@ function measure() {
  * passes over the strips a tick, a third of the hull's script time.)
  */
 function share(lift, torque) {
-  const cap = state.cap;
-  const arm = state.arm;
-  const n = cap.length;
   const out = [];
   const slack = 0.05 * Math.abs(torque) + 2000;
   for (let tries = 0; tries < 4; tries++) {
-    const held = []; // -1 free, 0 empty, 1 full
-    for (let k = 0; k < n; k++) held.push(cap[k] > 0 ? -1 : 0);
-    let u = 0;
-    let b = 0;
-    for (let pass = 0; pass < 5; pass++) {
-      let s0 = 0;
-      let s1 = 0;
-      let s2 = 0;
-      let l = lift;
-      let t = torque;
-      for (let k = 0; k < n; k++) {
-        if (held[k] === 1) {
-          l -= cap[k];
-          t -= cap[k] * arm[k];
-        } else if (held[k] < 0) {
-          s0 += cap[k];
-          s1 += cap[k] * arm[k];
-          s2 += cap[k] * arm[k] * arm[k];
-        }
+    if (Math.abs(solve(lift, torque, out) - torque) <= slack) {
+      if (tries === 0) return out;
+      // The steps are coarse: with 1.08 times its weight to hand it failed at 1.13, took 0.84, and sat on the ground
+      // for good. Back up between this one and the one that failed.
+      let lo = lift;
+      let hi = lift / 0.75;
+      let best = out.slice();
+      for (let more = 0; more < 3; more++) {
+        const mid = (lo + hi) / 2;
+        if (Math.abs(solve(mid, torque, out) - torque) <= slack) {
+          lo = mid;
+          best = out.slice();
+        } else hi = mid;
       }
-      const det = s0 * s2 - s1 * s1;
-      if (!(det > 1e-6 * s0 * s2)) {
-        // One strip left (or all at one place): it can only lift.
-        b = 0;
-        u = s0 > 0 ? l / s0 : 0;
-        break;
-      }
-      u = (l * s2 - t * s1) / det;
-      b = (s0 * t - s1 * l) / det;
-      let moved = false;
-      for (let k = 0; k < n; k++) {
-        if (held[k] >= 0) continue;
-        const r = u + b * arm[k];
-        if (r < 0 || r > 1) {
-          held[k] = r < 0 ? 0 : 1;
-          moved = true;
-        }
-      }
-      if (!moved) break;
+      return best;
     }
-    let got = 0;
-    for (let k = 0; k < n; k++) {
-      out[k] = held[k] < 0 ? clamp(u + b * arm[k], 0, 1) : held[k];
-      got += cap[k] * out[k] * arm[k];
-    }
-    if (Math.abs(got - torque) <= slack) break;
     lift *= 0.75;
   }
   return out;
+}
+
+/** One go at `lift` and `torque` into `out`: the turning it really gets. */
+function solve(lift, torque, out) {
+  const cap = state.cap;
+  const arm = state.arm;
+  const n = cap.length;
+  const held = []; // -1 free, 0 empty, 1 full
+  for (let k = 0; k < n; k++) held.push(cap[k] > 0 ? -1 : 0);
+  let u = 0;
+  let b = 0;
+  for (let pass = 0; pass < 5; pass++) {
+    let s0 = 0;
+    let s1 = 0;
+    let s2 = 0;
+    let l = lift;
+    let t = torque;
+    for (let k = 0; k < n; k++) {
+      if (held[k] === 1) {
+        l -= cap[k];
+        t -= cap[k] * arm[k];
+      } else if (held[k] < 0) {
+        s0 += cap[k];
+        s1 += cap[k] * arm[k];
+        s2 += cap[k] * arm[k] * arm[k];
+      }
+    }
+    const det = s0 * s2 - s1 * s1;
+    if (!(det > 1e-6 * s0 * s2)) {
+      // One strip left (or all at one place): it can only lift.
+      b = 0;
+      u = s0 > 0 ? l / s0 : 0;
+      break;
+    }
+    u = (l * s2 - t * s1) / det;
+    b = (s0 * t - s1 * l) / det;
+    let moved = false;
+    for (let k = 0; k < n; k++) {
+      if (held[k] >= 0) continue;
+      const r = u + b * arm[k];
+      if (r < 0 || r > 1) {
+        held[k] = r < 0 ? 0 : 1;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  let got = 0;
+  for (let k = 0; k < n; k++) {
+    out[k] = held[k] < 0 ? clamp(u + b * arm[k], 0, 1) : held[k];
+    got += cap[k] * out[k] * arm[k];
+  }
+  return got;
 }
 
 function setup() {

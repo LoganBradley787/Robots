@@ -121,6 +121,18 @@ describe('titan-mirage-rw: the repair script', () => {
     w.dispose();
   }, 240000);
 
+  it('barely enough lift held level is enough: the helm does not step down past it', async () => {
+    const { w, r } = await flying(withRepair({ repair: 0 }));
+    shoot(r, (p) => p.x > 140);
+    let low = Infinity;
+    for (let i = 0; i < 40 * 60; i++) {
+      w.step();
+      low = Math.min(low, partWorldPose(w, r, r.primaryCoreId as string).y);
+    }
+    expect(low).toBeGreaterThan(150);
+    w.dispose();
+  }, 240000);
+
   it('a bay it made: while it can hold itself up, it sells an older one first, and makes no more', async () => {
     const { w, r } = await flying(withRepair({ minDense: 300, float: 300, sellTo: 3 }));
     sixBays(r);
