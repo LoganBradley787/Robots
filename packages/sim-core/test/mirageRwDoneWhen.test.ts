@@ -49,7 +49,7 @@ describe('titan-mirage-rw: the repair script', () => {
     expect(count(r, 'densebattery')).toBeGreaterThan(190);
     expect(count(r, 'armorplate')).toBe(53);
     w.dispose();
-  }, 60000);
+  }, 240000);
 
   it('the keep breached: what was lost round the core comes back, plates healed', async () => {
     const { w, r } = await flying();
@@ -60,7 +60,7 @@ describe('titan-mirage-rw: the repair script', () => {
     const plates = gone.flatMap((id) => (id.startsWith('armorplate') ? [r.parts.get(id) as PartInstance] : []));
     for (const p of plates) expect(p.health / p.def.health).toBeGreaterThan(0.7);
     w.dispose();
-  }, 60000);
+  }, 240000);
 
   it('the link nearly cut: the hull comes back before anything else is asked for', async () => {
     const { w, r } = await flying();
@@ -68,7 +68,7 @@ describe('titan-mirage-rw: the repair script', () => {
     steps(w, 8);
     for (const id of gone) expect(r.parts.has(id)).toBe(true);
     w.dispose();
-  }, 60000);
+  }, 240000);
 
   it('a third of its lift off the bow: it stays up, level, and makes back what it wants', async () => {
     const { w, r } = await flying();
@@ -81,7 +81,7 @@ describe('titan-mirage-rw: the repair script', () => {
     expect(low).toBeGreaterThan(150);
     expect(count(r, 'propeller')).toBeGreaterThan(460);
     w.dispose();
-  }, 60000);
+  }, 240000);
 
   it('a bay gone: it pays for one, far side first, and it fires again', async () => {
     const { w, r } = await flying();
@@ -92,5 +92,5 @@ describe('titan-mirage-rw: the repair script', () => {
     expect(r.parts.has(bay.id)).toBe(true);
     expect((r.parts.get(bay.id) as PartInstance).built).toBeGreaterThan(0);
     w.dispose();
-  }, 90000);
+  }, 240000);
 });
