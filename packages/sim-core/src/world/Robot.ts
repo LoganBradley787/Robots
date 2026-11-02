@@ -140,6 +140,11 @@ export interface Robot {
   scope?: string;
   /** How many of its blueprint's parts it was spawned with, once a bay has added any: copies are not rebuilt (`repair.ts`). */
   firstCopy?: number;
+  /**
+   * Parts that left it through a decoupler firing: not lost, let go, so it cannot rebuild them (`repair.ts`). Never
+   * hashed: it follows from the firing, which is.
+   */
+  letGo?: Set<string>;
   /** Its repair tank and jobs (`repair/repair.ts`), from the first order its script got through. */
   repair?: RepairState;
 }

@@ -68,13 +68,16 @@ export interface RepairHost {
 }
 
 /**
- * The one check on what a robot may make: a part of its own blueprint it has lost, and not a copy a bay made. A piece
- * that broke off and woke is only what was placed as its own scope, not the robot it left. Nothing else assumes this:
- * everything past here takes a placed part, so a robot can one day make what it never had by changing this check.
+ * The one check on what a robot may make: a part of its own blueprint it has lost. Not one it let go (Logan: a launcher
+ * cannot rebuild a missile in flight), and not a copy a bay made: those were never part of it. A piece that broke off
+ * and woke is only what was placed as its own scope, not the robot it left, so a missile can remake its own warhead,
+ * copy or not. Nothing else assumes this: everything past here takes a placed part, so a robot can one day make what
+ * it never had by changing this check.
  */
 function mayMake(robot: Robot, placed: PlacedPart, index: number): boolean {
-  if (robot.parts.has(placed.id) || index >= (robot.firstCopy ?? Infinity)) return false;
-  return robot.brokeFrom === undefined || (robot.scope !== undefined && placed.tags[0] === robot.scope);
+  if (robot.parts.has(placed.id) || robot.letGo?.has(placed.id) === true) return false;
+  if (robot.brokeFrom !== undefined) return robot.scope !== undefined && placed.tags[0] === robot.scope;
+  return index < (robot.firstCopy ?? Infinity);
 }
 
 /** A cell's number, for looking its neighbors up. */
@@ -385,6 +388,8 @@ export interface RepairView {
   cells: { x: number; y: number }[];
   angle: number;
   done: number;
+  /** How long the job is from start to end, s. */
+  seconds: number;
 }
 
 /** Every job under way, for drawing and sound. Read only. */
@@ -402,7 +407,7 @@ export function repairViews(host: RepairHost): RepairView[] {
         const dy = cell.y - at.y;
         return { x: pose.x + c * dx - s * dy, y: pose.y + s * dx + c * dy };
       });
-      out.push({ robot: robot.id, kind: job.kind, part: job.part, body: robot.groups[at.group]?.bodyId as number, cells, angle: pose.angle, done: job.ticks > 0 ? 1 - job.left / job.ticks : at.health / at.def.health });
+      out.push({ robot: robot.id, kind: job.kind, part: job.part, body: robot.groups[at.group]?.bodyId as number, cells, angle: pose.angle, done: job.ticks > 0 ? 1 - job.left / job.ticks : at.health / at.def.health, seconds: job.ticks > 0 ? job.ticks * host.dt : host.dt / job.rate });
     }
   }
   return out;

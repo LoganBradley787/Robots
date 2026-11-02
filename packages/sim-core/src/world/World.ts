@@ -549,6 +549,8 @@ export class World {
   private readonly stuckCopies = new WeakSet<PartInstance>();
   /** Robots that grew parts this tick (M12: a fabricator finished): their controller is rebuilt with the rebuild. */
   private readonly grown = new Set<Robot>();
+  /** Robots a decoupler fired on this tick: what comes off them is let go, not lost (`Robot.letGo`). */
+  private readonly fired = new Set<Robot>();
   /** Each robot blueprint's fabricator jobs by part (M12), worked out once per blueprint object. Derived. */
   private readonly jobs = new WeakMap<Blueprint, Map<string, { seconds: number; joules: number } | undefined>>();
   /** Each robot's parts with a behavior and their contexts (`behaviorList`), kept until the robot changes. Derived. */
@@ -1760,6 +1762,7 @@ export class World {
       if (!this.dirty.has(robot)) continue;
       this.dirty.delete(robot);
       const grew = this.grown.delete(robot);
+      const fired = this.fired.delete(robot);
       const controller = this.controllers.get(robot.id);
       const latched = controller ? controller.values(true) : (this.channels.get(robot.id) ?? new Map<string, Map<string, number>>());
       // A body thrown a tick ago is still thrown when it is rebuilt: its pieces keep the rest of its time.
@@ -1778,6 +1781,7 @@ export class World {
         robot,
       );
       if (thrown >= 0) for (const piece of pieces) for (const g of piece.groups) this.kicked.set(g.bodyId, thrown);
+      if (fired) for (const piece of pieces) if (piece !== robot) for (const id of piece.parts.keys()) (robot.letGo ??= new Set()).add(id);
       if (pieces.length === 0) {
         // Wiped whole in one step (a big blast): its core went with the rest, so it is lost here as it is when it goes alone.
         if (controller) this.events.push({ tick: this.tickCount, robot: robot.id, kind: 'coreLost' });
@@ -1948,6 +1952,7 @@ export class World {
   private detach(robot: Robot, part: PartInstance, face: Face, impulse: number): void {
     part.cut = [...(part.cut ?? []), face];
     this.dirty.add(robot);
+    this.fired.add(robot);
     const d = faceDir(face);
     const cellsOf = (p: PartInstance): { x: number; y: number }[] =>
       (p.footprint ?? p.def.footprint).map((fc) => {

@@ -202,7 +202,7 @@ function trade(s) {
 /**
  * Repair: every decision there is, in order. Nothing here is general: it is what this drone wants.
  * - Staying up comes first: under `safe` times its weight in lift, a long job stops and a propeller is next.
- * - Rung 1: armor pays. A plate is 16 in the tank (a propeller is 1, a laser 20), so it gives one up as soon as
+ * - Rung 1: armor pays. A plate is 4 in the tank (a propeller is 1, a laser 20), so it gives one up as soon as
  *   something is lost, the plate furthest from the enemy, and goes back to the turret once it can fly.
  * - Rung 2: a laser it cannot pay for, with all the plates it has left, waits. What it has goes on propellers.
  * - Rung 3: with no plate left, propellers on the side that has more buy one on the side that has fewer.

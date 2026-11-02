@@ -1,15 +1,15 @@
 import { Container, Graphics } from 'pixi.js';
 import type { RepairView, World } from '@robots/sim-core';
-import { PIXELS_PER_METER, toScreen, type Vec2 } from './units';
+import { toScreen, type Vec2 } from './units';
 import { interpolateState } from './interpolate';
 
 const ORANGE = 0xff8a1e;
-const HOT = 0xffd28a;
-/** Sparks running round one part at once, and how fast, m/s. */
-const RUNNERS = 5;
-const SPEED = 5;
-/** How long a runner's streak is, m. */
-const STREAK = 0.3;
+/** The dots round a part, m: a dot, then three dots' worth of space. */
+const DOT = 0.12;
+const FIRST_SHARE = 0.25;
+const WIDTH = 3;
+/** How long the closed outline holds before the part is done, s (Logan: a couple of frames). */
+const HOLD = 0.07;
 /** Sparks thrown off a part per second, at most alive at once, how long they last, and how fast they fall, m/s/s. */
 const THROWN = 40;
 const MAX_FLYING = 300;
@@ -77,16 +77,67 @@ function pointOn(loop: readonly Vec2[], along: number): Vec2 {
   return loop[0] as Vec2;
 }
 
+/** The length of a closed loop of points, m. */
+function lengthOf(loop: readonly Vec2[]): number {
+  let length = 0;
+  loop.forEach((a, i) => {
+    const b = loop[(i + 1) % loop.length] as Vec2;
+    length += Math.hypot(b.x - a.x, b.y - a.y);
+  });
+  return length;
+}
+
+/** The stretch of a closed loop from `from` to `to` meters round it, corners included. */
+function stretchOf(loop: readonly Vec2[], from: number, to: number): Vec2[] {
+  const out = [pointOn(loop, from)];
+  let at = 0;
+  for (let lap = 0; lap < 2; lap++) {
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i] as Vec2;
+      const b = loop[(i + 1) % loop.length] as Vec2;
+      at += Math.hypot(b.x - a.x, b.y - a.y);
+      if (at > from && at < to) out.push(b);
+    }
+  }
+  out.push(pointOn(loop, to % lengthOf(loop)));
+  return out;
+}
+
 /**
- * The sparks of a repair job (Logan: orange sparks running round the part's outline, and no part to shoot off): bright
- * streaks round the outline of the part being scrapped, built or healed, throwing off sparks that fall. Drawn fresh
- * every frame from the world's jobs. Cosmetic only: wall-clock time and Math.random are fine here.
+ * How much of its outline a job draws, 0 to 1 (Logan: progress you can read). A build or a heal starts as dots with
+ * three dots' worth of space between them, grown wider until they meet, and holds closed for its last `HOLD`. A scrap
+ * is the same backward: the part starts closed and comes apart into dots.
+ */
+export function drawnShare(kind: RepairView['kind'], done: number, seconds: number): number {
+  const closing = seconds > HOLD ? Math.min(1, done / (1 - HOLD / seconds)) : 1;
+  return kind === 'scrap' ? 1 - (1 - FIRST_SHARE) * done : FIRST_SHARE + (1 - FIRST_SHARE) * closing;
+}
+
+/**
+ * The dashes round a closed loop of `length` m with `share` of it drawn, each a line of points. A whole number of dots
+ * fit the loop, so they meet everywhere at once. Each grows from its middle. All of it drawn is one closed line.
+ */
+export function dashesOf(loop: readonly Vec2[], length: number, share: number): Vec2[][] {
+  if (share >= 1) return [[...loop, loop[0] as Vec2]];
+  const count = Math.max(1, Math.round(length / (DOT / FIRST_SHARE)));
+  const period = length / count;
+  const out: Vec2[][] = [];
+  for (let i = 0; i < count; i++) {
+    const middle = (i + 0.5) * period;
+    out.push(stretchOf(loop, middle - (share * period) / 2, middle + (share * period) / 2));
+  }
+  return out;
+}
+
+/**
+ * What a repair job looks like (Logan: no part to shoot off, and you can see how far along it is): a dotted orange
+ * outline round the part being scrapped, built or healed, throwing off sparks that fall. Drawn fresh every frame from
+ * the world's jobs. Cosmetic only: wall-clock time and Math.random are fine here.
  */
 export class RepairSparks {
   readonly root = new Container();
   private readonly g = new Graphics();
   private flying: Flying[] = [];
-  private clock = 0;
 
   constructor() {
     this.g.blendMode = 'add';
@@ -94,7 +145,6 @@ export class RepairSparks {
   }
 
   draw(world: World, alpha: number, dt: number): void {
-    this.clock += dt;
     const g = this.g.clear();
     for (const job of world.repairJobs()) this.drawJob(world, job, alpha, dt);
     this.flying = this.flying.filter((f) => (f.t += dt) < LIFE);
@@ -121,22 +171,19 @@ export class RepairSparks {
       job.angle,
     );
     if (loop.length < 2) return;
-    let length = 0;
-    loop.forEach((a, i) => {
-      const b = loop[(i + 1) % loop.length] as Vec2;
-      length += Math.hypot(b.x - a.x, b.y - a.y);
-    });
+    const length = lengthOf(loop);
     const g = this.g;
-    for (let i = 0; i < RUNNERS; i++) {
-      const head = (this.clock * SPEED + (i * length) / RUNNERS) % length;
-      const a = toScreen(pointOn(loop, head));
-      const b = toScreen(pointOn(loop, (head + length - STREAK) % length));
-      g.moveTo(b.x, b.y).lineTo(a.x, a.y).stroke({ color: ORANGE, width: 3, alpha: 0.9 });
-      g.circle(a.x, a.y, 0.09 * PIXELS_PER_METER).fill({ color: HOT, alpha: 0.95 });
-      if (this.flying.length < MAX_FLYING && Math.random() < (THROWN * dt) / RUNNERS) {
-        const p = pointOn(loop, head);
-        this.flying.push({ x: p.x, y: p.y, vx: now.vx + (Math.random() - 0.5) * 7, vy: now.vy + Math.random() * 5, t: 0 });
-      }
+    for (const dash of dashesOf(loop, length, drawnShare(job.kind, job.done, job.seconds))) {
+      dash.forEach((p, i) => {
+        const at = toScreen(p);
+        if (i === 0) g.moveTo(at.x, at.y);
+        else g.lineTo(at.x, at.y);
+      });
+      g.stroke({ color: ORANGE, width: WIDTH, alpha: 0.95, cap: 'round' });
+    }
+    if (this.flying.length < MAX_FLYING && Math.random() < THROWN * dt) {
+      const p = pointOn(loop, Math.random() * length);
+      this.flying.push({ x: p.x, y: p.y, vx: now.vx + (Math.random() - 0.5) * 7, vy: now.vy + Math.random() * 5, t: 0 });
     }
   }
 }

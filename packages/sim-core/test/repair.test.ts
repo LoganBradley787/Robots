@@ -63,7 +63,8 @@ describe('repair prices', () => {
 
   it('a part is worth its mass unless its def names its own juice', () => {
     expect(worth(registry.get('propeller'))).toBe(1);
-    expect(worth(registry.get('armorplate'))).toBe(20);
+    expect(worth(registry.get('frame'))).toBe(1);
+    expect(worth(registry.get('armorplate'))).toBe(5);
     expect(worth(registry.get('laser'))).toBe(20);
   });
 });
@@ -73,8 +74,8 @@ describe('scrap', () => {
     const { w, r } = await run({ grid: ['A  F  C  F  F'] }, { 1: "scrap('armorplate@0,0')" }, ticks(3));
     expect(answers(w)).toEqual([{ ok: true, seconds: 3, cost: 0 }]);
     expect(r.parts.has('armorplate@0,0')).toBe(false);
-    expect(r.repair?.tank).toBeCloseTo(16, 10);
-    expect(kinds(w, 'partScrapped')).toMatchObject([{ part: 'armorplate@0,0', partType: 'armorplate', gave: 16 }]);
+    expect(r.repair?.tank).toBeCloseTo(4, 10);
+    expect(kinds(w, 'partScrapped')).toMatchObject([{ part: 'armorplate@0,0', partType: 'armorplate', gave: 4 }]);
     expect(kinds(w, 'partDestroyed')).toEqual([]);
     expect(kinds(w, 'explosion')).toEqual([]);
     w.dispose();
@@ -267,7 +268,7 @@ describe('readings', () => {
   it('own() reads the robot itself, with scan options', async () => {
     const brief = '(p) => ({ id: p.id, health: p.health, maxHealth: p.maxHealth, juice: p.juice, gives: p.gives, heal: p.heal, seconds: p.seconds })';
     const { w } = await run({ grid: ['A  F  C'], legend: { A: { part: 'armorplate', tags: ['plate'] } } }, { 1: 'own().length', 2: `own({ of: 'plate' }).map(${brief})` }, 4);
-    expect(answers(w)).toEqual([3, [{ id: 'armorplate@0,0', health: 250, maxHealth: 250, juice: 20, gives: 16, heal: 0, seconds: 6 }]]);
+    expect(answers(w)).toEqual([3, [{ id: 'armorplate@0,0', health: 250, maxHealth: 250, juice: 5, gives: 4, heal: 0, seconds: 6 }]]);
     w.dispose();
   });
 
@@ -509,6 +510,52 @@ describe('around the edges', () => {
     for (let i = 0; i < 12; i++) w.step();
     expect(kinds(w, 'coreWoke')).toHaveLength(1);
     expect(answers(w)).toEqual([['frame@4,0']]);
+    w.dispose();
+  });
+
+  const rack = (pilot: string, guide = 'function tick() {}'): Record<string, unknown> => ({
+    format: 1,
+    name: 'launcher',
+    primaryCore: 'core@0,0',
+    parts: [
+      { part: 'core', x: 0, y: 0 },
+      { part: 'decoupler', x: 1, y: 0, rot: 270, tags: ['rack'] },
+      { part: 'core', x: 2, y: 0, tags: ['missile1'] },
+      { part: 'frame', x: 3, y: 0, tags: ['missile1'] },
+      { part: 'frame', x: 4, y: 0, tags: ['missile1'] },
+    ],
+    scripts: [{ id: 'pilot', source: pilot }],
+    cores: { 'core@2,0': { scope: 'missile1', scripts: [{ id: 'm', source: guide }] } },
+  });
+
+  it('a launcher cannot rebuild what it fired, but can rebuild what was shot off the rack', async () => {
+    const pilot = `function tick() {
+      if (frame === 5) log(JSON.stringify(lost().map((p) => p.id)));
+      if (frame === 10) set('rack', 'fire', 1);
+      if (frame === 40) log(JSON.stringify(lost().map((p) => p.id)));
+      if (frame === 41) log(JSON.stringify(build('frame@3,0')));
+    }`;
+    const w = await World.create({ seed: 1, scripts: host }, open);
+    const r = w.spawnBlueprint(rack(pilot), { x: 0, y: 0.6 });
+    w.step();
+    (r.parts.get('frame@4,0') as PartInstance).health = 0;
+    for (let i = 0; i < 45; i++) w.step();
+    expect(kinds(w, 'decoupled').length).toBeGreaterThan(0);
+    expect(answers(w)).toEqual([['frame@4,0'], ['frame@4,0'], { ok: false, why: 'not a lost part' }]);
+    w.dispose();
+  });
+
+  it('a missile in flight can remake its own parts from its own parts', async () => {
+    const guide = `function tick() {
+      if (frame === 30) log(JSON.stringify(lost().map((p) => p.id)));
+      if (frame === 31) log(JSON.stringify(scrap('frame@3,0').ok));
+    }`;
+    const w = await World.create({ seed: 1, scripts: host }, open);
+    const r = w.spawnBlueprint(rack(`function tick() { if (frame === 3) set('rack', 'fire', 1); }`, guide), { x: 0, y: 0.6 });
+    w.step();
+    (r.parts.get('frame@4,0') as PartInstance).health = 0;
+    for (let i = 0; i < 45; i++) w.step();
+    expect(answers(w)).toEqual([['frame@4,0'], true]);
     w.dispose();
   });
 

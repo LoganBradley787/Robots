@@ -5,6 +5,7 @@
   "about": "Very heavy and very tough. Shells barely mark it.",
   "footprint": [{ "x": 0, "y": 0, "faces": ["N", "E", "S", "W"] }],
   "mass": 20,
+  "juice": 5,
   "health": 250,
   "shellDamage": 0.1,
   "beamDamage": 0.25,
