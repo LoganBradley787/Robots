@@ -65,6 +65,18 @@ describe('repair drone: the ladder', () => {
     w.dispose();
   });
 
+  it('gives plates up from both ends in turn, so what it sells does not flip it over', async () => {
+    const { w, r } = await flying();
+    shoot(r, (_, type) => type === 'laser' || type === 'rotator');
+    steps(w, 30);
+    const ends = kinds(w, 'partScrapped', 'armorplate').map((e) => (e as unknown as { part: string }).part.startsWith('armorplate@0,'));
+    expect(ends.length).toBeGreaterThanOrEqual(2);
+    expect(ends[0]).not.toBe(ends[1]);
+    expect(Math.abs(hover(w, r).tilt)).toBeLessThan(25);
+    expect(hover(w, r).y).toBeGreaterThan(20);
+    w.dispose();
+  });
+
   it('rung 2: when it cannot afford the laser it spends on propellers to stay in the air', async () => {
     const { w, r } = await flying();
     r.repair = { tank: 3, jobs: [] };

@@ -197,10 +197,14 @@ function nextProp(s) {
   return list.slice().sort((a, b) => rank(a) - rank(b))[0];
 }
 
-/** A plate to give up: the one furthest from the enemy, so the side facing it keeps its armor. */
+/**
+ * A plate to give up: from the heavier end, then the one furthest from the enemy. 20 kg each on 6 m arms: two off one end
+ * throws the weight so far to the other that it flips over and falls.
+ */
 function spare(s) {
   const toward = s.enemy ? s.enemy.pos.x - self.pos.x : 0;
-  const rank = (p) => (p.pos.x - self.pos.x) * toward;
+  const heavier = Math.sign(s.plates.reduce((n, p) => n + p.pos.x - self.pos.x, 0));
+  const rank = (p) => (Math.sign(p.pos.x - self.pos.x) === heavier ? -1e6 : 0) + (p.pos.x - self.pos.x) * toward;
   return s.plates.slice().sort((a, b) => rank(a) - rank(b))[0];
 }
 
