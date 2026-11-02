@@ -133,6 +133,14 @@ describe('titan-mirage-rw: the repair script', () => {
     w.dispose();
   }, 240000);
 
+  it('cut near the stern block: it comes down level and lands on its belly', async () => {
+    const { w, r } = await flying(withRepair({ repair: 0 }));
+    shoot(r, (p) => p.x > 60);
+    steps(w, 30);
+    expect(Math.abs(partWorldPose(w, r, r.primaryCoreId as string).angle)).toBeLessThan(0.3);
+    w.dispose();
+  }, 240000);
+
   it('short for a want: the stern block pays first, and the rows that join the core to the hull stay', async () => {
     const { w, r } = await flying(withRepair({ float: 0, sellTo: 3 }));
     shoot(r, (p) => p.def.id === 'armorplate' && p.y === 11 && p.x >= 3 && p.x <= 9);

@@ -151,7 +151,9 @@ function measure() {
 function share(lift, torque) {
   const out = [];
   const slack = 0.05 * Math.abs(torque) + 2000;
-  for (let tries = 0; tries < 4; tries++) {
+  // As far down as it takes: stopped at 42 percent, a hull cut near the stern block kept pushing up its bow, went over
+  // on the way down and landed on its back, with every propeller pressing it into the ground.
+  for (let tries = 0; tries < 9; tries++) {
     if (Math.abs(solve(lift, torque, out) - torque) <= slack) {
       if (tries === 0) return out;
       // The steps are coarse: with 1.08 times its weight to hand it failed at 1.13, took 0.84, and sat on the ground
