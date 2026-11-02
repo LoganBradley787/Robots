@@ -7,9 +7,10 @@
  * `__seed`, `__params`, `__inspect`, and `__arena` are defined by the host just before this runs and are read once here.
  */
 export const PRELUDE = String.raw`
-(function (seed, given, hostScan, hostSend, inspecting, arena) {
+(function (seed, given, hostScan, hostSend, inspecting, arena, hostRepair) {
   delete globalThis.__scan;
   delete globalThis.__send;
+  delete globalThis.__repair;
   var stringify = JSON.stringify;
   var parse = JSON.parse;
   var newFunction = Function;
@@ -27,6 +28,7 @@ export const PRELUDE = String.raw`
   var seen = '';
   var scans = 0;
   var sends = 0;
+  var orders = 0;
   var finite = isFinite;
   var nanWarned = false;
   var marks = [];
@@ -98,6 +100,42 @@ export const PRELUDE = String.raw`
     }
     return parse(out);
   };
+  // Repair (repair/repair.ts). A line starting with '!' is what is wrong with the options: logged once per message.
+  function repairCall(op, arg) {
+    if (!hostRepair) return null;
+    var text;
+    try { text = stringify(arg === undefined ? null : arg); } catch (e) { text = undefined; }
+    var out = hostRepair(op, typeof text === 'string' ? text : 'null');
+    if (out.charCodeAt(0) === 33) {
+      out = out.slice(1);
+      if (!hasOwn.call(optWarned, out) && logs.length < 5) logs[logs.length] = out;
+      optWarned[out] = true;
+      return null;
+    }
+    return parse(out);
+  }
+  function order(op, arg) {
+    if (orders >= 16) return { ok: false, why: 'too many orders this tick' };
+    orders++;
+    return repairCall(op, arg);
+  }
+  function listing(op, opts) {
+    if (scans >= 4) {
+      if (!scanWarned && logs.length < 5) logs[logs.length] = op + '(): at most 4 scans a tick; this one returned null';
+      scanWarned = true;
+      return null;
+    }
+    scans++;
+    return repairCall(op, opts);
+  }
+  globalThis.scrap = function (id) { return order('scrap', [String(id)]); };
+  globalThis.build = function (id) { return order('build', [String(id)]); };
+  globalThis.heal = function (id, upTo) { return order('heal', [String(id), upTo === undefined ? 1 : Number(upTo)]); };
+  globalThis.stopJob = function () { repairCall('stop'); };
+  globalThis.tank = function () { return repairCall('tank'); };
+  globalThis.job = function () { return repairCall('job'); };
+  globalThis.lost = function (opts) { return listing('lost', opts); };
+  globalThis.own = function (opts) { return listing('own', opts); };
   globalThis.param = function (name, def, opts) {
     name = String(name);
     var spec = { default: Number(def) };
@@ -550,6 +588,7 @@ export const PRELUDE = String.raw`
     }
     scans = 0;
     sends = 0;
+    orders = 0;
     nanWarned = false;
     sleepWarned = false;
     sleepFor = 0;
@@ -585,5 +624,5 @@ export const PRELUDE = String.raw`
     inspect: function () { return seen; },
     hasTick: function () { return typeof globalThis.tick === 'function' ? 'true' : 'false'; }
   };
-})(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null, __inspect === true, typeof __arena === 'object' ? __arena : null)
+})(__seed, __params, typeof __scan === 'function' ? __scan : null, typeof __send === 'function' ? __send : null, __inspect === true, typeof __arena === 'object' ? __arena : null, typeof __repair === 'function' ? __repair : null)
 `;

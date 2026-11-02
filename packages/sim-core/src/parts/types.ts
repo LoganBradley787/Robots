@@ -409,6 +409,8 @@ export interface PartDef {
    * without it takes the bay's `secondsPerKg` times its mass. A recipe's build time is the sum over its parts.
    */
   build?: number;
+  /** What the part is worth to repair (`repair/numbers.ts`). Without it, its mass in kg. */
+  juice?: number;
   sprite: SpriteSpec;
   /** M15: the part's sounds, for the app. */
   sound?: SoundSpec;

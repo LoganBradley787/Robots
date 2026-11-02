@@ -158,6 +158,7 @@ export function rebuildRobot(host: RebuildHost, robot: Robot): Robot[] {
         rootId,
         version: 0,
         brokeFrom: robot.id,
+        ...(robot.firstCopy !== undefined ? { firstCopy: robot.firstCopy } : {}),
       };
       if (piece.cores === 1) {
         made.primaryCoreId = rootId;

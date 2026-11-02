@@ -111,6 +111,8 @@ export interface ScriptServices {
   scanJson?(id: number, opts?: ScanOptions): string;
   /** Queues `json` for an attached core named `to` (its scope or its part id). False when there is no such core. */
   send(to: string, json: string): boolean;
+  /** A repair order or reading (`repair/repair.ts`), its arguments and its answer as JSON text. */
+  repair?(op: string, json: string): string;
 }
 
 /**

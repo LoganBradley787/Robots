@@ -10,6 +10,7 @@
   "mass": 4,
   "health": 40,
   "build": 2.0,
+  "juice": 20,
   "symmetry": 4,
   "inputs": [{ "name": "fire", "min": 0, "max": 1, "default": 0 }],
   "outputs": [

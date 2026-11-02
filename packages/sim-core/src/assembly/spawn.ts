@@ -1,12 +1,31 @@
 import { footprintOf } from '../parts/footprint';
-import type { Blueprint } from '../blueprint/types';
+import type { Blueprint, PlacedPart } from '../blueprint/types';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
 import { buildBodies } from './build';
 import type { PartRegistry } from '../parts/registry';
+import type { PartDef } from '../parts/types';
 import type { Chunk, PartInstance, Robot } from '../world/Robot';
 import { isCore, rootPartId, type AssemblyPlan } from './assemble';
 
 export { PART_FRICTION } from './build';
+
+/** A placed part as new: full health, containers full, not yet on a body. */
+export function newPart(def: PartDef, p: PlacedPart): PartInstance {
+  const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: 0, localX: 0, localY: 0 };
+  if (def.resource) inst.stored = def.resource.capacity;
+  // M12: a stretchy part placed at another size keeps its own cells.
+  const cells = footprintOf(def, p.size);
+  if (cells !== def.footprint) inst.footprint = cells;
+  // M10: a part that needs arming starts safe unless the blueprint starts it armed.
+  if (def.arming === true) inst.armed = p.armed === true;
+  // M12: a fabricator starts empty.
+  if (def.fabricate) {
+    inst.holding = false;
+    inst.progress = 0;
+    inst.built = 0;
+  }
+  return inst;
+}
 
 export interface SpawnArgs {
   id: number;
@@ -32,23 +51,7 @@ export function spawnRobot(physics: PhysicsWorld, registry: PartRegistry, bp: Bl
   const toWorld = (c: { x: number; y: number }): { x: number; y: number } => ({ x: args.at.x + (c.x - root.x), y: args.at.y + (c.y - root.y) });
 
   const parts = new Map<string, PartInstance>();
-  for (const p of bp.parts) {
-    const def = registry.get(p.part);
-    const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: 0, localX: 0, localY: 0 };
-    if (def.resource) inst.stored = def.resource.capacity;
-    // M12: a stretchy part placed at another size keeps its own cells.
-    const cells = footprintOf(def, p.size);
-    if (cells !== def.footprint) inst.footprint = cells;
-    // M10: a part that needs arming starts safe unless the blueprint starts it armed.
-    if (def.arming === true) inst.armed = p.armed === true;
-    // M12: a fabricator starts empty.
-    if (def.fabricate) {
-      inst.holding = false;
-      inst.progress = 0;
-      inst.built = 0;
-    }
-    parts.set(p.id, inst);
-  }
+  for (const p of bp.parts) parts.set(p.id, newPart(registry.get(p.part), p));
   // Spawned upright: every body at angle 0, each at its origin cell.
   const groups = buildBodies(physics, parts, plan, (g) => ({ ...toWorld(cell(g.originId)), angle: 0 }));
 

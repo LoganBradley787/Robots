@@ -19,6 +19,8 @@ export type { Container } from './resources/pools';
 export { autoBindings, partAutoBindings, allBindings, AUTO_KEYS } from './control/autoControls';
 export type { RobotInput, ControlledPart, ControlState, ControlTrace, TraceInput, TraceWrite } from './control/types';
 export { World, activeControls } from './world/World';
+export { SCRAP_RETURN, CREATE_SHARE, TIME_SCALE, SCRAP_TIME, JOBS_AT_ONCE, START_HEALTH, SECONDS_PER_KG } from './repair/numbers';
+export type { RepairKind, RepairView } from './repair/repair';
 export { MATCH_ARENA, inArena } from './world/arena';
 export type { Arena } from './world/arena';
 export type { WorldOptions, SpawnOptions, SpawnRecord, WorldEvent, ScriptLog, ScriptWatch } from './world/World';

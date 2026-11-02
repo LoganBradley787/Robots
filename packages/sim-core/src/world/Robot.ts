@@ -1,6 +1,7 @@
 import type { Blueprint } from '../blueprint/types';
 import type { BodyId, JointId } from '../physics/PhysicsWorld';
 import type { Face, FootprintCell, PartDef, Rotation } from '../parts/types';
+import type { RepairState } from '../repair/repair';
 import type { GunSight } from '../weapons/shells';
 
 /** A placed part in a spawned robot. */
@@ -137,4 +138,8 @@ export interface Robot {
   woke?: true;
   /** A woken piece's scope in the blueprint (`bay3`, `missile1`), if its core has one. It keeps it when that core is gone. */
   scope?: string;
+  /** How many of its blueprint's parts it was spawned with, once a bay has added any: copies are not rebuilt (`repair.ts`). */
+  firstCopy?: number;
+  /** Its repair tank and jobs (`repair/repair.ts`), from the first order its script got through. */
+  repair?: RepairState;
 }

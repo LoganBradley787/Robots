@@ -191,6 +191,18 @@ export class Tracer {
         case 'built':
           push(e.robot, 'built', `${e.part} built ${e.recipe} (${e.scope}), holding it`);
           break;
+        case 'partScrapped':
+          push(e.robot, 'scrapped', `scrapped ${e.part}: ${f2(e.gave)} into its tank`);
+          break;
+        case 'partRebuilt':
+          push(e.robot, 'rebuilt', `rebuilt ${e.part} for ${f2(e.cost)}`);
+          break;
+        case 'partHealed':
+          push(e.robot, 'healed', `healed ${e.part} to ${f2(e.health)}`);
+          break;
+        case 'repairFailed':
+          push(e.robot, 'repairFailed', `could not finish building ${e.part}: ${e.why}; its cost went back`);
+          break;
         case 'released':
           push(e.robot, 'released', `${e.part} let go of ${e.scope}`);
           break;

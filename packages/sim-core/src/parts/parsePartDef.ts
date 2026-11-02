@@ -66,7 +66,7 @@ function join(path: string, key: string): string {
 
 const DEF_KEYS = [
   'id', 'name', 'category', 'about', 'footprint', 'mass', 'health', 'symmetry', 'inputs', 'outputs', 'powerDraw', 'role', 'behavior', 'shellDamage', 'beamDamage',
-  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'reactor', 'fuse', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'stretch', 'sprite', 'sound', 'defaultTags',
+  'behaviorConfig', 'acts', 'autoControl', 'joint', 'collider', 'resource', 'onDestroyed', 'impact', 'crash', 'arming', 'sensor', 'radio', 'decoy', 'jammer', 'gun', 'laser', 'cannon', 'solar', 'reactor', 'fuse', 'charge', 'smoke', 'grapple', 'fabricate', 'build', 'juice', 'stretch', 'sprite', 'sound', 'defaultTags',
 ] as const;
 
 /** `crash.hardness`: a positive finite number no sum of shares can overflow, with what the scale means in the error. */
@@ -375,6 +375,8 @@ export function parsePartDef(raw: unknown, file: string): PartDef {
   }
   // Batch: seconds a fabricator needs to build one of this part (without it: the bay's secondsPerKg times its mass).
   if (o.build !== undefined) def.build = r.positive(o, 'build', '');
+  // What the part is worth to repair (without it: its mass).
+  if (o.juice !== undefined) def.juice = r.positive(o, 'juice', '');
   // M15: voice names for the app; the sim only carries them.
   if (o.sound !== undefined) {
     const so = r.obj(o.sound, 'sound', ['run', 'hit', 'fire']);

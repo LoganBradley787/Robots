@@ -15,7 +15,7 @@ import type { ScannedPart, ScriptContact, ScriptError, ScriptHost, ScriptInput, 
 import type { Arena } from './arena';
 import { contactFrame, extrasJson, HEADER, layoutJson, layoutPatch, numberCount, put, sameNames, SELF, type LayoutPart, type ScriptFrame, type ScriptLayout } from '../script/frame';
 import { partSpec, partSpecsJson } from '../script/partSpec';
-import { scanAsks, selectScanned, type ScanOptions } from '../script/scanOptions';
+import { readScanOptions, scanAsks, selectScanned, type ScanOptions } from '../script/scanOptions';
 import { sees, type SensorPose } from '../sensors/sight';
 import { jammed, jamNear, type JamBubble } from '../sensors/jam';
 import { SMOKE_DRIFT, smokeBlocks, type SmokeCloud } from '../sensors/smoke';
@@ -25,11 +25,11 @@ import { CRASH_BOX_HARDNESS, CRASH_FLOOR, CRASH_HARDNESS, CRASH_JOLT, CRASH_LAND
 import { buildWorld, type WorldFile } from './WorldFile';
 import { defaultRegistry, type PartRegistry } from '../parts/registry';
 import { loadBlueprint, validateBlueprint } from '../blueprint/validate';
-import { spawnRobot } from '../assembly/spawn';
+import { newPart, spawnRobot } from '../assembly/spawn';
 import { partCells, rootPartId } from '../assembly/assemble';
 import { placeBlueprint } from '../blueprint/place';
 import { buildSeconds, hollowAt, recipePlacement, recipeStats, scopeBase } from '../fabricate/recipe';
-import { footprintMiddle, footprintOf, partMass } from '../parts/footprint';
+import { footprintMiddle, partMass } from '../parts/footprint';
 import { rebuildRobot, type BodyMotion } from '../assembly/rebuild';
 import { blastEffects, hotBlast, type BlastCell } from '../damage/explosion';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
@@ -45,6 +45,8 @@ import { WIND_ACT } from '../behaviors/cannon';
 import type { Binding, Blueprint, CoreControls, PlacedPart, ScriptSpec } from '../blueprint/types';
 import { scopedView } from '../control/target';
 import { Grapples, type GrappleHost } from './grapple';
+import { hashRepairs, repairCall, repairViews, runRepairs, type RepairHost, type RepairView } from '../repair/repair';
+import { jobSeconds, scrapGives, healCost, worth } from '../repair/numbers';
 import { atan2, cos, hypot, powInt, sin } from '../math/fdlibm';
 
 export interface SpawnRecord {
@@ -134,7 +136,15 @@ export type WorldEvent =
    */
   | { tick: number; robot: number; kind: 'impact'; x: number; y: number; dv: number; mass: number }
   /** Batch: a smoke pod went off, leaving a cloud of `radius` meters at `x`, `y`; the pod is gone. */
-  | { tick: number; robot: number; kind: 'smoked'; part: string; x: number; y: number; radius: number };
+  | { tick: number; robot: number; kind: 'smoked'; part: string; x: number; y: number; radius: number }
+  /** A script's scrap job ended: `part` is gone, with no blast and no notice, and `gave` went into its tank. */
+  | { tick: number; robot: number; kind: 'partScrapped'; part: string; partType: string; x: number; y: number; gave: number }
+  /** A script's build job ended: `part` is back at `x`, `y`, for `cost` from its tank. */
+  | { tick: number; robot: number; kind: 'partRebuilt'; part: string; partType: string; x: number; y: number; cost: number }
+  /** A script's heal job ended: `part` is at `health`, where it was told to stop or where the tank ran out. */
+  | { tick: number; robot: number; kind: 'partHealed'; part: string; health: number }
+  /** A build job could not finish (`why`); what it took from the tank went back. */
+  | { tick: number; robot: number; kind: 'repairFailed'; part: string; why: string };
 
 /** M15: the velocity change in one step (m/s) from which a hit is logged as an `impact` event. */
 export const IMPACT_HEARD = 2;
@@ -476,6 +486,7 @@ export class World {
   /** Batch: grapple ropes and held triggers. Simulation state, hashed when present. */
   private readonly grapples = new Grapples();
   private grappleHost?: GrappleHost;
+  private repairHost?: RepairHost;
   /** M14: every laser beam of the last tick, for drawing and reports. Not simulation state. */
   private beams: Beam[] = [];
   /** M14: ticks each robot's lasers burned and the damage they did. Reporting only. */
@@ -1208,6 +1219,7 @@ export class World {
   private damagePhase(): void {
     this.checkCharges();
     this.checkImpacts();
+    runRepairs(this.rh());
     let budget = MAX_BLASTS_PER_TICK;
     for (;;) {
       this.destroyDeadParts();
@@ -2515,21 +2527,15 @@ export class World {
       });
     const oldCores = new Set((robot.blueprint.cores ?? []).map((k) => k.core));
     const cores = [...(robot.blueprint.cores ?? []), ...(result.blueprint.cores ?? []).filter((k) => !oldCores.has(k.core))];
+    robot.firstCopy ??= robot.blueprint.parts.length;
     robot.blueprint = { ...robot.blueprint, parts: [...robot.blueprint.parts, ...added], ...(cores.length > 0 ? { cores } : {}) };
     const origin = robot.parts.get(group.originId);
     // New parts go last in the blueprint and last in the robot: `Robot.parts` stays in blueprint order.
     for (const p of added) {
-      const def = this.registry.get(p.part);
-      const inst: PartInstance = { id: p.id, def, x: p.x, y: p.y, rot: p.rot, tags: [...p.tags], health: def.health, group: bay.group, localX: p.x - (origin?.x ?? bay.x), localY: p.y - (origin?.y ?? bay.y) };
-      if (def.resource) inst.stored = def.resource.capacity;
-      const cells = footprintOf(def, p.size);
-      if (cells !== def.footprint) inst.footprint = cells;
-      if (def.arming === true) inst.armed = p.armed === true;
-      if (def.fabricate) {
-        inst.holding = false;
-        inst.progress = 0;
-        inst.built = 0;
-      }
+      const inst = newPart(this.registry.get(p.part), p);
+      inst.group = bay.group;
+      inst.localX = p.x - (origin?.x ?? bay.x);
+      inst.localY = p.y - (origin?.y ?? bay.y);
       robot.parts.set(p.id, inst);
     }
     bay.holding = true;
@@ -2627,6 +2633,60 @@ export class World {
     }
   }
 
+  /** What repair needs of the world (`repair/repair.ts`). */
+  private rh(): RepairHost {
+    if (!this.repairHost) {
+      const world = this as World;
+      this.repairHost = {
+        physics: this.physics,
+        registry: this.registry,
+        dt: this.dt,
+        get tick() {
+          return world.tick;
+        },
+        robots: this.robots,
+        events: this.events,
+        controlled: (robot) => this.controllers.has(robot.id),
+        pose: (robot, part) => this.poser(robot)(part),
+        shrank: (robot) => this.dirty.add(robot),
+        grew: (robot) => {
+          this.dirty.add(robot);
+          this.grown.add(robot);
+          this.unprimed.add(robot);
+        },
+        own: (robot, opts) => this.ownParts(robot, opts),
+      };
+    }
+    return this.repairHost;
+  }
+
+  /** Every repair job under way, for drawing and sound. */
+  repairJobs(): RepairView[] {
+    return repairViews(this.rh());
+  }
+
+  /** `own(opts)`: a script's own robot as `scan` lists a robot, `opts` as for `scan`, with what repair would pay and cost. */
+  private ownParts(robot: Robot, opts: unknown): string {
+    const read = readScanOptions(opts);
+    if (typeof read === 'string') return `!${read.replace('scan()', 'own()')}`;
+    const poseOf = this.poser(robot);
+    const list: ScannedPart[] = [];
+    for (const p of robot.parts.values()) {
+      const pose = poseOf(p);
+      list.push({ id: p.id, type: p.def.id, pos: { x: pose.x, y: pose.y }, angle: pose.angle, health: p.health, maxHealth: p.def.health });
+    }
+    const picked = scanAsks(read) ? selectScanned(list, (i) => robot.parts.get((list[i] as ScannedPart).id), read) : list;
+    if (typeof picked === 'string') return `!${picked.replace('scan()', 'own()')}`;
+    return JSON.stringify(
+      picked.map((e) => {
+        const p = robot.parts.get(e.id) as PartInstance;
+        const juice = worth(p.def, p.footprint);
+        const health = p.health / p.def.health;
+        return { ...e, juice, gives: scrapGives(juice, health), heal: healCost(juice, Math.max(0, 1 - health)), seconds: jobSeconds(p.def, p.footprint) };
+      }),
+    );
+  }
+
   /** A finished build that cannot be placed (M12): told once per wait, then tried again every tick. */
   private blocked(robot: Robot, bay: PartInstance, why: string): void {
     if (this.stuck.has(bay)) return;
@@ -2698,7 +2758,7 @@ export class World {
         this.applyScriptOutput(robotId, controller, runner.repeat());
         continue;
       }
-      const services: ScriptServices = { scan: (id, opts) => this.scan(robot, id, opts), scanJson: (id, opts) => this.scanJson(robot, id, opts), send: (to, json) => this.send(robot, to, json) };
+      const services: ScriptServices = { scan: (id, opts) => this.scan(robot, id, opts), scanJson: (id, opts) => this.scanJson(robot, id, opts), send: (to, json) => this.send(robot, to, json), repair: (op, text) => repairCall(this.rh(), robot, op, text) };
       if (this.scriptProbe) this.scriptProbe(robotId, () => this.scriptInput(robot, controller.keyState()));
       let ran: ScriptTickOutput | undefined;
       const run = (): void => {
@@ -3919,6 +3979,8 @@ export class World {
     if (this.noSmokeJam) h.addString('noSmokeOrJam');
     // Grapple ropes (Batch). None adds nothing, so worlds without grapples hash as before.
     this.grapples.hashInto(h, this.gh());
+    // Repair tanks and jobs. A robot that never got an order through adds nothing, so worlds without repair hash as before.
+    hashRepairs(h, this.robots);
     // Held keys and toggles shape the future, so they are state too.
     for (const [id, c] of this.controllers) {
       const st = c.state();

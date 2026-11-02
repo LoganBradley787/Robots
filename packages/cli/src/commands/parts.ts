@@ -43,6 +43,7 @@ function details(d: PartDef): string[] {
   const out: string[] = [];
   if (d.role === 'core') out.push('a core: bindings and scripts belong to a core; the primary core pilots the robot, others wake when their piece breaks off');
   if (d.resource) out.push(`stores ${d.resource.capacity} J of ${d.resource.kind}`);
+  if (d.juice !== undefined) out.push(`worth ${d.juice} to repair (its mass otherwise): creating it costs half that, healing it from nothing the rest`);
   if (d.acts) out.push(`acts toward its ${d.acts} face at rotation 0 (the legend arrow points the way it acts)`);
   const cfg = Object.entries(d.behaviorConfig ?? {});
   const unit = (k: string, v: number): string => (UNITS[k] === 'rad' ? `${v} rad (${Math.round((v * 180) / Math.PI)} deg)` : `${v}${UNITS[k] ? ` ${UNITS[k]}` : ''}`);

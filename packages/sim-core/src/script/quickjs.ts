@@ -61,6 +61,14 @@ export async function createQuickJsHost(variant: QuickJSSyncVariant): Promise<Sc
         });
         c.setProp(c.global, '__send', send);
         send.dispose();
+        const repair = c.newFunction('repair', (opHandle, jsonHandle) => {
+          // Past its stack nothing more of it reaches the world, as for `send`.
+          if (meter.guard.touched()) return c.newString('null');
+          if (c.typeof(opHandle) !== 'string' || c.typeof(jsonHandle) !== 'string') return c.newString('null');
+          return c.newString(services.current?.repair?.(c.getString(opHandle), c.getString(jsonHandle)) ?? 'null');
+        });
+        c.setProp(c.global, '__repair', repair);
+        repair.dispose();
         const setup = `var __seed = ${JSON.stringify([...seed])}; var __params = ${JSON.stringify(opts.params ?? {})}; var __inspect = ${opts.inspect === true}; var __arena = ${opts.arena ? JSON.stringify({ x: opts.arena.x, y: opts.arena.y }) : 'null'};\n${PRELUDE}`;
         meter.arm(limits.budgetPerTick * COMPILE_BUDGET_TICKS);
         meter.guard.arm();
