@@ -48,6 +48,9 @@ const lift1 = param('lift1', 120, { min: 1, max: 1000 }); // N, a propeller
 const lift2 = param('lift2', 400, { min: 1, max: 4000 }); // N, a lift booster
 const trimTo = param('trimTo', 1.05, { min: 1, max: 3 }); // times its weight held level: it sells no far column that would leave it under this
 const trimMin = param('trimMin', 40, { min: 0, max: 170 }); // cells from the core it never trims under
+const lightenTo = param('lightenTo', 1.1, { min: 1, max: 3 }); // times its weight held level: under 1 it sells for weight up to this
+const blockWait = param('blockWait', 10, { min: 0, max: 120 }); // s before it tries again to make a part whose cell was blocked
+const bayWeight = param('bayWeight', 10, { min: 0, max: 600 }); // s under its own weight before its bays are sold for weight too
 
 const cellOf = (id) => {
   const m = id.match(/@(-?\d+),(-?\d+)/);
@@ -72,6 +75,8 @@ function setup() {
   state.seen = {}; // what was lost at the last look
   state.last = '';
   state.due = {}; // what a scrap under way will bring
+  state.blocked = {}; // part: when its cell was last found blocked
+  state.under = null; // since when it has been under its own weight (lift held level under 1)
 }
 
 /** Cells from the core toward the bow. */
@@ -270,8 +275,44 @@ function sell(need, h, l, hard, real) {
   return out;
 }
 
+/**
+ * A plate that is only weight when it cannot fly: off the walls round the core, and not in the rows level with it,
+ * where the keep's side walls are what joins the core's rows to the spar.
+ */
+const dead = (c) => Math.abs(c.x - state.c.x) > 3 && Math.abs(c.y - state.c.y) > 2;
+
+/**
+ * Under its own weight, what to sell to hold more of it level, best first: the plates that are only weight (`dead`),
+ * and once it has been under its weight for `bayWeight` s its bays too (`bays`), by how much lift held level it would
+ * gain without each, as long as the ones before it still leave it under `lightenTo`. The stern block is half its weight
+ * with half the lift it needs: a plate there is worth more lift than any propeller it could buy (Logan's replay 211337:
+ * 14 such plates sold took it from 0.51 to 0.95, and at 255 s, still falling, to 1.14). Bays are its guns: sold at once,
+ * eight went while its propellers were bringing it back within 3 s; never sold for weight, it lay on the ground in
+ * Logan's replay 091616 and lost its core at 653 s, where with them it flew again and lived. Never its reactors, which
+ * drive the propellers.
+ */
+function lighten(l, bays) {
+  const ranked = [];
+  for (const p of parts) {
+    if (state.sold[p.id] || (p.tags.length > 0 && /^g.\d/.test(p.tags[0]))) continue;
+    if (!(p.type === 'armorplate' && dead(cellOf(p.id))) && !(bays && p.type === 'fabbay')) continue;
+    const gain = liftNow(new Set([p.id])).times - l.times;
+    if (gain > 0.002) ranked.push({ p, gain });
+  }
+  ranked.sort((a, b) => b.gain - a.gain);
+  const out = [];
+  const gone = new Set();
+  for (const { p } of ranked) {
+    if (liftNow(gone).times >= lightenTo) break;
+    gone.add(p.id);
+    out.push({ id: p.id, gives: worth(p), light: true });
+    if (out.length >= 16) break;
+  }
+  return out;
+}
+
 /** What selling a part brings at full health, near enough: `own` has the real figure, for too much to ask here. */
-const worth = (p) => (p.type === 'densebattery' ? 2.4 : p.type === 'armorplate' ? 4 : p.type === 'fabbay' ? 80 : p.type === 'radar' ? 4 : 0.8);
+const worth = (p) => (p.type === 'densebattery' ? 2.4 : p.type === 'armorplate' ? 4 : p.type === 'fabbay' ? 80 : p.type === 'reactor' ? 120 : p.type === 'radar' ? 4 : 0.8);
 
 /**
  * The far end of the hull, a column at a time, for as long as it would still hold itself up with `trimTo` to spare. It
@@ -440,7 +481,11 @@ function think() {
   h.busy = new Set(work.jobs.map((j) => j.part));
   const l = liftNow();
   let free = work.free;
-  const wish = wants(gone, h, l).filter((w) => !h.busy.has(w.id));
+  // Under `safe`, nothing heavy that holds no one up: on the ground after a chop (Logan's replay 2026-11-02-211337) it
+  // put plates and a reactor back on the heavy end, and the lift it could hold level fell from 0.54 to 0.41 of its
+  // weight. A part whose cell was blocked (under the ground) waits `blockWait` s: it asked for one 780 times.
+  const heavy = (id) => (id.startsWith('armorplate') && dead(cellOf(id))) || id.startsWith('reactor');
+  const wish = wants(gone, h, l).filter((w) => !h.busy.has(w.id) && !(time - (state.blocked[w.id] ?? -1000) < blockWait) && !(l.times < safe && heavy(w.id)));
   // The plates of the keep, once what is lost there is back.
   const plates = [];
   if (!wish.some((w) => w.why === 'keep')) {
@@ -461,12 +506,13 @@ function think() {
   let why = '';
   for (const w of wish) {
     if (free > 0 && money >= w.cost) {
-      if (build(w.id).ok) {
+      const done = build(w.id);
+      if (done.ok) {
         money -= w.cost;
         free--;
         made[w.why] = (made[w.why] ?? 0) + 1;
         if (w.id.startsWith('fabbay')) state.bayMade[w.id] = true;
-      }
+      } else if (done.why === 'blocked') state.blocked[w.id] = time;
       continue;
     }
     if (money < w.cost) {
@@ -501,18 +547,22 @@ function think() {
     }
   }
   const short = need + float - money;
-  if (short > 0 && free > 0) {
+  // Under its own weight: what lifts it most, sold whatever the tank holds (`lighten`).
+  if (l.times < 1) state.under ??= time;
+  else state.under = null;
+  const light = l.times < 1 ? lighten(l, time - state.under >= bayWeight) : [];
+  if ((short > 0 || light.length > 0) && free > 0) {
     let n = 0;
     // Never what would cut it in two (Logan's replay 2026-11-02-225238): falling, it sold the spar a battery at a time
     // from column 80 in to 15, and the hull broke off twice with its propellers; then three plates of the keep's wall,
     // all that still joined the core to the hull, and the core was left with 9 parts. All it would give up, best first,
     // less what `spare` says would part it, and from the top of that as much as the want needs.
-    const offer = sell(Infinity, h, l, hard, need > 0).slice(0, 200);
+    const offer = light.concat(short > 0 ? sell(Infinity, h, l, hard, need > 0) : []).slice(0, 200);
     const may = new Set(spare(offer.map((s) => s.id)) ?? []);
     let got = 0;
     for (const s of offer) {
-      if (free <= 0 || got >= short) break;
-      if (!may.has(s.id)) continue;
+      if (free <= 0 || (got >= short && !s.light)) break;
+      if (!may.has(s.id) || state.sold[s.id]) continue;
       const done = scrap(s.id);
       if (done.ok) {
         state.sold[s.id] = true;
@@ -523,7 +573,7 @@ function think() {
         n++;
       } else if (done.why === 'too many orders this tick') break;
     }
-    if (n > 0) log(`sell ${n} for ${why || 'the float'}: need ${need.toFixed(1)}, have ${money.toFixed(1)}`);
+    if (n > 0) log(`sell ${n} for ${light.length > 0 ? 'weight' : why || 'the float'}: lift ${l.times.toFixed(2)}, need ${need.toFixed(1)}, have ${money.toFixed(1)}`);
   } else if (need === 0 && free > 0 && money > float) {
     mend(free, money - float, h);
   }

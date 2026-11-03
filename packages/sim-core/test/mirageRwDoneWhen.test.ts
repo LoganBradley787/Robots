@@ -167,6 +167,20 @@ describe('titan-mirage-rw: the repair script', () => {
     w.dispose();
   }, 240000);
 
+  it('under its own weight: it sells plates off the core for weight, never the walls round it or level with it', async () => {
+    const { w, r } = await flying();
+    shoot(r, (p) => p.def.id === 'propeller' && p.x >= 70);
+    steps(w, 6);
+    const sold = w.events.flatMap((e) => (e.kind === 'partScrapped' && e.robot === r.id && e.partType === 'armorplate' ? [e.part] : []));
+    expect(sold.length).toBeGreaterThan(5);
+    for (const id of sold) {
+      const [x, y] = (/@(-?\d+),(-?\d+)/.exec(id) ?? []).slice(1).map(Number) as [number, number];
+      expect(Math.abs(x - 6) > 3 && Math.abs(y - 6) > 2).toBe(true);
+    }
+    expect(w.robots.filter((x) => x !== r && x.parts.size > 20)).toHaveLength(0);
+    w.dispose();
+  }, 240000);
+
   it('a bay it made: while it can hold itself up, it sells an older one first, and makes no more', async () => {
     const { w, r } = await flying(withRepair({ minDense: 300, float: 300, sellTo: 3 }));
     sixBays(r);
