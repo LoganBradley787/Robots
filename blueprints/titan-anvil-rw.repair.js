@@ -30,9 +30,16 @@ const plateAt = param('plateAt', 0.5, { min: 0, max: 1 }); // share of health un
 
 const GROUPS = ['la', 'lb', 'pa', 'pb', 'ra', 'rb'];
 
+// A part's cell, read off its id once: a look reads it for thousands of parts.
+const CELLS = new Map();
 const cellOf = (id) => {
-  const m = id.match(/@(-?\d+),(-?\d+)/);
-  return { x: Number(m[1]), y: Number(m[2]) };
+  let c = CELLS.get(id);
+  if (c === undefined) {
+    const m = id.match(/@(-?\d+),(-?\d+)/);
+    c = { x: Number(m[1]), y: Number(m[2]) };
+    CELLS.set(id, c);
+  }
+  return c;
 };
 const key = (x, y) => x * 4096 + y;
 const groupOf = (p) => (p.type === 'booster' && p.tags.length > 0 && GROUPS.includes(p.tags[0]) ? p.tags[0] : null);
@@ -119,29 +126,36 @@ function wants(gone, g, at) {
   return list;
 }
 
-/** What it gives up for `need` juice, best first (all it would, for `think` to pick from). */
-function offers(g, hard) {
+/**
+ * What it gives up for `short` juice, best first, for `think` to pick from (`spare` keeps what would not cut it in two):
+ * enough to cover it twice over, so what `spare` turns down still leaves enough.
+ */
+function offers(short, hard) {
   const out = [];
-  const take = (p, gives) => out.push({ id: p.id, gives });
-  const at = cells();
-  const mine = parts.filter((p) => !state.sold[p.id] && fromCore(cellOf(p.id).x, cellOf(p.id).y) > keepR);
-  for (const p of mine) if (p.type === 'jammer') take(p, 1.6);
-  // Batteries, down to `minDense` (`minDenseHard` for the keep or a hurt group): the edge of a hole first, so the block
-  // stays whole inside (its gaps filled, every battery has four neighbors), then the furthest from the core. Before the
-  // gaps were filled it sold only batteries with one neighbor at most, and with none left it sold no battery at all.
+  const jammers = [];
+  const batteries = [];
+  let dense = -(hard ? minDenseHard : minDense);
+  for (const p of parts) {
+    if (p.type !== 'jammer' && p.type !== 'densebattery') continue;
+    if (p.type === 'densebattery') dense++;
+    if (state.sold[p.id]) {
+      if (p.type === 'densebattery') dense--;
+      continue;
+    }
+    const c = cellOf(p.id);
+    if (fromCore(c.x, c.y) <= keepR) continue;
+    (p.type === 'jammer' ? jammers : batteries).push(p);
+  }
+  const most = Math.min(200, Math.ceil((2 * short) / 1.6) + 8);
+  for (const p of jammers) if (out.length < most) out.push({ id: p.id, gives: 1.6 });
+  // Batteries, down to `minDense` (`minDenseHard` for the keep or a hurt group), top to bottom: the first ones it can
+  // spare. Sorting them all (the edge of a hole first) cost more than it was worth (Logan, 2026-11-03).
   // Never its boosters: the lift rows hold 1.3 times its weight, and a tenth of them sold took what it can brake a fall
   // by from 1 m/s² to nothing; a tenth of the push boosters sold, it ran out of the arena chasing Anvil-r to the edge.
   // Never its plates: they are the brick (sold for a hurt group, 169 went off its faces, and Anvil-r broke it to 60 parts).
-  let dense = parts.filter((p) => p.type === 'densebattery' && !state.sold[p.id]).length - (hard ? minDenseHard : minDense);
-  const around = (c) => [[1, 0], [-1, 0], [0, 1], [0, -1]].reduce((n, [dx, dy]) => n + (at.has(key(c.x + dx, c.y + dy)) ? 1 : 0), 0);
-  const batteries = mine.filter((p) => p.type === 'densebattery').map((p) => {
-    const c = cellOf(p.id);
-    return { p, n: around(c), far: fromCore(c.x, c.y) };
-  });
-  batteries.sort((a, b) => a.n - b.n || b.far - a.far);
-  for (const { p } of batteries) {
-    if (dense <= 0) break;
-    take(p, 2.4);
+  for (const p of batteries) {
+    if (dense <= 0 || out.length >= most) break;
+    out.push({ id: p.id, gives: 2.4 });
     dense--;
   }
   return out;
@@ -185,7 +199,7 @@ function think() {
   }
   const short = need + float - money;
   if (short > 0 && free > 0) {
-    const offer = offers(g, hard).slice(0, 200);
+    const offer = offers(short, hard);
     const may = new Set(spare(offer.map((s) => s.id)) ?? []);
     let got = 0;
     let n = 0;
@@ -220,6 +234,16 @@ function think() {
 }
 
 function tick() {
+  // Its first look waits for the middle of the beat its builds land on (every 30 ticks), so a look and a landing never
+  // fall on the same tick: each costs a big robot tens of milliseconds.
+  if (!state.onBeat) {
+    state.onBeat = true;
+    const wait = (15 - (Math.round(time * 60) % 30) + 30) % 30;
+    if (wait > 1) {
+      sleep(wait - 1);
+      return;
+    }
+  }
   if (repairOn >= 1) think();
   sleep(every - 1);
 }
