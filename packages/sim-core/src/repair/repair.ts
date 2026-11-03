@@ -2,7 +2,7 @@ import { footprintOf } from '../parts/footprint';
 import { faceDir, opposite, rotateCell, rotateFace } from '../parts/faces';
 import type { PartRegistry } from '../parts/registry';
 import type { Face } from '../parts/types';
-import type { AssemblyPart } from '../assembly/assemble';
+import { assembleParts, type AssemblyPart } from '../assembly/assemble';
 import { newPart } from '../assembly/spawn';
 import type { PlacedPart } from '../blueprint/types';
 import type { PhysicsWorld } from '../physics/PhysicsWorld';
@@ -319,6 +319,61 @@ export interface LostPart {
   touching: boolean;
 }
 
+/** Most parts `spare` looks at in one call: each costs a walk over the whole robot. */
+const SPARE_MOST = 200;
+
+/**
+ * `spare(ids)`: of these parts, in the order given, the ones the robot can give up and stay in one piece. Each is
+ * taken if, with it and every one taken before it gone, all its other parts still hold to its core (else its first
+ * part) through the faces they are attached by: so a script scrapping for juice never cuts itself in two. A part that
+ * is not its own, or held in a bay, is left out; so are the copies its bays hold, which are not part of it.
+ */
+function spareParts(robot: Robot, arg: unknown): string[] | string {
+  if (!Array.isArray(arg) || !arg.every((id) => typeof id === 'string')) return 'spare(): give it a list of part ids';
+  if (arg.length > SPARE_MOST) return `spare(): at most ${SPARE_MOST} parts a call`;
+  const sealed = partLists(robot).sealed;
+  const live = [...robot.parts.values()].filter((p) => !sealed.has(p.id));
+  const index = new Map(live.map((p, i) => [p.id, i]));
+  const root = index.get(robot.primaryCoreId ?? '') ?? 0;
+  if (live.length === 0) return [];
+  const a = assembleParts(live, live[root]?.id);
+  const next: number[][] = live.map(() => []);
+  for (let i = 0; i < a.pairs.length; i += 2) {
+    const x = a.pairs[i] as number;
+    const y = a.pairs[i + 1] as number;
+    (next[x] as number[]).push(y);
+    (next[y] as number[]).push(x);
+  }
+  // What holds to the root now: a part already cut off does not count against a sale.
+  const gone = new Uint8Array(live.length);
+  const reach = (): number => {
+    const seen = new Uint8Array(live.length);
+    const queue = [root];
+    seen[root] = 1;
+    for (let k = 0; k < queue.length; k++) {
+      for (const j of next[queue[k] as number] as number[]) {
+        if (seen[j] || gone[j]) continue;
+        seen[j] = 1;
+        queue.push(j);
+      }
+    }
+    return queue.length;
+  };
+  let held = reach();
+  const out: string[] = [];
+  for (const id of arg as string[]) {
+    const i = index.get(id);
+    if (i === undefined || i === root || gone[i]) continue;
+    gone[i] = 1;
+    const now = reach();
+    if (now === held - 1) {
+      out.push(id);
+      held = now;
+    } else gone[i] = 0;
+  }
+  return out;
+}
+
 /** `lost(opts)`: the lost parts in blueprint order, those named by `of` (ids, types, or tags), those `touching` if asked. */
 function lostParts(host: RepairHost, robot: Robot, opts: unknown): LostPart[] | string {
   const o = (opts ?? {}) as { of?: unknown; touching?: unknown };
@@ -382,6 +437,10 @@ export function repairCall(host: RepairHost, robot: Robot, op: string, text: str
     }
     case 'own':
       return host.own(robot, arg);
+    case 'spare': {
+      const list = spareParts(robot, arg);
+      return typeof list === 'string' ? `!${list}` : JSON.stringify(list);
+    }
     default:
       return 'null';
   }

@@ -15,8 +15,8 @@
 // 7. The eyes and the side boosters, and what the helm needs to hold its place.
 // What it cannot pay for it sells for, and it keeps a `float` in the tank ahead of need, from `sell()`: for a want, the
 // batteries in the stern block first, then batteries that hold nothing up, then bottom row propellers while it has lift
-// to spare, then the hull's far end a column at a time while it stays up, then plates and bays far from the core. It
-// stops where `sell()` says.
+// to spare, then plates and bays far from the core for a want it cannot do without, then the hull's far end a column
+// at a time while it stays up. It stops where `sell()` says, and never sells what would cut it in two (`spare`).
 //
 // The stern block is half its weight and has half the lift it needs, so the hull is a seesaw: a column off the bow moves
 // its weight aft, and cut at 120 it sinks though it has 1.7 times its weight in propellers (Logan's replays, 2026-11-02).
@@ -181,9 +181,9 @@ function holdsNothing(p, h) {
 }
 
 /**
- * What it gives up for `need` juice, best first, as far as it may. Batteries that hold nothing up, then frames left on
- * nothing. Then propellers in the bottom row, off the end with lift to spare: the row sits on
- * the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`). If it cannot hold itself
+ * What it gives up for `need` juice, best first, as far as it may (`Infinity`: all it would, for `think` to pick
+ * from). Batteries that hold nothing up, then frames left on nothing. Then propellers in the bottom row, off the end
+ * with lift to spare: the row sits on the deck, so nothing hangs from one. Plates and bays only for the keep or the air (`hard`). If it cannot hold itself
  * up, every last bay, and then the batteries in the hull.
  */
 function sell(need, h, l, hard, real) {
@@ -242,9 +242,6 @@ function sell(need, h, l, hard, real) {
       take(p.id, 4);
     }
   }
-  if (got < need && real) {
-    for (const s of trim(need - got, h, hard)) take(s.id, s.gives);
-  }
   if (got < need && hard) {
     // On the ground a bay does it no good: under its own weight it sells down to none, and bays it made itself too. Up, a
     // bay it just paid 50 for and sold for 40 is a loss.
@@ -255,8 +252,8 @@ function sell(need, h, l, hard, real) {
       if (got >= need) break;
       take(p.id, 80);
     }
-    // Last, under its own weight: the batteries that hold the hull together, from the far ends. A hull in two pieces is
-    // better than a hull on the ground.
+    // Last, under its own weight: the batteries in the hull, from the far ends, where they are not all that holds it
+    // together (`think` leaves those).
     if (got < need && falling) {
       const rest = h.dense.filter((p) => fore(cellOf(p.id).x) > keepR && !state.sold[p.id] && !out.some((o) => o.id === p.id)).sort((a, b) => fore(cellOf(b.id).x) - fore(cellOf(a.id).x));
       for (const p of rest) {
@@ -264,6 +261,11 @@ function sell(need, h, l, hard, real) {
         take(p.id, 2.4);
       }
     }
+  }
+  // The far end a column at a time, after the bays: a bay is 80 in one job, a column 10 in eight, and the far end ate
+  // every job before the keep's want reached a bay.
+  if (got < need && real) {
+    for (const s of trim(need - got, h, hard)) take(s.id, s.gives);
   }
   return out;
 }
@@ -501,15 +503,25 @@ function think() {
   const short = need + float - money;
   if (short > 0 && free > 0) {
     let n = 0;
-    for (const s of sell(short, h, l, hard, need > 0)) {
-      if (free <= 0) break;
-      if (scrap(s.id).ok) {
+    // Never what would cut it in two (Logan's replay 2026-11-02-225238): falling, it sold the spar a battery at a time
+    // from column 80 in to 15, and the hull broke off twice with its propellers; then three plates of the keep's wall,
+    // all that still joined the core to the hull, and the core was left with 9 parts. All it would give up, best first,
+    // less what `spare` says would part it, and from the top of that as much as the want needs.
+    const offer = sell(Infinity, h, l, hard, need > 0).slice(0, 200);
+    const may = new Set(spare(offer.map((s) => s.id)) ?? []);
+    let got = 0;
+    for (const s of offer) {
+      if (free <= 0 || got >= short) break;
+      if (!may.has(s.id)) continue;
+      const done = scrap(s.id);
+      if (done.ok) {
         state.sold[s.id] = true;
         state.due[s.id] = s.gives;
         if (s.id.startsWith('fabbay')) state.baySold = true;
+        got += s.gives;
         free--;
         n++;
-      }
+      } else if (done.why === 'too many orders this tick') break;
     }
     if (n > 0) log(`sell ${n} for ${why || 'the float'}: need ${need.toFixed(1)}, have ${money.toFixed(1)}`);
   } else if (need === 0 && free > 0 && money > float) {

@@ -137,6 +137,7 @@ export const PRELUDE = String.raw`
   globalThis.jobs = function () { return repairCall('jobs'); };
   globalThis.lost = function (opts) { return listing('lost', opts); };
   globalThis.own = function (opts) { return listing('own', opts); };
+  globalThis.spare = function (ids) { return listing('spare', ids); };
   globalThis.param = function (name, def, opts) {
     name = String(name);
     var spec = { default: Number(def) };

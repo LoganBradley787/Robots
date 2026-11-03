@@ -172,16 +172,18 @@ describe('titan-mirage-rw: the repair script', () => {
     sixBays(r);
     r.repair = { tank: 60, jobs: [] };
     steps(w, 45);
-    const made = w.events.find((e) => e.kind === 'partRebuilt' && e.partType === 'fabbay');
-    expect(made).toBeDefined();
-    expect(count(r, 'fabbay')).toBe(7);
+    // How many it makes depends on how fast a bay is made (one at the classic speed, more near instant).
+    const made = w.events.flatMap((e) => (e.kind === 'partRebuilt' && e.partType === 'fabbay' ? [e.part] : []));
+    expect(made.length).toBeGreaterThan(0);
+    expect(count(r, 'fabbay')).toBe(6 + made.length);
     shoot(r, (p) => (p.x >= 3 && p.x <= 5 && p.y >= 4 && p.y <= 11 && p.def.id !== 'core') || (p.def.id === 'armorplate' && p.y === 1 && p.x >= 3 && p.x <= 9));
     r.repair.tank = 0;
     steps(w, 40);
-    const sold = w.events.flatMap((e) => (e.kind === 'partScrapped' && e.partType === 'fabbay' ? [e.part] : []));
-    expect(sold.length).toBeGreaterThan(0);
-    expect(sold).not.toContain((made as { part: string }).part);
-    expect(w.events.filter((e) => e.kind === 'partRebuilt' && e.partType === 'fabbay')).toHaveLength(1);
+    const sales = w.events.filter((e) => e.kind === 'partScrapped' && e.partType === 'fabbay') as { tick: number; part: string }[];
+    expect(sales.length).toBeGreaterThan(0);
+    for (const id of made) expect(sales.map((e) => e.part)).not.toContain(id);
+    const firstSale = (sales[0] as { tick: number }).tick;
+    expect(w.events.filter((e) => e.kind === 'partRebuilt' && e.partType === 'fabbay' && e.tick > firstSale)).toHaveLength(0);
     w.dispose();
   }, 240000);
 });

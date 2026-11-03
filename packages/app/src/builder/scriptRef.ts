@@ -163,6 +163,7 @@ export const SCRIPT_API: readonly ApiEntry[] = [
   { name: 'job', sig: 'job()', about: 'the first job running, or null', insert: 'job()', section: 'Repair', more: '{ kind, part, left, seconds }. kind is scrap, build or heal.' },
   { name: 'jobs', sig: 'jobs()', about: 'every job running, and how many more it can start', insert: 'jobs()', section: 'Repair', more: '{ free, jobs }: jobs as job() gives one. One job at a time, and one more for each 100 parts the robot has.' },
   { name: 'lost', sig: 'lost({ of, touching })', about: 'the parts it could make, with their prices', insert: 'lost({ touching: true })', section: 'Repair', more: 'Each is { id, type, tags, x, y, rot, juice, create, heal, seconds, touching }. A host call, like scan: at most 4 a tick with scans.' },
+  { name: 'spare', sig: 'spare([ids])', about: 'which of these parts it can scrap and stay in one piece', insert: 'spare([])', caret: 2, section: 'Repair', more: 'In the order given: each is kept if, with it and the ones kept before it gone, everything else still holds to the core. At most 200 ids; a host call that counts as a scan.' },
   { name: 'own', sig: 'own({ near, most, of, has })', about: 'its own parts with their health and repair prices', insert: 'own()', section: 'Repair', more: 'As scan lists a robot, plus juice, gives, heal and seconds. Asks for only what you need: on a robot of thousands of parts a plain own() is slow.' },
 
   { name: 'keys.down', sig: 'keys.down("w")', about: 'is a key held right now', insert: 'keys.down("")', caret: 2, section: 'Keys' },
