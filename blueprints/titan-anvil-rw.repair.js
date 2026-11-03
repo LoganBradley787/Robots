@@ -13,9 +13,11 @@
 // 5. Its guns, then reactors and radar.
 // A region (`region` cells square) that lost a part in the last `quiet` s is left alone, the keep and a hurt group apart:
 // what it makes in the middle of a ram dies with the next hit.
-// What it cannot pay for it sells for, keeping a `float` in the tank: jammers first (never made again), then batteries,
-// those with the fewest neighbors first (the edge of a hole), then the furthest from the core, down to `minDense` (for
-// the keep, or a hurt group, `minDenseHard`). Never a booster or a plate, and never what would cut it in two (`spare`).
+// What it cannot pay for it sells for, keeping a `float` in the tank: jammers first (never made again), then batteries
+// from the middle of the block, a hole at a time with every neighbor left holding on by two sides or more, down to
+// `minDense` (for the keep, or a hurt group, `minDenseHard`), then push boosters, a pair at a time (one a side), down to
+// `pushKeep` of each side. Never a battery that ties the block to anything else, a lift or end booster, or a plate, and
+// never what would cut it in two (`spare`).
 
 const repairOn = param('repair', 1, { min: 0, max: 1 }); // 0: it never scraps, builds or heals
 const every = param('every', 30, { min: 1, max: 30 }); // ticks between looks
@@ -23,8 +25,9 @@ const keepR = param('keepR', 6, { min: 1, max: 30 }); // cells round the core th
 const quiet = param('quiet', 3, { min: 0, max: 30 }); // s since a region lost a part before it counts as calm
 const region = param('region', 10, { min: 1, max: 80 }); // cells to a side of a region
 const hurtAt = param('hurtAt', 0.7, { min: 0, max: 1 }); // share of a booster group under which its boosters come back even under fire
-const minDense = param('minDense', 600, { min: 0, max: 1000 }); // dense batteries it keeps (it has 803): its energy for the rams
-const minDenseHard = param('minDenseHard', 450, { min: 0, max: 1000 }); // and for the keep or a hurt group: what Anvil-r had before its gaps were filled
+const minDense = param('minDense', 400, { min: 0, max: 1000 }); // dense batteries it keeps (it has 803): its energy for the rams (600 left it nothing to sell for its last 999 parts lost)
+const minDenseHard = param('minDenseHard', 250, { min: 0, max: 1000 }); // and for the keep or a hurt group
+const pushKeep = param('pushKeep', 0.8, { min: 0, max: 1 }); // share of each push side (175) it keeps when the batteries are down to their floor
 const float = param('float', 15, { min: 0, max: 300 }); // juice it keeps in the tank ahead of need
 const plateAt = param('plateAt', 0.5, { min: 0, max: 1 }); // share of health under which a plate is healed with what is over the float
 
@@ -42,7 +45,16 @@ const cellOf = (id) => {
   return c;
 };
 const key = (x, y) => x * 4096 + y;
+const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const groupOf = (p) => (p.type === 'booster' && p.tags.length > 0 && GROUPS.includes(p.tags[0]) ? p.tags[0] : null);
+
+// What it may sell, worked out once at setup (a sort over every battery each look cost more than it was worth):
+// - Batteries with batteries on all four sides, the middle of the block. One that touches anything else (a wall, a
+//   reactor, a booster, a jammer, a laser) ties that to the rest and is never sold: sold furthest from the core first,
+//   it ate those ties first and left its core, lasers and reactors held to the hull by one battery (Logan, 2026-11-03).
+// - Its push boosters as pairs, one a side, the furthest first, so the two sides stay even.
+let SELL = [];
+let PAIRS = [];
 
 function setup() {
   const core = parts.find((p) => p.type === 'core');
@@ -57,6 +69,16 @@ function setup() {
   state.had = {};
   for (const k of GROUPS) state.had[k] = 0;
   for (const p of parts) if (groupOf(p)) state.had[groupOf(p)]++;
+  const far = (p) => fromCore(cellOf(p.id).x, cellOf(p.id).y);
+  const byFar = (list) => list.filter((p) => far(p) > keepR).sort((a, b) => far(b) - far(a)).map((p) => p.id);
+  const battery = new Set(parts.filter((p) => p.type === 'densebattery').map((p) => key(cellOf(p.id).x, cellOf(p.id).y)));
+  SELL = parts
+    .filter((p) => p.type === 'densebattery' && far(p) > keepR)
+    .filter((p) => SIDES.every(([dx, dy]) => battery.has(key(cellOf(p.id).x + dx, cellOf(p.id).y + dy))))
+    .map((p) => p.id);
+  const pa = byFar(parts.filter((p) => groupOf(p) === 'pa'));
+  const pb = byFar(parts.filter((p) => groupOf(p) === 'pb'));
+  PAIRS = pa.slice(0, pb.length).map((id, i) => [id, pb[i]]);
 }
 
 const regionOf = (x, y) => `${Math.floor(x / region)},${Math.floor(y / region)}`;
@@ -128,35 +150,60 @@ function wants(gone, g, at) {
 
 /**
  * What it gives up for `short` juice, best first, for `think` to pick from (`spare` keeps what would not cut it in two):
- * enough to cover it twice over, so what `spare` turns down still leaves enough.
+ * enough to cover it twice over, so what `spare` turns down still leaves enough. A push booster comes with the one it
+ * is paired with (`pair`): the two go together or not at all.
  */
 function offers(short, hard) {
   const out = [];
-  const jammers = [];
-  const batteries = [];
+  const live = new Set();
+  // Cells filled now, less what is already sold (it is still there until its scrap lands).
+  const at = new Set();
   let dense = -(hard ? minDenseHard : minDense);
+  const side = { pa: 0, pb: 0 };
   for (const p of parts) {
-    if (p.type !== 'jammer' && p.type !== 'densebattery') continue;
-    if (p.type === 'densebattery') dense++;
-    if (state.sold[p.id]) {
-      if (p.type === 'densebattery') dense--;
-      continue;
+    if (state.sold[p.id]) continue;
+    const c0 = cellOf(p.id);
+    at.add(key(c0.x, c0.y));
+    if (p.type === 'jammer') {
+      const c = cellOf(p.id);
+      if (fromCore(c.x, c.y) > keepR && out.length < 200) out.push({ id: p.id, gives: 1.6 });
+    } else if (p.type === 'densebattery') {
+      dense++;
+      live.add(p.id);
+    } else if (p.type === 'booster' && (p.tags[0] === 'pa' || p.tags[0] === 'pb')) {
+      side[p.tags[0]]++;
+      live.add(p.id);
     }
-    const c = cellOf(p.id);
-    if (fromCore(c.x, c.y) <= keepR) continue;
-    (p.type === 'jammer' ? jammers : batteries).push(p);
   }
-  const most = Math.min(200, Math.ceil((2 * short) / 1.6) + 8);
-  for (const p of jammers) if (out.length < most) out.push({ id: p.id, gives: 1.6 });
-  // Batteries, down to `minDense` (`minDenseHard` for the keep or a hurt group), top to bottom: the first ones it can
-  // spare. Sorting them all (the edge of a hole first) cost more than it was worth (Logan, 2026-11-03).
-  // Never its boosters: the lift rows hold 1.3 times its weight, and a tenth of them sold took what it can brake a fall
-  // by from 1 m/s² to nothing; a tenth of the push boosters sold, it ran out of the arena chasing Anvil-r to the edge.
-  // Never its plates: they are the brick (sold for a hurt group, 169 went off its faces, and Anvil-r broke it to 60 parts).
-  for (const p of batteries) {
+  const most = Math.min(200, out.length + Math.ceil((2 * short) / 1.2) + 8);
+  // Never its lift or end boosters: the lift rows hold 1.3 times its weight, and a tenth of them sold took what it can
+  // brake a fall by from 1 m/s² to nothing. Never its plates: they are the brick (sold for a hurt group, 169 went off
+  // its faces, and Anvil-r broke it to 60 parts).
+  // A middle battery goes only with all four sides filled, and only if each of its neighbors keeps two sides or more:
+  // the holes spread out like a sieve and never join into a cut.
+  const sides = (x, y) => SIDES.reduce((n, [dx, dy]) => n + (at.has(key(x + dx, y + dy)) ? 1 : 0), 0);
+  let sold = 0;
+  for (const id of SELL) {
     if (dense <= 0 || out.length >= most) break;
-    out.push({ id: p.id, gives: 2.4 });
+    if (!live.has(id)) continue;
+    const c = cellOf(id);
+    if (sides(c.x, c.y) < 4) continue;
+    if (SIDES.some(([dx, dy]) => sides(c.x + dx, c.y + dy) - 1 < 2)) continue;
+    out.push({ id, gives: 2.4 });
+    at.delete(key(c.x, c.y));
     dense--;
+    sold++;
+  }
+  if (sold > 0) return out;
+  // Batteries down to their floor: push boosters, a pair at a time. Sold from one side only, a tenth of them, and it ran
+  // out of the arena chasing Anvil-r to the edge; a pair keeps the sides even, and `pushKeep` keeps it able to stop.
+  let pairs = Math.min(side.pa - Math.ceil(pushKeep * state.had.pa), side.pb - Math.ceil(pushKeep * state.had.pb));
+  for (const [a, b] of PAIRS) {
+    if (pairs <= 0 || out.length + 2 > most) break;
+    if (!live.has(a) || !live.has(b)) continue;
+    out.push({ id: a, gives: 1.2, pair: b });
+    out.push({ id: b, gives: 1.2, pair: a });
+    pairs--;
   }
   return out;
 }
@@ -205,7 +252,26 @@ function think() {
     let n = 0;
     for (const s of offer) {
       if (free <= 0 || got >= short) break;
-      if (!may.has(s.id) || busy.has(s.id)) continue;
+      if (!may.has(s.id) || busy.has(s.id) || state.sold[s.id]) continue;
+      if (s.pair !== undefined) {
+        // A pair: both, or neither.
+        if (free < 2 || !may.has(s.pair) || busy.has(s.pair) || state.sold[s.pair]) continue;
+        const one = scrap(s.id);
+        if (!one.ok) {
+          if (one.why === 'too many orders this tick') break;
+          continue;
+        }
+        const two = scrap(s.pair);
+        for (const [id, done] of [[s.id, one], [s.pair, two]]) {
+          if (!done.ok) continue;
+          state.sold[id] = true;
+          state.due[id] = s.gives;
+          got += s.gives;
+          free--;
+          n++;
+        }
+        continue;
+      }
       const done = scrap(s.id);
       if (done.ok) {
         state.sold[s.id] = true;
@@ -234,11 +300,13 @@ function think() {
 }
 
 function tick() {
-  // Its first look waits for the middle of the beat its builds land on (every 30 ticks), so a look and a landing never
-  // fall on the same tick: each costs a big robot tens of milliseconds.
+  // Its first look waits for a tick of the beat its builds land on (every 30 ticks) away from the landing, so a look and
+  // a landing never fall on the same tick. Which tick is its own draw (`random` is seeded per robot): two of it in one
+  // world, spawned together, looked on the same tick and doubled the cost of that tick.
   if (!state.onBeat) {
     state.onBeat = true;
-    const wait = (15 - (Math.round(time * 60) % 30) + 30) % 30;
+    const at = 3 + Math.floor(random() * 25);
+    const wait = (at - (Math.round(time * 60) % 30) + 30) % 30;
     if (wait > 1) {
       sleep(wait - 1);
       return;

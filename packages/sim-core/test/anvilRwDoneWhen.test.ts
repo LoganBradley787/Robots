@@ -34,17 +34,28 @@ const steps = (w: World, seconds: number): void => {
 };
 
 describe('titan-anvil-rw: the repair script', () => {
-  it('a face shot off comes back; it pays with jammers and batteries, never a booster or a plate, and stays one piece', async () => {
+  it('a face shot off comes back; it pays with jammers, middle batteries and push booster pairs, never a plate, and stays one piece', async () => {
     const { w, r } = await alone();
     const hit = [...r.parts.values()].filter((p: PartInstance) => p.x <= 6 && p.def.id !== 'core');
+    const tagOf = new Map(r.blueprint.parts.map((p) => [p.id, p.tags[0]]));
+    const batteryAt = new Set(r.blueprint.parts.filter((p) => p.part === 'densebattery').map((p) => `${p.x},${p.y}`));
     for (const p of hit) p.health = 0;
     steps(w, 25);
     const mine = w.events.filter((e) => e.robot === r.id);
     expect(mine.filter((e) => e.kind === 'partRebuilt').length).toBeGreaterThan(150);
     const sold = mine.flatMap((e) => (e.kind === 'partScrapped' ? [e.partType] : []));
     expect(sold.length).toBeGreaterThan(0);
-    expect(sold).not.toContain('booster');
     expect(sold).not.toContain('armorplate');
+    // Boosters only from the push sides, as many from each.
+    const boosters = mine.flatMap((e) => (e.kind === 'partScrapped' && e.partType === 'booster' ? [tagOf.get(e.part)] : []));
+    expect(boosters.every((t) => t === 'pa' || t === 'pb')).toBe(true);
+    expect(boosters.filter((t) => t === 'pa').length).toBe(boosters.filter((t) => t === 'pb').length);
+    // Batteries only from the middle of the block: batteries on all four sides as built.
+    for (const e of mine) {
+      if (e.kind !== 'partScrapped' || e.partType !== 'densebattery') continue;
+      const [x, y] = e.part.slice(e.part.indexOf('@') + 1).split(',').map(Number) as [number, number];
+      expect(([[1, 0], [-1, 0], [0, 1], [0, -1]] as const).every(([dx, dy]) => batteryAt.has(`${x + dx},${y + dy}`)), e.part).toBe(true);
+    }
     // The shot face may break off; nothing it sold does.
     const scrapTicks = new Set(mine.flatMap((e) => (e.kind === 'partScrapped' ? [e.tick] : [])));
     const selfSplits = mine.filter((e) => e.kind === 'split' && scrapTicks.has(e.tick) && e.pieces.some((id) => (w.robots.find((x) => x.id === id)?.parts.size ?? 0) > 20));
