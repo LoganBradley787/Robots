@@ -344,8 +344,13 @@ function spareParts(robot: Robot, arg: unknown): string[] | string {
     (next[x] as number[]).push(y);
     (next[y] as number[]).push(x);
   }
-  // What holds to the root now: a part already cut off does not count against a sale.
+  // What holds to the root now: a part already cut off does not count against a sale. A part being scrapped is as good
+  // as gone: else two sales a look apart, each fine alone, cut it in two together (Anvil-rw lost 4 reactors so).
   const gone = new Uint8Array(live.length);
+  for (const job of robot.repair?.jobs ?? []) {
+    const i = job.kind === 'scrap' ? index.get(job.part) : undefined;
+    if (i !== undefined && i !== root) gone[i] = 1;
+  }
   const reach = (): number => {
     const seen = new Uint8Array(live.length);
     const queue = [root];

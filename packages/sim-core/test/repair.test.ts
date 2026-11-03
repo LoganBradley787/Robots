@@ -295,6 +295,14 @@ describe('readings', () => {
     w.dispose();
   });
 
+  it('spare() counts a part being scrapped as gone', async () => {
+    // A ring: the frame at 1,0 holds by either neighbor. One is being scrapped, so the other may not go.
+    const { w, r } = await run({ grid: ['C  F', 'F  F'] }, { 1: "scrap('frame@1,1')", 2: "spare(['frame@0,0'])" }, 3);
+    expect(r.repair?.jobs.map((j) => j.part)).toEqual(['frame@1,1']);
+    expect(answers(w)).toEqual([expect.anything(), []]);
+    w.dispose();
+  });
+
   it('tank() and job() read 0 and null before anything is ordered, and a robot stays out of the hash until then', async () => {
     const { w, r } = await run(LINE, { 1: 'tank()', 2: 'job()', 3: 'lost()', 4: 'stopJob()' }, 6);
     expect(answers(w)).toEqual([0, null, [], null]);
