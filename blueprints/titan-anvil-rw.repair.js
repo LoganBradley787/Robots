@@ -16,8 +16,8 @@
 // What it cannot pay for it sells for, keeping a `float` in the tank: jammers first (never made again), then batteries,
 // a hole at a time: one with three sides or more filled, whose every neighbor keeps two sides or more, down to
 // `minDense` (for the keep, or a hurt group, `minDenseHard`), then push boosters, a pair at a time (one a side), down to
-// `pushKeep` of each side. Never a battery that ties a reactor, a laser or the core in, a lift or end booster, or a
-// plate, and never what would cut it in two (`spare`).
+// `pushKeep` of each side. Never a battery that ties anything else in (built next to anything but batteries), a lift or
+// end booster, or a plate, and never what would cut it in two (`spare`).
 
 const repairOn = param('repair', 1, { min: 0, max: 1 }); // 0: it never scraps, builds or heals
 const every = param('every', 30, { min: 1, max: 30 }); // ticks between looks
@@ -46,8 +46,6 @@ const cellOf = (id) => {
 };
 const key = (x, y) => x * 4096 + y;
 const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-// What a battery next to it ties in, and is never sold for.
-const TIES = ['reactor', 'laser', 'piston', 'rotator', 'core', 'radar'];
 // Every cell a part fills: a reactor is 3 by 3 from its own cell (built unturned in this robot).
 const cellsOfPart = (p) => {
   const c = cellOf(p.id);
@@ -59,10 +57,10 @@ const cellsOfPart = (p) => {
 const groupOf = (p) => (p.type === 'booster' && p.tags.length > 0 && GROUPS.includes(p.tags[0]) ? p.tags[0] : null);
 
 // What it may sell, worked out once at setup (a sort over every battery each look cost more than it was worth):
-// - Batteries that do not touch a reactor, a laser (or what brings it out) or the core: those tie them in, and are never
-//   sold. Sold furthest from the core first, it ate the ties first and left its core, lasers and reactors held to the
-//   hull by one battery (Logan, 2026-11-03). Only the middle of the block (batteries on all four sides) gave it 130 to
-//   sell, and it ran dry with 800 parts lost; this gives it about 330.
+// - Batteries built with batteries on all four sides, the middle of the block (about 210 it may sell). One that touches
+//   anything else ties that in, and is never sold. Sold furthest from the core first, it ate the ties first and left its
+//   core, lasers and reactors held to the hull by one battery (Logan, 2026-11-03); selling every battery that tied no
+//   reactor, laser or core in (about 330), its whole block broke away from the walls and boosters.
 // - Its push boosters as pairs, one a side, the furthest first, so the two sides stay even.
 let SELL = [];
 let PAIRS = [];
@@ -82,11 +80,10 @@ function setup() {
   for (const p of parts) if (groupOf(p)) state.had[groupOf(p)]++;
   const far = (p) => fromCore(cellOf(p.id).x, cellOf(p.id).y);
   const byFar = (list) => list.filter((p) => far(p) > keepR).sort((a, b) => far(b) - far(a)).map((p) => p.id);
-  const tied = new Set();
-  for (const p of parts) if (TIES.includes(p.type)) for (const c of cellsOfPart(p)) tied.add(key(c.x, c.y));
+  const battery = new Set(parts.filter((p) => p.type === 'densebattery').map((p) => key(cellOf(p.id).x, cellOf(p.id).y)));
   SELL = parts
     .filter((p) => p.type === 'densebattery' && far(p) > keepR)
-    .filter((p) => !SIDES.some(([dx, dy]) => tied.has(key(cellOf(p.id).x + dx, cellOf(p.id).y + dy))))
+    .filter((p) => SIDES.every(([dx, dy]) => battery.has(key(cellOf(p.id).x + dx, cellOf(p.id).y + dy))))
     .map((p) => p.id);
   const pa = byFar(parts.filter((p) => groupOf(p) === 'pa'));
   const pb = byFar(parts.filter((p) => groupOf(p) === 'pb'));
