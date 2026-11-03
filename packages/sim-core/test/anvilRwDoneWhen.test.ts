@@ -12,7 +12,8 @@ import type { PartInstance, Robot } from '../src/world/Robot';
 
 /**
  * titan-anvil-rw's repair script: a brick that rams loses a face at a time. Measured when written: its left six
- * columns shot (267 parts), it made back 250 in 25 s and stayed one piece.
+ * columns shot (267 parts), it made back 250 in 25 s and stayed one piece; 259, selling 125 batteries, once the gaps in
+ * its battery block were filled (2026-11-03).
  */
 const arena = parseWorldFile(arenaJson);
 const bpFile = (file: string): string => readFileSync(new URL(`../../../blueprints/${file}`, import.meta.url), 'utf8');

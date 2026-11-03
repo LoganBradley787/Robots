@@ -13,9 +13,9 @@
 // 5. Its guns, then reactors and radar.
 // A region (`region` cells square) that lost a part in the last `quiet` s is left alone, the keep and a hurt group apart:
 // what it makes in the middle of a ram dies with the next hit.
-// What it cannot pay for it sells for, keeping a `float` in the tank: jammers first (never made again), then batteries
-// that hold nothing up, then (for the keep, or a hurt group) more batteries, the furthest first. Never a booster or a
-// plate, and never what would cut it in two (`spare`).
+// What it cannot pay for it sells for, keeping a `float` in the tank: jammers first (never made again), then batteries,
+// those with the fewest neighbors first (the edge of a hole), then the furthest from the core, down to `minDense` (for
+// the keep, or a hurt group, `minDenseHard`). Never a booster or a plate, and never what would cut it in two (`spare`).
 
 const repairOn = param('repair', 1, { min: 0, max: 1 }); // 0: it never scraps, builds or heals
 const every = param('every', 30, { min: 1, max: 30 }); // ticks between looks
@@ -23,8 +23,8 @@ const keepR = param('keepR', 6, { min: 1, max: 30 }); // cells round the core th
 const quiet = param('quiet', 3, { min: 0, max: 30 }); // s since a region lost a part before it counts as calm
 const region = param('region', 10, { min: 1, max: 80 }); // cells to a side of a region
 const hurtAt = param('hurtAt', 0.7, { min: 0, max: 1 }); // share of a booster group under which its boosters come back even under fire
-const minDense = param('minDense', 380, { min: 0, max: 1000 }); // dense batteries it keeps (it has 450): its energy for the rams
-const minDenseHard = param('minDenseHard', 300, { min: 0, max: 1000 }); // and for the keep or a hurt group
+const minDense = param('minDense', 600, { min: 0, max: 1000 }); // dense batteries it keeps (it has 803): its energy for the rams
+const minDenseHard = param('minDenseHard', 450, { min: 0, max: 1000 }); // and for the keep or a hurt group: what Anvil-r had before its gaps were filled
 const float = param('float', 15, { min: 0, max: 300 }); // juice it keeps in the tank ahead of need
 const plateAt = param('plateAt', 0.5, { min: 0, max: 1 }); // share of health under which a plate is healed with what is over the float
 
@@ -126,32 +126,23 @@ function offers(g, hard) {
   const at = cells();
   const mine = parts.filter((p) => !state.sold[p.id] && fromCore(cellOf(p.id).x, cellOf(p.id).y) > keepR);
   for (const p of mine) if (p.type === 'jammer') take(p, 1.6);
-  // Batteries that hold nothing up: no more than one neighbor.
-  let dense = parts.filter((p) => p.type === 'densebattery').length - minDense;
-  const lone = (p) => {
-    const c = cellOf(p.id);
-    return [[1, 0], [-1, 0], [0, 1], [0, -1]].reduce((n, [dx, dy]) => n + (at.has(key(c.x + dx, c.y + dy)) ? 1 : 0), 0) <= 1;
-  };
-  for (const p of mine) {
-    if (dense <= 0) break;
-    if (p.type === 'densebattery' && lone(p)) {
-      take(p, 2.4);
-      dense--;
-    }
-  }
+  // Batteries, down to `minDense` (`minDenseHard` for the keep or a hurt group): the edge of a hole first, so the block
+  // stays whole inside (its gaps filled, every battery has four neighbors), then the furthest from the core. Before the
+  // gaps were filled it sold only batteries with one neighbor at most, and with none left it sold no battery at all.
   // Never its boosters: the lift rows hold 1.3 times its weight, and a tenth of them sold took what it can brake a fall
   // by from 1 m/s² to nothing; a tenth of the push boosters sold, it ran out of the arena chasing Anvil-r to the edge.
-  // For the keep or a hurt group: more batteries, down to `minDenseHard`, the furthest from the core first. Never its
-  // plates: they are the brick (sold for a hurt group, 169 went off its faces, and Anvil-r broke it to 60 parts).
-  if (hard) {
-    let more = parts.filter((p) => p.type === 'densebattery' && !state.sold[p.id]).length - minDenseHard;
-    const deep = mine.filter((p) => p.type === 'densebattery' && !lone(p));
-    deep.sort((a, b) => fromCore(cellOf(b.id).x, cellOf(b.id).y) - fromCore(cellOf(a.id).x, cellOf(a.id).y));
-    for (const p of deep) {
-      if (more <= 0) break;
-      take(p, 2.4);
-      more--;
-    }
+  // Never its plates: they are the brick (sold for a hurt group, 169 went off its faces, and Anvil-r broke it to 60 parts).
+  let dense = parts.filter((p) => p.type === 'densebattery' && !state.sold[p.id]).length - (hard ? minDenseHard : minDense);
+  const around = (c) => [[1, 0], [-1, 0], [0, 1], [0, -1]].reduce((n, [dx, dy]) => n + (at.has(key(c.x + dx, c.y + dy)) ? 1 : 0), 0);
+  const batteries = mine.filter((p) => p.type === 'densebattery').map((p) => {
+    const c = cellOf(p.id);
+    return { p, n: around(c), far: fromCore(c.x, c.y) };
+  });
+  batteries.sort((a, b) => a.n - b.n || b.far - a.far);
+  for (const { p } of batteries) {
+    if (dense <= 0) break;
+    take(p, 2.4);
+    dense--;
   }
   return out;
 }
