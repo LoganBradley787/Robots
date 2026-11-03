@@ -262,8 +262,13 @@ function think() {
           continue;
         }
         const two = scrap(s.pair);
-        for (const [id, done] of [[s.id, one], [s.pair, two]]) {
-          if (!done.ok) continue;
+        if (!two.ok) {
+          // The first goes back: one side sold alone turns it (14 sold off one side to 12 off the other, 2026-11-03).
+          stopJob(s.id);
+          if (two.why === 'too many orders this tick') break;
+          continue;
+        }
+        for (const id of [s.id, s.pair]) {
           state.sold[id] = true;
           state.due[id] = s.gives;
           got += s.gives;
