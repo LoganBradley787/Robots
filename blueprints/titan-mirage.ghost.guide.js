@@ -30,11 +30,14 @@
 //   its core, not the core: the hull sends such ghosts at the part of a tall enemy that would reach it.
 // - Sent with a `via` point (r5, 2026-10), it flies there first (out past the end of the hull), then on: the hull sends
 //   such ghosts at something heavy pushing on it from under its deck.
+// - Over the hull it stays `over` m above where it left, so it never dives through the hull, except at something on
+//   the deck (over the hull too, and no more than `onDeck` m under where it left), which it comes down on (2026-11).
 // Let go with no point (knocked loose), it does nothing and stays safe.
 const thrust = param('thrust', 800, { min: 1, max: 100000 }); // N, both boosters
 const clear = param('clear', 14, { min: 0, max: 100 }); // m straight out of the bay before it turns
 const over = param('over', 22, { min: 0, max: 200 }); // m it stays above where it left while still over the hull
 const hull = param('hull', 190, { min: 0, max: 1000 }); // m sideways from where it left that count as over the hull
+const onDeck = param('onDeck', 3, { min: 0, max: 50 }); // m: a point no lower than this under where it left is on the deck, and it may come down to it
 const armDist = param('armDist', 40, { min: 0, max: 2000 }); // m from where it is going: it arms inside this (armed 200 m out, ghosts of one salvo that touched set each other off)
 const cloakAt = param('cloakAt', 45, { min: 31, max: 1000 }); // m from where it left before its pod may be lit (the hull's radars and radio must stay outside its bubble)
 const cloak = param('cloak', 2, { min: 0, max: 5 }); // s of flight left when the pod is lit
@@ -234,7 +237,11 @@ function tick() {
       tx = v.x - self.pos.x;
       ty = v.y - self.pos.y;
     } else if (state.via === null) {
-      const floor = state.ly + over;
+      // Not down through the hull at something under its deck. Something on the deck it comes down on: held 22 m
+      // over where it left, it passed over the gun drones sitting on the hull, 300 ghosts in ten minutes, six within
+      // 5 m of one (Logan's replay, 2026-11-02).
+      let floor = state.ly + over;
+      if (p.y > state.ly - onDeck && Math.abs(p.x - state.lx) < hull) floor = Math.min(floor, p.y);
       if (Math.abs(self.pos.x - state.lx) < hull && self.pos.y + ty < floor) ty = floor - self.pos.y;
     }
     const d = Math.max(1e-6, Math.hypot(tx, ty));
