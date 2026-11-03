@@ -1,4 +1,12 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
+
+// The mechanics here are timed in ticks at the classic speed (`TIME_SCALE` 3): a build shot halfway, a stopped job
+// handing back what it took. The game's own speed is tested on its own below (`the game's speed`).
+vi.mock('../src/repair/numbers', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../src/repair/numbers')>();
+  const classic = 3;
+  return { ...real, TIME_SCALE: classic, jobSeconds: (...a: Parameters<typeof real.jobSeconds>) => (real.jobSeconds(...a) / real.TIME_SCALE) * classic };
+});
 import variant from '@jitl/quickjs-wasmfile-release-sync';
 import { parseWorldFile } from '../src/world/WorldFile';
 import { World, type WorldEvent } from '../src/world/World';
@@ -59,6 +67,12 @@ describe('repair prices', () => {
     expect(jobSeconds(registry.get('reactor'))).toBeCloseTo(registry.get('reactor').build! * TIME_SCALE, 10);
     expect(jobSeconds(registry.get('laser'))).toBe(6);
     expect(jobSeconds(registry.get('propeller'))).toBeCloseTo(0.6, 10);
+  });
+
+  it("the game's speed: a job takes the part's build seconds times TIME_SCALE", async () => {
+    const real = await vi.importActual<typeof import('../src/repair/numbers')>('../src/repair/numbers');
+    expect(real.jobSeconds(registry.get('laser'))).toBeCloseTo(2 * real.TIME_SCALE, 10);
+    expect(real.jobSeconds(registry.get('propeller'))).toBeCloseTo(0.2 * real.TIME_SCALE, 10);
   });
 
   it('a part is worth its mass unless its def names its own juice', () => {
@@ -269,6 +283,15 @@ describe('readings', () => {
     const brief = '(p) => ({ id: p.id, health: p.health, maxHealth: p.maxHealth, juice: p.juice, gives: p.gives, heal: p.heal, seconds: p.seconds })';
     const { w } = await run({ grid: ['A  F  C'], legend: { A: { part: 'armorplate', tags: ['plate'] } } }, { 1: 'own().length', 2: `own({ of: 'plate' }).map(${brief})` }, 4);
     expect(answers(w)).toEqual([3, [{ id: 'armorplate@0,0', health: 250, maxHealth: 250, juice: 5, gives: 4, heal: 0, seconds: 6 }]]);
+    w.dispose();
+  });
+
+  it('spare() keeps only what the robot can give up and stay in one piece, in the order asked', async () => {
+    // A line: the frame next to the core holds the one past it, so it may go only once that one has.
+    const { w } = await run(LINE, { 1: "spare(['frame@1,0', 'frame@0,0', 'frame@4,0', 'frame@3,0', 'core@2,0', 'nothing@9,9'])", 2: 'spare(7)' }, 4);
+    const said = w.scriptLogs.map((l) => l.text);
+    expect(said.filter((t) => !t.startsWith('spare()')).map((t) => JSON.parse(t) as unknown)).toEqual([['frame@0,0', 'frame@4,0', 'frame@3,0'], null]);
+    expect(said).toContain('spare(): give it a list of part ids');
     w.dispose();
   });
 

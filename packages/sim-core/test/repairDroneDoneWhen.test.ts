@@ -45,9 +45,10 @@ describe('repair drone: the ladder', () => {
   it('rung 1: gives up armor to rebuild propellers and the laser', async () => {
     const { w, r } = await flying();
     shoot(r, (id, type) => type === 'laser' || id.startsWith('propeller@1,') || id.startsWith('propeller@2,') || id.startsWith('propeller@10,') || id.startsWith('propeller@11,'));
-    steps(w, 2);
+    // Gone a few ticks after the shot, before any rebuild (at near instant repair one lands within a second).
+    steps(w, 0.05);
     expect(count(r, 'laser')).toBe(0);
-    steps(w, 30);
+    steps(w, 32);
     expect(kinds(w, 'partScrapped', 'armorplate').length).toBeGreaterThan(0);
     expect(count(r, 'laser')).toBe(1);
     expect(count(r, 'propeller')).toBe(18);

@@ -10,8 +10,8 @@ import type { FootprintCell, PartDef } from '../parts/types';
 export const SCRAP_RETURN = 0.8;
 /** The share of a part's worth that creating it costs. Healing it from nothing to full costs the rest. */
 export const CREATE_SHARE = 0.5;
-/** A job's seconds, as times the part's `build` seconds. */
-export const TIME_SCALE = 3;
+/** A job's seconds, as times the part's `build` seconds. 3 until 2026-11-02: Logan wanted it near instant, to see how robots behave. */
+export const TIME_SCALE = 0.03;
 /** A scrap's seconds, as times the seconds to build the part. */
 export const SCRAP_TIME = 0.5;
 /** Jobs a robot may run at once: one, and one more for each this many parts it has left. A big robot has more to work with, and less as it goes. */
