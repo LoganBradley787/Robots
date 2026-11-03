@@ -37,7 +37,7 @@ import { msText, ScriptCosts } from '../app/scriptCosts';
 import { FramePace, frameSimBudget, loadSmooth, saveSmooth, ScriptScheduler, scriptBudget, ticksPerWindow } from '../app/scriptScheduler';
 import { placeGrid, surfaceAt, type StressGrid } from './stress';
 import { flipped, loadDeploySettings, nextTeam, saveDeploySettings, teamName, turned, type DeploySettings, type SettingsStore } from './deploySettings';
-import { AUTO_KEYS, buildReplay, type Arena, type ReplayFile, type ScriptHost } from '@robots/sim-core';
+import { AUTO_KEYS, buildReplay, type Arena, type ReplayFile, type RobotInput, type ScriptHost } from '@robots/sim-core';
 import { buildReadout, type ReadoutView } from './readout';
 import { buildInspect, type InspectView } from './inspect';
 import { breakNotice } from './breakNotice';
@@ -156,6 +156,11 @@ export class WorldScreen {
   onNotice?: (message: string) => void;
   /** Called after every simulated tick (the duel view judges the match here). */
   afterStep?: () => void;
+  /**
+   * `?replay=`: called before every tick while a replay plays, to do what was done before it; its key edges step the
+   * world instead of yours, and Smooth sits out (the replay says which scripts sat out).
+   */
+  beforeStep?: () => RobotInput[] | undefined;
   /** How many world events have been shown. */
   private eventCursor = 0;
   private lastView = '';
@@ -245,8 +250,8 @@ export class WorldScreen {
    * `arena` is the match's edge scripts read (the global `arena`): the `?duel=` page gives the CLI duel's, a plain
    * sandbox none. Reset world keeps it, as it keeps the world file.
    */
-  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[], debug?: boolean): void }, scripts: ScriptHost, clock?: ScriptClock, arena: Arena | null = null): Promise<WorldScreen> {
-    const screen = new WorldScreen(renderer, textures, file, await World.create({ seed: 1, scripts, arena }, file), hud);
+  static async create(renderer: Renderer, textures: GameTextures, file: WorldFile, hud: { set(lines: string[], debug?: boolean): void }, scripts: ScriptHost, clock?: ScriptClock, arena: Arena | null = null, seed = 1): Promise<WorldScreen> {
+    const screen = new WorldScreen(renderer, textures, file, await World.create({ seed, scripts, arena }, file), hud);
     screen.arena = arena;
     screen.scriptHost = scripts;
     screen.clock = clock;
@@ -578,6 +583,11 @@ export class WorldScreen {
     const [soft, line] = held ? (held.plan?.fits ? [0x3fae5a, 0x6ee08a] : [0xc0392b, 0xff6b5b]) : this.moveArmed ? [0x2e7fe0, 0x5aa8ff] : [0xe08a2e, 0xffa040];
     g.stroke({ color: soft, width: 7 * px, alpha: 0.35, cap: 'round' });
     g.stroke({ color: line, width: 2.5 * px, alpha: 1, cap: 'round' });
+  }
+
+  /** Draws robots put in the world from outside a tick (`?replay=`'s first spawns) before the world steps. */
+  showRobots(): void {
+    this.syncViews();
   }
 
   /** Views follow the robots (M16: a rebuilt robot keeps the drawings of the parts it still has, `RobotView.syncAll`). */
@@ -976,14 +986,17 @@ export class WorldScreen {
     this.lastBudget = { frameSim, scripts: scriptMs };
     const ran = runWithin(ticks, frameSim, () => performance.now(), (i) => {
       // Smooth: the robots whose scripts do not fit this tick sit out (logged for the replay).
-      if (smooth) {
+      const replayed = this.beforeStep?.();
+      if (smooth && !replayed) {
         const skip = this.scheduler.plan(this.world.scriptedRobots(), (id) => this.costs.cost(id), scriptMs);
         if (skip.length > 0) this.world.skipScripts(skip);
       }
-      // Keys are sampled once per tick: this frame's edges go into its first tick. While paused they wait.
+      // Keys are sampled once per tick: this frame's edges go into its first tick. While paused they wait. A replay's
+      // ticks take its own edges, and yours are let go.
       this.stepScriptMs = 0;
       const t = performance.now();
-      this.world.step(i === 0 ? this.keys.drain() : []);
+      const keys = i === 0 ? this.keys.drain() : [];
+      this.world.step(replayed ?? keys);
       const took = performance.now() - t;
       simMs += took;
       sm.restMs += (Math.max(0, took - this.stepScriptMs) - sm.restMs) * 0.1;

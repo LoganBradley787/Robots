@@ -60,6 +60,11 @@ export async function setBlueprintKind(file: string, kind: string | null): Promi
 }
 
 /** Writes a replay into the repo's `replays/` folder. */
+/** A saved replay from `replays/`, as the file has it (`?replay=`). */
+export async function loadReplayFile(file: string): Promise<unknown> {
+  return (await check(await fetch(`/api/replays/${file}`))).json();
+}
+
 export async function saveReplayFile(file: string, json: unknown): Promise<void> {
   await check(await fetch(`/api/replays/${file}`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(json) }));
 }

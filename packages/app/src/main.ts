@@ -1,6 +1,6 @@
 import { render, h } from 'preact';
 import { Sprite, UPDATE_PRIORITY } from 'pixi.js';
-import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, inArena, MATCH_ARENA, nearestNames, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseWorldFile, removeTagFromParts, staticStats, toFileJson, type Binding, type Blueprint, type ScriptSpec } from '@robots/sim-core';
+import { addTagToParts, allScripts, createQuickJsHost, expandBlueprint, inArena, MATCH_ARENA, nearestNames, orientRaw, partWorldPose, setPartsAuto, setPartsArmed, setPartsMakes, setPartsSize, blankBlueprint, defaultRegistry, parseReplay, parseWorldFile, removeTagFromParts, ReplayPlayer, staticStats, toFileJson, type Binding, type Blueprint, type ReplayFile, type ScriptSpec } from '@robots/sim-core';
 import './ui/styles.css';
 import quickjsBrowser from '@jitl/quickjs-singlefile-browser-release-sync';
 import { addScript, cleanScriptId, renameScript, updateScript } from './builder/scripts';
@@ -37,7 +37,7 @@ import { DocumentController } from './builder/document';
 import { ask, notify } from './ui/dialogs';
 import { showLoading, type LoadingCard } from './ui/loadingCard';
 import type { AppActions } from './ui/App';
-import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadScriptFile, loadShelfFiles, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile, setBlueprintKind } from './storage/blueprintApi';
+import { deleteBlueprintFile, listBlueprints, loadBlueprintFile, loadReplayFile, loadScriptFile, loadShelfFiles, replayFileName, saveBlueprintFile, saveReplayFile, saveScriptFile, setBlueprintKind } from './storage/blueprintApi';
 
 /** The duel's loading card (`?duel=`), kept here so a failed boot can say so on it. */
 let loading: LoadingCard | undefined;
@@ -57,6 +57,21 @@ async function boot(): Promise<void> {
   // `&xa=` and `&xb=` their x (-400 and 400 when left out).
   const query = new URLSearchParams(window.location.search);
   const duel = (query.get('duel') ?? '').split(',').map((n) => n.trim()).filter((n) => n !== '');
+  // `?replay=name` (2026-11): a replay saved in replays/ played in the world as it went, the world made from it (its
+  // world file, seed and arena). Once over, the world runs on live. A replay that cannot be read is said on the card.
+  const replayName = (query.get('replay') ?? '').trim().replace(/\.json$/, '');
+  let replay: { file: ReplayFile; commit?: string } | undefined;
+  if (query.has('replay')) {
+    loading = showLoading(`Loading replay ${replayName}`);
+    await loading.step('Reading the replay');
+    try {
+      const raw = (await loadReplayFile(`${replayName}.json`)) as { commit?: unknown };
+      replay = { file: parseReplay(raw), ...(typeof raw.commit === 'string' ? { commit: raw.commit } : {}) };
+    } catch (e) {
+      loading.fail(`Could not read replays/${replayName}.json: ${e instanceof Error ? e.message : String(e)}`);
+      return;
+    }
+  }
   // Setting up a duel takes seconds (titans have thousands of parts): a card says what is happening until it is ready.
   if (query.has('duel')) {
     loading = showLoading(duel.length === 2 ? `Loading duel: ${duel[0]} vs ${duel[1]}` : 'Loading duel');
@@ -70,7 +85,9 @@ async function boot(): Promise<void> {
   // Wrapped in a timer (M9) for the debug overlay's perf readout; the sim never sees the clock.
   const { host: scriptHost, clock: scriptClock } = timedHost(await createQuickJsHost(quickjsBrowser));
   // A duel's scripts read the same edge as `pnpm sim duel` gives them (the global `arena`); a plain sandbox has none.
-  const worldScreen = await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock, duel.length === 2 ? MATCH_ARENA : null);
+  const worldScreen = replay
+    ? await WorldScreen.create(renderer, textures, replay.file.world, hud, scriptHost, scriptClock, replay.file.arena ?? null, replay.file.seed)
+    : await WorldScreen.create(renderer, textures, parseWorldFile(duel.length === 2 ? arenaJson : flatJson), hud, scriptHost, scriptClock, duel.length === 2 ? MATCH_ARENA : null);
 
   const registry = defaultRegistry();
   // The hotbar and the recent row live in the browser (M16). A browser with storage switched off just forgets them.
@@ -656,7 +673,39 @@ async function boot(): Promise<void> {
     store.set({ mode: next.mode });
   };
   // The app opens in the builder; a duel goes straight to the world, paused, to load there.
-  setMode(duel.length === 2 ? { mode: 'world', paused: true, pausedBeforeBuilder: true } : toggleMode(modes));
+  setMode(duel.length === 2 || replay ? { mode: 'world', paused: true, pausedBeforeBuilder: true } : toggleMode(modes));
+  if (loading && replay) {
+    const card = loading;
+    const { file, commit } = replay;
+    const world = worldScreen.world;
+    const player = new ReplayPlayer(file);
+    await card.step('Placing the robots it starts with');
+    player.spawnsNow(world);
+    worldScreen.showRobots();
+    const first = world.robots[0];
+    if (first) worldScreen.focus(first.id);
+    // Clear robots makes a new world: the replay is over for it.
+    worldScreen.beforeStep = () => {
+      if (worldScreen.world === world) return player.before(world);
+      worldScreen.beforeStep = undefined;
+      return undefined;
+    };
+    worldScreen.afterStep = () => {
+      if (worldScreen.world !== world || !player.done(world)) return;
+      player.finish(world);
+      worldScreen.beforeStep = undefined;
+      worldScreen.afterStep = undefined;
+      const at = (world.tick / 60).toFixed(1);
+      notify(
+        store,
+        world.hash() === file.endHash
+          ? `The replay is over at ${at} s, and the world is the one it saved. It runs on live now: what happens next is new.`
+          : `The replay is over at ${at} s, but the world is not the one it saved${commit ? ` (it was saved on build ${commit})` : ''}: the game changed since, so it went its own way. It runs on live now.`,
+      );
+    };
+    card.done();
+    notify(store, `Replay ${replayName}: ${(file.endTick / 60).toFixed(0)} s, ${file.spawns.length} robots spawned as they were. Your keys and clicks change it from here. Paused: press play.`);
+  }
   if (loading && duel.length !== 2) loading.fail(`A duel needs two blueprint names, like ?duel=titan-anvil,titan-juggernaut (got ${duel.length}).`);
   if (loading && duel.length === 2) {
     const card = loading;

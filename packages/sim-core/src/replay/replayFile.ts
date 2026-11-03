@@ -1,4 +1,5 @@
 import { InputLog, type LoggedTick, type RobotMove } from './InputLog';
+import type { RobotInput } from '../control/types';
 import { parseWorldFile, type WorldFile } from '../world/WorldFile';
 import { World, type SpawnRecord } from '../world/World';
 import type { ScriptHost } from '../script/types';
@@ -137,21 +138,33 @@ export function parseReplay(raw: unknown): ReplayFile {
  * `onTick` sees the world after every step (metrics). Robots with scripts need the same kind of `scripts` host the
  * session had. The caller disposes the returned world.
  */
-export async function runReplay(
-  replay: ReplayFile,
-  onTick?: (world: World) => void,
-  scripts?: ScriptHost,
-): Promise<{ world: World; hash: string; matches: boolean }> {
-  const world = await World.create({ seed: replay.seed, ...(replay.arena ? { arena: replay.arena } : {}), ...(scripts ? { scripts } : {}) }, replay.world);
-  const log = InputLog.fromJSON(replay.inputs);
-  const spawns = [...replay.spawns];
-  let next = 0;
-  while (world.tick < replay.endTick) {
-    while (next < spawns.length && (spawns[next]?.tick ?? Infinity) <= world.tick) {
-      const s = spawns[next++];
-      if (s) world.spawnBlueprint(s.blueprint, s.at, { team: s.team ?? 0 });
-    }
-    const change = log.worldAt(world.tick);
+/**
+ * Plays a replay into a world made from it (its file, seed and arena), one tick at a time: what was done between ticks
+ * (spawns, then the sandbox's changes) goes in before each tick, and the tick's key edges come back to step it with.
+ * `runReplay` and the app's `?replay=` both play through this, so the two do the same in the same order. A move and
+ * a spawn done in the same pause are put back spawn first: in that order only, they make the bodies they made.
+ */
+export class ReplayPlayer {
+  private readonly log: InputLog;
+  private readonly spawns: SpawnRecord[];
+  private next = 0;
+  readonly replay: ReplayFile;
+
+  constructor(replay: ReplayFile) {
+    this.replay = replay;
+    this.log = InputLog.fromJSON(replay.inputs);
+    this.spawns = [...replay.spawns];
+  }
+
+  /** Whether the world has reached the replay's last tick. */
+  done(world: World): boolean {
+    return world.tick >= this.replay.endTick;
+  }
+
+  /** What was done before the world's next tick, done to it; returns that tick's key edges, to step it with. */
+  before(world: World): RobotInput[] {
+    this.spawnUpTo(world, world.tick);
+    const change = this.log.worldAt(world.tick);
     if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
     if (change?.noSmokeOrJam !== undefined) world.setNoSmokeOrJam(change.noSmokeOrJam);
     if (change?.clearDebris) world.clearDebris();
@@ -159,14 +172,39 @@ export async function runReplay(
     for (const m of change?.move ?? []) world.moveRobot(m.robot, m.x, m.y, m.angle);
     if (change?.remove) world.removeRobots(change.remove);
     if (change?.skip) world.skipScripts(change.skip);
-    world.step(log.inputsAt(world.tick));
+    return this.log.inputsAt(world.tick);
+  }
+
+  /** Spawns made after the last tick (dropped while paused at the end) still belong to the end state. */
+  finish(world: World): void {
+    this.spawnUpTo(world, Infinity);
+  }
+
+  /** The spawns due before the world's next tick, now (a viewer shows the robots before it starts). */
+  spawnsNow(world: World): void {
+    this.spawnUpTo(world, world.tick);
+  }
+
+  private spawnUpTo(world: World, tick: number): void {
+    while (this.next < this.spawns.length && (this.spawns[this.next]?.tick ?? Infinity) <= tick) {
+      const s = this.spawns[this.next++];
+      if (s) world.spawnBlueprint(s.blueprint, s.at, { team: s.team ?? 0 });
+    }
+  }
+}
+
+export async function runReplay(
+  replay: ReplayFile,
+  onTick?: (world: World) => void,
+  scripts?: ScriptHost,
+): Promise<{ world: World; hash: string; matches: boolean }> {
+  const world = await World.create({ seed: replay.seed, ...(replay.arena ? { arena: replay.arena } : {}), ...(scripts ? { scripts } : {}) }, replay.world);
+  const player = new ReplayPlayer(replay);
+  while (!player.done(world)) {
+    world.step(player.before(world));
     onTick?.(world);
   }
-  // Spawns made after the last tick (dropped while paused at the end) still belong to the end state.
-  while (next < spawns.length) {
-    const s = spawns[next++];
-    if (s) world.spawnBlueprint(s.blueprint, s.at, { team: s.team ?? 0 });
-  }
+  player.finish(world);
   const hash = world.hash();
   return { world, hash, matches: hash === replay.endHash };
 }
