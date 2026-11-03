@@ -93,6 +93,8 @@ export interface WorldView {
   noSmokeOrJam: boolean;
   /** M16: whether a click removes the robot under it (the bar's Remove button). */
   removing: boolean;
+  /** Whether a click picks a robot up, or puts the one held down (the bar's Move button). */
+  moving: boolean;
   /** M16: robots per team, for the Sandbox menu's Remove all rows; teams with none are left out. */
   teams: { team: number; count: number }[];
   /** M16: Remove far away's distance (meters from the camera's center), and how many robots are past it now. */
@@ -171,6 +173,12 @@ export class WorldScreen {
   /** M16: the remove cursor is armed, the robot under it (outlined in orange), and Remove far away's distance. */
   private removeArmed = false;
   private hoverId: number | undefined;
+  /**
+   * Move: the cursor is armed, and the robot picked up, if one is: where on it it was taken (in its anchor body's frame,
+   * `World.moveAnchor`), the angle it goes down at, whether the world was paused before, and where it would go now.
+   */
+  private moveArmed = false;
+  private held: { id: number; ox: number; oy: number; angle: number; wasPaused: boolean; key: string; at?: { x: number; y: number }; plan?: { bodies: { x: number; y: number; angle: number }[]; fits: boolean } } | undefined;
   /** Where the pointer last was over the world (screen pixels), so the remove cursor's robot is found again every frame. */
   private pointer: { sx: number; sy: number } | undefined;
   private farDistance: number;
@@ -327,6 +335,8 @@ export class WorldScreen {
     this.keys.clear();
     this.focusId = undefined;
     this.hoverId = undefined;
+    this.held = undefined;
+    this.moveArmed = false;
     this.outlineOf = undefined;
     this.eventCursor = 0;
     next.setUnlimitedEnergy(this.unlimitedWanted);
@@ -427,7 +437,95 @@ export class WorldScreen {
       return;
     }
     this.cancelPlacing();
+    this.stopMoving();
     this.removeArmed = true;
+  }
+
+  get isMoving(): boolean {
+    return this.moveArmed;
+  }
+
+  /** Whether a robot is picked up (Move): Q and E turn it then. */
+  get isHolding(): boolean {
+    return this.held !== undefined;
+  }
+
+  /** Arms the Move cursor (the bar's Move button), or disarms it, putting a robot held back where it was. */
+  toggleMoving(): void {
+    if (this.moveArmed) {
+      this.stopMoving();
+      return;
+    }
+    this.cancelPlacing();
+    this.stopRemoving();
+    this.moveArmed = true;
+  }
+
+  stopMoving(): void {
+    this.letGo();
+    this.moveArmed = false;
+    this.hoverId = undefined;
+  }
+
+  /** Picks a robot up where the world point (x, y) is on it: upright, and the world pauses while it is held. */
+  private pickUp(robot: Robot, x: number, y: number): void {
+    const a = this.world.moveAnchor(robot.id);
+    if (!a) return;
+    const c = Math.cos(a.angle);
+    const n = Math.sin(a.angle);
+    const dx = x - a.x;
+    const dy = y - a.y;
+    this.held = { id: robot.id, ox: c * dx + n * dy, oy: -n * dx + c * dy, angle: 0, wasPaused: this.time.paused, key: '' };
+    this.hoverId = undefined;
+    this.setPaused(true);
+    const v = this.views.get(robot.id);
+    if (v) v.root.alpha = 0.35;
+  }
+
+  /** Puts a robot held back where it was (nothing moved), and the world runs again if it was running. */
+  private letGo(): void {
+    const h = this.held;
+    if (!h) return;
+    this.held = undefined;
+    const v = this.views.get(h.id);
+    if (v) v.root.alpha = 1;
+    this.setPaused(h.wasPaused);
+  }
+
+  /** Turns the robot held by `degrees`, counterclockwise. */
+  turnHeld(degrees: number): void {
+    if (this.held) this.held.angle += (degrees * Math.PI) / 180;
+  }
+
+  /** Where the robot held would go with the cursor at a screen point, worked out again only when something changed. */
+  private aimHeld(sx: number, sy: number): void {
+    const h = this.held;
+    if (!h) return;
+    const key = `${sx},${sy},${this.cam.x},${this.cam.y},${this.cam.zoom},${h.angle},${this.world.tick},${this.world.robotById(h.id)?.version}`;
+    if (key === h.key) return;
+    h.key = key;
+    const p = screenToWorld(this.cam, sx, sy, this.renderer.screenWidth, this.renderer.screenHeight);
+    const c = Math.cos(h.angle);
+    const n = Math.sin(h.angle);
+    const at = { x: p.x - (c * h.ox - n * h.oy), y: p.y - (n * h.ox + c * h.oy) };
+    const plan = this.world.movePlan(h.id, at.x, at.y, h.angle);
+    if (!plan) {
+      this.letGo();
+      return;
+    }
+    h.at = at;
+    h.plan = plan;
+  }
+
+  /** Puts the robot held down where the cursor is, if it fits there; Move puts its cursor away after. */
+  private putDown(): void {
+    const h = this.held;
+    if (!h?.at || !h.plan?.fits) return;
+    const { id, at, angle } = h;
+    this.letGo();
+    this.world.moveRobot(id, at.x, at.y, angle);
+    this.syncViews();
+    this.stopMoving();
   }
 
   stopRemoving(): void {
@@ -447,7 +545,8 @@ export class WorldScreen {
   private drawOutline(alpha: number): void {
     const g = this.outline;
     g.clear();
-    const robot = this.removeArmed && this.hoverId !== undefined && !this.world.removing(this.hoverId) ? this.world.robotById(this.hoverId) : undefined;
+    const held = this.held;
+    const robot = held ? this.world.robotById(held.id) : (this.removeArmed || this.moveArmed) && this.hoverId !== undefined && !this.world.removing(this.hoverId) ? this.world.robotById(this.hoverId) : undefined;
     if (!robot) return;
     let o = this.outlineOf;
     if (!o || o.id !== robot.id || o.version !== robot.version) {
@@ -463,7 +562,8 @@ export class WorldScreen {
     }
     const px = 1 / this.cam.zoom;
     robot.groups.forEach((group, i) => {
-      const s = interpolateState(this.world.physics.prevState(group.bodyId), this.world.physics.state(group.bodyId), alpha);
+      const s = held ? held.plan?.bodies[i] : interpolateState(this.world.physics.prevState(group.bodyId), this.world.physics.state(group.bodyId), alpha);
+      if (!s) return;
       const c = Math.cos(s.angle);
       const n = Math.sin(s.angle);
       const at = (x: number, y: number) => toScreen({ x: s.x + c * x - n * y, y: s.y + n * x + c * y });
@@ -473,9 +573,11 @@ export class WorldScreen {
         g.moveTo(a.x, a.y).lineTo(b.x, b.y);
       }
     });
-    // A wide soft band under a thin bright line, a few screen pixels at any zoom.
-    g.stroke({ color: 0xe08a2e, width: 7 * px, alpha: 0.35, cap: 'round' });
-    g.stroke({ color: 0xffa040, width: 2.5 * px, alpha: 1, cap: 'round' });
+    // A wide soft band under a thin bright line, a few screen pixels at any zoom. Orange to remove, blue to pick up,
+    // green or red for where the robot held would go.
+    const [soft, line] = held ? (held.plan?.fits ? [0x3fae5a, 0x6ee08a] : [0xc0392b, 0xff6b5b]) : this.moveArmed ? [0x2e7fe0, 0x5aa8ff] : [0xe08a2e, 0xffa040];
+    g.stroke({ color: soft, width: 7 * px, alpha: 0.35, cap: 'round' });
+    g.stroke({ color: line, width: 2.5 * px, alpha: 1, cap: 'round' });
   }
 
   /** Views follow the robots (M16: a rebuilt robot keeps the drawings of the parts it still has, `RobotView.syncAll`). */
@@ -623,6 +725,7 @@ export class WorldScreen {
   startPlacing(raw: unknown, registry: PartRegistry): void {
     this.cancelPlacing();
     this.stopRemoving();
+    this.stopMoving();
     this.placing = { ghost: this.makeGhost(raw, registry), source: raw, registry, ok: false };
     this.cam = setFollow(this.cam, false);
   }
@@ -741,6 +844,12 @@ export class WorldScreen {
       this.stopRemoving();
       return;
     }
+    // Move: a right click puts a robot held back, or the cursor away.
+    if (this.moveArmed && e.button === 2) {
+      if (this.held) this.letGo();
+      else this.stopMoving();
+      return;
+    }
     if (this.placing) {
       if (e.button === 0) this.updateGhost(sx, sy);
       const p = this.placing;
@@ -767,7 +876,8 @@ export class WorldScreen {
   onPointerMove(e: PointerEvent, sx: number, sy: number): void {
     this.pointer = { sx, sy };
     if (this.placing) this.updateGhost(sx, sy);
-    if (this.removeArmed) this.hoverId = this.robotAt(sx, sy)?.id;
+    if (this.removeArmed || (this.moveArmed && !this.held)) this.hoverId = this.robotAt(sx, sy)?.id;
+    if (this.held) this.aimHeld(sx, sy);
     if (!this.dragging || e.pointerId !== this.dragging.id) return;
     this.cam = panByPixels(this.cam, e.clientX - this.dragging.x, e.clientY - this.dragging.y);
     this.dragging = { ...this.dragging, x: e.clientX, y: e.clientY };
@@ -785,7 +895,18 @@ export class WorldScreen {
     if (!d || e.pointerId !== d.id) return;
     this.dragging = null;
     if (e.button !== 0 || !isClick({ x: d.startX, y: d.startY }, { x: e.clientX, y: e.clientY })) return;
+    if (this.held) {
+      this.aimHeld(sx, sy);
+      this.putDown();
+      return;
+    }
     const robot = this.robotAt(sx, sy);
+    if (robot && this.moveArmed) {
+      const p = screenToWorld(this.cam, sx, sy, this.renderer.screenWidth, this.renderer.screenHeight);
+      this.pickUp(robot, p.x, p.y);
+      if (this.pointer) this.aimHeld(this.pointer.sx, this.pointer.sy);
+      return;
+    }
     if (robot && this.removeArmed) {
       // It stays armed for the next one.
       this.removeRobots([robot.id]);
@@ -908,7 +1029,8 @@ export class WorldScreen {
     applyCamera(this.renderer.world, this.cam, this.renderer.screenWidth, this.renderer.screenHeight);
     // The robot under the remove cursor, found again now the robots and the camera have moved: the outline is always
     // the robot a click takes (a click finds it the same way, with this camera).
-    if (this.removeArmed) this.hoverId = this.pointer ? this.robotAt(this.pointer.sx, this.pointer.sy)?.id : undefined;
+    if (this.removeArmed || (this.moveArmed && !this.held)) this.hoverId = this.pointer ? this.robotAt(this.pointer.sx, this.pointer.sy)?.id : undefined;
+    if (this.held && this.pointer) this.aimHeld(this.pointer.sx, this.pointer.sy);
     this.drawOutline(alpha);
     if (this.shake > 0.3) {
       this.renderer.world.position.x += (Math.random() - 0.5) * 2 * this.shake;
@@ -939,12 +1061,18 @@ export class WorldScreen {
           ? 'following no robot: click one'
           : 'no robots yet';
     const p = this.placing;
-    const hovered = this.removeArmed && this.hoverId !== undefined ? this.world.robotById(this.hoverId) : undefined;
+    const hovered = (this.removeArmed || this.moveArmed) && this.hoverId !== undefined ? this.world.robotById(this.hoverId) : undefined;
+    const heldRobot = this.held ? this.world.robotById(this.held.id) : undefined;
+    const name = (r: Robot): string => `${r.name} (${teamName(r.team)}${r.brokeFrom !== undefined ? ', a piece' : ''})`;
     const placingLines = p
       ? [placingLine({ name: p.ghost.name, team: this.deploy.team, flip: this.deploy.flip, rot: this.deploy.rot, ok: p.ok, ...(p.reason !== undefined ? { reason: p.reason } : {}) })]
       : this.removeArmed
-        ? [`REMOVING: click a robot to take it out of the world   Esc or right click stops   ${hovered ? `${hovered.name} (${teamName(hovered.team)}${hovered.brokeFrom !== undefined ? ', a piece' : ''})` : 'point at a robot'}`]
-        : [];
+        ? [`REMOVING: click a robot to take it out of the world   Esc or right click stops   ${hovered ? name(hovered) : 'point at a robot'}`]
+        : this.held && heldRobot
+          ? [`MOVING ${name(heldRobot)}: click to put it down as it is   Q and E turn it 15 degrees, with Shift 90   Esc or right click puts it back   ${this.held.plan?.fits === false ? 'no room here: it would be in the ground or another robot' : 'fits here'}`]
+          : this.moveArmed
+            ? [`MOVE: click a robot to pick it up; it comes up upright and the world pauses   Esc or right click stops   ${hovered ? name(hovered) : 'point at a robot'}`]
+            : [];
     const view: WorldView = {
       paused: time.paused,
       timeScale: time.timeScale,
@@ -959,6 +1087,7 @@ export class WorldScreen {
       smooth,
       noSmokeOrJam: this.world.noSmokeOrJam,
       removing: this.removeArmed,
+      moving: this.moveArmed,
       teams: teamCounts(present),
       far: { distance: this.farDistance, count: this.farCount(present, ticks > 0) },
       readoutOpen: this.readoutOpen,

@@ -3,7 +3,7 @@ import { partLists } from './partLists';
 import { PhysicsWorld, type BodyId, type BodyState, type ShapeSpec } from '../physics/PhysicsWorld';
 import { Prng } from '../rng/Prng';
 import { StateHasher } from '../replay/StateHasher';
-import { InputLog, type WorldChange } from '../replay/InputLog';
+import { InputLog, type RobotMove, type WorldChange } from '../replay/InputLog';
 import { Controller } from '../control/controller';
 import type { ControlledPart, ControlTrace, RobotInput } from '../control/types';
 import { BEHAVIORS, type Behavior, type BehaviorContext, type OutputReads } from '../behaviors/registry';
@@ -417,6 +417,10 @@ export class World {
    */
   private noSmokeJam = false;
   private pendingNoSmokeJam: boolean | undefined;
+  /** Robots put down by hand since the last step (`moveRobot`), for that step's log entry. */
+  private movedByHand: RobotMove[] = [];
+  /** While a robot is put down by hand: where its bodies go, read by its rebuild in place of where they are (`motion`). */
+  private carried: Map<BodyId, BodyMotion> | undefined;
   /** Events so far, oldest first. Readers keep their own cursor. */
   readonly events: WorldEvent[] = [];
   private readonly scriptHost: ScriptHost | undefined;
@@ -719,6 +723,10 @@ export class World {
       this.noSmokeJam = this.pendingNoSmokeJam;
     }
     this.pendingNoSmokeJam = undefined;
+    if (this.movedByHand.length > 0) {
+      change.move = this.movedByHand;
+      this.movedByHand = [];
+    }
     // Removals first (M16), so a robot removed by hand drops this tick's keys like one that lost its core.
     if (this.pendingRemove.size > 0) {
       const removed = this.removeByHand();
@@ -1125,6 +1133,99 @@ export class World {
       this.launched.push(g.bodyId);
       this.kicked.set(g.bodyId, this.tickCount + 2);
     }
+  }
+
+  /** The body a robot is moved by (`moveRobot`): its core's, else its first. */
+  private moveBody(robot: Robot): BodyId | undefined {
+    const core = robot.primaryCoreId === undefined ? undefined : robot.parts.get(robot.primaryCoreId);
+    return (core ? robot.groups[core.group] : robot.groups.find((g) => g !== undefined))?.bodyId;
+  }
+
+  /** The pose of the body a robot is moved by (`moveRobot`): its core's, else its first. Undefined for one gone or going. */
+  moveAnchor(id: number): { x: number; y: number; angle: number } | undefined {
+    const robot = this.robotById(id);
+    const ref = robot && !this.removing(id) ? this.moveBody(robot) : undefined;
+    if (ref === undefined) return undefined;
+    const s = this.physics.state(ref);
+    return { x: s.x, y: s.y, angle: s.angle };
+  }
+
+  /**
+   * Where the sandbox's Move would put each of a robot's bodies (`moveRobot` with the same numbers), in its group order,
+   * and whether every cell of it would be clear of the ground and of every other robot. Undefined for a robot that is
+   * gone or waiting to be removed. Reads only.
+   */
+  movePlan(id: number, x: number, y: number, angle: number): { bodies: { x: number; y: number; angle: number }[]; fits: boolean } | undefined {
+    const robot = this.robotById(id);
+    const ref = robot && !this.removing(id) ? this.moveBody(robot) : undefined;
+    if (!robot || ref === undefined) return undefined;
+    const r = this.physics.state(ref);
+    const turn = angle - r.angle;
+    const c = cos(turn);
+    const n = sin(turn);
+    const bodies = robot.groups.map((g) => {
+      const s = this.physics.state(g.bodyId);
+      const dx = s.x - r.x;
+      const dy = s.y - r.y;
+      return { x: x + c * dx - n * dy, y: y + n * dx + c * dy, angle: s.angle + turn };
+    });
+    const probes: { x: number; y: number; shape: { shape: 'ball'; radius: number } }[] = [];
+    for (const part of robot.parts.values()) {
+      const b = bodies[part.group];
+      if (!b) continue;
+      const bc = cos(b.angle);
+      const bn = sin(b.angle);
+      for (const fc of part.footprint ?? part.def.footprint) {
+        const o = rotateCell(fc, part.rot);
+        const lx = part.localX + o.x;
+        const ly = part.localY + o.y;
+        probes.push({ x: b.x + bc * lx - bn * ly, y: b.y + bn * lx + bc * ly, shape: { shape: 'ball', radius: 0.45 } });
+      }
+    }
+    const own = new Set(robot.groups.map((g) => g.bodyId));
+    return { bodies, fits: !this.physics.overlapsShapes(probes, 0.02, own) };
+  }
+
+  /**
+   * The sandbox's Move: picks a robot up and puts it down at once, as one rigid piece, its core's body (else its
+   * first) at (x, y) turned to `angle`, standing still. Everything else it had stays: damage, energy, its tank and jobs,
+   * what its scripts hold. Logged for replays like a removal. Like a kick, nothing it runs into straight after counts
+   * as its crash. Whether it fits is the caller's to ask (`movePlan`). Returns whether it moved.
+   */
+  moveRobot(id: number, x: number, y: number, angle: number): boolean {
+    if (![x, y, angle].every(Number.isFinite)) throw new Error('a move needs finite numbers x, y and angle');
+    const robot = this.robotById(id);
+    const ref = robot && !this.removing(id) ? this.moveBody(robot) : undefined;
+    if (!robot || ref === undefined) return false;
+    // Rebuilt where it goes, standing still: Rapier keeps a multibody's root at the angle it had whatever its body is
+    // told, so a car with wheels would come down the same way up. A rebuild makes the bodies and joints anew there.
+    const r = this.physics.state(ref);
+    const turn = angle - r.angle;
+    const c = cos(turn);
+    const n = sin(turn);
+    const to = (px: number, py: number): { x: number; y: number } => ({ x: x + c * (px - r.x) - n * (py - r.y), y: y + n * (px - r.x) + c * (py - r.y) });
+    const carried = new Map<BodyId, BodyMotion>();
+    for (const g of robot.groups) {
+      const s = this.physics.state(g.bodyId);
+      const mp = this.physics.massProperties(g.bodyId);
+      const at = to(s.x, s.y);
+      const com = to(mp.comX, mp.comY);
+      carried.set(g.bodyId, { x: at.x, y: at.y, angle: s.angle + turn, comX: com.x, comY: com.y, vx: 0, vy: 0, w: 0 });
+    }
+    // Only this robot: any other waiting for its rebuild gets it in the step, as it would have.
+    const others = [...this.dirty].filter((d) => d !== robot);
+    this.dirty.clear();
+    this.dirty.add(robot);
+    this.carried = carried;
+    try {
+      this.rebuildDirty();
+    } finally {
+      this.carried = undefined;
+      for (const d of others) this.dirty.add(d);
+    }
+    this.kickRobot(robot, 0, 0, 0);
+    this.movedByHand.push({ robot: id, x, y, angle });
+    return true;
   }
 
   /** Removes every robot nobody can control (debris, headless robots, bombs) on the next tick, logged for replays. */
@@ -1855,6 +1956,8 @@ export class World {
 
   /** A body's pose and motion, for the pieces a rebuild makes of it. */
   private motion(body: BodyId): BodyMotion {
+    const carried = this.carried?.get(body);
+    if (carried) return carried;
     const s = this.bodyState(body);
     const mp = this.physics.massProperties(body);
     return { x: s.x, y: s.y, angle: s.angle, comX: mp.comX, comY: mp.comY, vx: s.vx, vy: s.vy, w: s.w };

@@ -372,6 +372,7 @@ async function boot(): Promise<void> {
     },
     clearDebris: () => worldScreen.clearDebris(),
     toggleRemoving: () => worldScreen.toggleRemoving(),
+    toggleMoving: () => worldScreen.toggleMoving(),
     removeFar: () => {
       const n = worldScreen.removeFar();
       notify(store, n === 0 ? 'Nothing is that far from the camera.' : `Removed ${robotsText(n)} far from the camera.`);
@@ -391,6 +392,7 @@ async function boot(): Promise<void> {
     toBuilder: () => {
       worldScreen.cancelPlacing();
       worldScreen.stopRemoving();
+      worldScreen.stopMoving();
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
     },
     setBindings: (bindings) => editControls((c) => ({ ...c, bindings })),
@@ -795,6 +797,7 @@ async function boot(): Promise<void> {
       e.preventDefault();
       worldScreen.cancelPlacing();
       worldScreen.stopRemoving();
+      worldScreen.stopMoving();
       builder.endGesture();
       setMode(toggleMode({ ...modes, paused: worldScreen.time.paused }));
       return;
@@ -807,6 +810,17 @@ async function boot(): Promise<void> {
       worldScreen.stopRemoving();
       return;
     }
+    if (modes.mode === 'world' && e.code === 'Escape' && worldScreen.isMoving) {
+      worldScreen.stopMoving();
+      return;
+    }
+    // While a robot is picked up (Move), Q and E turn it, 15 degrees or with Shift 90; they do not reach the robot you drive.
+    if (modes.mode === 'world' && worldScreen.isHolding && !e.metaKey && !e.ctrlKey && !e.altKey && (codeOf(e) === 'KeyQ' || codeOf(e) === 'KeyE')) {
+      e.preventDefault();
+      worldScreen.turnHeld((codeOf(e) === 'KeyQ' ? 1 : -1) * (e.shiftKey ? 90 : 15));
+      return;
+    }
+    if (modes.mode === 'world' && worldScreen.isHolding && (e.code === 'ShiftLeft' || e.code === 'ShiftRight')) return;
     // While a robot is held for deploying, F flips it and R turns it (M8), like the builder's stamp; they do not reach
     // the robot you are driving.
     if (modes.mode === 'world' && worldScreen.isPlacing && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey && (codeOf(e) === 'KeyF' || codeOf(e) === 'KeyR')) {

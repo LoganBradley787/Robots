@@ -21,6 +21,8 @@ export interface WorldActions {
   clearDebris(): void;
   /** M16: arms or disarms the remove cursor (a click removes the robot under it). */
   toggleRemoving(): void;
+  /** Arms or disarms the Move cursor: a click picks a robot up as it is, the next puts it down. */
+  toggleMoving(): void;
   /** M16: removes every robot past Remove far away's distance from the camera, and picks that distance (meters). */
   removeFar(): void;
   setFarDistance(meters: number): void;
@@ -66,6 +68,9 @@ export function WorldToolbar({ store, actions }: { store: Store<AppState>; actio
       </Button>
       <Button class="remove" on={v.removing} disabled={none && !v.removing} onClick={actions.toggleRemoving} title="Click robots to take them out of the world, one by one. Esc, a right click or this button again stops.">
         Remove
+      </Button>
+      <Button class="move" on={v.moving} disabled={none && !v.moving} onClick={actions.toggleMoving} title="Pick a robot up as it is, damage, energy and all, and put it down somewhere else: it comes up upright, Q and E turn it. The world pauses while you hold it. Esc, a right click or this button again stops.">
+        Move
       </Button>
       <BarMenu label="View" title="Camera, grid, debug and sound">
         {() => (

@@ -1,4 +1,4 @@
-import { InputLog, type LoggedTick } from './InputLog';
+import { InputLog, type LoggedTick, type RobotMove } from './InputLog';
 import { parseWorldFile, type WorldFile } from '../world/WorldFile';
 import { World, type SpawnRecord } from '../world/World';
 import type { ScriptHost } from '../script/types';
@@ -50,6 +50,17 @@ function int(v: unknown, path: string): number {
   return v as number;
 }
 
+function moveList(v: unknown, path: string): RobotMove[] {
+  if (!Array.isArray(v)) throw new ReplayError(`${path} must be a list of moves`);
+  return v.map((m, j) => {
+    const o = obj(m, `${path}[${j}]`);
+    const robot = int(o.robot, `${path}[${j}].robot`);
+    if (robot < 1) throw new ReplayError(`${path}[${j}].robot must be 1 or more`);
+    for (const k of ['x', 'y', 'angle'] as const) if (typeof o[k] !== 'number' || !Number.isFinite(o[k])) throw new ReplayError(`${path}[${j}].${k} must be a number`);
+    return { robot, x: o.x as number, y: o.y as number, angle: o.angle as number };
+  });
+}
+
 function strings(v: unknown, path: string): string[] {
   if (!Array.isArray(v) || !v.every((s) => typeof s === 'string')) throw new ReplayError(`${path} must be a list of key names`);
   return v as string[];
@@ -87,6 +98,7 @@ export function parseReplay(raw: unknown): ReplayFile {
     if (world && world.skip !== undefined && (!Array.isArray(world.skip) || !world.skip.every((id) => Number.isInteger(id) && (id as number) >= 1))) {
       throw new ReplayError(`inputs[${i}].world.skip must be a list of robot ids (whole numbers, 1 or more)`);
     }
+    const moves = world?.move === undefined ? undefined : moveList(world.move, `inputs[${i}].world.move`);
     return {
       ...(world
         ? {
@@ -96,6 +108,7 @@ export function parseReplay(raw: unknown): ReplayFile {
               ...(Array.isArray(world.remove) ? { remove: [...(world.remove as number[])] } : {}),
               ...(Array.isArray(world.skip) ? { skip: [...(world.skip as number[])] } : {}),
               ...(world.noSmokeOrJam === undefined ? {} : { noSmokeOrJam: world.noSmokeOrJam as boolean }),
+              ...(moves ? { move: moves } : {}),
             },
           }
         : {}),
@@ -142,6 +155,8 @@ export async function runReplay(
     if (change?.unlimitedEnergy !== undefined) world.setUnlimitedEnergy(change.unlimitedEnergy);
     if (change?.noSmokeOrJam !== undefined) world.setNoSmokeOrJam(change.noSmokeOrJam);
     if (change?.clearDebris) world.clearDebris();
+    // Before the removals: a robot moved and then removed by hand was moved first.
+    for (const m of change?.move ?? []) world.moveRobot(m.robot, m.x, m.y, m.angle);
     if (change?.remove) world.removeRobots(change.remove);
     if (change?.skip) world.skipScripts(change.skip);
     world.step(log.inputsAt(world.tick));

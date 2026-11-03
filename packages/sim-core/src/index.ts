@@ -7,7 +7,7 @@ export type { BodyId, BodyState, DebugBuffers, JointId, BodySpec, ShapeSpec, Col
 export { parseWorldFile, buildWorld, WorldFileError } from './world/WorldFile';
 export type { WorldFile, WorldBox } from './world/WorldFile';
 export { InputLog } from './replay/InputLog';
-export type { LoggedTick, WorldChange } from './replay/InputLog';
+export type { LoggedTick, RobotMove, WorldChange } from './replay/InputLog';
 export { buildReplay, parseReplay, replayHashes, runReplay, ReplayError } from './replay/replayFile';
 export type { ReplayFile } from './replay/replayFile';
 export { Controller } from './control/controller';

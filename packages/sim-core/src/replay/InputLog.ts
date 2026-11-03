@@ -14,10 +14,23 @@ export interface WorldChange {
   skip?: number[];
   /** The sandbox rule that turns off what smoke clouds and jammers do to sensors (and clouds to beams). */
   noSmokeOrJam?: boolean;
+  /**
+   * Robots picked up and put down by hand (the sandbox's Move), in the order it was done, before this tick: each one's
+   * reference body (its core's, else its first) put at (x, y) turned to `angle`, standing still (`World.moveRobot`).
+   */
+  move?: RobotMove[];
+}
+
+/** One robot put down by hand (`WorldChange.move`). */
+export interface RobotMove {
+  robot: number;
+  x: number;
+  y: number;
+  angle: number;
 }
 
 function cloneChange(w: WorldChange): WorldChange {
-  return { ...w, ...(w.remove ? { remove: [...w.remove] } : {}), ...(w.skip ? { skip: [...w.skip] } : {}) };
+  return { ...w, ...(w.remove ? { remove: [...w.remove] } : {}), ...(w.skip ? { skip: [...w.skip] } : {}), ...(w.move ? { move: w.move.map((m) => ({ ...m })) } : {}) };
 }
 
 export interface LoggedTick {

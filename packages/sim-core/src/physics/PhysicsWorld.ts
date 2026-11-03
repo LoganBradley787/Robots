@@ -895,11 +895,15 @@ export class PhysicsWorld {
   /**
    * True when any of the shapes (world space, unrotated) overlaps an existing collider. Shapes are shrunk by
    * `margin` so resting exactly against something counts as free. Sees colliders created since the last step too
-   * (a robot just spawned, or a world that is paused), which Rapier's query index misses (`scanOverlaps`).
+   * (a robot just spawned, or a world that is paused), which Rapier's query index misses (`scanOverlaps`). Colliders of
+   * the bodies in `skip` do not count.
    */
-  overlapsShapes(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin = 0.02): boolean {
+  overlapsShapes(shapes: readonly { x: number; y: number; shape: ShapeSpec }[], margin = 0.02, skip?: ReadonlySet<BodyId>): boolean {
     let hit = false;
-    this.scanOverlaps(shapes, margin, () => {
+    this.scanOverlaps(shapes, margin, (c) => {
+      const parent = c.parent();
+      const id = parent ? this.byHandle.get(parent.handle) : undefined;
+      if (skip && id !== undefined && skip.has(id)) return false;
       hit = true;
       return true;
     });
