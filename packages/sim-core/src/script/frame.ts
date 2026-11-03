@@ -24,9 +24,17 @@ export interface ScriptLayout {
   json: string;
   /**
    * The same layout as a patch on layout `from` (`layoutPatch`), for a script that holds that one: it keeps the part
-   * objects of every part that is as it was and makes only the others. A script holding any other layout reads `json`.
+   * objects of every part that is as it was and makes only the others. A script holding any other layout reads
+   * `patchFrom`, else `json`.
    */
   patch?: { from: number; json: string };
+  /**
+   * The same layout as a patch on an older layout of the same robot, `held`, while the world still keeps that one
+   * (`PAST_LAYOUTS`); else undefined. For a script that slept through several: a big robot under fire changes most
+   * ticks, and Anvil-rw's repair script, waking twice a second, read its whole layout of 2800 parts every time, 30 to
+   * 40 ms.
+   */
+  patchFrom?: (held: number) => string | undefined;
   /**
    * M16: each part type's static numbers as JSON, `{ "<type>": spec }` (`partSpecsJson`), for at least every type in
    * the layout. A script is sent it before the layout, and only when it is not the text it was sent last (the world

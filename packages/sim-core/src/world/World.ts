@@ -177,6 +177,9 @@ interface Hull {
 
 /** A cooling reactor's heat under this is 0: a float falling toward 0 never gets there. */
 const REACTOR_COLD = 1e-6;
+
+/** How many of a robot's layouts before its current one are kept to patch from (`ScriptLayout.patchFrom`): more than a half-second sleep's worth. */
+const PAST_LAYOUTS = 40;
 /** Parts asking at least this share of the top draw count as the top draw (`World.topDrawer`). */
 const TOP_DRAW_BAND = 0.9;
 
@@ -428,6 +431,8 @@ export class World {
   private readonly fullRebuild: boolean;
   private readonly fullLayouts: boolean;
   private readonly feeds = new WeakMap<Robot, ScriptFeed>();
+  /** Each robot's last few layouts before its current one, oldest first, for a script that slept through them (`patchFrom`). */
+  private readonly pastLayouts = new WeakMap<Robot, { id: number; rows: LayoutPart[] }[]>();
   /** Every robot in `robots`, by id (M9: lookups on every tick without scanning the list). */
   private readonly byId = new Map<number, Robot>();
   private layouts = 0;
@@ -3025,6 +3030,15 @@ export class World {
     // The whole layout as text is only made when a script needs it: one that holds the last layout takes the patch.
     let json: string | undefined;
     const patch = last && !this.fullLayouts ? layoutPatch(last.rows, layout) : undefined;
+    // The layouts before it, for a script that slept through some: a patch on the one it holds, made when asked for.
+    let past = this.pastLayouts.get(robot);
+    if (last && !this.fullLayouts) {
+      if (!past) this.pastLayouts.set(robot, (past = []));
+      past.push({ id: last.layout.id, rows: last.rows });
+      if (past.length > PAST_LAYOUTS) past.shift();
+    }
+    const older = past;
+    const patches = new Map<number, string | undefined>();
     const handed: ScriptLayout = {
       id: ++this.layouts,
       // The same text for every layout of this world, so a script is sent it once (M16).
@@ -3033,6 +3047,17 @@ export class World {
         return (json ??= layoutJson(layout));
       },
       ...(last && patch !== undefined ? { patch: { from: last.layout.id, json: patch } } : {}),
+      ...(older
+        ? {
+            patchFrom(held: number): string | undefined {
+              if (!patches.has(held)) {
+                const rows = older.find((l) => l.id === held)?.rows;
+                patches.set(held, rows ? layoutPatch(rows, layout) : undefined);
+              }
+              return patches.get(held);
+            },
+          }
+        : {}),
     };
     containers.sort(byPartId);
     const feed: ScriptFeed = { version: robot.version, coreId, map: robot.parts, size: robot.parts.size, chunk, scope, mass, layout: handed, rows: layout, pool: containers, parts, numbers: new Float64Array(numberCount(layout)) };

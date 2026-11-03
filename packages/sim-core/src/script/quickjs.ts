@@ -422,7 +422,7 @@ class QuickJsInstance implements ScriptInstance {
           this.specsSeen = specs;
         }
         // A patch on the layout this script holds when there is one, else the whole layout.
-        const patch = frame.layout.patch !== undefined && frame.layout.patch.from === this.layoutId ? frame.layout.patch.json : undefined;
+        const patch = frame.layout.patch !== undefined && frame.layout.patch.from === this.layoutId ? frame.layout.patch.json : this.layoutId === undefined ? undefined : frame.layout.patchFrom?.(this.layoutId);
         const text = ctx.newString(patch ?? frame.layout.json);
         const r = run(ctx, this.meter, () => ctx.callFunction(patch === undefined ? this.entries.layout : this.entries.patch, ctx.undefined, text));
         text.dispose();

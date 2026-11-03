@@ -295,7 +295,7 @@ function watching(): { host: ScriptHost; seen: string[]; counts: { whole: number
         const note = (frame: ScriptFrame): void => {
           const held = ids.get(i);
           if (held !== frame.layout.id) {
-            if (frame.layout.patch && frame.layout.patch.from === held) counts.patched++;
+            if ((frame.layout.patch && frame.layout.patch.from === held) || (held !== undefined && frame.layout.patchFrom?.(held) !== undefined)) counts.patched++;
             else counts.whole++;
             ids.set(i, frame.layout.id);
           }
@@ -428,6 +428,39 @@ describe('in the world: a patched layout against the whole layout every time', (
     // the two scripts: all patches in one world, all whole layouts in the other.
     expect(patched.counts).toEqual({ whole: 2, patched: 14 });
     expect(whole.counts).toEqual({ whole: 16, patched: 0 });
+  });
+
+  it('a script that sleeps through several changes wakes to a patch on the layout it holds', async () => {
+    // A row of frames that loses a part every tick; one script runs every tick (so the world makes every layout), the
+    // other sleeps 9 ticks at a time.
+    const SLEEPER = `${CHECK}\n function tick() { var r = checkGets(); if (r.indexOf('0 wrong') !== 0) log(r); sleep(9); }`;
+    const bp = {
+      format: 1,
+      name: 'row',
+      grid: [`${'F  '.repeat(20)}C  ${'F  '.repeat(20)}`.trim()],
+      scripts: [
+        { id: 'every', source: 'function tick() {}' },
+        { id: 'sleeper', source: SLEEPER },
+      ],
+    };
+    const scene = (w: World): void => {
+      const r = w.spawnBlueprint(bp, { x: 0, y: 300 });
+      for (let t = 0; t < 40; t++) {
+        const end = r.parts.get(`frame@${t % 2 === 0 ? t / 2 : 40 - (t - 1) / 2},0`);
+        if (end && t > 0 && t < 30) end.health = 0;
+        w.step();
+      }
+    };
+    const patched = await tell(false, space, 0, scene);
+    const whole = await tell(true, space, 0, scene);
+    expect(patched.seen).toEqual(whole.seen);
+    expect(patched.wrong).toEqual([]);
+    expect(patched.logs).toEqual([]);
+    expect(patched.hash).toBe(whole.hash);
+    // Each script read the whole layout once, at the start; every change after came as a patch, the sleeper's too.
+    expect(patched.counts.whole).toBe(2);
+    expect(patched.counts.patched).toBeGreaterThan(30);
+    expect(whole.counts.patched).toBe(0);
   });
 
   it('through a bay finishing a copy and letting it go (the copy wakes and runs its own script)', async () => {
