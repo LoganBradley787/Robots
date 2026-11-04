@@ -65,6 +65,9 @@ const heavy = param('heavy', 1.3, { min: 0.1, max: 5 }); // an enemy over this s
 const roofGap = param('roofGap', 25, { min: 5, max: 200 }); // m the core keeps under the arena's ceiling
 const reserve = param('reserve', 0.05, { min: 0, max: 0.5 }); // share of energy kept for landing
 const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it waits for on the ground before rising again
+const overdrive = param('overdrive', 1, { min: 0, max: 1 }); // 1: out of energy, it flies on its reactors past their rating instead of landing, if they can hold it up
+const hotLand = param('hotLand', 0.6, { min: 0.05, max: 1 }); // reactor heat (0 to 1) it lands at anyway, on overdrive: heat burns batteries out
+const coolTo = param('coolTo', 0.15, { min: 0, max: 1 }); // reactor heat it rises again under, after landing hot
 const edgeGap = param('edgeGap', 50, { min: 20, max: 500 }); // m the core keeps inside the arena's side edges
 const hideHeight = param('hideHeight', 200, { min: 50, max: 230 }); // m: where it waits out an enemy too heavy to ram
 const lapEnd = param('lapEnd', 700, { min: 100, max: 900 }); // m from where it last saw the enemy that a search sweeps, with no arena
@@ -180,6 +183,7 @@ const ceiling = arena ? arena.y - roofGap : Infinity; // the core never goes abo
 let guns = null;
 let zaps = []; // the pop-out lasers: { laser, rot, push } (see runZap)
 let pods = []; // jammer pods not yet used
+let reactors = []; // its reactors, listed once a second (see Overdrive)
 let gunParts = -1;
 let pings = []; // one entry per tick a sight touched the enemy's main robot: its reach that tick
 const BURNS = [12, 45, 25, 65]; // spots it burns from: m from that end of the hull to its near end
@@ -1251,8 +1255,18 @@ function tick() {
   if (time - (state.steadyAt ?? -1) >= 1) {
     state.steadyAt = time;
     state.steady = 0;
-    for (const p of parts) if (p.spec.reactor) state.steady += p.spec.reactor.power;
+    state.most = 0; // J/s its reactors make at most, past their rating
+    reactors = [];
+    for (const p of parts) {
+      if (!p.spec.reactor) continue;
+      state.steady += p.spec.reactor.power;
+      state.most += p.spec.reactor.power * p.spec.reactor.cap;
+      reactors.push(p);
+    }
   }
+  // The hottest reactor (read off the list made each second: a part lost since reads as it last was).
+  let heat = 0;
+  for (const p of reactors) heat = Math.max(heat, p.out.heat || 0);
   const hoverPower = ((m * 9.81) / 400) * 60; // J/s the lift boosters draw holding its weight
   const floor = state.bottom + 0.3;
   const push = Math.min(state.pushRight, state.pushLeft);
@@ -1846,13 +1860,22 @@ function tick() {
   state.perched = false;
   state.gunLean = null;
   if (charge >= restTo) state.resting = false;
+  // Overdrive (2026-11, Logan: it landed at 5 percent and got eaten): with an empty pool its reactors make what the
+  // boosters draw, up to their cap, but run hot, and heat burns batteries out. So it lands only when they cannot hold it
+  // up, or once the hottest is at `hotLand`, rising again under `coolTo`.
+  const onReactors = overdrive > 0.5 && state.most > 1.2 * hoverPower;
+  if (heat < coolTo) state.hot = false;
+  if (onReactors && heat >= hotLand) state.hot = true;
   const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
   // Hidden from the radar while raking or finishing it: it goes on with that where it was last seen (see below).
   const stickyHidden = !target && state.mainId >= 0 && state.last && state.shape && time - state.last.t < 30 && (state.rakeId === state.mainId || (state.zapping && state.zapId === state.mainId));
   if (state.won && !target) {
     plan('done: landing, watching for the next enemy');
     land = true;
-  } else if (charge < (state.resting ? restTo : reserve)) {
+  } else if (onReactors && state.hot) {
+    plan('reactors hot: landing to cool');
+    land = true;
+  } else if (!onReactors && charge < (state.resting ? restTo : reserve)) {
     state.resting = true;
     plan('low energy: landing');
     land = true;
