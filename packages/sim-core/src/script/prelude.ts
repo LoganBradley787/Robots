@@ -218,6 +218,61 @@ export const PRELUDE = String.raw`
   var poses = null;
   var widths = null;
   var shapes = null;
+  // The lists for the refill with the parts in the gaps (old indices, in order) taken out: what refillLists would make
+  // of the rows left, without going over every part again. A shape's rows keep their order; each row's values start
+  // as many numbers earlier as the gaps before it held.
+  function closeLists(gaps) {
+    var W = widths;
+    var oldN = W.length;
+    var G = gaps.length;
+    var gapAt = new Int32Array(G);
+    var gapW = new Int32Array(G);
+    var gone = 0;
+    var at = 0;
+    var i = 0;
+    for (var g = 0; g < G; g++) {
+      var a = gaps[g][0];
+      var b = gaps[g][1];
+      for (; i < a; i++) at += W[i];
+      gapAt[g] = at;
+      for (; i < b; i++) at += W[i];
+      gapW[g] = at - gapAt[g];
+      gone += b - a;
+    }
+    var nw = new Int32Array(oldN - gone);
+    var k = 0;
+    i = 0;
+    for (var g = 0; g < G; g++) {
+      var a = gaps[g][0];
+      for (; i < a; i++) nw[k++] = W[i];
+      i = gaps[g][1];
+    }
+    for (; i < oldN; i++) nw[k++] = W[i];
+    widths = nw;
+    for (var g = G - 1; g >= 0; g--) {
+      copyWithin(objs, gaps[g][0], gaps[g][1]);
+      copyWithin(poses, gaps[g][0], gaps[g][1]);
+    }
+    objs.length = oldN - gone;
+    poses.length = oldN - gone;
+    for (var c = 0; c < shapes.length; c++) {
+      var sh = shapes[c];
+      var srows = sh.rows;
+      var sat = sh.at;
+      var shift = 0;
+      var g = 0;
+      var kept = 0;
+      for (var q = 0; q < sh.n; q++) {
+        var start = sat[q] - 3;
+        while (g < G && gapAt[g] + gapW[g] <= start) shift += gapW[g++];
+        if (g < G && start >= gapAt[g]) continue;
+        srows[kept] = srows[q];
+        sat[kept] = sat[q] - shift;
+        kept++;
+      }
+      sh.n = kept;
+    }
+  }
   function refillLists() {
     var n = rows.length;
     objs = parse(nulls);
@@ -467,13 +522,13 @@ export const PRELUDE = String.raw`
   // The layout after the robot changed, as a patch on the one held (frame.ts, layoutPatch): the parts that are as
   // they were keep their objects, so nothing is made again for them. A kept part object stays live across the change.
   function patchLayout(json) {
-    objs = null;
     var p = parse(json);
     var n = p[0];
     var ops = p[2];
     var live = index !== null;
     if (p[1] === 2) {
-      // Only parts gone: the rest close up in place, last gap first.
+      // Only parts gone: the rest close up in place, last gap first, and so do the lists for the refill.
+      if (objs !== null) closeLists(ops);
       for (var i = ops.length - 1; i >= 0; i--) {
         var gap = ops[i];
         if (live) for (var j = gap[0]; j < gap[1]; j++) reindex(rows[j], null);
@@ -483,6 +538,7 @@ export const PRELUDE = String.raw`
       nulls = nullsFor(n);
       return;
     }
+    objs = null;
     // Kept parts in their old order with new ones only after them (p[1] is 1): the lists for get() follow along.
     live = live && p[1] === 1;
     var text = nullsFor(n);
