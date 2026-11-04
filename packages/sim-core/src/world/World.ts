@@ -3003,15 +3003,25 @@ export class World {
           break;
         }
       }
-      // Only a part with inputs has values (a controller keeps none for the others).
-      const ins = p.def.inputs.length === 0 ? NO_NAMES : [...(chans?.get(id)?.keys() ?? [])];
-      let outs: string[] = NO_NAMES;
+      const old = was >= 0 ? last?.rows[was] : undefined;
+      // Only a part with inputs has values (a controller keeps none for the others). Names as they were keep the old
+      // list: a big robot that lost a part has thousands of parts whose names did not change.
+      const own = p.def.inputs.length === 0 ? undefined : chans?.get(id);
+      const ins = p.def.inputs.length === 0 ? NO_NAMES : old !== undefined && keysAre(old.in, own) ? old.in : [...(own?.keys() ?? [])];
+      let made: string[] = NO_NAMES;
+      let n = 0;
+      let same = old !== undefined;
       for (const o of p.def.outputs) {
         if (this.outputOf(p, o.name, pool, reads) === undefined) continue;
-        if (outs === NO_NAMES) outs = [];
-        outs.push(o.name);
+        if (same && old?.out[n] === o.name) {
+          n++;
+          continue;
+        }
+        if (made === NO_NAMES) made = old !== undefined ? old.out.slice(0, n) : [];
+        same = false;
+        made.push(o.name);
       }
-      const old = was >= 0 ? last?.rows[was] : undefined;
+      const outs: readonly string[] = same && old !== undefined ? (n === old.out.length ? old.out : old.out.slice(0, n)) : made;
       // The joint that carries it (M16) is worked out again: a rebuild may have locked or lost that joint.
       const on = carriedBy(robot, p);
       const kept = old !== undefined && old.on === on && sameNames(old.in, ins) && sameNames(old.out, outs);
@@ -4218,6 +4228,15 @@ function partCenter(part: PartInstance): { x: number; y: number } | undefined {
  * joints is walked one step at a time). '' when no joint carries it: it is on the robot's main body, or its joint is
  * locked or lost its base. One rule for every joint part, whatever it is.
  */
+/** Whether `names` are the keys of `map` in order (no map: no names). */
+function keysAre(names: readonly string[], map: ReadonlyMap<string, number> | undefined): boolean {
+  if (map === undefined) return names.length === 0;
+  if (map.size !== names.length) return false;
+  let i = 0;
+  for (const k of map.keys()) if (k !== names[i++]) return false;
+  return true;
+}
+
 function carriedBy(robot: Robot, part: PartInstance): string {
   const joint = robot.groups[part.group]?.joint;
   if (!joint) return '';
