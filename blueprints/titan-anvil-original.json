@@ -86,7 +86,7 @@
   {
    "id": "pilot",
    "source": {
-    "file": "titan-anvil-original.pilot.js"
+    "file": "titan-anvil.pilot.js"
    }
   }
  ]
