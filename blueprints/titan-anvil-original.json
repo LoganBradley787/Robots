@@ -1,0 +1,93 @@
+{
+ "format": 1,
+ "name": "titan-anvil-original",
+ "kind": "yours",
+ "grid": [
+  ".  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  M^ .  .",
+  "M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M>",
+  "M< A  A  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  F  F  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  J  F  F  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  O  C  O  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  A  A  A  A  A  A  A  A  A  A  A  A  A  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  p  p  p  p  p  p  F  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  Z  F  q  q  q  q  q  q  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  F  F  F  F  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  F  l  l  l  l  l  l  l  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  r  F  r  r  r  r  r  r  F  F  F  F  A  A  M>",
+  "M< A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  A  M>",
+  ".  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  .  Mv .  ."
+ ],
+ "legend": {
+  "l": {
+   "part": "booster",
+   "rot": 0,
+   "tags": [
+    "la"
+   ],
+   "auto": false
+  },
+  "r": {
+   "part": "booster",
+   "rot": 0,
+   "tags": [
+    "lb"
+   ],
+   "auto": false
+  },
+  "p": {
+   "part": "booster",
+   "rot": 270,
+   "tags": [
+    "pa"
+   ],
+   "auto": false
+  },
+  "q": {
+   "part": "booster",
+   "rot": 90,
+   "tags": [
+    "pb"
+   ],
+   "auto": false
+  }
+ },
+ "autoControls": false,
+ "scripts": [
+  {
+   "id": "pilot",
+   "source": {
+    "file": "titan-anvil-original.pilot.js"
+   }
+  }
+ ]
+}
