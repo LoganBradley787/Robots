@@ -430,6 +430,8 @@ export class World {
   private readonly scriptProbe?: (robotId: number, reference: () => ScriptInput) => void;
   private readonly fullRebuild: boolean;
   private readonly fullLayouts: boolean;
+  /** The world's side of every behavior context (`makePartHooks`), made on first use. */
+  private partHooks: PartHooks | undefined;
   private readonly feeds = new WeakMap<Robot, ScriptFeed>();
   /** Each robot's last few layouts before its current one, oldest first, for a script that slept through them (`patchFrom`). */
   private readonly pastLayouts = new WeakMap<Robot, { id: number; rows: LayoutPart[] }[]>();
@@ -3812,39 +3814,23 @@ export class World {
       const behavior = part.def.behavior === undefined ? undefined : BEHAVIORS.get(part.def.behavior);
       if (!behavior) continue;
       const chunk = sealed.has(part.id) ? NO_CHUNK : chunkIndex(robot, part.id);
-      const entry: BehaviorEntry = {
-        part,
-        behavior,
-        chunk,
-        own: undefined,
-        ctx: {
-          physics: this.physics,
-          robot,
-          part,
-          // Set each tick before the part plans (`runBehaviors`).
-          group: robot.groups[part.group] as BodyGroup,
-          dt: this.dt,
-          value: (channel) => entry.own?.get(channel) ?? part.def.inputs.find((c) => c.name === channel)?.default ?? 0,
-          config: (key) => part.def.behaviorConfig?.[key] ?? 0,
-          controlled: false,
-          free: false,
-          sealed: chunk === NO_CHUNK,
-          detach: (face, impulse) => this.detach(robot, part, face, impulse),
-          giveBack: (joules) => {
-            if (!(joules > 0)) return;
-            const back = (list.back ??= new Map());
-            back.set(chunk, (back.get(chunk) ?? 0) + joules);
-          },
-          job: () => this.jobOf(robot, part),
-          finish: () => this.finishBuild(robot, part),
-          release: () => this.releaseBuild(robot, part),
-          watch: () => this.watchLeaving(robot, part),
-        },
-      };
+      const entry = { part, behavior, chunk, own: undefined } as BehaviorEntry;
+      entry.ctx = new PartContext(this.physics, robot, part, this.dt, entry, list, (this.partHooks ??= this.makePartHooks()));
       (behavior.early === true ? list.early : list.late).push(entry);
     }
     this.behaviorLists.set(robot, list);
     return list;
+  }
+
+  /** What a behavior may ask of the world (`PartContext`): made once, shared by every part's context. */
+  private makePartHooks(): PartHooks {
+    return {
+      detach: (robot, part, face, impulse) => this.detach(robot, part, face, impulse),
+      job: (robot, part) => this.jobOf(robot, part),
+      finish: (robot, part) => this.finishBuild(robot, part),
+      release: (robot, part) => this.releaseBuild(robot, part),
+      watch: (robot, part) => this.watchLeaving(robot, part),
+    };
   }
 
   /**
@@ -4316,6 +4302,71 @@ function gunOutput(part: PartInstance, name: string): number | undefined {
 const NO_CHUNK = -1;
 
 /** A part with a behavior, as `runBehaviors` keeps it: its chunk, its context, and its input channels this tick (`own`). */
+/** What a part's context calls back into the world for: the world's own private steps. */
+interface PartHooks {
+  detach(robot: Robot, part: PartInstance, face: Face, impulse: number): void;
+  job(robot: Robot, part: PartInstance): { seconds: number; joules: number } | undefined;
+  finish(robot: Robot, part: PartInstance): void;
+  release(robot: Robot, part: PartInstance): void;
+  watch(robot: Robot, part: PartInstance): void;
+}
+
+/**
+ * A part's `BehaviorContext` on a behavior list: its methods shared by every part (a big robot's list is rebuilt each
+ * time it loses a part, and nine closures a part was most of that). `group`, `controlled` and `free` are set each tick
+ * before the part plans (`runBehaviors`).
+ */
+class PartContext implements BehaviorContext {
+  group: BodyGroup;
+  controlled = false;
+  free = false;
+  readonly sealed: boolean;
+  readonly physics: PhysicsWorld;
+  readonly robot: Robot;
+  readonly part: PartInstance;
+  readonly dt: number;
+  private readonly entry: BehaviorEntry;
+  private readonly list: BehaviorList;
+  private readonly hooks: PartHooks;
+  constructor(physics: PhysicsWorld, robot: Robot, part: PartInstance, dt: number, entry: BehaviorEntry, list: BehaviorList, hooks: PartHooks) {
+    this.physics = physics;
+    this.robot = robot;
+    this.part = part;
+    this.dt = dt;
+    this.entry = entry;
+    this.list = list;
+    this.hooks = hooks;
+    this.group = robot.groups[part.group] as BodyGroup;
+    this.sealed = entry.chunk === NO_CHUNK;
+  }
+  value(channel: string): number {
+    return this.entry.own?.get(channel) ?? this.part.def.inputs.find((c) => c.name === channel)?.default ?? 0;
+  }
+  config(key: string): number {
+    return this.part.def.behaviorConfig?.[key] ?? 0;
+  }
+  detach(face: Face, impulse: number): void {
+    this.hooks.detach(this.robot, this.part, face, impulse);
+  }
+  giveBack(joules: number): void {
+    if (!(joules > 0)) return;
+    const back = (this.list.back ??= new Map());
+    back.set(this.entry.chunk, (back.get(this.entry.chunk) ?? 0) + joules);
+  }
+  job(): { seconds: number; joules: number } | undefined {
+    return this.hooks.job(this.robot, this.part);
+  }
+  finish(): void {
+    this.hooks.finish(this.robot, this.part);
+  }
+  release(): void {
+    this.hooks.release(this.robot, this.part);
+  }
+  watch(): void {
+    this.hooks.watch(this.robot, this.part);
+  }
+}
+
 interface BehaviorEntry {
   part: PartInstance;
   behavior: Behavior;
