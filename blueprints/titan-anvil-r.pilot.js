@@ -65,9 +65,11 @@ const heavy = param('heavy', 1.3, { min: 0.1, max: 5 }); // an enemy over this s
 const roofGap = param('roofGap', 25, { min: 5, max: 200 }); // m the core keeps under the arena's ceiling
 const reserve = param('reserve', 0.05, { min: 0, max: 0.5 }); // share of energy kept for landing
 const restTo = param('restTo', 0.25, { min: 0, max: 1 }); // share of energy it waits for on the ground before rising again
-const overdrive = param('overdrive', 1, { min: 0, max: 1 }); // 1: out of energy, it flies on its reactors past their rating instead of landing, if they can hold it up
-const hotLand = param('hotLand', 0.6, { min: 0.05, max: 1 }); // reactor heat (0 to 1) it lands at anyway, on overdrive: heat burns batteries out
+const overdrive = param('overdrive', 1, { min: 0, max: 1 }); // 1: out of energy in a fight, it flies on its reactors past their rating instead of landing, if they can hold it up
+const hotLand = param('hotLand', 0.6, { min: 0.05, max: 1 }); // reactor heat (0 to 1) it lands at out of a fight: heat burns batteries out, and then what draws the power
 const coolTo = param('coolTo', 0.15, { min: 0, max: 1 }); // reactor heat it rises again under, after landing hot
+const fightNear = param('fightNear', 300, { min: 0, max: 2000 }); // m to the enemy (or gun sights touching it) that make a fight, for overdrive
+const fightKeep = param('fightKeep', 5, { min: 0, max: 60 }); // s a fight lasts after the enemy was that near or it was last hit
 const edgeGap = param('edgeGap', 50, { min: 20, max: 500 }); // m the core keeps inside the arena's side edges
 const hideHeight = param('hideHeight', 200, { min: 50, max: 230 }); // m: where it waits out an enemy too heavy to ram
 const lapEnd = param('lapEnd', 700, { min: 100, max: 900 }); // m from where it last saw the enemy that a search sweeps, with no arena
@@ -1296,6 +1298,9 @@ function tick() {
     target = { x: state.last.x + state.last.vx * age, y: Math.max(1, state.last.y + state.last.vy * age), vx: state.last.vx, vy: state.last.vy, ay: 0, m: state.last.m };
   }
   if (target || pings.length > 0) state.lostAt = time;
+  // In a fight: the enemy near, its gun sights on it, or a hit (a jolt of its own speed). Only then does it overdrive.
+  if ((target && Math.hypot(target.x - x, target.y - y) < fightNear) || (pings.length > 0 && pings[pings.length - 1].t > time - 1) || jolt > 4) state.fightAt = time;
+  const fighting = time - (state.fightAt ?? -1000) < fightKeep;
   const shape = (main || (blind && target)) && state.shape && time - state.shapeAt < (blind ? 12 : 6) ? state.shape : null;
   if (state.way !== '' && state.wayParts < 0 && main) state.wayParts = main.parts;
   if (state.way !== '' && jolt > 2 && target && Math.abs(target.x - x) < state.halfWidth + 120 + (shape ? Math.max(-shape.hullLo, shape.hullHi) : 0)) state.wayHit = true;
@@ -1861,18 +1866,20 @@ function tick() {
   state.gunLean = null;
   if (charge >= restTo) state.resting = false;
   // Overdrive (2026-11, Logan: it landed at 5 percent and got eaten): with an empty pool its reactors make what the
-  // boosters draw, up to their cap, but run hot, and heat burns batteries out. So it lands only when they cannot hold it
-  // up, or once the hottest is at `hotLand`, rising again under `coolTo`.
-  const onReactors = overdrive > 0.5 && state.most > 1.2 * hoverPower;
+  // boosters draw, up to their cap, but run hot, and heat burns batteries out, then what draws the power. In a fight it
+  // stays up on them whatever that costs, unless they cannot hold it up. Out of one (Logan, 2026-11-05: nothing near,
+  // why not land and charge? and its lasers never charged) it lands to charge as before, and lands once the hottest
+  // reactor is at `hotLand`, rising again under `coolTo`.
+  const onReactors = overdrive > 0.5 && fighting && state.most > 1.2 * hoverPower;
   if (heat < coolTo) state.hot = false;
-  if (onReactors && heat >= hotLand) state.hot = true;
+  if (heat >= hotLand) state.hot = true;
   const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
   // Hidden from the radar while raking or finishing it: it goes on with that where it was last seen (see below).
   const stickyHidden = !target && state.mainId >= 0 && state.last && state.shape && time - state.last.t < 30 && (state.rakeId === state.mainId || (state.zapping && state.zapId === state.mainId));
   if (state.won && !target) {
     plan('done: landing, watching for the next enemy');
     land = true;
-  } else if (onReactors && state.hot) {
+  } else if (!onReactors && state.hot) {
     plan('reactors hot: landing to cool');
     land = true;
   } else if (!onReactors && charge < (state.resting ? restTo : reserve)) {

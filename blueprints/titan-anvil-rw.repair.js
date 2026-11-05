@@ -18,6 +18,15 @@
 // `minDense` (for the keep, or a hurt group, `minDenseHard`), then push boosters, a pair at a time (one a side), down to
 // `pushKeep` of each side. Never a battery that ties anything else in (built next to anything but batteries), a lift or
 // end booster, or a plate, and never what would cut it in two (`spare`).
+//
+// Grounded, it sheds weight (Logan, 2026-11-05: on the ground it is useless, so it gets up by any means). Its lift rows
+// at full throttle for `climbAt` s without climbing, or too few lift boosters left to hold its weight at all: it sells
+// what it can best do without until its lift holds `liftMargin` times its weight, and while it still cannot climb, more.
+// A section swung off the hull first (on a body turned away from the core's), lowest first; then its plates, the bottom
+// rows first; then the rest of the hull, the bottom first. Never the core and what is round it (`keepR`), a reactor, a
+// laser or what brings it out, or a booster. What it sells is no loss: a scrap gives back all a part is worth, and
+// what it shed is built again once it is up and calm, as long as its lift still holds `liftMargin` times its weight
+// with it. While it sheds it builds nothing but lift boosters and the keep.
 
 const repairOn = param('repair', 1, { min: 0, max: 1 }); // 0: it never scraps, builds or heals
 const every = param('every', 30, { min: 1, max: 30 }); // ticks between looks
@@ -30,6 +39,8 @@ const minDenseHard = param('minDenseHard', 250, { min: 0, max: 1000 }); // and f
 const pushKeep = param('pushKeep', 0.8, { min: 0, max: 1 }); // share of each push side (175) it keeps when the batteries are down to their floor
 const float = param('float', 15, { min: 0, max: 300 }); // juice it keeps in the tank ahead of need
 const plateAt = param('plateAt', 0.5, { min: 0, max: 1 }); // share of health under which a plate is healed with what is over the float
+const climbAt = param('climbAt', 2, { min: 0.5, max: 20 }); // s at full lift without climbing before it sheds weight
+const liftMargin = param('liftMargin', 1.2, { min: 1, max: 3 }); // its lift over its weight: it sheds down to this, and builds nothing that takes it under (it has 1.31)
 
 const GROUPS = ['la', 'lb', 'pa', 'pb', 'ra', 'rb'];
 
@@ -55,6 +66,13 @@ const cellsOfPart = (p) => {
   return out;
 };
 const groupOf = (p) => (p.type === 'booster' && p.tags.length > 0 && GROUPS.includes(p.tags[0]) ? p.tags[0] : null);
+const isLift = (p) => p.type === 'booster' && (p.tags[0] === 'la' || p.tags[0] === 'lb');
+// What it never sheds to get up: what it is for, and what makes it fly.
+const NEVER_SHED = new Set(['core', 'reactor', 'laser', 'piston', 'rotator', 'decoupler', 'booster']);
+// A booster pushes 400 N at full throttle (booster.json).
+const BOOST_N = 400;
+// Each type's mass, from the parts it starts with: what a lost part would weigh again, built.
+const MASS = {};
 
 // What it may sell, worked out once at setup (a sort over every battery each look cost more than it was worth):
 // - Batteries built with batteries on all four sides, the middle of the block (about 210 it may sell). One that touches
@@ -74,6 +92,9 @@ function setup() {
   state.seen = {}; // what was lost at the last look
   state.blocked = {}; // part: when its cell was last found blocked
   state.last = '';
+  state.shed = {}; // what it sold to get off the ground: built again once it is up
+  state.strainAt = -1; // since when its lift rows have been at full throttle without climbing
+  for (const p of parts) MASS[p.type] = p.mass;
   // What each booster group had to start with: the share it keeps is of this, not of what it has after selling.
   state.had = {};
   for (const k of GROUPS) state.had[k] = 0;
@@ -132,7 +153,7 @@ function wants(gone, g, at) {
   const add = (p, why, hard) => {
     if (open.has(p.id) || time - (state.blocked[p.id] ?? -1000) < 10) return;
     open.add(p.id);
-    list.push({ id: p.id, cost: p.create, why, hard });
+    list.push({ id: p.id, cost: p.create, why, hard, lift: p.type === 'booster' && (p.tags[0] === 'la' || p.tags[0] === 'lb'), kg: MASS[p.type] ?? p.juice });
   };
   const reach = gone.filter((p) => p.touching);
   // 1: the keep, nearest the core first.
@@ -174,7 +195,7 @@ function offers(short, hard) {
     for (const c0 of cellsOfPart(p)) at.add(key(c0.x, c0.y));
     if (p.type === 'jammer') {
       const c = cellOf(p.id);
-      if (fromCore(c.x, c.y) > keepR && out.length < 200) out.push({ id: p.id, gives: 1.6 });
+      if (fromCore(c.x, c.y) > keepR && out.length < 200) out.push({ id: p.id, gives: 2 });
     } else if (p.type === 'densebattery') {
       dense++;
       live.add(p.id);
@@ -197,7 +218,7 @@ function offers(short, hard) {
     const c = cellOf(id);
     if (sides(c.x, c.y) < 3) continue;
     if (SIDES.some(([dx, dy]) => at.has(key(c.x + dx, c.y + dy)) && sides(c.x + dx, c.y + dy) - 1 < 2)) continue;
-    out.push({ id, gives: 2.4 });
+    out.push({ id, gives: 3 });
     at.delete(key(c.x, c.y));
     dense--;
     sold++;
@@ -209,11 +230,82 @@ function offers(short, hard) {
   for (const [a, b] of PAIRS) {
     if (pairs <= 0 || out.length + 2 > most) break;
     if (!live.has(a) || !live.has(b)) continue;
-    out.push({ id: a, gives: 1.2, pair: b });
-    out.push({ id: b, gives: 1.2, pair: a });
+    out.push({ id: a, gives: 1.5, pair: b });
+    out.push({ id: b, gives: 1.5, pair: a });
     pairs--;
   }
   return out;
+}
+
+/** The weight (kg) its lift boosters hold up at full throttle. */
+function liftKg() {
+  let n = 0;
+  for (const p of parts) if (isLift(p)) n++;
+  return (n * BOOST_N) / 9.81;
+}
+
+/**
+ * Stuck at full lift: whether it sheds weight this look. Its lift rows (the busier side, as it may be righting itself)
+ * at 0.9 throttle or more while it goes neither up nor down (under 0.5 m/s), for `climbAt` s; or too few lift boosters
+ * to hold its weight. Going down at full lift is braking, a landing as often as not (the first try shed 5 t on its way
+ * down to charge): it sheds once it is down and still cannot rise.
+ */
+function stuck(lift) {
+  const sum = { la: 0, lb: 0 };
+  const n = { la: 0, lb: 0 };
+  for (const p of parts) {
+    if (!isLift(p)) continue;
+    sum[p.tags[0]] += p.in.throttle || 0;
+    n[p.tags[0]]++;
+  }
+  const full = Math.max(n.la > 0 ? sum.la / n.la : 0, n.lb > 0 ? sum.lb / n.lb : 0) >= 0.9;
+  if (full && Math.abs(self.vel.y) < 0.5) {
+    if (state.strainAt < 0) state.strainAt = time;
+  } else state.strainAt = -1;
+  return lift < self.mass || (state.strainAt >= 0 && time - state.strainAt >= climbAt);
+}
+
+/** Angle between two body angles, -pi to pi. */
+const turned = (a, b) => {
+  let d = a - b;
+  while (d > Math.PI) d -= 2 * Math.PI;
+  while (d < -Math.PI) d += 2 * Math.PI;
+  return d;
+};
+
+/**
+ * Sells weight to get up: `want` kg, best first (see the top). Each look sells what its free jobs allow; `spare` keeps
+ * it in one piece, so a section swung off the hull goes from its far end in.
+ */
+function shed(want, free, busy) {
+  const list = [];
+  for (const p of parts) {
+    if (NEVER_SHED.has(p.type) || state.sold[p.id] || busy.has(p.id)) continue;
+    const c = cellOf(p.id);
+    if (fromCore(c.x, c.y) <= keepR) continue;
+    // A body turned more than 6 degrees from the hull's: a section that swung away (what is on a laser's joint is that
+    // joint's load, and goes with the rest of the hull).
+    const off = p.on === '' && Math.abs(turned(p.angle, self.angle)) > 0.1;
+    list.push({ p, tier: off ? 0 : p.type === 'armorplate' ? 1 : 2, low: off ? p.pos.y : c.y });
+  }
+  list.sort((a, b) => a.tier - b.tier || a.low - b.low || b.p.mass - a.p.mass);
+  const head = list.slice(0, Math.min(list.length, free * 4 + 8));
+  const may = new Set(spare(head.map((s) => s.p.id)) ?? []);
+  let kg = 0;
+  let n = 0;
+  for (const s of head) {
+    if (free <= 0 || kg >= want) break;
+    if (!may.has(s.p.id)) continue;
+    const done = scrap(s.p.id);
+    if (done.ok) {
+      state.shed[s.p.id] = true;
+      kg += s.p.mass;
+      free--;
+      n++;
+    } else if (done.why === 'too many orders this tick') break;
+  }
+  if (n > 0) log(`shed ${n} (${kg.toFixed(0)} kg) to get up: mass ${self.mass.toFixed(0)}, lift ${(liftKg() / self.mass).toFixed(2)}, climbing ${self.vel.y.toFixed(1)} m/s`);
+  return free;
 }
 
 function think() {
@@ -230,16 +322,29 @@ function think() {
   const busy = new Set(work.jobs.map((j) => j.part));
   let free = work.free;
   const g = groups();
-  const wish = wants(gone, g, cells()).filter((w) => !busy.has(w.id));
+  // Grounded: shed down to `liftMargin`, counting what is being shed already; still stuck past that, 3 percent a look.
+  const lift = liftKg();
+  const grounded = stuck(lift);
+  if (grounded && free > 0) {
+    let going = 0;
+    for (const j of work.jobs) if (j.kind === 'scrap' && state.shed[j.part]) going += MASS[(parts.find((p) => p.id === j.part) ?? {}).type] ?? 0;
+    const want = Math.max(self.mass - going - lift / liftMargin, 0.03 * self.mass - going);
+    if (want > 0) free = shed(want, free, busy);
+  }
+  // What it builds must leave its lift at `liftMargin` (a lift booster adds lift); shedding, only lift and the keep.
+  let room = lift / liftMargin - self.mass;
+  const wish = wants(gone, g, cells()).filter((w) => !busy.has(w.id) && (!grounded || w.lift || w.why === 'keep'));
   const made = {};
   let need = 0;
   let hard = false;
   let why = '';
   for (const w of wish) {
+    if (!w.lift && w.why !== 'keep' && w.kg > room) continue;
     if (free > 0 && money >= w.cost) {
       const done = build(w.id);
       if (done.ok) {
         money -= w.cost;
+        room += w.lift ? BOOST_N / 9.81 / liftMargin - w.kg : -w.kg;
         free--;
         made[w.why] = (made[w.why] ?? 0) + 1;
       } else if (done.why === 'blocked') state.blocked[w.id] = time;
@@ -253,7 +358,9 @@ function think() {
     }
   }
   const short = need + float - money;
-  if (short > 0 && free > 0) {
+  if (grounded) {
+    // Shedding: it sells only for weight, above.
+  } else if (short > 0 && free > 0) {
     const offer = offers(short, hard);
     const may = new Set(spare(offer.map((s) => s.id)) ?? []);
     let got = 0;
