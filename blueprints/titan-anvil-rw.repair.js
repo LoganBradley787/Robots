@@ -26,7 +26,8 @@
 // swung off the hull first (on a body turned away from the core's), lowest first; then its plates, the bottom rows
 // first; then the rest of the hull, the bottom first; then push boosters, a pair at a time, down to `shedPush` of each
 // side. Never the core and what is round it (`keepR`), a reactor, a laser or what brings it out, or a lift or end
-// booster. What it sells is no loss: a scrap gives back all a part is worth, and
+// booster, nor what holds the core and the lasers to the reactors (`tiesCore`, `tiesLaser` paths that share no part,
+// through no jammer or booster). What it sells is no loss: a scrap gives back all a part is worth, and
 // what it shed is built again once it is up and calm, as long as its lift still holds `liftMargin` times its weight
 // with it. While it sheds it builds nothing but lift boosters and the keep.
 
@@ -44,6 +45,8 @@ const plateAt = param('plateAt', 0.5, { min: 0, max: 1 }); // share of health un
 const climbAt = param('climbAt', 2, { min: 0.5, max: 20 }); // s at full lift without climbing before it sheds weight
 const liftMargin = param('liftMargin', 1.2, { min: 1, max: 3 }); // its lift over its weight: it sheds down to this, and builds nothing that takes it under (it has 1.31)
 const shedPush = param('shedPush', 0.33, { min: 0, max: 1 }); // share of each push side it keeps when shedding
+const tiesCore = param('tiesCore', 8, { min: 1, max: 30 }); // paths sharing no part that shedding leaves from the keep to the reactors
+const tiesLaser = param('tiesLaser', 3, { min: 1, max: 10 }); // and from each laser's mount
 
 const GROUPS = ['la', 'lb', 'pa', 'pb', 'ra', 'rb'];
 
@@ -281,14 +284,125 @@ const turned = (a, b) => {
   return d;
 };
 
+// What can hold it together: parts that bear on every face. Not a jammer (lit, it burns away: the pilot lit the last one
+// its core hung by, and the core fell off the hull, Logan 2026-11-05), nor a booster (its reactors' heat burns them).
+const TIE = new Set(['armorplate', 'frame', 'densebattery', 'reactor', 'core']);
+
+/**
+ * The parts on up to `k` paths from any part in `from` to a reactor that share no part: what holds `from` to the hull.
+ * Shed bottom first with only `spare` to keep it in one piece, it dug out the hull round its core and left the core hung
+ * by one jammer (Logan, 2026-11-05). `gone`: parts being scrapped. Returns `{ ids, n }`, `n` the paths it found.
+ */
+function ties(from, k, gone) {
+  const live = parts.filter((p) => TIE.has(p.type) && p.on === '' && !gone.has(p.id));
+  const n = live.length;
+  const at = new Map();
+  live.forEach((p, i) => {
+    for (const c of cellsOfPart(p)) at.set(key(c.x, c.y), i);
+  });
+  // A flow of 1 a part: part i is two nodes, in (2i) and out (2i + 1); S and T the ends. Edge e's reverse is e ^ 1.
+  const S = 2 * n;
+  const T = 2 * n + 1;
+  const first = new Array(2 * n + 2).fill(-1);
+  const to = [];
+  const cap = [];
+  const next = [];
+  const edge = (a, b, c) => {
+    to.push(b, a);
+    cap.push(c, 0);
+    next.push(first[a], first[b]);
+    first[a] = to.length - 2;
+    first[b] = to.length - 1;
+  };
+  const inner = []; // each part's in-to-out edge
+  for (let i = 0; i < n; i++) {
+    const p = live[i];
+    const src = from.has(p.id);
+    const end = p.type === 'reactor';
+    inner.push(to.length);
+    edge(2 * i, 2 * i + 1, src || end ? k : 1);
+    if (src) edge(S, 2 * i, k);
+    if (end) edge(2 * i + 1, T, k);
+    const near = new Set();
+    for (const c of cellsOfPart(p)) {
+      for (const [dx, dy] of SIDES) {
+        const j = at.get(key(c.x + dx, c.y + dy));
+        if (j === undefined || j === i || near.has(j)) continue;
+        near.add(j);
+        edge(2 * i + 1, 2 * j, 1);
+      }
+    }
+  }
+  let found = 0;
+  const by = new Array(2 * n + 2);
+  while (found < k) {
+    by.fill(-1);
+    by[S] = -2;
+    const queue = [S];
+    for (let h = 0; h < queue.length && by[T] === -1; h++) {
+      const u = queue[h];
+      for (let e = first[u]; e !== -1; e = next[e]) {
+        if (cap[e] > 0 && by[to[e]] === -1) {
+          by[to[e]] = e;
+          queue.push(to[e]);
+        }
+      }
+    }
+    if (by[T] === -1) break;
+    for (let v = T; v !== S; v = to[by[v] ^ 1]) {
+      cap[by[v]]--;
+      cap[by[v] ^ 1]++;
+    }
+    found++;
+  }
+  const ids = new Set();
+  for (let i = 0; i < n; i++) if (!from.has(live[i].id) && live[i].type !== 'reactor' && cap[inner[i]] === 0) ids.add(live[i].id);
+  return { ids, n: found };
+}
+
+/**
+ * What shedding never sells, as it holds the core and the lasers to the hull: `tiesCore` paths from the keep to the
+ * reactors, and `tiesLaser` from what each laser's piston is built on, none of them through a jammer or a booster.
+ * Returns `{ hold, core, lasers }`: the parts, and the paths it found for the core and for the worst-held laser.
+ */
+function backbone(gone) {
+  const keep = new Set();
+  const mounts = [];
+  const byCell = new Map();
+  for (const p of parts) if (TIE.has(p.type) && p.on === '' && !gone.has(p.id)) byCell.set(key(cellOf(p.id).x, cellOf(p.id).y), p.id);
+  for (const p of parts) {
+    const c = cellOf(p.id);
+    if (byCell.get(key(c.x, c.y)) === p.id && fromCore(c.x, c.y) <= keepR) keep.add(p.id);
+    if (p.type === 'piston') {
+      const m = new Set();
+      for (const [dx, dy] of SIDES) {
+        const id = byCell.get(key(c.x + dx, c.y + dy));
+        if (id !== undefined) m.add(id);
+      }
+      if (m.size > 0) mounts.push(m);
+    }
+  }
+  const core = ties(keep, tiesCore, gone);
+  const hold = new Set(core.ids);
+  let lasers = tiesLaser;
+  for (const m of mounts) {
+    for (const id of m) hold.add(id);
+    const t = ties(m, tiesLaser, gone);
+    for (const id of t.ids) hold.add(id);
+    lasers = Math.min(lasers, t.n);
+  }
+  return { hold, core: core.n, lasers };
+}
+
 /**
  * Sells weight to get up: `want` kg, best first (see the top). Each look sells what its free jobs allow; `spare` keeps
  * it in one piece, so a section swung off the hull goes from its far end in.
  */
-function shed(want, free, busy) {
+function shed(want, free, busy, gone) {
+  const back = backbone(gone);
   const list = [];
   for (const p of parts) {
-    if (NEVER_SHED.has(p.type) || state.sold[p.id] || busy.has(p.id) || time - (state.held[p.id] ?? -1000) < 5) continue;
+    if (NEVER_SHED.has(p.type) || state.sold[p.id] || busy.has(p.id) || back.hold.has(p.id) || time - (state.held[p.id] ?? -1000) < 5) continue;
     const c = cellOf(p.id);
     if (fromCore(c.x, c.y) <= keepR) continue;
     // A body turned more than 6 degrees from the hull's: a section that swung away (what is on a laser's joint is that
@@ -358,7 +472,7 @@ function shed(want, free, busy) {
       n++;
     }
   }
-  if (n > 0) log(`shed ${n} (${kg.toFixed(0)} kg) to get up: mass ${self.mass.toFixed(0)}, lift ${(liftKg() / self.mass).toFixed(2)}, climbing ${self.vel.y.toFixed(1)} m/s`);
+  if (n > 0) log(`shed ${n} (${kg.toFixed(0)} kg) to get up: mass ${self.mass.toFixed(0)}, lift ${(liftKg() / self.mass).toFixed(2)}, climbing ${self.vel.y.toFixed(1)} m/s, core held ${back.core} ways, lasers ${back.lasers}`);
   return free;
 }
 
@@ -387,7 +501,7 @@ function think() {
   const grounded = state.shedding;
   if (grounded && free > 0) {
     const want = stuckNow ? Math.max(over, 0.03 * self.mass - going) : over;
-    if (want > 0) free = shed(want, free, busy);
+    if (want > 0) free = shed(want, free, busy, new Set(work.jobs.filter((j) => j.kind === 'scrap').map((j) => j.part)));
   }
   // What it builds must leave its lift at `liftMargin` (a lift booster adds lift); shedding, only lift and the keep.
   let room = lift / liftMargin - self.mass;
