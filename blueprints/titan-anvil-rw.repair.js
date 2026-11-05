@@ -250,10 +250,11 @@ function liftKg() {
 }
 
 /**
- * Stuck at full lift: whether it sheds weight this look. Its lift rows (the busier side, as it may be righting itself)
- * at 0.9 throttle or more while it goes neither up nor down (under 0.5 m/s), for `climbAt` s; or too few lift boosters
- * to hold its weight. Going down at full lift is braking, a landing as often as not (the first try shed 5 t on its way
- * down to charge): it sheds once it is down and still cannot rise.
+ * Stuck at full lift: whether it sheds weight this look. On the ground (its lowest part within 2.5 m of it, at y 0)
+ * with its lift rows (the busier side, as it may be righting itself) at 0.9 throttle or more while it goes neither up
+ * nor down (under 0.5 m/s), for `climbAt` s; or too few lift boosters to hold its weight. Going down at full lift is
+ * braking, a landing as often as not (the first try shed 5 t on its way down to charge); held still at full lift in the
+ * air it is hovering on what its reactors give, or pushing on an enemy (it shed and built back 700 kg over and over).
  */
 function stuck(lift) {
   const sum = { la: 0, lb: 0 };
@@ -264,7 +265,9 @@ function stuck(lift) {
     n[p.tags[0]]++;
   }
   const full = Math.max(n.la > 0 ? sum.la / n.la : 0, n.lb > 0 ? sum.lb / n.lb : 0) >= 0.9;
-  if (full && Math.abs(self.vel.y) < 0.5) {
+  let low = Infinity;
+  for (const p of parts) low = Math.min(low, p.pos.y);
+  if (full && Math.abs(self.vel.y) < 0.5 && low < 2.5) {
     if (state.strainAt < 0) state.strainAt = time;
   } else state.strainAt = -1;
   return lift < self.mass || (state.strainAt >= 0 && time - state.strainAt >= climbAt);
