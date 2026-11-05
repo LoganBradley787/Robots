@@ -45,6 +45,7 @@ const plateAt = param('plateAt', 0.5, { min: 0, max: 1 }); // share of health un
 const climbAt = param('climbAt', 2, { min: 0.5, max: 20 }); // s at full lift without climbing before it sheds weight
 const liftMargin = param('liftMargin', 1.2, { min: 1, max: 3 }); // its lift over its weight: it sheds down to this, and builds nothing that takes it under (it has 1.31)
 const shedPush = param('shedPush', 0.33, { min: 0, max: 1 }); // share of each push side it keeps when shedding
+const stillAt = param('stillAt', 3, { min: 0, max: 30 }); // m/s under which one lift half at full is righting itself, not leaning to fly
 const tiesCore = param('tiesCore', 8, { min: 1, max: 30 }); // paths sharing no part that shedding leaves from the keep to the reactors
 const tiesLaser = param('tiesLaser', 3, { min: 1, max: 10 }); // and from each laser's mount
 
@@ -253,11 +254,14 @@ function liftKg() {
 }
 
 /**
- * Stuck at full lift: whether it sheds weight this look. On the ground (its lowest part within 2.5 m of it, at y 0)
- * with its lift rows (the busier side, as it may be righting itself) at 0.9 throttle or more while it goes neither up
- * nor down (under 0.5 m/s), for `climbAt` s; or too few lift boosters to hold its weight. Going down at full lift is
- * braking, a landing as often as not (the first try shed 5 t on its way down to charge); held still at full lift in the
- * air it is hovering on what its reactors give, or pushing on an enemy (it shed and built back 700 kg over and over).
+ * Stuck at full lift: whether it sheds weight this look. On the ground (its lowest part within 2.5 m of it, at y 0),
+ * going neither up nor down (under 0.5 m/s), for `climbAt` s, with both its lift halves at 0.9 throttle or more, or
+ * one of them (righting itself) while it is all but still (under `stillAt` m/s); or too few lift boosters to hold its
+ * weight. Going down at full lift is braking, a landing as often as not (the first try shed 5 t on its way down to
+ * charge); held still at full lift in the air it is hovering on what its reactors give, or pushing on an enemy (it
+ * shed and built back 700 kg over and over). One half at full while it goes along is the pilot leaning to fly low:
+ * at 1.2 times its weight it skimmed the ground at 20 m/s under an enemy, read as stuck, and shed and built back 500 kg
+ * twice in 20 s (2026-11-05).
  */
 function stuck(lift) {
   const sum = { la: 0, lb: 0 };
@@ -267,7 +271,11 @@ function stuck(lift) {
     sum[p.tags[0]] += p.in.throttle || 0;
     n[p.tags[0]]++;
   }
-  const full = Math.max(n.la > 0 ? sum.la / n.la : 0, n.lb > 0 ? sum.lb / n.lb : 0) >= 0.9;
+  const a = n.la > 0 ? sum.la / n.la : 0;
+  const b = n.lb > 0 ? sum.lb / n.lb : 0;
+  const still = Math.hypot(self.vel.x, self.vel.y) < stillAt;
+  const full = Math.min(a, b) >= 0.9 || (Math.max(a, b) >= 0.9 && still);
+  state.throttle = `${a.toFixed(2)} ${b.toFixed(2)}`;
   let low = Infinity;
   for (const p of parts) low = Math.min(low, p.pos.y);
   if (full && Math.abs(self.vel.y) < 0.5 && low < 2.5) {
@@ -496,7 +504,7 @@ function think() {
   let going = 0;
   for (const j of work.jobs) if (j.kind === 'scrap' && state.shed[j.part]) going += MASS[(parts.find((p) => p.id === j.part) ?? {}).type] ?? 0;
   const over = self.mass - going - lift / liftMargin; // kg to shed to get to `liftMargin`
-  if (stuckNow && !state.shedding) log(`can't get up: lift ${(lift / self.mass).toFixed(2)} of its weight, climbing ${self.vel.y.toFixed(1)} m/s`);
+  if (stuckNow && !state.shedding) log(`can't get up: lift ${(lift / self.mass).toFixed(2)} of its weight, climbing ${self.vel.y.toFixed(1)} m/s, going ${self.vel.x.toFixed(1)}, lift halves at ${state.throttle}`);
   state.shedding = (state.shedding || stuckNow) && (over > 0 || stuckNow);
   const grounded = state.shedding;
   if (grounded && free > 0) {
