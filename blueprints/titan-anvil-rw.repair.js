@@ -21,10 +21,12 @@
 //
 // Grounded, it sheds weight (Logan, 2026-11-05: on the ground it is useless, so it gets up by any means). Its lift rows
 // at full throttle for `climbAt` s without climbing, or too few lift boosters left to hold its weight at all: it sells
-// what it can best do without until its lift holds `liftMargin` times its weight, and while it still cannot climb, more.
-// A section swung off the hull first (on a body turned away from the core's), lowest first; then its plates, the bottom
-// rows first; then the rest of the hull, the bottom first. Never the core and what is round it (`keepR`), a reactor, a
-// laser or what brings it out, or a booster. What it sells is no loss: a scrap gives back all a part is worth, and
+// what it can best do without until its lift holds `liftMargin` times its weight (once started, it goes on to that
+// even once it rises: it rose at 1.08 and was down again 20 s later), and while it still cannot climb, more. A section
+// swung off the hull first (on a body turned away from the core's), lowest first; then its plates, the bottom rows
+// first; then the rest of the hull, the bottom first; then push boosters, a pair at a time, down to `shedPush` of each
+// side. Never the core and what is round it (`keepR`), a reactor, a laser or what brings it out, or a lift or end
+// booster. What it sells is no loss: a scrap gives back all a part is worth, and
 // what it shed is built again once it is up and calm, as long as its lift still holds `liftMargin` times its weight
 // with it. While it sheds it builds nothing but lift boosters and the keep.
 
@@ -41,6 +43,7 @@ const float = param('float', 15, { min: 0, max: 300 }); // juice it keeps in the
 const plateAt = param('plateAt', 0.5, { min: 0, max: 1 }); // share of health under which a plate is healed with what is over the float
 const climbAt = param('climbAt', 2, { min: 0.5, max: 20 }); // s at full lift without climbing before it sheds weight
 const liftMargin = param('liftMargin', 1.2, { min: 1, max: 3 }); // its lift over its weight: it sheds down to this, and builds nothing that takes it under (it has 1.31)
+const shedPush = param('shedPush', 0.33, { min: 0, max: 1 }); // share of each push side it keeps when shedding
 
 const GROUPS = ['la', 'lb', 'pa', 'pb', 'ra', 'rb'];
 
@@ -94,6 +97,8 @@ function setup() {
   state.last = '';
   state.shed = {}; // what it sold to get off the ground: built again once it is up
   state.strainAt = -1; // since when its lift rows have been at full throttle without climbing
+  state.shedding = false; // shedding until its lift holds `liftMargin` times its weight
+  state.held = {}; // part: when `spare` last turned it down for shedding (it holds the hull together)
   for (const p of parts) MASS[p.type] = p.mass;
   // What each booster group had to start with: the share it keeps is of this, not of what it has after selling.
   state.had = {};
@@ -280,7 +285,7 @@ const turned = (a, b) => {
 function shed(want, free, busy) {
   const list = [];
   for (const p of parts) {
-    if (NEVER_SHED.has(p.type) || state.sold[p.id] || busy.has(p.id)) continue;
+    if (NEVER_SHED.has(p.type) || state.sold[p.id] || busy.has(p.id) || time - (state.held[p.id] ?? -1000) < 5) continue;
     const c = cellOf(p.id);
     if (fromCore(c.x, c.y) <= keepR) continue;
     // A body turned more than 6 degrees from the hull's: a section that swung away (what is on a laser's joint is that
@@ -289,8 +294,33 @@ function shed(want, free, busy) {
     list.push({ p, tier: off ? 0 : p.type === 'armorplate' ? 1 : 2, low: off ? p.pos.y : c.y });
   }
   list.sort((a, b) => a.tier - b.tier || a.low - b.low || b.p.mass - a.p.mass);
-  const head = list.slice(0, Math.min(list.length, free * 4 + 8));
-  const may = new Set(spare(head.map((s) => s.p.id)) ?? []);
+  const head = [];
+  // Push boosters last, a pair at a time (one a side, or it turns), down to `shedPush` of each side.
+  const live = new Map();
+  const side = { pa: 0, pb: 0 };
+  for (const p of parts) {
+    if (p.tags[0] === 'pa' || p.tags[0] === 'pb') {
+      if (p.type === 'booster') side[p.tags[0]]++;
+      if (!busy.has(p.id)) live.set(p.id, p);
+    }
+  }
+  let room = Math.min(side.pa - Math.ceil(shedPush * state.had.pa), side.pb - Math.ceil(shedPush * state.had.pb));
+  const pairs = [];
+  for (const [a, b] of PAIRS) {
+    if (room <= 0 || pairs.length >= free) break;
+    if (!live.has(a) || !live.has(b)) continue;
+    pairs.push([a, b]);
+    room--;
+  }
+  // `spare` looks at 200 a call, and turns down most of what is left once the loose plates are gone (the walls hold it
+  // together): 112 asked, 3 allowed, and it hung at 1.12 times its weight. What it turned down is not asked again for
+  // 5 s, so the next look reaches further down the list.
+  for (const s of list) {
+    if (head.length + 2 * pairs.length >= 200) break;
+    head.push(s);
+  }
+  const may = new Set(spare(head.map((s) => s.p.id).concat(pairs.flat())) ?? []);
+  for (const s of head) if (!may.has(s.p.id)) state.held[s.p.id] = time;
   let kg = 0;
   let n = 0;
   for (const s of head) {
@@ -303,6 +333,27 @@ function shed(want, free, busy) {
       free--;
       n++;
     } else if (done.why === 'too many orders this tick') break;
+  }
+  for (const [a, b] of pairs) {
+    if (free < 2 || kg >= want) break;
+    if (!may.has(a) || !may.has(b)) continue;
+    const one = scrap(a);
+    if (!one.ok) {
+      if (one.why === 'too many orders this tick') break;
+      continue;
+    }
+    const two = scrap(b);
+    if (!two.ok) {
+      stopJob(a);
+      if (two.why === 'too many orders this tick') break;
+      continue;
+    }
+    for (const id of [a, b]) {
+      state.shed[id] = true;
+      kg += live.get(id).mass;
+      free--;
+      n++;
+    }
   }
   if (n > 0) log(`shed ${n} (${kg.toFixed(0)} kg) to get up: mass ${self.mass.toFixed(0)}, lift ${(liftKg() / self.mass).toFixed(2)}, climbing ${self.vel.y.toFixed(1)} m/s`);
   return free;
@@ -324,11 +375,15 @@ function think() {
   const g = groups();
   // Grounded: shed down to `liftMargin`, counting what is being shed already; still stuck past that, 3 percent a look.
   const lift = liftKg();
-  const grounded = stuck(lift);
+  const stuckNow = stuck(lift);
+  let going = 0;
+  for (const j of work.jobs) if (j.kind === 'scrap' && state.shed[j.part]) going += MASS[(parts.find((p) => p.id === j.part) ?? {}).type] ?? 0;
+  const over = self.mass - going - lift / liftMargin; // kg to shed to get to `liftMargin`
+  if (stuckNow && !state.shedding) log(`can't get up: lift ${(lift / self.mass).toFixed(2)} of its weight, climbing ${self.vel.y.toFixed(1)} m/s`);
+  state.shedding = (state.shedding || stuckNow) && (over > 0 || stuckNow);
+  const grounded = state.shedding;
   if (grounded && free > 0) {
-    let going = 0;
-    for (const j of work.jobs) if (j.kind === 'scrap' && state.shed[j.part]) going += MASS[(parts.find((p) => p.id === j.part) ?? {}).type] ?? 0;
-    const want = Math.max(self.mass - going - lift / liftMargin, 0.03 * self.mass - going);
+    const want = stuckNow ? Math.max(over, 0.03 * self.mass - going) : over;
     if (want > 0) free = shed(want, free, busy);
   }
   // What it builds must leave its lift at `liftMargin` (a lift booster adds lift); shedding, only lift and the keep.
