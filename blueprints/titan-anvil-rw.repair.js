@@ -11,6 +11,13 @@
 // 3. Its lasers and what brings them out (piston, rotator, the lid's decouplers).
 // 4. Its faces: plates, frames and batteries that close a hole (two or more neighbors standing) first, then the rest.
 // 5. Its guns, then reactors and radar.
+// Fighting on what is left (Logan, 2026-11-05: "make armor on the side that I want to ram on, right as I'm about to
+// ram, or systematically place armor only where I think enemies are", "a couple guns in strategic locations"): the
+// nearest enemy core within `frontR` is its front. Plates facing it come back first (a part comes back at 1 percent,
+// so what makes a plate armor is the heal after it). Lean (the plates it lost weigh more than its lift has room for,
+// or cost more than it has and can sell), it makes no plate or gun facing away from the front (`backAt`), and its
+// guns that point at the front come back ahead of its faces. An enemy core within `ramR`: it heals the plates that
+// face it to full, most square to it first, ahead of all but the keep and a hurt group, selling for it.
 // A region (`region` cells square) that lost a part in the last `quiet` s is left alone, the keep and a hurt group apart:
 // what it makes in the middle of a ram dies with the next hit.
 // What it cannot pay for it sells for, keeping a `float` in the tank: jammers first (never made again), then batteries,
@@ -46,6 +53,10 @@ const climbAt = param('climbAt', 2, { min: 0.5, max: 20 }); // s at full lift wi
 const liftMargin = param('liftMargin', 1.2, { min: 1, max: 3 }); // its lift over its weight: it sheds down to this, and builds nothing that takes it under (it has 1.31)
 const shedPush = param('shedPush', 0.33, { min: 0, max: 1 }); // share of each push side it keeps when shedding
 const stillAt = param('stillAt', 3, { min: 0, max: 30 }); // m/s under which one lift half at full is righting itself, not leaning to fly
+const frontR = param('frontR', 600, { min: 0, max: 2000 }); // m: the nearest enemy core within this is its front
+const ramR = param('ramR', 150, { min: 0, max: 2000 }); // m: an enemy core this near, it hardens the plates that face it
+const frontAt = param('frontAt', 0.5, { min: -1, max: 1 }); // how square to the front a plate faces to be hardened
+const backAt = param('backAt', -0.2, { min: -1, max: 1 }); // lean, a plate or gun facing the front less than this is not made
 const tiesCore = param('tiesCore', 8, { min: 1, max: 30 }); // paths sharing no part that shedding leaves from the keep to the reactors
 const tiesLaser = param('tiesLaser', 3, { min: 1, max: 10 }); // and from each laser's mount
 
@@ -104,6 +115,19 @@ function setup() {
   state.shedding = false; // shedding until its lift holds `liftMargin` times its weight
   state.held = {}; // part: when `spare` last turned it down for shedding (it holds the hull together)
   for (const p of parts) MASS[p.type] = p.mass;
+  // The middle of the hull and its half sizes: what a cell faces is read off where it is in the brick.
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const p of parts) {
+    for (const c of cellsOfPart(p)) {
+      x0 = Math.min(x0, c.x);
+      x1 = Math.max(x1, c.x);
+      y0 = Math.min(y0, c.y);
+      y1 = Math.max(y1, c.y);
+    }
+  }
+  state.mid = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, hw: Math.max(1, (x1 - x0) / 2), hh: Math.max(1, (y1 - y0) / 2) };
+  state.front = null;
+  state.lean = false;
   // What each booster group had to start with: the share it keeps is of this, not of what it has after selling.
   state.had = {};
   for (const k of GROUPS) state.had[k] = 0;
@@ -131,6 +155,42 @@ function say(text) {
 }
 
 /**
+ * Its front: the nearest enemy core it sees within `frontR`, as `{ x, y, d }`, a unit direction in its own frame (the
+ * grid's, y up) and the meters to it. null with none.
+ */
+function frontNow() {
+  for (const c of contacts) {
+    if (c.side !== 'enemy' || !c.core || c.pos.x === null || c.pos.y === null) continue;
+    if (c.distance > frontR) return null;
+    const dx = c.pos.x - self.pos.x;
+    const dy = c.pos.y - self.pos.y;
+    const co = Math.cos(self.angle);
+    const si = Math.sin(self.angle);
+    const bx = dx * co + dy * si;
+    const by = -dx * si + dy * co;
+    const n = Math.hypot(bx, by);
+    if (n < 1e-6) return null;
+    return { x: bx / n, y: by / n, d: c.distance };
+  }
+  return null;
+}
+
+/** How square a cell faces the front, -1 to 1: where it is in the brick, as a share of its half sizes, toward it. */
+function facing(x, y, f) {
+  const m = state.mid;
+  const ux = (x - m.x) / m.hw;
+  const uy = (y - m.y) / m.hh;
+  const n = Math.hypot(ux, uy);
+  return n < 1e-6 ? 0 : (ux * f.x + uy * f.y) / n;
+}
+
+/** How square a gun built at `rot` points at the front: its barrel is north unturned (gun.json, `acts`). */
+const aims = (rot, f) => -Math.sin((rot * Math.PI) / 180) * f.x + Math.cos((rot * Math.PI) / 180) * f.y;
+
+/** The face a direction in its own frame is: what it says. */
+const faceName = (f) => (Math.abs(f.x) >= Math.abs(f.y) ? (f.x < 0 ? 'left' : 'right') : f.y < 0 ? 'bottom' : 'top');
+
+/**
  * Each booster group: how many it has now, and had to start with. Counted as what it has plus what it lost, a group
  * shrank with every booster sold, and selling down to 90 percent of that went on until one side of a pair had 144 to
  * the other's 188 and it rolled over.
@@ -156,7 +216,7 @@ function cells() {
 }
 
 /** What the look wants, most wanted first: `{ id, cost, why, hard }`. */
-function wants(gone, g, at) {
+function wants(gone, g, at, front, lean) {
   const list = [];
   const open = new Set();
   const add = (p, why, hard) => {
@@ -176,14 +236,22 @@ function wants(gone, g, at) {
   }
   // 3: the lasers and what brings them out.
   for (const p of reach.filter((q) => ['laser', 'piston', 'rotator', 'decoupler'].includes(q.type) && calm(q.x, q.y))) add(p, 'lasers', false);
-  // 4: the faces: what closes a hole first.
+  // Its guns, those pointing at the front first; lean, only those that point its way, and ahead of the faces.
+  const guns = reach.filter((q) => q.type === 'gun' && calm(q.x, q.y) && !(lean && front && aims(q.rot, front) < backAt));
+  if (front) guns.sort((a, b) => aims(b.rot, front) - aims(a.rot, front));
+  if (lean) for (const p of guns) add(p, 'gun', false);
+  // 4: the faces: what closes a hole first, and a plate facing the front ahead of one that does not; lean, no plate
+  // facing away from it.
   const around = (p) => [[1, 0], [-1, 0], [0, 1], [0, -1]].reduce((n, [dx, dy]) => n + (at.has(key(p.x + dx, p.y + dy)) ? 1 : 0), 0);
   const faces = reach.filter((q) => ['armorplate', 'frame', 'densebattery'].includes(q.type) && calm(q.x, q.y));
-  faces.sort((a, b) => around(b) - around(a));
-  for (const p of faces) add(p, 'face', false);
+  const plate = (p) => (front && p.type === 'armorplate' ? facing(p.x, p.y, front) : 0);
+  const score = (p) => around(p) + 2 * plate(p);
+  faces.sort((a, b) => score(b) - score(a));
+  for (const p of faces) if (!(lean && front && p.type === 'armorplate' && plate(p) < backAt)) add(p, 'face', false);
   // 5: the rest.
   // Not jammers: they are the first thing it sells.
-  for (const type of ['gun', 'reactor', 'radar']) for (const p of reach.filter((q) => q.type === type && calm(q.x, q.y))) add(p, type, false);
+  for (const p of guns) add(p, 'gun', false);
+  for (const type of ['reactor', 'radar']) for (const p of reach.filter((q) => q.type === type && calm(q.x, q.y))) add(p, type, false);
   return list;
 }
 
@@ -513,30 +581,84 @@ function think() {
   }
   // What it builds must leave its lift at `liftMargin` (a lift booster adds lift); shedding, only lift and the keep.
   let room = lift / liftMargin - self.mass;
-  const wish = wants(gone, g, cells()).filter((w) => !busy.has(w.id) && (!grounded || w.lift || w.why === 'keep'));
+  // Its front, and whether it is lean: the plates it lost weigh more than its lift has room for, or its faces and guns
+  // cost more than it has and can sell (a battery over its floor gives 3).
+  const front = frontNow();
+  let plateKg = 0;
+  let faceCost = 0;
+  for (const p of gone) {
+    if (!p.touching) continue;
+    if (p.type === 'armorplate') plateKg += MASS.armorplate ?? 20;
+    if (['armorplate', 'frame', 'densebattery', 'gun'].includes(p.type)) faceCost += p.create;
+  }
+  let dense = 0;
+  for (const p of parts) if (p.type === 'densebattery' && !state.sold[p.id]) dense++;
+  const lean = (plateKg > 0 && plateKg > room) || (faceCost > 0 && faceCost > money + 3 * Math.max(0, dense - minDense));
+  if (lean !== state.lean) log(lean ? `lean: what it lost weighs ${plateKg.toFixed(0)} kg in plates to ${Math.max(0, room).toFixed(0)} of room, costs ${faceCost.toFixed(0)}: armor and guns only toward the enemy` : 'not lean: it makes every face again');
+  state.lean = lean;
+  if (front && (!state.front || faceName(front) !== faceName(state.front))) log(`front: its ${faceName(front)} face, ${front.d.toFixed(0)} m`);
+  state.front = front;
+  const wish = wants(gone, g, cells(), front, lean).filter((w) => !busy.has(w.id) && (!grounded || w.lift || w.why === 'keep'));
   const made = {};
   let need = 0;
   let hard = false;
   let why = '';
-  for (const w of wish) {
-    if (!w.lift && w.why !== 'keep' && w.kg > room) continue;
-    if (free > 0 && money >= w.cost) {
-      const done = build(w.id);
-      if (done.ok) {
-        money -= w.cost;
-        room += w.lift ? BOOST_N / 9.81 / liftMargin - w.kg : -w.kg;
-        free--;
-        made[w.why] = (made[w.why] ?? 0) + 1;
-      } else if (done.why === 'blocked') state.blocked[w.id] = time;
-      continue;
+  const make = (list) => {
+    for (const w of list) {
+      if (!w.lift && w.why !== 'keep' && w.kg > room) continue;
+      if (free > 0 && money >= w.cost) {
+        const done = build(w.id);
+        if (done.ok) {
+          money -= w.cost;
+          room += w.lift ? BOOST_N / 9.81 / liftMargin - w.kg : -w.kg;
+          free--;
+          made[w.why] = (made[w.why] ?? 0) + 1;
+        } else if (done.why === 'blocked') state.blocked[w.id] = time;
+        continue;
+      }
+      if (money < w.cost) {
+        need += w.cost;
+        hard = hard || w.hard;
+        if (why === '') why = w.why;
+        if (need > 60) return;
+      }
     }
-    if (money < w.cost) {
-      need += w.cost;
-      hard = hard || w.hard;
-      if (why === '') why = w.why;
+  };
+  make(wish.filter((w) => w.hard));
+  // About to ram: the plates facing the front healed to full, most square to it first, with what is over the float;
+  // what it cannot pay for yet it sells for.
+  let ownPlates = null;
+  const plates = () => {
+    if (ownPlates === null) ownPlates = own({ of: 'armorplate' }) ?? [];
+    return ownPlates;
+  };
+  if (front && front.d < ramR && !grounded && need <= 60) {
+    const face = plates()
+      .filter((q) => q.health < q.maxHealth && !busy.has(q.id))
+      .map((q) => ({ q, f: facing(cellOf(q.id).x, cellOf(q.id).y, front) }))
+      .filter((h) => h.f >= frontAt)
+      .sort((a, b) => b.f - a.f || a.q.health - b.q.health);
+    let n = 0;
+    for (const { q } of face) {
       if (need > 60) break;
+      const pay = Math.min(q.heal, Math.max(0, money - float));
+      if (free > 0 && pay > 0.05) {
+        const share = q.health / q.maxHealth;
+        if (heal(q.id, share + ((1 - share) * pay) / Math.max(q.heal, 1e-6)).ok) {
+          money -= pay;
+          free--;
+          n++;
+          busy.add(q.id);
+        }
+      }
+      if (q.heal - pay > 0.05) {
+        need += q.heal - pay;
+        if (why === '') why = 'hardening';
+      }
     }
+    if (n > 0) say(`hardening its ${faceName(front)} face: an enemy ${front.d.toFixed(0)} m off`);
   }
+  make(wish.filter((w) => !w.hard));
   const short = need + float - money;
   if (grounded) {
     // Shedding: it sells only for weight, above.
@@ -585,7 +707,9 @@ function think() {
   } else if (need === 0 && free > 0 && money > float) {
     // Plates worn thin, the most worn first, with what is over the float.
     let spareMoney = money - float;
-    for (const p of (own({ of: 'armorplate' }) ?? []).filter((q) => q.health < plateAt * q.maxHealth && !busy.has(q.id)).sort((a, b) => a.health - b.health)) {
+    const worn = plates().filter((q) => q.health < plateAt * q.maxHealth && !busy.has(q.id));
+    const toward = (q) => (front ? facing(cellOf(q.id).x, cellOf(q.id).y, front) : 0);
+    for (const p of worn.filter((q) => !(lean && front && toward(q) < backAt)).sort((a, b) => toward(b) - toward(a) || a.health - b.health)) {
       if (free <= 0 || spareMoney < 0.05) break;
       const pay = Math.min(p.heal, spareMoney);
       const share = p.health / p.maxHealth;
