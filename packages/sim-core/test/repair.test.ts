@@ -60,10 +60,16 @@ describe('repair prices', () => {
   it('holds to Logan\'s checks', () => {
     // A part at 40 percent healed to full costs 30 percent of its worth.
     expect(healCost(10, 0.6)).toBeCloseTo(3, 10);
-    // Scrapping a part at zero health returns 40 percent of its worth.
-    expect(scrapGives(10, 0)).toBeCloseTo(4, 10);
+    // Scrapping gives back all a part is worth now (2026-11-05): half its worth at zero health, all of it at full.
+    expect(scrapGives(10, 0)).toBeCloseTo(5, 10);
     expect(scrapGives(10, 1)).toBeCloseTo(10 * SCRAP_RETURN, 10);
-    expect(createCost(10)).toBeCloseTo(10 * CREATE_SHARE, 10);
+    expect(scrapGives(10, 0.1)).toBeCloseTo(5.5, 10);
+    // Creating one costs what a part at 1 percent health is worth: 50.5 percent.
+    expect(createCost(10)).toBeCloseTo(10 * CREATE_SHARE + 0.05, 10);
+    // Three sold at full health make four at half health, with nothing over (Logan).
+    expect(3 * scrapGives(10, 1) - 4 * (createCost(10) + healCost(10, 0.5 - START_HEALTH))).toBeCloseTo(0, 10);
+    // Made and sold again, a part gives back exactly what it took: no juice from nothing.
+    expect(scrapGives(10, START_HEALTH)).toBeCloseTo(createCost(10), 10);
     expect(jobSeconds(registry.get('reactor'))).toBeCloseTo(registry.get('reactor').build! * TIME_SCALE, 10);
     expect(jobSeconds(registry.get('laser'))).toBe(6);
     expect(jobSeconds(registry.get('propeller'))).toBeCloseTo(0.6, 10);
@@ -88,8 +94,8 @@ describe('scrap', () => {
     const { w, r } = await run({ grid: ['A  F  C  F  F'] }, { 1: "scrap('armorplate@0,0')" }, ticks(3));
     expect(answers(w)).toEqual([{ ok: true, seconds: 3, cost: 0 }]);
     expect(r.parts.has('armorplate@0,0')).toBe(false);
-    expect(r.repair?.tank).toBeCloseTo(4, 10);
-    expect(kinds(w, 'partScrapped')).toMatchObject([{ part: 'armorplate@0,0', partType: 'armorplate', gave: 4 }]);
+    expect(r.repair?.tank).toBeCloseTo(5, 10);
+    expect(kinds(w, 'partScrapped')).toMatchObject([{ part: 'armorplate@0,0', partType: 'armorplate', gave: 5 }]);
     expect(kinds(w, 'partDestroyed')).toEqual([]);
     expect(kinds(w, 'explosion')).toEqual([]);
     w.dispose();
@@ -124,7 +130,7 @@ describe('scrap', () => {
     const { w, r } = await run({ grid: ['F  F  F  C  F'] }, { 1: "scrap('frame@1,0')" }, ticks(SCRAP_FRAME));
     expect(kinds(w, 'split')).toHaveLength(1);
     expect(r.primaryCoreId).toBe('core@3,0');
-    expect(r.repair?.tank).toBeCloseTo(0.8, 10);
+    expect(r.repair?.tank).toBeCloseTo(1, 10);
     expect(w.robots.filter((x) => x !== r).every((x) => x.repair === undefined)).toBe(true);
     w.dispose();
   });
@@ -135,13 +141,13 @@ describe('build', () => {
     const seconds = SCRAP_FRAME;
     const first = 1 + Math.ceil(seconds * 60) + 2;
     const { w, r } = await run(LINE, { 1: "scrap('frame@1,0')", [first]: "build('frame@1,0')" }, first + ticks(BUILD_FRAME));
-    expect(answers(w)).toMatchObject([{ ok: true }, { ok: true, cost: 0.5 }]);
+    expect(answers(w)).toMatchObject([{ ok: true }, { ok: true, cost: 0.505 }]);
     // frame@0,0 broke off with the scrap, so frame@1,0 goes back between nothing and the core.
     expect(live(r)).toEqual(order(r));
     expect(r.parts.has('frame@1,0')).toBe(true);
     expect((r.parts.get('frame@1,0') as PartInstance).health).toBeCloseTo(registry.get('frame').health * START_HEALTH, 10);
-    expect(r.repair?.tank).toBeCloseTo(0.8 - 0.5, 10);
-    expect(kinds(w, 'partRebuilt')).toMatchObject([{ part: 'frame@1,0', cost: 0.5 }]);
+    expect(r.repair?.tank).toBeCloseTo(1 - 0.505, 10);
+    expect(kinds(w, 'partRebuilt')).toMatchObject([{ part: 'frame@1,0', cost: 0.505 }]);
     expect(kinds(w, 'partDestroyed')).toEqual([]);
     w.dispose();
   });
@@ -196,12 +202,12 @@ describe('build', () => {
     for (let i = 0; i < 30; i++) w.step();
     (r.parts.get('battery@1,0') as PartInstance).health = 0;
     for (let i = 0; i < 15; i++) w.step();
-    // 0.8 in the tank; a battery is worth 3, so creating it costs 1.5.
+    // 1 in the tank; a battery is worth 3, so creating it costs 1.515.
     expect(answers(w)).toMatchObject([{ ok: true }, { ok: false, why: 'tank short' }]);
-    expect(r.repair?.tank).toBeCloseTo(0.8, 10);
+    expect(r.repair?.tank).toBeCloseTo(1, 10);
     w.dispose();
     const stopped = await run({ grid: ['F  F  C'] }, { 1: "scrap('frame@0,0')", 40: "scrap('frame@1,0')", 70: "build('frame@1,0')", 71: 'tank()', 72: 'job()', 73: 'stopJob()', 74: 'tank()', 75: 'job()' }, 78);
-    expect(answers(stopped.w).slice(2)).toMatchObject([{ ok: true, cost: 0.5 }, 1.1, { kind: 'build', part: 'frame@1,0' }, null, 1.6, null]);
+    expect(answers(stopped.w).slice(2)).toMatchObject([{ ok: true, cost: 0.505 }, 1.495, { kind: 'build', part: 'frame@1,0' }, null, 2, null]);
     stopped.w.dispose();
   });
 
@@ -223,7 +229,7 @@ describe('build', () => {
     w.spawnBlueprint({ format: 1, name: 'lump', grid: ['F'] }, { x: partWorldPose(w, r, 'frame@3,0').x + 1, y: 0.6 });
     for (let i = 0; i < ticks(BUILD_FRAME); i++) w.step();
     expect(r.parts.has('frame@4,0')).toBe(false);
-    expect(r.repair?.tank).toBeCloseTo(held + 0.5, 10);
+    expect(r.repair?.tank).toBeCloseTo(held + 0.505, 10);
     expect(kinds(w, 'repairFailed')).toMatchObject([{ part: 'frame@4,0', why: 'blocked' }]);
     w.dispose();
   });
@@ -246,11 +252,15 @@ describe('heal', () => {
 
   it('from nothing to full takes the build time again, and stops where the tank runs out', async () => {
     const frame = registry.get('frame');
-    const { w, r } = await run({ grid: ['F  C'] }, { 1: "scrap('frame@0,0')", 60: "build('frame@0,0')", 120: "heal('frame@0,0')", 121: 'job()' }, 200);
+    const w = await World.create({ seed: 1, scripts: host }, open);
+    const r = w.spawnBlueprint({ format: 1, name: 'bot', grid: ['F  C'], scripts: [script({ 1: "scrap('frame@0,0')", 60: "build('frame@0,0')", 120: "heal('frame@0,0')", 121: 'job()' })] }, { x: 0, y: 0.6 });
+    (r.parts.get('frame@0,0') as PartInstance).health = 0.2 * frame.health;
+    for (let i = 0; i < 200; i++) w.step();
     const part = r.parts.get('frame@0,0') as PartInstance;
-    // 0.8 scrapped, 0.5 built, 0.3 left of the 0.495 full health wants.
+    // Sold at 20 percent health it gives 0.6, built it takes 0.505, and the 0.095 left heals it back to 20 percent:
+    // a part sold hurt makes one only as hurt.
     expect(r.repair?.tank).toBeCloseTo(0, 10);
-    expect(part.health / frame.health).toBeCloseTo(START_HEALTH + 0.3 / 0.5, 8);
+    expect(part.health / frame.health).toBeCloseTo(0.2, 8);
     expect(answers(w)[3]).toMatchObject({ kind: 'heal', part: 'frame@0,0' });
     w.dispose();
   });
@@ -269,8 +279,8 @@ describe('readings', () => {
     const { w } = await run({ grid: ['.  L  F  C  F'], legend: { L: { part: 'laser', rot: 90, tags: ['gun'] } } }, { 1: "scrap('frame@2,0')", 60: `lost().map(${brief})`, 61: 'lost({ touching: true }).map((p) => p.id)', 62: "lost({ of: 'gun' }).map((p) => p.type)", 63: 'lost({ nope: 1 })' }, 66, { y: 5 });
     const [, all, touching, gun, bad] = answers(w) as unknown[][];
     expect(all).toMatchObject([
-      { type: 'laser', tags: expect.arrayContaining(['gun']), juice: 20, create: 10, seconds: 6, touching: false },
-      { id: 'frame@2,0', juice: 1, create: 0.5, touching: true },
+      { type: 'laser', tags: expect.arrayContaining(['gun']), juice: 20, create: expect.closeTo(10.1, 10), seconds: 6, touching: false },
+      { id: 'frame@2,0', juice: 1, create: expect.closeTo(0.505, 10), touching: true },
     ]);
     expect(touching).toEqual(['frame@2,0']);
     expect(gun).toEqual(['laser']);
@@ -282,7 +292,7 @@ describe('readings', () => {
   it('own() reads the robot itself, with scan options', async () => {
     const brief = '(p) => ({ id: p.id, health: p.health, maxHealth: p.maxHealth, juice: p.juice, gives: p.gives, heal: p.heal, seconds: p.seconds })';
     const { w } = await run({ grid: ['A  F  C'], legend: { A: { part: 'armorplate', tags: ['plate'] } } }, { 1: 'own().length', 2: `own({ of: 'plate' }).map(${brief})` }, 4);
-    expect(answers(w)).toEqual([3, [{ id: 'armorplate@0,0', health: 250, maxHealth: 250, juice: 5, gives: 4, heal: 0, seconds: 6 }]]);
+    expect(answers(w)).toEqual([3, [{ id: 'armorplate@0,0', health: 250, maxHealth: 250, juice: 5, gives: 5, heal: 0, seconds: 6 }]]);
     w.dispose();
   });
 

@@ -227,7 +227,7 @@ function sell(need, h, l, hard, real) {
   if (got < need) {
     for (const p of parts) {
       if (got >= need) break;
-      if (p.type === 'frame' && cellOf(p.id).y === 6 && holdsNothing(p, h) && !state.sold[p.id]) take(p.id, 0.8);
+      if (p.type === 'frame' && cellOf(p.id).y === 6 && holdsNothing(p, h) && !state.sold[p.id]) take(p.id, 1);
     }
   }
   if (got < need && l.times > sellTo) {
@@ -236,7 +236,7 @@ function sell(need, h, l, hard, real) {
     row.sort((a, b) => (l.short * (b.pos.x - l.cx) - l.short * (a.pos.x - l.cx)) * state.dir);
     for (const p of row.slice(0, spare)) {
       if (got >= need) break;
-      take(p.id, 0.8);
+      take(p.id, 1);
     }
   }
   if (got < need && hard) {
@@ -244,18 +244,18 @@ function sell(need, h, l, hard, real) {
     plates.sort((a, b) => Math.abs(cellOf(b.id).x - state.c.x) + Math.abs(cellOf(b.id).y - state.c.y) - Math.abs(cellOf(a.id).x - state.c.x) - Math.abs(cellOf(a.id).y - state.c.y));
     for (const p of plates) {
       if (got >= need || Math.abs(cellOf(p.id).x - state.c.x) <= 3) break;
-      take(p.id, 4);
+      take(p.id, 5);
     }
   }
   if (got < need && hard) {
     // On the ground a bay does it no good: under its own weight it sells down to none, and bays it made itself too. Up, a
-    // bay it just paid 50 for and sold for 40 is a loss.
+    // bay it just paid 50.5 for sells for 50 at most, and a hurt one for less: a loss.
     const falling = l.times < 1;
     const bays = parts.filter((p) => p.type === 'fabbay').sort((a, b) => fore(cellOf(b.id).x) - fore(cellOf(a.id).x));
     const forSale = bays.filter((p) => falling || !state.bayMade[p.id]);
     for (const p of forSale.slice(0, Math.max(0, bays.length - (falling ? 0 : minBays)))) {
       if (got >= need) break;
-      take(p.id, 80);
+      take(p.id, 100);
     }
     // Last, under its own weight: the batteries in the hull, from the far ends, where they are not all that holds it
     // together (`think` leaves those).
@@ -312,7 +312,7 @@ function lighten(l, bays) {
 }
 
 /** What selling a part brings at full health, near enough: `own` has the real figure, for too much to ask here. */
-const worth = (p) => (p.type === 'densebattery' ? 2.4 : p.type === 'armorplate' ? 4 : p.type === 'fabbay' ? 80 : p.type === 'reactor' ? 120 : p.type === 'radar' ? 4 : 0.8);
+const worth = (p) => (p.type === 'densebattery' ? 3 : p.type === 'armorplate' ? 5 : p.type === 'fabbay' ? 100 : p.type === 'reactor' ? 150 : p.type === 'radar' ? 5 : 1);
 
 /**
  * The far end of the hull, a column at a time, for as long as it would still hold itself up with `trimTo` to spare. It
@@ -333,7 +333,7 @@ function trim(need, h, hard) {
     if (bay) {
       gone.add(bay.id);
       if (hard && !state.bayMade[bay.id] && bays.length > minBays && liftNow(gone).times >= trimTo) {
-        out.push({ id: bay.id, gives: 80 });
+        out.push({ id: bay.id, gives: 100 });
         state.trimmed[bay.id] = true;
       }
       break;

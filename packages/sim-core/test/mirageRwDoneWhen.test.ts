@@ -169,7 +169,9 @@ describe('titan-mirage-rw: the repair script', () => {
 
   it('under its own weight: it sells plates off the core for weight, never the walls round it or level with it', async () => {
     const { w, r } = await flying();
-    shoot(r, (p) => p.def.id === 'propeller' && p.x >= 70);
+    // All its lift right of column 20 (column 70 until 2026-11-05: with scrapping at full price its batteries alone
+    // bought that lift back, and it sold no plate).
+    shoot(r, (p) => p.def.id === 'propeller' && p.x >= 20);
     steps(w, 6);
     const sold = w.events.flatMap((e) => (e.kind === 'partScrapped' && e.robot === r.id && e.partType === 'armorplate' ? [e.part] : []));
     expect(sold.length).toBeGreaterThan(5);

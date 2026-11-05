@@ -6,8 +6,12 @@ import type { FootprintCell, PartDef } from '../parts/types';
  * own robot into a tank and builds or heals other parts with what it holds (`repair.ts`).
  */
 
-/** What a scrap gives back, of the part's value. */
-export const SCRAP_RETURN = 0.8;
+/**
+ * What a scrap gives back, of the part's value. 1 since 2026-11-05 (0.8 before): juice is the one thing a robot never
+ * gets more of, and it goes down only when a part takes damage (Logan). A part sold at full health builds the same part
+ * at full health somewhere else; one sold at half health, only one at half health.
+ */
+export const SCRAP_RETURN = 1;
 /** The share of a part's worth that creating it costs. Healing it from nothing to full costs the rest. */
 export const CREATE_SHARE = 0.5;
 /** A job's seconds, as times the part's `build` seconds. 3 until 2026-11-02: Logan wanted it near instant, to see how robots behave. */
@@ -28,9 +32,13 @@ export function worth(def: PartDef, cells?: readonly FootprintCell[]): number {
   return def.juice ?? partMass(def, cells ?? def.footprint);
 }
 
-/** What creating a part costs. */
+/**
+ * What creating a part costs: the price of a part at `START_HEALTH`, the health it comes out at (50.5 percent of its
+ * worth). It was `CREATE_SHARE` alone until 2026-11-05, which handed out that 1 percent of health free: with scrapping at
+ * full price, a part made and sold again would have made juice from nothing.
+ */
 export function createCost(juice: number): number {
-  return CREATE_SHARE * juice;
+  return juice * (CREATE_SHARE + (1 - CREATE_SHARE) * START_HEALTH);
 }
 
 /** What healing a part by `gained`, a share of its full health, costs. */
