@@ -50,6 +50,11 @@ const FLOOR_A = opt('floor', 1); // armor plates under the lift boosters (ground
 const PAD = 6; // cells from a ramming face to the first booster or battery: a crash hurts nothing deeper than that
 const LIFT_ROWS = opt('lift', 8); // rows of lift boosters above the floor
 const PUSH_COLS = opt('push', LOWD ? 7 : 6); // columns of push boosters inside each side wall
+// Ribs (2026-11-05, Logan: "once there's a hit to the top of the well, we lose the whole side"): a push booster fires
+// sideways and bonds only above and below, so each column of them was a strand held by its bottom row, and a hit
+// there dropped up to 112 boosters off a side. `RIBS` rows of frames across each well, evenly up the battery rows,
+// tie every column to the end pad and to the battery block. 21 push boosters a side fewer.
+const RIBS = opt('ribs', LOWD ? 3 : 0);
 const CELL_ROWS = opt('cells', 22); // rows of dense batteries
 const BAND = opt('band', LOWD ? 4 : 1); // armor rows above and below the core's row
 const BOX = opt('box', LOWD ? 4 : 6); // armor columns each side of the core in those rows
@@ -163,12 +168,14 @@ function lowLayout() {
   const cellLo = SLAB;
   const cellHi = H - 1 - TOP_PAD - LIFT_ROWS; // the last battery row
   const inner = PAD + PUSH_COLS + 1;
+  const ribs = new Set();
+  for (let k = 1; k <= RIBS; k++) ribs.add(cellLo + Math.floor((k * (cellHi - cellLo + 1)) / (RIBS + 1)));
   for (let y = cellLo; y <= cellHi; y++) {
     const boxed = coreRow < SLAB ? y < SLAB + BAND : Math.abs(y - coreRow) <= BAND;
     for (let x = inner; x < W - inner; x++) g[y][x] = boxed && Math.abs(x - cx) <= BOX ? 'A' : 'Z';
     for (let i = 0; i < PUSH_COLS; i++) {
-      g[y][PAD + i] = 'p';
-      g[y][W - 1 - PAD - i] = 'q';
+      g[y][PAD + i] = ribs.has(y) ? 'F' : 'p';
+      g[y][W - 1 - PAD - i] = ribs.has(y) ? 'F' : 'q';
     }
   }
   g[coreRow][cx] = 'C';
