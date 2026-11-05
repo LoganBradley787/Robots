@@ -36,7 +36,20 @@
 // booster, nor what holds the core and the lasers to the reactors (`tiesCore`, `tiesLaser` paths that share no part,
 // through no jammer or booster). What it sells is no loss: a scrap gives back all a part is worth, and
 // what it shed is built again once it is up and calm, as long as its lift still holds `liftMargin` times its weight
-// with it. While it sheds it builds nothing but lift boosters and the keep.
+// with it. While it sheds it builds nothing but lift boosters, the keep, and its way to its lift (below).
+// Last resort (Logan, 2026-11-05, down to its keep, four reactors and ten lift boosters on the ground: "look at all
+// those plates on the bottom. We could definitely sell some of those"): grounded, with nothing else sold for `bareAt`
+// s, it sells the keep's plates, the outermost first and the bottom first, never the ring of `keepRing` round the core;
+// none of those left, its reactors, the furthest from the core first, keeping enough to run the lift it needs (a
+// reactor gives 1200 W, a lift booster at full draws 60). A keep plate it sold comes back as a shed part does, once it
+// is up, not at once as the keep does.
+// Grounded, it also builds its way to its lift: the lost parts that lead to a lost lift booster, the nearest first (in
+// Logan's replay its lift boosters sat three batteries apart, the batteries gone, and none it had lost touched it: it
+// sat 3 minutes with 38 in the tank it could spend on nothing). Not past `bridgeMax` cells, and never a jammer (the
+// pilot lit each one it made, every 5 s). What it makes to fly (lift boosters, and the way to them) it heals to full,
+// the weakest first, with what is over the float: in the air before anything else past the keep, on the ground with
+// half its jobs. Made at 1 percent, two bumps in that replay took 27 lift boosters and 53 batteries it had just made,
+// with 190 in the tank.
 
 const repairOn = param('repair', 1, { min: 0, max: 1 }); // 0: it never scraps, builds or heals
 const every = param('every', 30, { min: 1, max: 30 }); // ticks between looks
@@ -57,6 +70,9 @@ const frontR = param('frontR', 600, { min: 0, max: 2000 }); // m: the nearest en
 const ramR = param('ramR', 150, { min: 0, max: 2000 }); // m: an enemy core this near, it hardens the plates that face it
 const frontAt = param('frontAt', 0.5, { min: -1, max: 1 }); // how square to the front a plate faces to be hardened
 const backAt = param('backAt', -0.2, { min: -1, max: 1 }); // lean, a plate or gun facing the front less than this is not made
+const bareAt = param('bareAt', 6, { min: 0, max: 60 }); // s grounded with nothing else sold before it sells its keep's plates, then reactors
+const keepRing = param('keepRing', 1, { min: 0, max: 6 }); // cells round the core whose plates it never sells, even then
+const bridgeMax = param('bridgeMax', 12, { min: 0, max: 60 }); // cells it builds through, grounded, to reach a lost lift booster
 const tiesCore = param('tiesCore', 8, { min: 1, max: 30 }); // paths sharing no part that shedding leaves from the keep to the reactors
 const tiesLaser = param('tiesLaser', 3, { min: 1, max: 10 }); // and from each laser's mount
 
@@ -89,6 +105,9 @@ const isLift = (p) => p.type === 'booster' && (p.tags[0] === 'la' || p.tags[0] =
 const NEVER_SHED = new Set(['core', 'reactor', 'laser', 'piston', 'rotator', 'decoupler', 'booster']);
 // A booster pushes 400 N at full throttle (booster.json).
 const BOOST_N = 400;
+// A booster at full throttle draws 60 W (booster.json); a reactor gives 1200 (reactor.json).
+const BOOST_W = 60;
+const REACTOR_W = 1200;
 // Each type's mass, from the parts it starts with: what a lost part would weigh again, built.
 const MASS = {};
 
@@ -114,6 +133,9 @@ function setup() {
   state.strainAt = -1; // since when its lift rows have been at full throttle without climbing
   state.shedding = false; // shedding until its lift holds `liftMargin` times its weight
   state.held = {}; // part: when `spare` last turned it down for shedding (it holds the hull together)
+  state.bareSince = -1; // since when shedding has found nothing else to sell
+  state.bridge = {}; // what it built, grounded, to reach its lift: never shed
+  state.fresh = {}; // lift boosters and bridge parts it made, until they are healed to full
   for (const p of parts) MASS[p.type] = p.mass;
   // The middle of the hull and its half sizes: what a cell faces is read off where it is in the brick.
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -132,6 +154,8 @@ function setup() {
   state.had = {};
   for (const k of GROUPS) state.had[k] = 0;
   for (const p of parts) if (groupOf(p)) state.had[groupOf(p)]++;
+  // And what it had lost before this script ran (none at a spawn): the script swapped in mid fight.
+  for (const p of lost() ?? []) if (groupOf(p)) state.had[groupOf(p)]++;
   const far = (p) => fromCore(cellOf(p.id).x, cellOf(p.id).y);
   const byFar = (list) => list.filter((p) => far(p) > keepR).sort((a, b) => far(b) - far(a)).map((p) => p.id);
   const battery = new Set(parts.filter((p) => p.type === 'densebattery').map((p) => key(cellOf(p.id).x, cellOf(p.id).y)));
@@ -216,7 +240,7 @@ function cells() {
 }
 
 /** What the look wants, most wanted first: `{ id, cost, why, hard }`. */
-function wants(gone, g, at, front, lean) {
+function wants(gone, g, at, front, lean, grounded) {
   const list = [];
   const open = new Set();
   const add = (p, why, hard) => {
@@ -226,13 +250,47 @@ function wants(gone, g, at, front, lean) {
   };
   const reach = gone.filter((p) => p.touching);
   // 1: the keep, nearest the core first.
-  for (const p of reach.filter((q) => fromCore(q.x, q.y) <= keepR).sort((a, b) => fromCore(a.x, a.y) - fromCore(b.x, b.y))) add(p, 'keep', true);
+  for (const p of reach.filter((q) => fromCore(q.x, q.y) <= keepR && !state.shed[q.id] && q.type !== 'jammer').sort((a, b) => fromCore(a.x, a.y) - fromCore(b.x, b.y))) add(p, 'keep', true);
   // 2: boosters, the group that lost the largest share first.
   const share = (k) => (g[k].had > 0 ? g[k].now / g[k].had : 1);
   const order = GROUPS.filter((k) => share(k) < 1).sort((a, b) => share(a) - share(b));
   for (const k of order) {
     const hurt = share(k) < hurtAt;
     for (const p of reach.filter((q) => q.type === 'booster' && q.tags[0] === k && (hurt || calm(q.x, q.y)))) add(p, hurt ? 'hurt' : 'boosters', hurt);
+  }
+  // Grounded: the way to its lift, each lost part by how many lost cells lie between it and a lost lift booster.
+  if (grounded && bridgeMax > 0) {
+    const lostAt = new Map();
+    for (const p of gone) if (p.type !== 'reactor' && p.type !== 'jammer') lostAt.set(key(p.x, p.y), p);
+    // The half with the smaller share of its lift first: one half built back alone (6 of 132 to 63) it could not
+    // climb at 2.25 times its weight, the pilot holding the strong half back to stay level.
+    const half = (k) => {
+      const dist = new Map();
+      let queue = [];
+      for (const p of gone) {
+        if (p.type === 'booster' && p.tags[0] === k) {
+          dist.set(key(p.x, p.y), 0);
+          queue.push(p);
+        }
+      }
+      for (let d = 1; d <= bridgeMax && queue.length > 0; d++) {
+        const next = [];
+        for (const p of queue) {
+          for (const [dx, dy] of SIDES) {
+            const c = key(p.x + dx, p.y + dy);
+            const q = lostAt.get(c);
+            if (q === undefined || dist.has(c)) continue;
+            dist.set(c, d);
+            next.push(q);
+          }
+        }
+        queue = next;
+      }
+      const way = reach.filter((q) => !isLift(q) && dist.has(key(q.x, q.y)));
+      way.sort((a, b) => dist.get(key(a.x, a.y)) - dist.get(key(b.x, b.y)) || a.create - b.create);
+      return way;
+    };
+    for (const k of ['la', 'lb'].sort((a, b) => share(a) - share(b))) for (const p of half(k)) add(p, 'bridge', false);
   }
   // 3: the lasers and what brings them out.
   for (const p of reach.filter((q) => ['laser', 'piston', 'rotator', 'decoupler'].includes(q.type) && calm(q.x, q.y))) add(p, 'lasers', false);
@@ -478,7 +536,7 @@ function shed(want, free, busy, gone) {
   const back = backbone(gone);
   const list = [];
   for (const p of parts) {
-    if (NEVER_SHED.has(p.type) || state.sold[p.id] || busy.has(p.id) || back.hold.has(p.id) || time - (state.held[p.id] ?? -1000) < 5) continue;
+    if (NEVER_SHED.has(p.type) || state.sold[p.id] || state.bridge[p.id] || busy.has(p.id) || back.hold.has(p.id) || time - (state.held[p.id] ?? -1000) < 5) continue;
     const c = cellOf(p.id);
     if (fromCore(c.x, c.y) <= keepR) continue;
     // A body turned more than 6 degrees from the hull's: a section that swung away (what is on a laser's joint is that
@@ -549,6 +607,55 @@ function shed(want, free, busy, gone) {
     }
   }
   if (n > 0) log(`shed ${n} (${kg.toFixed(0)} kg) to get up: mass ${self.mass.toFixed(0)}, lift ${(liftKg() / self.mass).toFixed(2)}, climbing ${self.vel.y.toFixed(1)} m/s, core held ${back.core} ways, lasers ${back.lasers}`);
+  // Nothing else sold for `bareAt` s, and nothing of it still being sold: the last resort.
+  if (n > 0 || gone.size > 0) state.bareSince = -1;
+  else if (state.bareSince < 0) state.bareSince = time;
+  if (n === 0 && state.bareSince >= 0 && time - state.bareSince >= bareAt && free > 0) free = lastResort(want, free, busy);
+  return free;
+}
+
+/**
+ * Grounded with nothing else to sell: the keep's plates, the outermost first and the bottom first, never within
+ * `keepRing` of the core; none of those left, a reactor, the furthest first, keeping enough reactors to run the lift
+ * boosters it needs to hold `liftMargin` times what it would weigh without it.
+ */
+function lastResort(want, free, busy) {
+  // Keep plates that `spare` turned down a moment ago still count as there: none left is none at all, not none askable.
+  const plates = parts
+    .filter((p) => p.type === 'armorplate' && !state.sold[p.id] && !busy.has(p.id))
+    .filter((p) => {
+      const c = cellOf(p.id);
+      return fromCore(c.x, c.y) <= keepR && fromCore(c.x, c.y) > keepRing;
+    })
+    .sort((a, b) => fromCore(cellOf(b.id).x, cellOf(b.id).y) - fromCore(cellOf(a.id).x, cellOf(a.id).y) || cellOf(a.id).y - cellOf(b.id).y);
+  let list = plates.filter((p) => time - (state.held[p.id] ?? -1000) >= 5);
+  let what = 'keep plates';
+  if (plates.length === 0) {
+    const reactors = parts.filter((p) => p.type === 'reactor' && !state.sold[p.id] && !busy.has(p.id));
+    // What it needs: lift boosters for `liftMargin` times its weight less one reactor, and the reactors to run them.
+    const need = Math.ceil((((self.mass - (MASS.reactor ?? 100)) * 9.81 * liftMargin) / BOOST_N) * BOOST_W / REACTOR_W);
+    if (reactors.length - 1 < Math.max(1, need)) return free;
+    list = reactors.filter((p) => time - (state.held[p.id] ?? -1000) >= 5).sort((a, b) => fromCore(cellOf(b.id).x, cellOf(b.id).y) - fromCore(cellOf(a.id).x, cellOf(a.id).y)).slice(0, 1);
+    what = 'a reactor';
+  }
+  if (list.length === 0) return free;
+  const head = list.slice(0, 200);
+  const may = new Set(spare(head.map((p) => p.id)) ?? []);
+  for (const p of head) if (!may.has(p.id)) state.held[p.id] = time;
+  let kg = 0;
+  let n = 0;
+  for (const p of head) {
+    if (free <= 0 || kg >= want) break;
+    if (!may.has(p.id)) continue;
+    const done = scrap(p.id);
+    if (done.ok) {
+      state.shed[p.id] = true;
+      kg += p.mass;
+      free--;
+      n++;
+    } else if (done.why === 'too many orders this tick') break;
+  }
+  if (n > 0) log(`last resort: sold ${n} ${what} (${kg.toFixed(0)} kg) to get up: mass ${self.mass.toFixed(0)}, lift ${(liftKg() / self.mass).toFixed(2)}`);
   return free;
 }
 
@@ -598,17 +705,20 @@ function think() {
   state.lean = lean;
   if (front && (!state.front || faceName(front) !== faceName(state.front))) log(`front: its ${faceName(front)} face, ${front.d.toFixed(0)} m`);
   state.front = front;
-  const wish = wants(gone, g, cells(), front, lean).filter((w) => !busy.has(w.id) && (!grounded || w.lift || w.why === 'keep'));
+  const wish = wants(gone, g, cells(), front, lean, grounded).filter((w) => !busy.has(w.id) && (!grounded || w.lift || w.why === 'keep' || w.why === 'bridge'));
   const made = {};
   let need = 0;
   let hard = false;
   let why = '';
   const make = (list) => {
     for (const w of list) {
-      if (!w.lift && w.why !== 'keep' && w.kg > room) continue;
+      if (!w.lift && w.why !== 'keep' && w.why !== 'bridge' && w.kg > room) continue;
       if (free > 0 && money >= w.cost) {
         const done = build(w.id);
         if (done.ok) {
+          delete state.shed[w.id];
+          if (w.why === 'bridge') state.bridge[w.id] = true;
+          if (w.lift || w.why === 'bridge') state.fresh[w.id] = true;
           money -= w.cost;
           room += w.lift ? BOOST_N / 9.81 / liftMargin - w.kg : -w.kg;
           free--;
@@ -658,7 +768,34 @@ function think() {
     }
     if (n > 0) say(`hardening its ${faceName(front)} face: an enemy ${front.d.toFixed(0)} m off`);
   }
+  // What it made to fly, healed: the weakest first, with what is over the float. Gone or whole, it is crossed off.
+  const healFresh = (most) => {
+    const ids = Object.keys(state.fresh).slice(0, 400);
+    if (ids.length === 0 || free <= 0 || most <= 0 || money <= float) return;
+    const mine = own({ of: ids }) ?? [];
+    const alive = new Set(mine.map((q) => q.id));
+    for (const id of ids) if (!alive.has(id) && !busy.has(id)) delete state.fresh[id];
+    const weak = mine.filter((q) => !busy.has(q.id) && q.health < q.maxHealth).sort((a, b) => a.health / a.maxHealth - b.health / b.maxHealth);
+    for (const q of mine) if (q.health >= q.maxHealth) delete state.fresh[q.id];
+    let n = 0;
+    for (const q of weak) {
+      if (free <= 0 || n >= most || money - float < 0.05) break;
+      const pay = Math.min(q.heal, money - float);
+      const share = q.health / q.maxHealth;
+      if (heal(q.id, share + ((1 - share) * pay) / Math.max(q.heal, 1e-6)).ok) {
+        money -= pay;
+        free--;
+        n++;
+        busy.add(q.id);
+      }
+    }
+    if (n > 0) made.healed = (made.healed ?? 0) + n;
+  };
+  // A robot has a job for each 100 parts it has: stripped to 200, making its way up took every one of them, and it
+  // healed nothing. In the air healing comes first; on the ground it gets half.
+  healFresh(grounded ? Math.ceil(free / 2) : free);
   make(wish.filter((w) => !w.hard));
+  healFresh(free);
   const short = need + float - money;
   if (grounded) {
     // Shedding: it sells only for weight, above.
