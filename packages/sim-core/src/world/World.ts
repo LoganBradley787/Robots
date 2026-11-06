@@ -465,6 +465,8 @@ export class World {
   private pendingClearDebris = false;
   /** M16: robots to remove at the start of the next tick, by id. */
   private readonly pendingRemove = new Set<number>();
+  /** Parts to take off by hand on the next tick (`stripParts`), in the order asked. */
+  private pendingStrip: { robot: number; parts: string[] }[] = [];
   /** Smooth: robots whose scripts sit out the next tick (`skipScripts`), and those that sit out this one. */
   private readonly pendingSkip = new Set<number>();
   private skipping: ReadonlySet<number> = new Set();
@@ -741,6 +743,10 @@ export class World {
     }
     if (this.pendingClearDebris) this.removeDebris();
     this.pendingClearDebris = false;
+    if (this.pendingStrip.length > 0) {
+      const stripped = this.stripByHand();
+      if (stripped.length > 0) change.strip = stripped;
+    }
     // Smooth: after removals, so only robots whose scripts are here to skip are logged (and nothing changes the
     // runners again before scripts run).
     if (this.pendingSkip.size > 0) {
@@ -1250,6 +1256,39 @@ export class World {
       if (!Number.isInteger(id) || id < 1) throw new Error(`robot id must be a whole number, 1 or more, got ${String(id)}`);
       this.pendingRemove.add(id);
     }
+  }
+
+  /**
+   * Takes parts off a robot on the next tick, logged for replays: each goes as a sold part does, quietly (no blast, no
+   * juice), and is lost to the robot, so a repair script may make it again. Never its core. Ids not on it by then are
+   * skipped. For scenes that start a robot damaged; a piece left cut off breaks away in the rebuild, as after any loss.
+   */
+  stripParts(robotId: number, ids: readonly string[]): void {
+    if (!Number.isInteger(robotId) || robotId < 1) throw new Error(`robot id must be a whole number, 1 or more, got ${String(robotId)}`);
+    this.pendingStrip.push({ robot: robotId, parts: [...ids] });
+  }
+
+  /** The waiting strips; returns what was taken off, robot by robot. */
+  private stripByHand(): { robot: number; parts: string[] }[] {
+    const out: { robot: number; parts: string[] }[] = [];
+    for (const s of this.pendingStrip) {
+      const robot = this.robotById(s.robot);
+      if (!robot) continue;
+      const parts: string[] = [];
+      for (const id of s.parts) {
+        const part = robot.parts.get(id);
+        if (!part || part.def.role === 'core') continue;
+        robot.parts.delete(id);
+        parts.push(id);
+      }
+      if (parts.length === 0) continue;
+      this.dirty.add(robot);
+      out.push({ robot: s.robot, parts });
+    }
+    this.pendingStrip = [];
+    // Rebuilt now, before scripts run, so none sees a robot with parts gone but bodies not made again.
+    if (out.length > 0) this.rebuildDirty();
+    return out;
   }
 
   /** Whether the robot is waiting to be removed on the next tick (M16): the screen stops drawing it at once. */

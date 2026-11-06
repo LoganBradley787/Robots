@@ -41,11 +41,12 @@
 // those plates on the bottom. We could definitely sell some of those"): grounded, with nothing else sold for `bareAt`
 // s, it sells the keep's plates, the outermost first and the bottom first, never the ring of `keepRing` round the core;
 // none of those left, its reactors, the furthest from the core first, keeping enough to run the lift it needs (a
-// reactor gives 1200 W, a lift booster at full draws 60). A keep plate it sold comes back as a shed part does, once it
-// is up, not at once as the keep does.
+// reactor gives 1200 W, a lift booster at full draws 60). A keep plate it sold comes back once it is up, ahead of the
+// rest, as far as its lift has room for it.
 // Grounded, it also builds its way to its lift: the lost parts that lead to a lost lift booster, the nearest first (in
 // Logan's replay its lift boosters sat three batteries apart, the batteries gone, and none it had lost touched it: it
-// sat 3 minutes with 38 in the tank it could spend on nothing). Not past `bridgeMax` cells, and never a jammer (the
+// sat 3 minutes with 38 in the tank it could spend on nothing); in the air, to any booster group under `hurtAt` with no
+// lost booster it can reach. Not past `bridgeMax` cells, and never a jammer (the
 // pilot lit each one it made, every 5 s). What it makes to fly (lift boosters, and the way to them) it heals to full,
 // the weakest first, with what is over the float: in the air before anything else past the keep, on the ground with
 // half its jobs. Made at 1 percent, two bumps in that replay took 27 lift boosters and 53 batteries it had just made,
@@ -73,6 +74,7 @@ const backAt = param('backAt', -0.2, { min: -1, max: 1 }); // lean, a plate or g
 const bareAt = param('bareAt', 6, { min: 0, max: 60 }); // s grounded with nothing else sold before it sells its keep's plates, then reactors
 const keepRing = param('keepRing', 1, { min: 0, max: 6 }); // cells round the core whose plates it never sells, even then
 const bridgeMax = param('bridgeMax', 12, { min: 0, max: 60 }); // cells it builds through, grounded, to reach a lost lift booster
+const liftEnough = param('liftEnough', 1.6, { min: 1, max: 5 }); // its lift over its weight past which a hurt lift half is no longer first
 const tiesCore = param('tiesCore', 8, { min: 1, max: 30 }); // paths sharing no part that shedding leaves from the keep to the reactors
 const tiesLaser = param('tiesLaser', 3, { min: 1, max: 10 }); // and from each laser's mount
 
@@ -240,26 +242,35 @@ function cells() {
 }
 
 /** What the look wants, most wanted first: `{ id, cost, why, hard }`. */
-function wants(gone, g, at, front, lean, grounded) {
+function wants(gone, g, at, front, lean, grounded, liftShort) {
   const list = [];
   const open = new Set();
   const add = (p, why, hard) => {
     if (open.has(p.id) || time - (state.blocked[p.id] ?? -1000) < 10) return;
     open.add(p.id);
-    list.push({ id: p.id, cost: p.create, why, hard, lift: p.type === 'booster' && (p.tags[0] === 'la' || p.tags[0] === 'lb'), kg: MASS[p.type] ?? p.juice });
+    list.push({ id: p.id, cost: p.create, why, hard, lift: p.type === 'booster' && (p.tags[0] === 'la' || p.tags[0] === 'lb'), kg: MASS[p.type] ?? p.juice, shed: !!state.shed[p.id] });
   };
   const reach = gone.filter((p) => p.touching);
   // 1: the keep, nearest the core first.
-  for (const p of reach.filter((q) => fromCore(q.x, q.y) <= keepR && !state.shed[q.id] && q.type !== 'jammer').sort((a, b) => fromCore(a.x, a.y) - fromCore(b.x, b.y))) add(p, 'keep', true);
+  // What of the keep it sold to get up comes back first too, once it is up, as its lift has room for it: else a hurt
+  // lift half came first, and it took every last juice to 89 lift boosters and flew at a cannon tower with its core
+  // all but bare.
+  for (const p of reach.filter((q) => fromCore(q.x, q.y) <= keepR && q.type !== 'jammer').sort((a, b) => fromCore(a.x, a.y) - fromCore(b.x, b.y))) add(p, 'keep', true);
   // 2: boosters, the group that lost the largest share first.
   const share = (k) => (g[k].had > 0 ? g[k].now / g[k].had : 1);
-  const order = GROUPS.filter((k) => share(k) < 1).sort((a, b) => share(a) - share(b));
+  // A lift half is hurt only while its lift is short of `liftEnough` times its weight: stripped, a hurt half came
+  // first until it had 81 lift boosters, 2.5 times its weight, and nothing left for the push sides it had lost.
+  const order = GROUPS.filter((k) => share(k) < 1 && (liftShort || (k !== 'la' && k !== 'lb'))).sort((a, b) => share(a) - share(b));
+  const later = GROUPS.filter((k) => share(k) < 1 && !liftShort && (k === 'la' || k === 'lb'));
   for (const k of order) {
     const hurt = share(k) < hurtAt;
     for (const p of reach.filter((q) => q.type === 'booster' && q.tags[0] === k && (hurt || calm(q.x, q.y)))) add(p, hurt ? 'hurt' : 'boosters', hurt);
   }
-  // Grounded: the way to its lift, each lost part by how many lost cells lie between it and a lost lift booster.
-  if (grounded && bridgeMax > 0) {
+  // The way to its boosters, each lost part by how many lost cells lie between it and a lost booster of a group:
+  // grounded, its lift halves; else any group under `hurtAt` with no lost booster it can reach (stripped, its push
+  // sides were all gone and none it could reach: it crept 1 m/s along the ground at a tower it meant to ram, with 153
+  // in the tank).
+  if (bridgeMax > 0) {
     const lostAt = new Map();
     for (const p of gone) if (p.type !== 'reactor' && p.type !== 'jammer') lostAt.set(key(p.x, p.y), p);
     // The half with the smaller share of its lift first: one half built back alone (6 of 132 to 63) it could not
@@ -290,8 +301,11 @@ function wants(gone, g, at, front, lean, grounded) {
       way.sort((a, b) => dist.get(key(a.x, a.y)) - dist.get(key(b.x, b.y)) || a.create - b.create);
       return way;
     };
-    for (const k of ['la', 'lb'].sort((a, b) => share(a) - share(b))) for (const p of half(k)) add(p, 'bridge', false);
+    const cut = (k) => share(k) < hurtAt && !reach.some((q) => q.type === 'booster' && q.tags[0] === k);
+    const groupsTo = grounded ? ['la', 'lb'] : GROUPS.filter(cut);
+    for (const k of groupsTo.sort((a, b) => share(a) - share(b))) for (const p of half(k)) add(p, 'bridge', false);
   }
+  for (const k of later) for (const p of reach.filter((q) => q.type === 'booster' && q.tags[0] === k && calm(q.x, q.y))) add(p, 'boosters', false);
   // 3: the lasers and what brings them out.
   for (const p of reach.filter((q) => ['laser', 'piston', 'rotator', 'decoupler'].includes(q.type) && calm(q.x, q.y))) add(p, 'lasers', false);
   // Its guns, those pointing at the front first; lean, only those that point its way, and ahead of the faces.
@@ -372,11 +386,20 @@ function offers(short, hard) {
   return out;
 }
 
-/** The weight (kg) its lift boosters hold up at full throttle. */
+/**
+ * The weight (kg) its lift boosters hold up at full throttle, level: twice its weaker half, as the pilot holds the
+ * stronger half back to stay level. Counting all of them, stripped to 16 on one half and 23 on the other it read 1.2
+ * times its weight, built plates to that, and sat on the ground.
+ */
 function liftKg() {
-  let n = 0;
-  for (const p of parts) if (isLift(p)) n++;
-  return (n * BOOST_N) / 9.81;
+  let a = 0;
+  let b = 0;
+  for (const p of parts) {
+    if (!isLift(p)) continue;
+    if (p.tags[0] === 'la') a++;
+    else b++;
+  }
+  return (2 * Math.min(a, b) * BOOST_N) / 9.81;
 }
 
 /**
@@ -705,14 +728,14 @@ function think() {
   state.lean = lean;
   if (front && (!state.front || faceName(front) !== faceName(state.front))) log(`front: its ${faceName(front)} face, ${front.d.toFixed(0)} m`);
   state.front = front;
-  const wish = wants(gone, g, cells(), front, lean, grounded).filter((w) => !busy.has(w.id) && (!grounded || w.lift || w.why === 'keep' || w.why === 'bridge'));
+  const wish = wants(gone, g, cells(), front, lean, grounded, lift < liftEnough * self.mass).filter((w) => !busy.has(w.id) && (!grounded || w.lift || (w.why === 'keep' && !w.shed) || w.why === 'bridge'));
   const made = {};
   let need = 0;
   let hard = false;
   let why = '';
   const make = (list) => {
     for (const w of list) {
-      if (!w.lift && w.why !== 'keep' && w.why !== 'bridge' && w.kg > room) continue;
+      if (!w.lift && (w.why !== 'keep' || w.shed) && w.why !== 'bridge' && w.kg > room) continue;
       if (free > 0 && money >= w.cost) {
         const done = build(w.id);
         if (done.ok) {

@@ -35,6 +35,26 @@ describe('replay files', () => {
     w.dispose();
   });
 
+  it('parts stripped by hand go quietly, are lost to the robot, and a replay strips the same', async () => {
+    const w = await World.create({ seed: 3 }, flat);
+    const car = w.spawnBlueprint(carJson, { x: -20, y: 3 });
+    w.step();
+    const before = car.parts.size;
+    const take = [...car.parts.values()].filter((p) => p.def.role !== 'core').slice(0, 2).map((p) => p.id);
+    w.stripParts(car.id, [...take, 'no-such-part']);
+    for (let i = 0; i < 120; i++) w.step();
+    // Gone, with no blast and no loss event: what a sale leaves, less the juice (what that cut off breaks away).
+    expect(car.parts.size).toBeLessThanOrEqual(before - 2);
+    for (const id of take) expect(car.parts.has(id)).toBe(false);
+    expect(w.events.filter((e) => e.kind === 'partDestroyed' || e.kind === 'explosion')).toHaveLength(0);
+    const replay = buildReplay(w);
+    expect(replay.inputs.flatMap((t) => t.world?.strip ?? [])).toEqual([{ robot: car.id, parts: take }]);
+    const r = await runReplay(parseReplay(JSON.parse(JSON.stringify(replay))));
+    expect(r.matches).toBe(true);
+    r.world.dispose();
+    w.dispose();
+  });
+
   it('notices a replay that does not match', async () => {
     const w = await session();
     const replay = { ...buildReplay(w), endHash: '00000000' };

@@ -19,6 +19,17 @@ export interface WorldChange {
    * reference body (its core's, else its first) put at (x, y) turned to `angle`, standing still (`World.moveRobot`).
    */
   move?: RobotMove[];
+  /**
+   * Parts taken off robots by hand (`World.stripParts`): each goes quietly, as a sold part does (no blast, no juice),
+   * and is lost to its robot, so its repair may make it again. A scene that starts a robot damaged.
+   */
+  strip?: RobotStrip[];
+}
+
+/** Parts taken off one robot by hand (`WorldChange.strip`), by part id. */
+export interface RobotStrip {
+  robot: number;
+  parts: string[];
 }
 
 /** One robot put down by hand (`WorldChange.move`). */
@@ -30,7 +41,7 @@ export interface RobotMove {
 }
 
 function cloneChange(w: WorldChange): WorldChange {
-  return { ...w, ...(w.remove ? { remove: [...w.remove] } : {}), ...(w.skip ? { skip: [...w.skip] } : {}), ...(w.move ? { move: w.move.map((m) => ({ ...m })) } : {}) };
+  return { ...w, ...(w.remove ? { remove: [...w.remove] } : {}), ...(w.skip ? { skip: [...w.skip] } : {}), ...(w.move ? { move: w.move.map((m) => ({ ...m })) } : {}), ...(w.strip ? { strip: w.strip.map((s) => ({ robot: s.robot, parts: [...s.parts] })) } : {}) };
 }
 
 export interface LoggedTick {

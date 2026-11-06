@@ -1,4 +1,4 @@
-import { InputLog, type LoggedTick, type RobotMove } from './InputLog';
+import { InputLog, type LoggedTick, type RobotMove, type RobotStrip } from './InputLog';
 import type { RobotInput } from '../control/types';
 import { parseWorldFile, type WorldFile } from '../world/WorldFile';
 import { World, type SpawnRecord } from '../world/World';
@@ -62,6 +62,17 @@ function moveList(v: unknown, path: string): RobotMove[] {
   });
 }
 
+function stripList(v: unknown, path: string): RobotStrip[] {
+  if (!Array.isArray(v)) throw new ReplayError(`${path} must be a list of strips`);
+  return v.map((m, j) => {
+    const o = obj(m, `${path}[${j}]`);
+    const robot = int(o.robot, `${path}[${j}].robot`);
+    if (robot < 1) throw new ReplayError(`${path}[${j}].robot must be 1 or more`);
+    if (!Array.isArray(o.parts) || !o.parts.every((s) => typeof s === 'string')) throw new ReplayError(`${path}[${j}].parts must be a list of part ids`);
+    return { robot, parts: [...(o.parts as string[])] };
+  });
+}
+
 function strings(v: unknown, path: string): string[] {
   if (!Array.isArray(v) || !v.every((s) => typeof s === 'string')) throw new ReplayError(`${path} must be a list of key names`);
   return v as string[];
@@ -100,6 +111,7 @@ export function parseReplay(raw: unknown): ReplayFile {
       throw new ReplayError(`inputs[${i}].world.skip must be a list of robot ids (whole numbers, 1 or more)`);
     }
     const moves = world?.move === undefined ? undefined : moveList(world.move, `inputs[${i}].world.move`);
+    const strips = world?.strip === undefined ? undefined : stripList(world.strip, `inputs[${i}].world.strip`);
     return {
       ...(world
         ? {
@@ -110,6 +122,7 @@ export function parseReplay(raw: unknown): ReplayFile {
               ...(Array.isArray(world.skip) ? { skip: [...(world.skip as number[])] } : {}),
               ...(world.noSmokeOrJam === undefined ? {} : { noSmokeOrJam: world.noSmokeOrJam as boolean }),
               ...(moves ? { move: moves } : {}),
+              ...(strips ? { strip: strips } : {}),
             },
           }
         : {}),
@@ -170,6 +183,7 @@ export class ReplayPlayer {
     if (change?.clearDebris) world.clearDebris();
     // Before the removals: a robot moved and then removed by hand was moved first.
     for (const m of change?.move ?? []) world.moveRobot(m.robot, m.x, m.y, m.angle);
+    for (const s of change?.strip ?? []) world.stripParts(s.robot, s.parts);
     if (change?.remove) world.removeRobots(change.remove);
     if (change?.skip) world.skipScripts(change.skip);
     return this.log.inputsAt(world.tick);
