@@ -75,6 +75,7 @@ const bareAt = param('bareAt', 6, { min: 0, max: 60 }); // s grounded with nothi
 const keepRing = param('keepRing', 1, { min: 0, max: 6 }); // cells round the core whose plates it never sells, even then
 const bridgeMax = param('bridgeMax', 12, { min: 0, max: 60 }); // cells it builds through, grounded, to reach a lost lift booster
 const liftEnough = param('liftEnough', 1.6, { min: 1, max: 5 }); // its lift over its weight past which a hurt lift half is no longer first
+const leanMargin = param('leanMargin', 1.6, { min: 1, max: 3 }); // the lift over its weight it builds no further than with its push sides gone
 const tiesCore = param('tiesCore', 8, { min: 1, max: 30 }); // paths sharing no part that shedding leaves from the keep to the reactors
 const tiesLaser = param('tiesLaser', 3, { min: 1, max: 10 }); // and from each laser's mount
 
@@ -710,7 +711,13 @@ function think() {
     if (want > 0) free = shed(want, free, busy, new Set(work.jobs.filter((j) => j.kind === 'scrap').map((j) => j.part)));
   }
   // What it builds must leave its lift at `liftMargin` (a lift booster adds lift); shedding, only lift and the keep.
-  let room = lift / liftMargin - self.mass;
+  // Short of push it leans to go anywhere, and a lean takes from its lift: the margin it builds to rises to
+  // `leanMargin` as its weaker push side goes (Logan's replay: up again on 13 push boosters a side of 154, it built
+  // plates back to 1.2 times its weight, swung 57 degrees to and fro after a drone it never reached, and dove into
+  // the ground from 150 m).
+  const push = Math.min(g.pa.now / g.pa.had, g.pb.now / g.pb.had);
+  const margin = liftMargin + (leanMargin - liftMargin) * Math.max(0, 1 - push / 0.5);
+  let room = lift / margin - self.mass;
   // Its front, and whether it is lean: the plates it lost weigh more than its lift has room for, or its faces and guns
   // cost more than it has and can sell (a battery over its floor gives 3).
   const front = frontNow();
@@ -728,7 +735,7 @@ function think() {
   state.lean = lean;
   if (front && (!state.front || faceName(front) !== faceName(state.front))) log(`front: its ${faceName(front)} face, ${front.d.toFixed(0)} m`);
   state.front = front;
-  const wish = wants(gone, g, cells(), front, lean, grounded, lift < liftEnough * self.mass).filter((w) => !busy.has(w.id) && (!grounded || w.lift || (w.why === 'keep' && !w.shed) || w.why === 'bridge'));
+  const wish = wants(gone, g, cells(), front, lean, grounded, lift < Math.max(liftEnough, margin) * self.mass).filter((w) => !busy.has(w.id) && (!grounded || w.lift || (w.why === 'keep' && !w.shed) || w.why === 'bridge'));
   const made = {};
   let need = 0;
   let hard = false;
@@ -743,7 +750,7 @@ function think() {
           if (w.why === 'bridge') state.bridge[w.id] = true;
           if (w.lift || w.why === 'bridge') state.fresh[w.id] = true;
           money -= w.cost;
-          room += w.lift ? BOOST_N / 9.81 / liftMargin - w.kg : -w.kg;
+          room += w.lift ? BOOST_N / 9.81 / margin - w.kg : -w.kg;
           free--;
           made[w.why] = (made[w.why] ?? 0) + 1;
         } else if (done.why === 'blocked') state.blocked[w.id] = time;
