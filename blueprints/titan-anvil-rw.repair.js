@@ -43,6 +43,8 @@
 // none of those left, its reactors, the furthest from the core first, keeping enough to run the lift it needs (a
 // reactor gives 1200 W, a lift booster at full draws 60). A keep plate it sold comes back once it is up, ahead of the
 // rest, as far as its lift has room for it.
+// In the air with a push side all but gone (`steerAt`) and nothing else to sell, it sells the keep's plates and then
+// batteries for it, as on the ground (it cannot steer: it leans to go anywhere, and only one way leaned well).
 // Grounded, it also builds its way to its lift: the lost parts that lead to a lost lift booster, the nearest first (in
 // Logan's replay its lift boosters sat three batteries apart, the batteries gone, and none it had lost touched it: it
 // sat 3 minutes with 38 in the tank it could spend on nothing); in the air, to any booster group under `hurtAt` with no
@@ -76,6 +78,7 @@ const keepRing = param('keepRing', 1, { min: 0, max: 6 }); // cells round the co
 const bridgeMax = param('bridgeMax', 12, { min: 0, max: 60 }); // cells it builds through, grounded, to reach a lost lift booster
 const liftEnough = param('liftEnough', 1.6, { min: 1, max: 5 }); // its lift over its weight past which a hurt lift half is no longer first
 const leanMargin = param('leanMargin', 1.6, { min: 1, max: 3 }); // the lift over its weight it builds no further than with its push sides gone
+const steerAt = param('steerAt', 0.1, { min: 0, max: 1 }); // share of a push side under which, in the air, it sells its keep's plates and batteries to bring it back
 const tiesCore = param('tiesCore', 8, { min: 1, max: 30 }); // paths sharing no part that shedding leaves from the keep to the reactors
 const tiesLaser = param('tiesLaser', 3, { min: 1, max: 10 }); // and from each laser's mount
 
@@ -246,10 +249,11 @@ function cells() {
 function wants(gone, g, at, front, lean, grounded, liftShort) {
   const list = [];
   const open = new Set();
-  const add = (p, why, hard) => {
+  // `to`: the booster group what it makes is for (a booster's own, or the group a bridge leads to).
+  const add = (p, why, hard, to) => {
     if (open.has(p.id) || time - (state.blocked[p.id] ?? -1000) < 10) return;
     open.add(p.id);
-    list.push({ id: p.id, cost: p.create, why, hard, lift: p.type === 'booster' && (p.tags[0] === 'la' || p.tags[0] === 'lb'), kg: MASS[p.type] ?? p.juice, shed: !!state.shed[p.id] });
+    list.push({ id: p.id, cost: p.create, why, hard, lift: p.type === 'booster' && (p.tags[0] === 'la' || p.tags[0] === 'lb'), kg: MASS[p.type] ?? p.juice, shed: !!state.shed[p.id], to: to ?? (p.type === 'booster' ? p.tags[0] : '') });
   };
   const reach = gone.filter((p) => p.touching);
   // 1: the keep, nearest the core first.
@@ -304,7 +308,7 @@ function wants(gone, g, at, front, lean, grounded, liftShort) {
     };
     const cut = (k) => share(k) < hurtAt && !reach.some((q) => q.type === 'booster' && q.tags[0] === k);
     const groupsTo = grounded ? ['la', 'lb'] : GROUPS.filter(cut);
-    for (const k of groupsTo.sort((a, b) => share(a) - share(b))) for (const p of half(k)) add(p, 'bridge', false);
+    for (const k of groupsTo.sort((a, b) => share(a) - share(b))) for (const p of half(k)) add(p, 'bridge', false, k);
   }
   for (const k of later) for (const p of reach.filter((q) => q.type === 'booster' && q.tags[0] === k && calm(q.x, q.y))) add(p, 'boosters', false);
   // 3: the lasers and what brings them out.
@@ -639,6 +643,44 @@ function shed(want, free, busy, gone) {
 }
 
 /**
+ * In the air, a push side all but gone (under `steerAt` of what it had) and nothing else to sell for what would bring
+ * it back: the keep's plates outside `keepRing`, the outermost and the bottom first, then dense batteries, the furthest
+ * from the core first; never what holds the core or a laser to the reactors, a bridge it made, or what would cut it
+ * in two (`spare`). In Logan's replay, both push sides shot off, it had 0.3 in the tank and 31 plates and 77
+ * batteries on it (350 juice), leaned only to the right, and drifted out of the arena chasing drones to its left.
+ * What it sells comes back as shed parts do, once its lift has room for them.
+ */
+function sellToSteer(short, free, busy) {
+  const back = backbone(new Set());
+  const ok = (p) => !state.sold[p.id] && !busy.has(p.id) && !state.bridge[p.id] && !back.hold.has(p.id) && time - (state.held[p.id] ?? -1000) >= 5;
+  const far = (p) => fromCore(cellOf(p.id).x, cellOf(p.id).y);
+  const plates = parts.filter((p) => p.type === 'armorplate' && ok(p) && far(p) > keepRing).sort((a, b) => far(b) - far(a) || cellOf(a.id).y - cellOf(b.id).y);
+  const cells = parts.filter((p) => p.type === 'densebattery' && ok(p) && far(p) > keepRing).sort((a, b) => far(b) - far(a));
+  const head = plates.concat(cells).slice(0, 200);
+  if (head.length === 0) return;
+  const may = new Set(spare(head.map((p) => p.id)) ?? []);
+  for (const p of head) if (!may.has(p.id)) state.held[p.id] = time;
+  const worth = new Map((own({ of: head.filter((p) => may.has(p.id)).map((p) => p.id) }) ?? []).map((q) => [q.id, q.gives]));
+  let got = 0;
+  let n = 0;
+  for (const p of head) {
+    if (free <= 0 || got >= short) break;
+    if (!may.has(p.id)) continue;
+    const done = scrap(p.id);
+    if (done.ok) {
+      const gives = worth.get(p.id) ?? 0;
+      state.sold[p.id] = true;
+      state.due[p.id] = gives;
+      state.shed[p.id] = true;
+      got += gives;
+      free--;
+      n++;
+    } else if (done.why === 'too many orders this tick') break;
+  }
+  if (n > 0) log(`can't steer: sold ${n} for ${got.toFixed(1)} toward its push sides (${Math.round(100 * groups().pa.now / Math.max(1, state.had.pa))} and ${Math.round(100 * groups().pb.now / Math.max(1, state.had.pb))} percent)`);
+}
+
+/**
  * Grounded with nothing else to sell: the keep's plates, the outermost first and the bottom first, never within
  * `keepRing` of the core; none of those left, a reactor, the furthest first, keeping enough reactors to run the lift
  * boosters it needs to hold `liftMargin` times what it would weigh without it.
@@ -740,6 +782,7 @@ function think() {
   let need = 0;
   let hard = false;
   let why = '';
+  let steer = false; // what it cannot pay for leads to a push side it has all but lost
   const make = (list) => {
     for (const w of list) {
       if (!w.lift && (w.why !== 'keep' || w.shed) && w.why !== 'bridge' && w.kg > room) continue;
@@ -760,6 +803,7 @@ function think() {
         need += w.cost;
         hard = hard || w.hard;
         if (why === '') why = w.why;
+        if (w.to === 'pa' || w.to === 'pb') steer = true;
         if (need > 60) return;
       }
     }
@@ -871,6 +915,8 @@ function think() {
       } else if (done.why === 'too many orders this tick') break;
     }
     if (n > 0) log(`sell ${n} for ${why || 'the float'}: need ${need.toFixed(1)}, have ${money.toFixed(1)}`);
+    // Can't steer: a push side all but gone, what would bring it back unpaid, and nothing else to sell.
+    if (steer && got < short && free > 0 && Math.min(g.pa.now / g.pa.had, g.pb.now / g.pb.had) < steerAt) sellToSteer(short - got, free, busy);
   } else if (need === 0 && free > 0 && money > float) {
     // Plates worn thin, the most worn first, with what is over the float.
     let spareMoney = money - float;
