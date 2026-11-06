@@ -121,6 +121,8 @@ const zapStall = param('zapStall', 15, { min: 3, max: 120 }); // s of burning th
 const zapCone = param('zapCone', 45, { min: 10, max: 50 }); // degrees off straight down it burns at when the edge keeps it from getting over the target
 const zapIdle = param('zapIdle', 15, { min: 3, max: 120 }); // s at a perch with no beam landing and nothing breaking before it leaves off finishing
 const zapAway = param('zapAway', 45, { min: 5, max: 600 }); // s of what else it has (passes, rams) before it tries finishing again
+const roamUp = param('roamUp', 800, { min: 100, max: 100000 }); // m it never climbs past with no arena
+const roam = param('roam', 1800, { min: 100, max: 100000 }); // m from x 0 it keeps to with no arena: the stock worlds' ground ends at 2000, and searching on past it, it came down beyond the end and fell under the world (Logan, 2026-11-05)
 const zapEdge = param('zapEdge', 80, { min: 0, max: 500 }); // m: a flier closer than this to where its side would meet the edge is rammed, not finished
 const lidFall = param('lidFall', 0.6, { min: 0, max: 5 }); // s after a bay's lid is dropped before its laser is pushed out
 const zapKeep = param('zapKeep', 1.15, { min: 1, max: 3 }); // the lasers burn only while the energy left covers this many times hovering to the match's end
@@ -172,9 +174,9 @@ const grip = param('grip', 0.11, { min: 0, max: 2 }); // the ground's hold on a 
 const say = param('say', 1, { min: 0, max: 1 }); // 1 logs each change of plan
 
 // Limits from the arena (titans v2, 2026-10): none in the open sandbox.
-const edge = arena ? arena.x - edgeGap : Infinity; // the core stays within this of the middle, m
-const pushEdge = arena ? arena.x - pushGap : Infinity; // how far out its core may go while shoving
-const ceiling = arena ? arena.y - roofGap : Infinity; // the core never goes above this
+const edge = arena ? arena.x - edgeGap : roam; // the core stays within this of the middle, m (`roam` with no arena: past the ground's end any dip below its level is a fall)
+const pushEdge = arena ? arena.x - pushGap : roam; // how far out its core may go while shoving
+const ceiling = arena ? arena.y - roofGap : roamUp; // the core never goes above this (`roamUp` with no arena: after a gutted Mirage rising 12 m/s it went up 12 km)
 
 let guns = null;
 let zaps = []; // the pop-out lasers: { laser, rot, push } (see runZap)
@@ -1578,6 +1580,8 @@ function tick() {
   // finishing off for `zapAway` s and it goes back to what else it has.
   const perchZap = (tx, ty, sh, tvx, tvy, nowParts) => {
     if (Math.hypot(tvx, tvy) > 1) state.zapMoved = time; // its real speed: the next lines may zero it
+    const realVx = tvx;
+    const realVy = tvy;
     // A target lodged on it moves as it does (anvil r9: under today's crash rule a hive stuck to its face after a hit,
     // and following the hive's speed, its own, it ran away with it to 83 m/s and out at the edge). Close and moving as
     // it does, the target is not led.
@@ -1611,8 +1615,10 @@ function tick() {
       state.zapProg = time;
       if (say > 0.5) log('finishing: nothing breaks, burning from spot', state.zapOff % 3);
     }
-    // Still on its way counts as busy; a target it moves with does not.
-    if (state.zapFiring > 0 || Math.hypot(vx - tvx, vy - tvy) > 5) state.zapLive = time;
+    // Still on its way counts as busy; a target it moves with does not, by the target's real speed: zeroed above for
+    // one that moves as it does, its own climb read as on its way, and it followed a gutted Mirage rising 12 m/s with
+    // its lasers 45 m under it, up 12 km (Logan, 2026-11-05).
+    if (state.zapFiring > 0 || Math.hypot(vx - realVx, vy - realVy) > 5) state.zapLive = time;
     if (time - state.zapLive > zapIdle || state.zapDry >= 3) {
       state.zapBack = time + zapAway;
       state.zapping = false;
@@ -1841,7 +1847,10 @@ function tick() {
   const timeLeft = arena ? Math.max(0, match - self.age) : hold; // s of hovering it must keep in hand
   // Hidden from the radar while raking or finishing it: it goes on with that where it was last seen (see below).
   const stickyHidden = !target && state.mainId >= 0 && state.last && state.shape && time - state.last.t < 30 && (state.rakeId === state.mainId || (state.zapping && state.zapId === state.mainId));
-  if (state.won && !target) {
+  // Won, but losing parts: something it cannot see is at it, as when resting below. It searches instead of landing
+  // (Logan, 2026-11-05: one of two Mirages killed, the other hidden in its jammer bubble, it landed and its bay copies
+  // took 700 parts and the core off it on the ground).
+  if (state.won && !target && time - state.hurtAt > forget) {
     plan('done: landing, watching for the next enemy');
     land = true;
   } else if (charge < reserve) {
@@ -2129,7 +2138,7 @@ function tick() {
     const mid = arena ? 0 : state.last ? state.last.x : state.home.x;
     const reach = arena ? edge - 10 : lapEnd + 300 * Math.floor(state.leg / 2); // with no arena each sweep reaches further
     const legs = [mid + far * reach, mid, mid + far * reach, mid - far * reach];
-    const to = legs[state.leg % legs.length];
+    const to = arena ? legs[state.leg % legs.length] : clamp(legs[state.leg % legs.length], -roam, roam);
     if (Math.abs(to - x) < 10) state.leg++;
     const hurry = arena && state.leg === 0 && (x + state.home.x * 0.5) * far < 0; // not yet halfway to the enemy's start
     wantVx = clamp(0.5 * (to - x), -(hurry ? lineUp : sweepSpeed), hurry ? lineUp : sweepSpeed);
@@ -2254,7 +2263,12 @@ function tick() {
 
   // Height: a wanted climb rate toward the height, never sinking faster than the lift rows can stop before the
   // ground. Ramming may sink at up to that (a free fall while far up: the lift is cut).
-  if (land) {
+  // With no arena, past `roam` it may be over no ground at all: it comes back in before it lands.
+  const offGround = !arena && Math.abs(x) > roam;
+  if (land && offGround) {
+    wantVx = clamp(-x, -sweepSpeed, sweepSpeed);
+    wantH = Math.max(wantH, floor + 40);
+  } else if (land) {
     wantVx = 0;
     wantH = floor;
   }
@@ -2279,7 +2293,7 @@ function tick() {
   // Lean (titans v2, 2026-10, Logan: "tilt to accelerate faster"): when the wanted speed change is more than the
   // push boosters give, it leans the lift rows that way, up to `tilt` degrees, and levels out before a hit.
   // Leaning takes seconds (a 12 t brick turns slowly), so only big changes lean.
-  if (land) wantVx = 0;
+  if (land && !offGround) wantVx = 0;
   // Never faster toward an arena's edge than it can stop before `limit` (no edge in the open sandbox).
   // Going right is stopped by the boosters that push left, and the other way round: count what is left of each.
   // Air drag helps (titans v3, 2026-10): with F on it, it stops from v in (m / 2k) ln(1 + k v² / F) meters, so in

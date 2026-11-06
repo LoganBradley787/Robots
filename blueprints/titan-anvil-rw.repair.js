@@ -16,8 +16,9 @@
 // nearest enemy core within `frontR` is its front. Plates facing it come back first (a part comes back at 1 percent,
 // so what makes a plate armor is the heal after it). Lean (the plates it lost weigh more than its lift has room for,
 // or cost more than it has and can sell), it makes no plate or gun facing away from the front (`backAt`), and its
-// guns that point at the front come back ahead of its faces. An enemy core within `ramR`: it heals the plates that
-// face it to full, most square to it first, ahead of all but the keep and a hurt group, selling for it.
+// guns that point at the front come back ahead of its faces. An enemy core within `ramR`, closing at `ramClose` or
+// more or with a part lost lately: it heals the plates that face it to full, most square to it first, ahead of all
+// but the keep and a hurt group, selling for it.
 // A region (`region` cells square) that lost a part in the last `quiet` s is left alone, the keep and a hurt group apart:
 // what it makes in the middle of a ram dies with the next hit.
 // What it cannot pay for it sells for, keeping a `float` in the tank: jammers first (never made again), then batteries,
@@ -72,6 +73,7 @@ const stillAt = param('stillAt', 3, { min: 0, max: 30 }); // m/s under which one
 const frontR = param('frontR', 600, { min: 0, max: 2000 }); // m: the nearest enemy core within this is its front
 const ramR = param('ramR', 150, { min: 0, max: 2000 }); // m: an enemy core this near, it hardens the plates that face it
 const frontAt = param('frontAt', 0.5, { min: -1, max: 1 }); // how square to the front a plate faces to be hardened
+const ramClose = param('ramClose', 6, { min: 0, max: 100 }); // m/s it and that enemy close at, or a part lost in the last `quiet` s, for it to harden
 const backAt = param('backAt', -0.2, { min: -1, max: 1 }); // lean, a plate or gun facing the front less than this is not made
 const bareAt = param('bareAt', 6, { min: 0, max: 60 }); // s grounded with nothing else sold before it sells its keep's plates, then reactors
 const keepRing = param('keepRing', 1, { min: 0, max: 6 }); // cells round the core whose plates it never sells, even then
@@ -200,7 +202,9 @@ function frontNow() {
     const by = -dx * si + dy * co;
     const n = Math.hypot(bx, by);
     if (n < 1e-6) return null;
-    return { x: bx / n, y: by / n, d: c.distance };
+    // How fast the two close, m/s (contacts carry the velocity of the body their core is on).
+    const closing = c.vel.x === null || c.vel.y === null ? 0 : -((dx * (c.vel.x - self.vel.x) + dy * (c.vel.y - self.vel.y)) / Math.max(1e-6, Math.hypot(dx, dy)));
+    return { x: bx / n, y: by / n, d: c.distance, closing };
   }
   return null;
 }
@@ -816,7 +820,11 @@ function think() {
     if (ownPlates === null) ownPlates = own({ of: 'armorplate' }) ?? [];
     return ownPlates;
   };
-  if (front && front.d < ramR && !grounded && need <= 60) {
+  // Only for a ram or under fire: finishing a gutted Mirage 44 m off for 40 s, it healed whatever face pointed at it,
+  // sold its batteries and jammers for that, and had nothing left to rebuild with (Logan, 2026-11-05).
+  let underFire = false;
+  for (const k in state.heat) if (time - state.heat[k] <= quiet) underFire = true;
+  if (front && front.d < ramR && (front.closing > ramClose || underFire) && !grounded && need <= 60) {
     const face = plates()
       .filter((q) => q.health < q.maxHealth && !busy.has(q.id))
       .map((q) => ({ q, f: facing(cellOf(q.id).x, cellOf(q.id).y, front) }))
